@@ -1,0 +1,60 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rolldesk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rolldesk}
+      POSTGRES_DB: ${POSTGRES_DB:-rolldesk}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rolldesk}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    image: rolldesk/backend:${TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER:-rolldesk}:${POSTGRES_PASSWORD:-rolldesk}@db:5432/${POSTGRES_DB:-rolldesk}
+      # List of allowed IPs / subnets (CIDR) — comma-separated.
+      # Empty = no restriction at the backend layer (nginx filters anyway).
+      ALLOWED_IPS: ${ALLOWED_IPS:-}
+      TRUST_PROXY: "1"
+      # SMTP — server address comes from configuration, not from code:
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-RollDesk <no-reply@rolldesk.local>}
+    volumes:
+      # Dev only: makes local (git-ignored) seed data available inside the container
+      # so you can run `docker compose exec backend npm run seed`.
+      - ./backend/src/seeds:/app/src/seeds:ro
+
+  frontend:
+    build: ./frontend
+    image: rolldesk/frontend:${TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # List of allowed IPs / subnets (CIDR) — comma- or space-separated.
+      # Example: "203.0.113.4, 198.51.100.0/24, 192.168.0.0/16"
+      # Empty = access from any IP (NOT recommended in production).
+      ALLOWED_IPS: ${ALLOWED_IPS:-}
+    ports:
+      # In production usually 80/443 (with a certificate). Here 8080 for convenience.
+      - "${HTTP_PORT:-8080}:80"
+
+volumes:
+  db-data:

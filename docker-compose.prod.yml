@@ -1,0 +1,51 @@
+# Production compose file — runs pre-built images pulled from a container registry
+# (e.g. GitHub Container Registry). This file is copied to the target server by the
+# GitHub Actions deploy workflow. IMAGE_PREFIX and TAG come from the server .env
+# (or are exported by the deploy step).
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rolldesk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rolldesk}
+      POSTGRES_DB: ${POSTGRES_DB:-rolldesk}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rolldesk}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: ${IMAGE_PREFIX:-ghcr.io/your-org/rolldesk}-backend:${TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER:-rolldesk}:${POSTGRES_PASSWORD:-rolldesk}@db:5432/${POSTGRES_DB:-rolldesk}
+      ALLOWED_IPS: ${ALLOWED_IPS:-}
+      TRUST_PROXY: "1"
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-RollDesk <no-reply@rolldesk.local>}
+
+  frontend:
+    image: ${IMAGE_PREFIX:-ghcr.io/your-org/rolldesk}-frontend:${TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      ALLOWED_IPS: ${ALLOWED_IPS:-}
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+
+volumes:
+  db-data:
