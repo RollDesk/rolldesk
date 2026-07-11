@@ -1,210 +1,253 @@
-# RollDesk — self-hostable deployment tracker
+# RollDesk
 
-A complete, runnable package: **UI + backend (API) + PostgreSQL database**, all in Docker, with **IP-based access control** and ready-to-use **CI/CD on GitHub** that deploys to your own server over SSH.
+**RollDesk is a self-hostable web app for planning, tracking, and coordinating software deployments ("rollouts") to client projects across test and production environments.**
+
+It gives everyone involved in a release — the release manager, the person doing the deployment, and the client — a single shared view of *what* is being deployed, *when*, *to which targets*, and its *current status*. Instead of spreadsheets and chat messages, a deployment lives as one record with a schedule, a status, an assignee, client sign-off, and an audit trail.
+
+The whole thing ships as a small, runnable package: a static UI + an Express API + PostgreSQL, all in Docker, with IP-based access control and ready-to-use CI/CD.
+
+> **Status:** early / functional prototype. The infrastructure, API, database, and CI/CD are real; the UI is a rich mockup and authentication is not yet real (see [Project status](#project-status)).
+
+---
+
+## Table of contents
+
+- [What problem it solves](#what-problem-it-solves)
+- [Core concepts](#core-concepts)
+- [Roles & features](#roles--features)
+- [Architecture](#architecture)
+- [Tech stack](#tech-stack)
+- [Repository layout](#repository-layout)
+- [Getting started (local development)](#getting-started-local-development)
+- [Configuration](#configuration)
+- [Database: migrations & seeding](#database-migrations--seeding)
+- [HTTP API](#http-api)
+- [Tests](#tests)
+- [Deployment](#deployment)
+- [Contributing](#contributing)
+- [Project status](#project-status)
+- [License](#license)
+
+---
+
+## What problem it solves
+
+Rolling out software to a client is rarely a single "deploy" button. A release often means:
+
+- pushing several applications, at different versions,
+- first to one or more **test** environments, then to **production**,
+- where production may be **many locations/targets** (e.g. dozens of sites), rolled out over several days,
+- with a **client** who needs to see and approve the plan,
+- and a clear record of who did what, when, and whether it succeeded or was rolled back.
+
+RollDesk models exactly that: a **deployment** carries its schedule, target list, status, assignee, client notes/approval, results, and comments — visible to the right people, with notifications and a change history.
+
+---
+
+## Core concepts
+
+| Term | Meaning |
+|------|---------|
+| **Client** | An organisation RollDesk delivers to. Has one or more projects (e.g. `acme`, `globex`). |
+| **Project** | A deliverable belonging to a client (e.g. `acme:core`). Defines its **applications**, **test environments**, and default scheduling (days/time). |
+| **Application** | A deployable unit within a project (a service/repo), with tracked deployed versions. |
+| **Deployment target** | A destination a project deploys to — a non-production (test) environment or a named production location. |
+| **Deployment** | One rollout record: which project/apps/versions, to which environment(s), on what schedule, its status, assignee, client approval, and results. |
+| **Status** | Lifecycle of a deployment: `scheduled` → `installed`, or `failed` / `rolledback` / `aborted`; a rollout can also be `paused`. |
+| **Mode** | A deployment is either a **test-only** install (installed once, manually) or a **batch** rollout (spread across many production targets over several days). |
+
+---
+
+## Roles & features
+
+The UI is organised around the people involved in a release:
+
+- **Release Manager** — defines projects (apps, targets, post-deployment notifications), schedules new deployments, and monitors the deployments board.
+- **Deployer** — a focused panel to carry out the assigned installs and report results.
+- **Client** — a read-oriented view of the schedule and status for the projects they can see, with approval/notes.
+- **Administrator** — manages users, clients, notification rules (email/Teams), and reviews the change history (audit log).
+- **Account** — profile, help, and sign-out.
+
+Cross-cutting features: schedule shifting mid-rollout, pause/resume with a reason, per-event notifications, an append-only audit trail, and IP-restricted access.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+    U[Browser] -->|HTTP :8080| N
+
+    subgraph Docker
+      N[frontend: nginx<br/>static UI + IP allowlist + /api proxy]
+      B[backend: Express API<br/>IP allowlist + migrations on start]
+      D[(PostgreSQL<br/>db-data volume)]
+      N -->|/api, /health| B
+      B --> D
+    end
+```
+
+- **frontend** — an nginx container that serves the single-page UI (`frontend/app/index.html`), proxies `/api` and `/health` to the backend, and enforces an IP allowlist built from `ALLOWED_IPS`.
+- **backend** — an Express API that persists data to PostgreSQL, runs database migrations on startup, applies a second IP-allowlist layer, and can send email notifications via SMTP.
+- **db** — PostgreSQL. Deployments and projects are stored with filterable columns plus a `JSONB` `data` column holding the full object, so the UI can evolve its shape without constant migrations.
+
+**Connected vs demo mode:** the UI auto-detects the backend. With the backend up (via `docker compose`) it runs in **CONNECTED** mode — loading from and saving to the database (a "● database connected" indicator shows bottom-right). Opened as a bare file with no backend, it runs in **DEMO** mode on in-memory placeholder data ("○ demo mode").
+
+---
+
+## Tech stack
+
+- **Frontend:** a single self-contained `index.html` (vanilla HTML/CSS/JS, no build step), served by **nginx**.
+- **Backend:** **Node.js 20**, **Express 4**, **pg**, **nodemailer**, **ipaddr.js** (ES modules).
+- **Database:** **PostgreSQL 16**.
+- **Infra/CI:** **Docker** + **Docker Compose**, **GitHub Actions**, images published to **GHCR**.
+- **Tests:** Node's built-in `node:test` runner (zero extra dependencies).
+
+---
+
+## Repository layout
 
 ```
 rolldesk/
 ├── docker-compose.yml            # local/dev stack: frontend + backend + postgres (builds images)
 ├── docker-compose.prod.yml       # production stack: runs pre-built images from a registry
-├── .env.example                  # configuration (copy to .env)
+├── .env.example                  # configuration template (copy to .env)
 ├── .github/workflows/
-│   ├── deploy.yml                # on push to main: test → build & push images (GHCR) → deploy over SSH
-│   └── release.yml               # on version tag/release: test → build & push versioned images
+│   ├── deploy.yml                # push to main:        test → build & push images → deploy over SSH
+│   └── release.yml               # version tag/release: test → build & push versioned images
 ├── frontend/                     # nginx serving the UI + /api proxy + IP allowlist
 │   ├── Dockerfile
 │   ├── nginx.conf.template
 │   ├── docker-entrypoint.sh      # builds the "allow" list from ALLOWED_IPS
-│   └── app/index.html            # the application (RollDesk UI)
+│   └── app/index.html            # the entire application UI
 └── backend/                      # Express + PostgreSQL + IP allowlist
     ├── Dockerfile
     ├── package.json
-    ├── src/…                     # index, config, db, mailer, ipAllowlist, migrate, seed, routes, migrations, seeds
-    └── test/…                    # unit tests (Node built-in test runner)
+    ├── src/
+    │   ├── index.js              # app entrypoint (runs migrations, then listens)
+    │   ├── config.js             # env-driven configuration
+    │   ├── db.js                 # pg pool
+    │   ├── ipAllowlist.js        # IP/CIDR access control (pure helpers + middleware)
+    │   ├── migrate.js            # migration runner (also a CLI)
+    │   ├── seed.js               # local test-data loader (also a CLI)
+    │   ├── mailer.js             # SMTP notifications
+    │   ├── routes/               # deployments, projects, health
+    │   ├── migrations/           # versioned schema SQL (committed)
+    │   └── seeds/                # local.sql.example (committed) + local.sql (git-ignored)
+    └── test/                     # unit tests (node:test)
 ```
 
 ---
 
-## Can this be hosted "on GitHub"?
+## Getting started (local development)
 
-Short answer: **GitHub Pages is not enough.** Pages only serves static files — it cannot run a database or a backend, and it cannot enforce IP restrictions.
-
-A sensible split:
-- **GitHub** → source code repository + automated Docker image builds (the workflow in `.github/workflows/deploy.yml` publishes images to `ghcr.io`) + automated deployment.
-- **Target server** (a VPS or an internal server) running Docker → the whole application, including the database, runs here.
-- **IP restriction** → handled by nginx (and additionally in the backend), controlled by the `ALLOWED_IPS` variable.
-
-Data is stored durably in PostgreSQL (the `db-data` volume), so it survives container restarts.
-
----
-
-## Quick start (locally or on a server)
+### Run the full stack with Docker (recommended)
 
 ```bash
 cp .env.example .env
-# set ALLOWED_IPS, the database password, and (optionally) SMTP_HOST
+# set at least POSTGRES_PASSWORD; leave ALLOWED_IPS empty for local use
 docker compose up --build
 ```
 
-- UI: `http://SERVER:8080`
-- API: `http://SERVER:8080/api/deployments`
-- Health: `http://SERVER:8080/health`
+- UI: `http://localhost:8080`
+- API: `http://localhost:8080/api/deployments`
+- Health: `http://localhost:8080/health`
 
-Database migrations run automatically when the backend starts (see [Database migrations](#database-migrations)).
+Migrations run automatically on backend start. To load sample data, see [seeding](#local-test-data-not-committed).
+
+### Run the backend on its own (fast iteration)
+
+You need a PostgreSQL reachable via `DATABASE_URL`.
+
+```bash
+cd backend
+npm install
+export DATABASE_URL=postgres://rolldesk:rolldesk@localhost:5432/rolldesk
+npm run migrate   # apply schema
+npm run seed      # optional: load backend/src/seeds/local.sql
+npm start         # http://localhost:3000
+```
+
+The frontend is a static file — for pure UI work you can just open `frontend/app/index.html` in a browser (it falls back to demo mode without a backend).
 
 ---
 
-## Restricting access to your team (by IP)
+## Configuration
 
-In `.env`, set the addresses/subnets your team connects from:
+All configuration comes from environment variables (see `.env.example`). Key ones:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `HTTP_PORT` | `8080` | Host port the frontend (nginx) listens on. |
+| `ALLOWED_IPS` | *(empty)* | Comma/space-separated IPs and CIDR ranges allowed to reach the UI + API. Empty = no restriction (**dev only**). |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `rolldesk` | Database credentials. |
+| `DATABASE_URL` | *(built from the above)* | Backend connection string. |
+| `TRUST_PROXY` | `1` (in compose) | Trust `X-Forwarded-For` for the real client IP behind a proxy. |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | *(empty)* | SMTP for email notifications; if `SMTP_HOST` is unset, sending is skipped. |
+| `IMAGE_PREFIX` / `TAG` | — | Used by `docker-compose.prod.yml` to pick which registry images/version to run. |
+
+### Restricting access by IP
 
 ```
 ALLOWED_IPS=203.0.113.4, 198.51.100.0/24, 10.8.0.0/24
 ```
 
-- Single IPs and CIDR ranges are supported (IPv4/IPv6).
-- Filtering runs on **nginx** (entire UI + API) and in the **backend** (a second layer).
-- Leaving the list empty = no restriction (testing only).
-
-Typically you add your office's public address and the VPN subnet the team uses.
-
-> If the app sits behind an additional load balancer, make sure the real client IP arrives in the `X-Forwarded-For` header (the backend sets `TRUST_PROXY=1`).
+Filtering runs at **nginx** (whole UI + API) and again in the **backend**. IPv4/IPv6 single addresses and CIDR ranges are supported. Typically you allow your office's public IP and the team VPN subnet.
 
 ---
 
-## Continuous deployment to your server over SSH
+## Database: migrations & seeding
 
-On every push to `main`, the workflow (`.github/workflows/deploy.yml`) runs three jobs:
+The backend includes a small, dependency-free **migration runner** (`backend/src/migrate.js`). Versioned SQL files in `backend/src/migrations/` are applied **in filename order, exactly once**, tracked in a `schema_migrations` table.
 
-1. **test** — installs backend dependencies and runs the unit tests.
-2. **build-and-push** — builds the frontend and backend images and pushes them to GHCR:
-   - `ghcr.io/<owner>/<repo>-backend`
-   - `ghcr.io/<owner>/<repo>-frontend`
-   - tagged with both `latest` and the commit SHA.
-3. **deploy** — connects to your server over SSH, copies `docker-compose.prod.yml`, then runs `docker compose pull && docker compose up -d`. Database migrations are baked into the backend image and applied automatically on startup, so nothing else needs to be copied.
-
-### Server prerequisites
-
-- Docker + the Docker Compose plugin installed.
-- A deployment directory (e.g. `/opt/rolldesk`) containing a `.env` file with your production values (`POSTGRES_PASSWORD`, `ALLOWED_IPS`, `SMTP_*`, `HTTP_PORT`, …). See `.env.example`.
-- An SSH user that can run `docker`.
-
-### Required GitHub repository secrets
-
-Add these under **Settings → Secrets and variables → Actions**:
-
-| Secret | Description |
-|--------|-------------|
-| `SSH_HOST` | Server hostname or IP |
-| `SSH_USER` | SSH username |
-| `SSH_KEY` | Private SSH key (PEM) for that user |
-| `SSH_PORT` | SSH port (e.g. `22`) |
-| `DEPLOY_PATH` | Absolute path to the deployment directory on the server (e.g. `/opt/rolldesk`) |
-
-`GITHUB_TOKEN` is provided automatically and is used both to push images and to pull them on the server.
-
-> **Tip:** create a GitHub Environment named `production` (referenced by the deploy job) to add required reviewers or environment-scoped secrets.
-
-### Manual deployment (without the workflow)
-
-On the server you can pull and run the published images directly:
-
-```bash
-export IMAGE_PREFIX=ghcr.io/<owner>/<repo>
-export TAG=latest
-docker login ghcr.io
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
-```
-
----
-
-## Release pipeline (versioned images)
-
-Separately from the main-branch continuous deployment, `.github/workflows/release.yml` builds **versioned release images**. It triggers whenever you publish a GitHub Release or push a version tag matching `v*.*.*`, and runs two jobs:
-
-1. **test** — runs the automated backend tests (the release is blocked if they fail).
-2. **build-release-images** — builds and pushes both images to GHCR, tagged with the release version **and** `latest`:
-   - `ghcr.io/<owner>/<repo>-backend:<version>`
-   - `ghcr.io/<owner>/<repo>-frontend:<version>`
-
-For example, publishing release `v1.4.0` produces `...-backend:1.4.0` and `...-frontend:1.4.0`.
-
-Cut a release with a tag:
-
-```bash
-git tag v1.4.0
-git push origin v1.4.0
-# or create a Release in the GitHub UI
-```
-
-To run a specific release on the server, set `TAG=<version>` in the deployment `.env` and re-run `docker compose pull && docker compose up -d`.
-
----
-
-## HTTPS (production)
-
-For production, terminate TLS in front of the app — the simplest option is a reverse proxy (Caddy/Traefik/nginx) with a Let's Encrypt certificate, forwarding to the frontend port. You can keep the IP restriction in this package (`ALLOWED_IPS`) or move it to the proxy/firewall.
-
----
-
-## Database migrations
-
-The backend includes a small, dependency-free migration runner (`backend/src/migrate.js`). Versioned SQL files live in `backend/src/migrations/` and are applied **in filename order, exactly once**, tracked in a `schema_migrations` table.
-
-- Migrations run **automatically when the backend starts** — before it accepts any traffic. This works on first boot and on every subsequent deploy, so schema changes ship with your code (unlike the old "run only on an empty database" approach).
-- Each migration runs in its own transaction and is rolled back if it fails (the backend then exits non-zero instead of serving a half-migrated schema).
-- You can also run them manually against the configured `DATABASE_URL`:
-
-```bash
-cd backend
-npm run migrate
-```
+- Migrations run **automatically when the backend starts**, before it accepts traffic — so schema changes ship with your code.
+- Each migration runs in its own transaction and rolls back on failure (the backend then exits non-zero rather than serving a half-migrated schema).
+- Run them manually with `npm run migrate` (uses `DATABASE_URL`).
 
 ### Adding a migration
 
-Create a new file in `backend/src/migrations/` using the zero-padded prefix convention, e.g. `002_add_column.sql`. Keep statements idempotent where practical (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`). On the next backend start (or `npm run migrate`) it will be applied and recorded.
-
-> **Upgrading an existing database** created via the previous init-on-empty approach: the runner is idempotent, so `001_init.sql` is simply re-run (no-op) and recorded in `schema_migrations`; later migrations then apply normally.
+Create a new file in `backend/src/migrations/` with the zero-padded prefix convention, e.g. `002_add_column.sql`. Keep it idempotent where practical (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`). It's applied on the next backend start or `npm run migrate`.
 
 ### Local test data (not committed)
 
-The committed migration (`001_init.sql`) creates **schema only** — it contains no client/project data. Real client and project definitions are kept as **local, uncommitted test data** so they never land in the repository:
+`001_init.sql` creates **schema only** — no client/project data is committed. Sample data lives in local, uncommitted files so nothing real ever lands in the repo:
 
-- `backend/src/seeds/local.sql` — your local test data. **Git-ignored** (and excluded from Docker images).
-- `backend/src/seeds/local.sql.example` — a committed, generic example showing the format.
-
-Load your local seed into the database:
+- `backend/src/seeds/local.sql` — your local test data. **Git-ignored** and excluded from Docker images.
+- `backend/src/seeds/local.sql.example` — a committed, generic template.
 
 ```bash
-cd backend
-npm run seed                 # loads src/seeds/local.sql (skips silently if absent)
-# or against the dev stack:
+cp backend/src/seeds/local.sql.example backend/src/seeds/local.sql   # then edit
+cd backend && npm run seed            # loads local.sql (skips silently if absent)
+# or against the running stack:
 docker compose exec backend npm run seed
 ```
 
-To create your own: `cp backend/src/seeds/local.sql.example backend/src/seeds/local.sql`, edit it, then run the seed command. The dev `docker-compose.yml` mounts `backend/src/seeds` into the backend container so the git-ignored file is available at runtime.
+The dev `docker-compose.yml` mounts `backend/src/seeds` into the backend container so the git-ignored file is available at runtime.
 
 ---
 
-## API (data persisted in the database)
+## HTTP API
+
+All endpoints are under `/api` (IP-filtered). `/health` is unfiltered for monitoring.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/deployments` | list (filters: `project`, `env`, `status`) |
-| GET | `/api/deployments/:id` | details |
-| POST | `/api/deployments` | create (saved to the database) |
-| PUT | `/api/deployments/:id` | create or update the full object |
-| DELETE | `/api/deployments/:id` | delete |
-| GET | `/api/projects` | projects (with default number of days and time) |
-| PUT | `/api/projects/:key` | create or update a project |
+| GET | `/api/deployments` | List (filters: `project`, `env`, `status`). |
+| GET | `/api/deployments/:id` | Details of one deployment. |
+| POST | `/api/deployments` | Create (id from body or generated). |
+| PUT | `/api/deployments/:id` | Create or update the full object (used by the UI). |
+| DELETE | `/api/deployments/:id` | Delete. |
+| GET | `/api/projects` | List projects (with default days/time and apps). |
+| PUT | `/api/projects/:key` | Create or update a project. |
+| GET | `/health` | Liveness + DB reachability. |
 
-Statuses: `scheduled`, `installed`, `failed`, `rolledback`, `aborted`, `paused`.
+Deployment statuses: `scheduled`, `installed`, `failed`, `rolledback`, `aborted`, `paused`.
 
 ---
 
 ## Tests
 
-The backend ships with unit tests (Node's built-in test runner — no extra dependencies):
+Backend unit tests use Node's built-in runner — no extra dependencies:
 
 ```bash
 cd backend
@@ -212,14 +255,83 @@ npm install
 npm test
 ```
 
-They cover the IP allowlist (exact IPs, CIDR ranges, IPv4/IPv6, the `X-Forwarded-For` proxy path, and 403 rejection), environment configuration parsing, and the migration runner's ordering/pending logic. These tests also run automatically in CI before any image is built.
+They cover the IP allowlist (exact IPs, CIDR ranges, IPv4/IPv6, the `X-Forwarded-For` proxy path, 403 rejection), environment configuration parsing, and the migration runner's ordering/pending logic. CI runs them before building any image.
 
 ---
 
-## What is ready, and what comes next
+## Deployment
 
-**Ready:** infrastructure (Docker), a durable PostgreSQL database with an automatic migration runner (schema-only migrations; client/project data lives in local, uncommitted seed files), an API that persists data, IP restriction (nginx + backend), CI that builds images and deploys them to your server over SSH, and the served UI.
+### Continuous deployment (push to `main`)
 
-**UI connected to the database:** the UI detects the backend automatically. When it is available (started via `docker compose`), the app runs in CONNECTED mode — it loads deployments from the database on startup and saves every change (creating a deployment, changing status, pausing/resuming, assigning an operator, client approval/notes, rescheduling, reporting a result, comments). A "● database connected" indicator is shown in the bottom-right corner. When the backend is absent (e.g. the file is opened locally), the UI runs in DEMO mode on in-memory data — "○ demo mode (no database)".
+`.github/workflows/deploy.yml` runs on every push to `main`: **test → build & push images to GHCR → deploy over SSH** (copies `docker-compose.prod.yml`, then `docker compose pull && up -d`). Migrations are baked into the backend image and applied on startup.
 
-**Next steps / notes:** writes use a "last write wins" approach (no concurrency locks) — sufficient for a small team, to be extended under heavier load. Project/app definitions are currently built into the UI and seeded into the database via a migration; editing projects with API persistence is the natural next extension (the `GET/PUT /api/projects` endpoints already exist). Login in the UI is still a mockup (2FA accepts any 6-digit code) — real authentication can be added once you decide how the team should sign in.
+**Server prerequisites:** Docker + Compose plugin; a deploy directory (e.g. `/opt/rolldesk`) containing a production `.env`; an SSH user that can run `docker`.
+
+**Required GitHub secrets** (Settings → Secrets and variables → Actions):
+
+| Secret | Description |
+|--------|-------------|
+| `SSH_HOST` | Server hostname or IP |
+| `SSH_USER` | SSH username |
+| `SSH_KEY` | Private SSH key (PEM) for that user |
+| `SSH_PORT` | SSH port (e.g. `22`) |
+| `DEPLOY_PATH` | Absolute path to the deploy directory (e.g. `/opt/rolldesk`) |
+
+`GITHUB_TOKEN` is provided automatically and is used to push and pull images. Tip: create a `production` GitHub Environment (referenced by the deploy job) for reviewers/scoped secrets.
+
+### Versioned releases
+
+`.github/workflows/release.yml` triggers on a published Release or a `v*.*.*` tag: it runs tests, then builds and pushes images tagged with the version **and** `latest`.
+
+```bash
+git tag v1.4.0 && git push origin v1.4.0   # or publish a Release in the UI
+```
+
+Deploy a specific version by setting `TAG=<version>` in the server `.env` and re-running `docker compose pull && up -d`.
+
+### Manual deploy (no workflow)
+
+```bash
+export IMAGE_PREFIX=ghcr.io/RollDesk/rolldesk
+export TAG=latest
+docker login ghcr.io
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### HTTPS
+
+Terminate TLS in front of the app (Caddy/Traefik/nginx with Let's Encrypt) forwarding to the frontend port. Keep IP restriction here (`ALLOWED_IPS`) or move it to the proxy/firewall.
+
+---
+
+## Contributing
+
+Contributions are welcome — the repo is small and has no heavy toolchain. See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the full guide. In short:
+
+1. Clone via SSH: `git clone git@github.com:RollDesk/rolldesk.git`
+2. Branch off `main`: `git checkout -b feat/short-description` (or `fix/…`, `docs/…`).
+3. Make your change and **run the backend tests** (`cd backend && npm test`).
+4. Commit using **[Conventional Commits](https://www.conventionalcommits.org/)** and reference issues like `#123`.
+5. Open a small, focused pull request describing the *why*.
+
+Key rules: **no secrets or real client data in commits** (real data goes in the git-ignored `backend/src/seeds/local.sql`); English comments/UI text; ES-module, dependency-light backend; and **schema changes go in a new migration**, never edits to an existing one.
+
+---
+
+## Project status
+
+**Ready:** Docker infrastructure, durable PostgreSQL with an automatic migration runner (schema-only migrations; sample data in local, uncommitted seeds), a persisting API, IP restriction (nginx + backend), CI that tests/builds/deploys, and the served UI.
+
+**Known limitations / next steps:**
+
+- **Authentication is a mockup** — the login/2FA screen accepts any 6-digit code. Real auth is the top priority and depends on how the team wants to sign in.
+- **Writes are "last write wins"** (no concurrency locks) — fine for a small team, to be hardened under load.
+- **Project/app definitions** currently originate in the UI; moving them fully behind the `GET/PUT /api/projects` API is a natural next step.
+- The **UI is one large `index.html`** — great for a zero-build mockup, a candidate for componentisation as it grows.
+
+---
+
+## License
+
+No license file is included yet. Add one before distributing or open-sourcing this project.
