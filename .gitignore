@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Environment / secrets
+.env
+*.local
+
+# Local, uncommitted test/seed data
+backend/src/seeds/local.sql
+
+# Logs
+npm-debug.log*
+*.log
+
+# OS files
+.DS_Store

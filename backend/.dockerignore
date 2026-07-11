@@ -1,0 +1,6 @@
+node_modules
+.env
+npm-debug.log
+test
+# Never bake local, uncommitted test data into images.
+src/seeds/local.sql

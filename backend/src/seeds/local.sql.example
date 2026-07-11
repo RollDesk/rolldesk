@@ -1,0 +1,13 @@
+-- Example local seed data.
+-- Copy this file to `local.sql` (which is git-ignored) and adjust it for your
+-- environment, then load it with `npm run seed`.
+-- This example is safe to commit: it contains only generic, made-up data.
+
+INSERT INTO projects (key, client_name, name, default_days, default_time, client_visible, data) VALUES
+  ('acme:web',    'ACME',  'Web',    5, '20:00', true,
+    '{"apps":[{"name":"web-portal"},{"name":"web-api"}],"testEnvs":["Test1","Test2"]}'),
+  ('acme:mobile', 'ACME',  'Mobile', 3, '21:00', true,
+    '{"apps":[{"name":"mobile-app"}],"testEnvs":["Test"]}'),
+  ('globex:core', 'Globex', 'Core',  5, '22:00', true,
+    '{"apps":[{"name":"core-service"}],"testEnvs":["Test1","Test2","Test3"]}')
+ON CONFLICT (key) DO NOTHING;

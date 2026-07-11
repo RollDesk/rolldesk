@@ -1,0 +1,23 @@
+{
+  "name": "rolldesk-backend",
+  "version": "0.1.0",
+  "description": "RollDesk backend — Express + PostgreSQL + IP allowlist",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "migrate": "node src/migrate.js",
+    "seed": "node src/seed.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "ipaddr.js": "^2.2.0",
+    "nodemailer": "^6.9.14",
+    "pg": "^8.12.0"
+  }
+}
