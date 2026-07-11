@@ -113,8 +113,7 @@ rolldesk/
 ├── docker-compose.prod.yml       # production stack: runs pre-built images from a registry
 ├── .env.example                  # configuration template (copy to .env)
 ├── .github/workflows/
-│   ├── deploy.yml                # push to main:        test → build & push images → deploy over SSH
-│   └── release.yml               # version tag/release: test → build & push versioned images
+│   └── deploy.yml                # test → build & publish images to GHCR (versioned on git tags)
 ├── frontend/                     # nginx serving the UI + /api proxy + IP allowlist
 │   ├── Dockerfile
 │   ├── nginx.conf.template
@@ -261,43 +260,37 @@ They cover the IP allowlist (exact IPs, CIDR ranges, IPv4/IPv6, the `X-Forwarded
 
 ## Deployment
 
-### Continuous deployment (push to `main`)
+### Build & publish images (CI)
 
-`.github/workflows/deploy.yml` runs on every push to `main`: **test → build & push images to GHCR → deploy over SSH** (copies `docker-compose.prod.yml`, then `docker compose pull && up -d`). Migrations are baked into the backend image and applied on startup.
+`.github/workflows/deploy.yml` runs the automated tests, then builds and pushes both Docker images to GHCR. **The pipeline ends at publishing the images — it does not deploy to a server.** `GITHUB_TOKEN` is provided automatically and is the only credential needed.
 
-**Server prerequisites:** Docker + Compose plugin; a deploy directory (e.g. `/opt/rolldesk`) containing a production `.env`; an SSH user that can run `docker`.
+It triggers on pushes to `main`, on version tags, and manually (`workflow_dispatch`). Image tags produced:
 
-**Required GitHub secrets** (Settings → Secrets and variables → Actions):
+| Trigger | Image tags |
+|---------|-----------|
+| push to `main` | `latest`, `<commit-sha>` |
+| push tag `vX.Y.Z` | `latest`, `<commit-sha>`, `X.Y.Z` |
 
-| Secret | Description |
-|--------|-------------|
-| `SSH_HOST` | Server hostname or IP |
-| `SSH_USER` | SSH username |
-| `SSH_KEY` | Private SSH key (PEM) for that user |
-| `SSH_PORT` | SSH port (e.g. `22`) |
-| `DEPLOY_PATH` | Absolute path to the deploy directory (e.g. `/opt/rolldesk`) |
-
-`GITHUB_TOKEN` is provided automatically and is used to push and pull images. Tip: create a `production` GitHub Environment (referenced by the deploy job) for reviewers/scoped secrets.
-
-### Versioned releases
-
-`.github/workflows/release.yml` triggers on a published Release or a `v*.*.*` tag: it runs tests, then builds and pushes images tagged with the version **and** `latest`.
+Cut a versioned image from a tag:
 
 ```bash
-git tag v1.4.0 && git push origin v1.4.0   # or publish a Release in the UI
+git tag v1.4.0 && git push origin v1.4.0
+# produces ghcr.io/<owner>/<repo>-backend:1.4.0 and -frontend:1.4.0
 ```
 
-Deploy a specific version by setting `TAG=<version>` in the server `.env` and re-running `docker compose pull && up -d`.
+### Deploying to a server (manual)
 
-### Manual deploy (no workflow)
+Deployment is decoupled from CI — run the published images on any Docker host that has a production `.env` (see `.env.example`) and `docker-compose.prod.yml`:
 
 ```bash
 export IMAGE_PREFIX=ghcr.io/RollDesk/rolldesk
-export TAG=latest
+export TAG=1.4.0          # the version to run (or `latest`)
 docker login ghcr.io
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 ```
+
+Migrations are baked into the backend image and applied automatically on startup, so no extra steps are needed.
 
 ### HTTPS
 
