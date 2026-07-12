@@ -95,7 +95,7 @@ flowchart LR
 - **db** — PostgreSQL. Deployments and projects are stored with filterable columns plus a `JSONB` `data` column holding the full object, so the UI can evolve its shape without constant migrations. Uploaded files are kept in an `attachments` table.
 - **clamav** — a ClamAV (clamd) container that scans uploaded attachments before they are stored.
 
-**Connected vs demo mode:** the UI auto-detects the backend. With the backend up (via `docker compose`) it runs in **CONNECTED** mode — loading from and saving to the database (a "● database connected" indicator shows bottom-right). Opened as a bare file with no backend, it runs in **DEMO** mode on in-memory placeholder data ("○ demo mode").
+**Backend required:** the UI is served by nginx and always talks to the backend. On startup it authenticates against the API (first-run setup wizard, then password + TOTP MFA) and loads all data from PostgreSQL. There is no offline/demo mode — if the backend is unavailable the login screen reports it and the app stays locked until the API is reachable.
 
 ---
 
@@ -173,7 +173,7 @@ npm run seed      # optional: load backend/src/seeds/local.sql
 npm start         # http://localhost:3000
 ```
 
-The frontend is a static file — for pure UI work you can just open `frontend/app/index.html` in a browser (it falls back to demo mode without a backend).
+The frontend is a static file, but it needs the backend to authenticate and load data. For UI work, run the backend (or the full `docker compose` stack) and open the app through nginx rather than opening the file directly.
 
 ---
 
@@ -397,12 +397,11 @@ Key rules: **no secrets or real client data in commits** (real data goes in the 
 
 ## Project status
 
-**Ready:** Docker infrastructure, durable PostgreSQL with an automatic migration runner (schema-only migrations; sample data in local, uncommitted seeds), a persisting API, real authentication (first-run setup wizard, bcrypt password login, mandatory TOTP MFA, JWT sessions guarding the API), IP restriction (nginx + backend), CI that tests/builds/deploys, and the served UI.
+**Ready:** Docker infrastructure, durable PostgreSQL with an automatic migration runner (schema-only migrations; sample data in local, uncommitted seeds), a persisting API, real authentication (first-run setup wizard, bcrypt password login, mandatory TOTP MFA, JWT sessions guarding the API), multi-user management (admin-invited accounts with a real set-password flow, roles, per-project access, archive/restore), personal access tokens for the automation API (`Authorization: Bearer rd_live_…`), IP restriction (nginx + backend), CI that tests/builds/deploys, and the served UI.
 
 **Known limitations / next steps:**
 
-- **Single-user auth.** Only the bootstrapped admin is a real account; the in-app Users screen is still demo data. Multi-user management + invites are a follow-up.
-- **No password reset yet.** The "Forgot your password?" panel is not wired to a backend flow.
+- **Self-service password reset is not wired.** The login screen's "Forgot your password?" panel is still a placeholder. Admins can, however, issue a reset link for any user from the Users screen, and admin-issued invitations use the same real set-password flow.
 - **Writes are "last write wins"** (no concurrency locks) — fine for a small team, to be hardened under load.
 - **Project/app definitions** currently originate in the UI; moving them fully behind the `GET/PUT /api/projects` API is a natural next step.
 - The **UI is one large `index.html`** — great for zero-build iteration, a candidate for componentisation as it grows.

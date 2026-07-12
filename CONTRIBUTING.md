@@ -85,7 +85,7 @@ npm test           # run the test suite
 
 ### Option C — UI only
 
-The frontend is a single static file. For pure UI work, open `frontend/app/index.html` directly in a browser — with no backend it runs in **demo mode** on in-memory placeholder data.
+The frontend is a single static file, but it needs the backend to authenticate and load data — there is no offline/demo mode. For UI work, run the backend (or the full `docker compose` stack) and open the app through nginx.
 
 ---
 
@@ -149,7 +149,7 @@ This is important:
 
 - **No secrets** — credentials, tokens, private keys, or `.env` files. `.env` is git-ignored; keep it that way.
 - **No real client, project, or personal data.** Real project/app/people definitions belong in `backend/src/seeds/local.sql`, which is **git-ignored** and excluded from Docker images. The committed example (`local.sql.example`) uses fabricated orgs (`ACME`, `Globex`) and generic names/emails — keep committed samples fake.
-- The same applies to the UI's built-in demo data and to screenshots.
+- The same applies to any sample data used while developing and to screenshots.
 
 If you spot real data or a secret in the history, flag it in an issue immediately.
 
@@ -225,8 +225,7 @@ For features, describe the problem you're trying to solve and the proposed behav
 
 Nice entry points into the codebase:
 
-- Multi-user management (the auth backend supports one bootstrapped admin; the in-app Users screen is still demo data).
-- A real "forgot password" / reset flow (the panel exists but isn't wired to the backend).
+- A real self-service "forgot password" flow (the login-screen panel exists but isn't wired to the backend; admin-issued resets/invitations already work).
 - Project editing via the existing `PUT /api/projects` API.
 - More API-level tests (e.g. route behaviour with a test database).
 - Breaking the single-file UI (`frontend/app/index.html`) into maintainable pieces.

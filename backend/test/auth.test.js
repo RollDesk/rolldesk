@@ -11,6 +11,11 @@ import {
   generateMfaSecret,
   otpauthUrl,
   verifyTotp,
+  generateApiToken,
+  hashApiToken,
+  maskApiToken,
+  isApiToken,
+  API_TOKEN_PREFIX,
 } from '../src/auth.js';
 
 const SECRET = 'test-secret-for-unit-tests';
@@ -67,4 +72,28 @@ test('otpauthUrl embeds the issuer, account and secret', () => {
   assert.match(url, /^otpauth:\/\/totp\//);
   assert.match(url, /RollDesk/);
   assert.ok(url.includes('secret=' + secret));
+});
+
+test('generateApiToken produces a prefixed token whose hash matches', () => {
+  const { raw, hash, masked } = generateApiToken();
+  assert.ok(raw.startsWith(API_TOKEN_PREFIX));
+  assert.equal(isApiToken(raw), true);
+  // Hash is deterministic and matches the standalone hasher.
+  assert.equal(hash, hashApiToken(raw));
+  assert.equal(hash.length, 64); // sha256 hex
+  // Masked form hides the middle but keeps the prefix and last 4 chars.
+  assert.ok(masked.includes('••••'));
+  assert.ok(masked.endsWith(raw.slice(-4)));
+  assert.ok(!masked.includes(raw.slice(12, -4)));
+});
+
+test('isApiToken only accepts the rd_live_ prefix', () => {
+  assert.equal(isApiToken('rd_live_abc'), true);
+  assert.equal(isApiToken('eyJhbGciOi...'), false); // a JWT
+  assert.equal(isApiToken(''), false);
+  assert.equal(isApiToken(null), false);
+});
+
+test('two generated tokens are distinct', () => {
+  assert.notEqual(generateApiToken().raw, generateApiToken().raw);
 });
