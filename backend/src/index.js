@@ -3,6 +3,7 @@ import cors from 'cors';
 import { config } from './config.js';
 import { ipAllowlist } from './ipAllowlist.js';
 import { requireAuth } from './auth.js';
+import { requireApiAuth } from './apiAuth.js';
 import { runMigrations } from './migrate.js';
 import health from './routes/health.js';
 import authRouter from './routes/auth.js';
@@ -11,6 +12,8 @@ import projects from './routes/projects.js';
 import attachments from './routes/attachments.js';
 import state from './routes/state.js';
 import notifications from './routes/notifications.js';
+import tokens from './routes/tokens.js';
+import users from './routes/users.js';
 
 const app = express();
 if (config.trustProxy) app.set('trust proxy', true);
@@ -24,15 +27,22 @@ app.use('/health', health);
 app.use('/api', ipAllowlist);
 // Auth endpoints are open (they issue the tokens); each self-guards.
 app.use('/api/auth', authRouter);
-// Everything else requires a valid session token.
+// Token management requires an interactive session (a JWT) — never an API
+// token — so a token cannot mint or revoke other tokens. Mounted before the
+// data routes so it isn't shadowed by the generic /api guard.
+app.use('/api/tokens', requireAuth, tokens);
+// User management requires an interactive session (admin-only, enforced inside).
+app.use('/api/users', requireAuth, users);
+// The data API accepts either a session JWT or a personal access token, so
+// scripts/CI can call it with `Authorization: Bearer rd_live_…`.
 // Attachments are mounted at /api so both `/api/deployments/:id/attachments`
 // and `/api/attachments/:id` resolve here; more specific deployment sub-routes
 // are matched before the generic deployments router below.
-app.use('/api', requireAuth, attachments);
-app.use('/api', requireAuth, state);
-app.use('/api/notifications', requireAuth, notifications);
-app.use('/api/deployments', requireAuth, deployments);
-app.use('/api/projects', requireAuth, projects);
+app.use('/api', requireApiAuth, attachments);
+app.use('/api', requireApiAuth, state);
+app.use('/api/notifications', requireApiAuth, notifications);
+app.use('/api/deployments', requireApiAuth, deployments);
+app.use('/api/projects', requireApiAuth, projects);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown endpoint' }));
 
 async function start() {

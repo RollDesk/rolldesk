@@ -268,6 +268,16 @@
   }
   .mini-btn:hover{border-color:var(--ink);}
   .mini-btn:disabled{opacity:0.35; cursor:default;}
+  /* Semantic, softly-tinted variants for the primary per-deployment actions so
+     they stand out from the plain export buttons. */
+  .mini-btn.icon-btn{display:inline-flex; align-items:center; gap:6px; padding:6px 12px;}
+  .mini-btn.icon-btn .mb-ic{font-size:12.5px; line-height:1;}
+  .mini-btn.accent{background:var(--cyan-soft); border-color:#BEE7EB; color:#0A6E7A;}
+  .mini-btn.accent:hover{background:#D3F0F3; border-color:var(--cyan);}
+  .mini-btn.warn{background:var(--amber-soft); border-color:#F0D9A8; color:#8A5A05;}
+  .mini-btn.warn:hover{background:#FBE7C6; border-color:var(--amber);}
+  .mini-btn.ok{background:var(--green-soft); border-color:#BFE6CE; color:#0F7A38;}
+  .mini-btn.ok:hover{background:#D6F0DF; border-color:#0F7A38;}
 
   .toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
   .filters{display:flex; gap:8px;}
@@ -440,6 +450,30 @@
       <button class="btn" style="width:100%; justify-content:center;" onclick="showLoginPanel()" data-i18n="auth.goToSignIn">Go to sign in</button>
     </div>
     <p style="text-align:center; margin:14px 0 0 0;"><a href="#" onclick="event.preventDefault(); showLoginPanel();" style="font-size:12px; color:var(--cyan); text-decoration:none;" data-i18n="auth.backToSignIn">← Back to sign in</a></p>
+  </div>
+
+  <!-- Invitation: an invited user (or a password reset) sets their password
+       from the emailed/copied link (#/invite/<token>). -->
+  <div id="invite-panel" style="display:none; background:var(--paper-alt, #fff); border-radius:16px; padding:32px; width:min(420px, 90%); box-shadow:0 20px 60px rgba(0,0,0,0.35);">
+    <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:18px; margin-bottom:4px;"><span style="width:10px; height:10px; border-radius:50%; background:var(--cyan); display:inline-block;"></span> RollDesk</div>
+    <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;" data-i18n="auth.inviteTitle">Set your password</p>
+    <p id="invite-desc" style="font-size:12.5px; color:var(--text-muted); margin:0 0 16px 0;" data-i18n="auth.inviteDesc">Set a password for your account. You'll enable two-factor authentication right after your first sign-in.</p>
+    <div class="field">
+      <label data-i18n="auth.accountEmail">Account e-mail</label>
+      <input type="text" id="invite-email" class="mono" readonly style="background:var(--paper); color:var(--text-muted); cursor:not-allowed;">
+    </div>
+    <div class="field">
+      <label data-i18n="auth.newPassword">New password</label>
+      <input type="password" id="invite-pass" autocomplete="new-password" oninput="updatePasswordStrength('invite-pass','invite-strength')" placeholder="••••••••••••">
+    </div>
+    <div id="invite-strength" style="margin:-4px 0 12px 0;"></div>
+    <div class="field">
+      <label data-i18n="auth.repeatNewPassword">Repeat new password</label>
+      <input type="password" id="invite-pass2" autocomplete="new-password" placeholder="••••••••••••">
+    </div>
+    <div id="invite-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
+    <button class="btn" id="invite-btn" style="width:100%; justify-content:center;" onclick="submitInvitePassword()" data-i18n="auth.saveNewPass">Save new password</button>
+    <p style="text-align:center; margin:12px 0 0 0;"><a href="#" onclick="event.preventDefault(); showLoginPanel();" style="font-size:12px; color:var(--cyan); text-decoration:none;" data-i18n="auth.backToSignIn">← Back to sign in</a></p>
   </div>
 
   <!-- Language switcher for the login screen (persists the choice). -->
@@ -998,14 +1032,6 @@
       <button class="btn" id="add-user-btn" onclick="toggleUserForm()" data-i18n="usr.addUser">+ Add user</button>
     </div>
 
-    <div class="card" style="margin-bottom:16px;">
-      <label style="margin-bottom:6px;" data-i18n="usr.testAs">Test as</label>
-      <select onchange="switchLoggedInRole(this.value)">
-        <option value="admin" selected data-i18n="usr.testAdmin">Administrator (full access)</option>
-        <option value="rm" data-i18n="usr.testRm">Release Manager (view only)</option>
-      </select>
-    </div>
-
     <div class="radio-row" style="margin-bottom:16px;">
       <label class="radio-pill selected"><input type="radio" name="users-tab" value="active" checked onchange="switchUsersTab('active')"> <span data-i18n="usr.tabActive">Active</span></label>
       <label class="radio-pill"><input type="radio" name="users-tab" value="archived" onchange="switchUsersTab('archived')"> <span data-i18n="usr.tabArchived">Archived</span> (<span id="archived-users-count">0</span>)</label>
@@ -1329,11 +1355,13 @@
   <div class="card" style="max-width:420px; width:90%; background:var(--paper-alt, #fff);">
     <div id="app-modal-title" style="font-weight:600; font-size:14px; margin-bottom:4px;"></div>
     <div id="app-modal-subtitle" style="font-size:11.5px; color:var(--text-muted); margin-bottom:12px;"></div>
-    <input type="text" id="app-modal-input" style="width:100%; margin-bottom:16px; box-sizing:border-box;">
+    <input type="text" id="app-modal-input" list="app-modal-datalist" style="width:100%; margin-bottom:16px; box-sizing:border-box;">
+    <datalist id="app-modal-datalist"></datalist>
     <textarea id="app-modal-textarea" style="width:100%; min-height:130px; margin-bottom:16px; box-sizing:border-box; display:none; font-size:13px; line-height:1.5;" maxlength="2000"></textarea>
+    <div id="app-modal-error" style="display:none; font-size:11.5px; color:#A81E1E; margin:-8px 0 12px 0;"></div>
     <div style="display:flex; gap:8px; justify-content:flex-end;">
-      <button class="mini-btn" onclick="closeAppModal(false)">Cancel</button>
-      <button class="btn" onclick="closeAppModal(true)">OK</button>
+      <button class="mini-btn" onclick="closeAppModal(false)" data-i18n="common.cancel">Cancel</button>
+      <button class="btn" onclick="closeAppModal(true)" data-i18n="common.ok">OK</button>
     </div>
   </div>
 </div>
@@ -1394,8 +1422,8 @@
   </div>
 </div>
 
-<script src="i18n/pl.js"></script>
-<script src="i18n/en.js"></script>
+<script src="i18n/pl.js?v=0.4.0"></script>
+<script src="i18n/en.js?v=0.4.0"></script>
 <script>
   // ---- RollDesk product version ----
   const ROLLDESK_VERSION = '0.4.0';
@@ -1756,7 +1784,7 @@
     }).join('') || `<tr><td colspan="6" style="color:var(--text-faint); font-size:13px;">${usersTab === 'archived' ? t('usr.noArchived') : t('usr.noActive')}</td></tr>`;
   }
 
-  let currentLoggedInRole = 'admin'; // demo switcher — who is "using" the Users screen right now
+  let currentLoggedInRole = 'admin'; // mirrors the real signed-in user's role (set from /api/auth/me)
   let editingUserIndex = null;
 
   // Activity / audit log — records who added/removed/changed what, so changes to
@@ -2003,19 +2031,9 @@
       }
     } catch(e){ showToast('⚠ Could not send the test message'); }
   }
+  // Permissions follow the real signed-in account (set from GET /api/auth/me).
   function isLoggedInAsAdmin(){
-    return currentLoggedInRole === 'admin';
-  }
-
-  function switchLoggedInRole(role){
-    currentLoggedInRole = role;
-    renderUsersTable();
-    document.getElementById('add-user-btn').style.display = isLoggedInAsAdmin() ? 'inline-flex' : 'none';
-    if(!isLoggedInAsAdmin()) document.getElementById('user-form').style.display = 'none';
-    renderClientsTable();
-    const addClientBtn = document.getElementById('add-client-btn');
-    if(addClientBtn) addClientBtn.style.display = isLoggedInAsAdmin() ? 'inline-flex' : 'none';
-    if(!isLoggedInAsAdmin()){ const cf = document.getElementById('client-form'); if(cf) cf.style.display = 'none'; }
+    return (currentUser && currentUser.role === 'admin') || currentLoggedInRole === 'admin';
   }
 
   function toggleUserForm(){
@@ -2135,7 +2153,7 @@
     }
   }
 
-  function addUser(){
+  async function addUser(){
     if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can manage users'); return; }
     const name = document.getElementById('user-name').value.trim();
     const email = document.getElementById('user-email').value.trim();
@@ -2143,6 +2161,7 @@
     const role = document.querySelector('input[name="user-role"]:checked').value;
     const allAccess = role === 'rm' || role === 'admin';
     const projects = allAccess ? [] : Array.from(document.querySelectorAll('#user-projects-checks input:checked')).map(c=>c.value);
+    let clientKey = null;
 
     if(role === 'client'){
       if(!projects.length){ showToast('Select at least one client project'); return; }
@@ -2157,58 +2176,74 @@
         showToast('The e-mail must be from the domain „' + c.domain + '” (client: ' + c.name + ')');
         return;
       }
+      clientKey = involvedClients[0] || null;
     }
 
-    if(editingUserIndex !== null){
-      const existing = USERS[editingUserIndex];
-      USERS[editingUserIndex] = Object.assign({}, existing, {name, email, role, projects});
-      logAudit('changed', 'User', 'Changed user „' + name + '”', '—');
-      showToast('User „' + name + '” updated');
-    } else {
-      USERS.push({name, email, role, projects, invitePending:true, twoFactor:false});
-      logAudit('added', 'User', 'Added user „' + name + '” (' + ROLE_INFO[role].label + ')', '—');
-      showToast('User „' + name + '” added — an invitation with a link to set a password has been sent to ' + email);
+    if(!API_CONNECTED){ showToast('Not connected to the backend — cannot manage users'); return; }
+    try {
+      if(editingUserIndex !== null){
+        const existing = USERS[editingUserIndex];
+        await apiUpdateUser(existing.id, {name, role, projects, clientKey});
+        logAudit('changed', 'User', 'Changed user „' + name + '”', '—');
+        showToast('User „' + name + '” updated');
+      } else {
+        const created = await apiCreateUser({name, email, role, projects, clientKey});
+        logAudit('added', 'User', 'Added user „' + name + '” (' + ROLE_INFO[role].label + ')', '—');
+        showToast('User „' + name + '” invited');
+        showInviteLink(created.invite, email);
+      }
+      await loadUsers();
+      toggleUserForm();
+    } catch(e){
+      showToast('⚠ ' + (e.message || 'Could not save the user'));
     }
-    renderUsersTable();
-    persistRoster();
-    toggleUserForm();
   }
 
-  function resetUserPassword(i){
+  async function resetUserPassword(i){
     if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can reset passwords'); return; }
     const u = USERS[i];
-    showToast('A link to set a new password has been sent to ' + u.email);
+    try {
+      const r = await apiUserAction(u.id, 'reset-password');
+      showToast('A password-reset link was generated for ' + u.email);
+      showInviteLink(r.invite, u.email);
+    } catch(e){ showToast('⚠ ' + (e.message || 'Could not reset the password')); }
   }
 
-  function resendInvite(i){
+  async function resendInvite(i){
     if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can send invitations'); return; }
     const u = USERS[i];
-    showToast('The invitation with a link has been resent to ' + u.email);
+    try {
+      const r = await apiUserAction(u.id, 'resend-invite');
+      showToast('Invitation re-issued for ' + u.email);
+      showInviteLink(r.invite, u.email);
+    } catch(e){ showToast('⚠ ' + (e.message || 'Could not resend the invitation')); }
   }
 
   function archiveUser(i){
     if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can manage users'); return; }
-    const name = USERS[i].name;
-    showAppPrompt('Archive user „' + name + '”', '', (reason)=>{
+    const u = USERS[i];
+    const name = u.name;
+    showAppPrompt('Archive user „' + name + '”', '', async (reason)=>{
       if(reason === null) return;
-      USERS[i].archived = true;
-      USERS[i].archivedReason = reason.trim();
-      logAudit('removed', 'User', 'Archived user „' + name + '”' + (reason.trim() ? ' (reason: ' + reason.trim() + ')' : ''), '—');
-      renderUsersTable();
-      persistRoster();
-      showToast('User „' + name + '” archived');
+      try {
+        await apiUserAction(u.id, 'archive', {reason: reason.trim()});
+        logAudit('removed', 'User', 'Archived user „' + name + '”' + (reason.trim() ? ' (reason: ' + reason.trim() + ')' : ''), '—');
+        await loadUsers();
+        showToast('User „' + name + '” archived');
+      } catch(e){ showToast('⚠ ' + (e.message || 'Could not archive the user')); }
     }, 'Reason for archiving (optional) — e.g. „left the company”, „role change”');
   }
 
-  function restoreUser(i){
+  async function restoreUser(i){
     if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can manage users'); return; }
-    const name = USERS[i].name;
-    USERS[i].archived = false;
-    USERS[i].archivedReason = '';
-    logAudit('changed', 'User', 'Restored user „' + name + '”', '—');
-    renderUsersTable();
-    persistRoster();
-    showToast('User „' + name + '” restored');
+    const u = USERS[i];
+    const name = u.name;
+    try {
+      await apiUserAction(u.id, 'restore');
+      logAudit('changed', 'User', 'Restored user „' + name + '”', '—');
+      await loadUsers();
+      showToast('User „' + name + '” restored');
+    } catch(e){ showToast('⚠ ' + (e.message || 'Could not restore the user')); }
   }
 
   function dismissTokenRevealOnLeave(){
@@ -2599,7 +2634,7 @@
       const versionInput = row.querySelector('.schedule-app-version');
       const version = (versionInput.value || '').trim();
       if(!version){
-        showToast('Enter a version for the application „' + cb.value + '”');
+        showToast(tf('sch.enterVersion', {app: cb.value}));
         versionInput.focus();
         return;
       }
@@ -2609,7 +2644,7 @@
     // Changelog is required
     const changelog = (document.getElementById('schedule-changelog').value || '').trim();
     if(!changelog){
-      showToast('Fill in the changelog');
+      showToast(t('sch.fillChangelog'));
       document.getElementById('schedule-changelog').focus();
       return;
     }
@@ -2624,6 +2659,8 @@
     const prodTime = document.getElementById('time-prod').value || '22:00';
     const days = parseInt(document.getElementById('day-count').value) || 1;
     const today = '2026-07-04';
+    // Real wall-clock time the schedule was created, shown on the timeline.
+    const createdTime = (function(){ const d = new Date(); const p = n => String(n).padStart(2,'0'); return p(d.getHours()) + ':' + p(d.getMinutes()); })();
     const prodTargetCount = p.locationsList.filter(t=>t.type === 'Production').length;
     const isMultiTarget = prodTargetCount > 1;
 
@@ -2643,7 +2680,7 @@
     const dependsOn = Array.from(document.querySelectorAll('.schedule-dep-check:checked')).map(cb=>cb.value);
     const installerNotes = (document.getElementById('schedule-installer-notes').value || '').trim();
     const isInternal = document.getElementById('schedule-internal').checked;
-    const commonMeta = {changelog, attachment, dependsOn: dependsOn.length ? dependsOn : undefined, installerNotes: installerNotes || undefined, internal: isInternal || undefined};
+    const commonMeta = {changelog, attachment, createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, installerNotes: installerNotes || undefined, internal: isInternal || undefined};
 
     const created = [];
     const createdIdsStart = DEPLOYMENTS_DATA.length;
@@ -2655,7 +2692,7 @@
         DEPLOYMENTS_DATA.push(Object.assign({
           projectKey: currentProjectKey, apps, env, mode:'single',
           location:'Environment ' + env, date: testDate, time: testTime,
-          createdDate: today, status:'scheduled', comments:[], id: nextDeploymentId(), _seq: ++deploymentSeq
+          createdDate: today, createdTime, status:'scheduled', comments:[], id: nextDeploymentId(), _seq: ++deploymentSeq
         }, commonMeta));
         created.push('test');
       });
@@ -2678,7 +2715,7 @@
         DEPLOYMENTS_DATA.push(Object.assign({
           projectKey: currentProjectKey, apps, env:'Production', mode:'batch',
           totalLocations: prodTargetCount, days, dateRange: prodDate + ' (+' + days + ' dni roboczych)',
-          historyStart: prodDate, time: prodTime, createdDate: today,
+          historyStart: prodDate, time: prodTime, createdDate: today, createdTime,
           counts:{scheduled: prodTargetCount, installed:0}, comments:[],
           dayPlan, pendingQueue,
           clientApproval: needsApproval ? 'pending' : undefined, id: nextDeploymentId(), _seq: ++deploymentSeq
@@ -2687,7 +2724,7 @@
         DEPLOYMENTS_DATA.push(Object.assign({
           projectKey: currentProjectKey, apps, env:'Production', mode:'single',
           location: p.locationName || 'Main office', date: prodDate, time: prodTime,
-          createdDate: today, status:'scheduled', comments:[],
+          createdDate: today, createdTime, status:'scheduled', comments:[],
           clientApproval: needsApproval ? 'pending' : undefined, id: nextDeploymentId(), _seq: ++deploymentSeq
         }, commonMeta));
       }
@@ -2710,6 +2747,15 @@
       showToast('Internal deployment added' + attachNote + ' — the client will not see it');
     } else {
       showToast('Schedule added to the deployments list' + attachNote);
+    }
+    // Real notifications: schedule created (and, for production paths needing
+    // sign-off, an approval request) go to the client's webhooks for those events.
+    if(!isInternal){
+      const pk = currentProjectKey;
+      const projName = (PROJECTS[pk]||{}).name || pk;
+      const body = projName + (changelog ? '\n' + changelog : '');
+      dispatchEventNotification('created', pk, 'RollDesk — ' + t('ev.created'), body, false);
+      if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk — ' + t('ev.approval'), body, false);
     }
     resetScheduleForm();
     goToView('deployments');
@@ -3384,6 +3430,9 @@
   let tokenIdCounter = 1;
   let expandedTokenId = null;
 
+  // Turn an ISO timestamp into a plain YYYY-MM-DD for the compact table.
+  function tokenDay(iso){ return iso ? String(iso).slice(0,10) : ''; }
+
   function renderTokensTable(){
     const tbody = document.getElementById('tokens-table');
     if(!tbody) return;
@@ -3393,29 +3442,28 @@
     }
     let html = '';
     API_TOKENS.forEach(tok=>{
-      const statusBadge = tok.revoked
-        ? `<span class="mono" style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:#EEF0F3; color:var(--text-muted);">${t('acc.revoked')}</span>`
-        : `<span class="mono" style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:var(--green-soft); color:#0F7A38;">${t('acc.active')}</span>`;
+      const isRevoked = tok.revoked || tok.status === 'revoked';
+      const isExpired = tok.status === 'expired';
+      let badgeBg = 'var(--green-soft)', badgeColor = '#0F7A38', badgeText = t('acc.active');
+      if(isRevoked){ badgeBg = '#EEF0F3'; badgeColor = 'var(--text-muted)'; badgeText = t('acc.revoked'); }
+      else if(isExpired){ badgeBg = 'var(--red-soft)'; badgeColor = '#A81E1E'; badgeText = t('acc.expired'); }
+      const statusBadge = `<span class="mono" style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:${badgeBg}; color:${badgeColor};">${badgeText}</span>`;
+      const expiryText = tok.expiry ? t('acc.until') + ' ' + tokenDay(tok.expiry) : t('acc.noExpiry');
       html += `<tr class="app-row" onclick="toggleTokenDetails(${tok.id})" style="cursor:pointer;">
         <td class="mono">${tok.masked}</td>
-        <td class="mono">${tok.created}</td>
-        <td class="mono">${tok.expiry === 'No expiry' ? t('acc.noExpiry') : t('acc.until') + ' ' + tok.expiry}</td>
+        <td class="mono">${tokenDay(tok.created)}</td>
+        <td class="mono">${expiryText}</td>
         <td>${statusBadge}</td>
         <td style="color:var(--text-faint); font-size:12px;">${t('acc.details')}</td>
       </tr>`;
       if(expandedTokenId === tok.id){
+        const lastUsed = tok.lastUsed ? tokenDay(tok.lastUsed) : t('acc.tokenNeverUsed');
         html += `<tr><td colspan="5" style="background:var(--paper);">
           <div style="padding:14px;">
             <div style="margin-bottom:12px;">
-              ${tok.revoked ? `<span style="color:var(--text-muted); font-size:12.5px;">${t('acc.tokenRevokedMsg')}</span>` : `<button class="mini-btn" onclick="event.stopPropagation(); revokeToken(${tok.id})">${t('acc.revokeThis')}</button>`}
+              ${(isRevoked) ? `<span style="color:var(--text-muted); font-size:12.5px;">${t('acc.tokenRevokedMsg')}</span>` : `<button class="mini-btn" onclick="event.stopPropagation(); revokeToken(${tok.id})">${t('acc.revokeThis')}</button>`}
             </div>
-            <label style="margin-bottom:8px;">${t('acc.usageHistory')}</label>
-            <table>
-              <thead><tr><th>${t('acc.thDate')}</th><th>${t('acc.thAction')}</th><th>${t('acc.thIp')}</th><th>${t('acc.thStatus')}</th></tr></thead>
-              <tbody>
-                ${tok.usage.length ? tok.usage.map(u=>`<tr><td class="mono">${u.date}</td><td>${u.action}</td><td class="mono">${u.ip}</td><td><span class="pill ${u.ok?'installed':'error'}">${u.ok ? '200 OK' : '401 error'}</span></td></tr>`).join('') : `<tr><td colspan="4" style="color:var(--text-faint); font-size:12px;">${t('acc.noUsage')}</td></tr>`}
-              </tbody>
-            </table>
+            <div style="font-size:12.5px; color:var(--text-muted);">${t('acc.tokenLastUsed')}: <strong>${lastUsed}</strong></div>
           </div>
         </td></tr>`;
       }
@@ -3484,24 +3532,20 @@
     f.style.display = f.style.display === 'none' ? 'block' : 'none';
   }
 
-  function generateApiToken(){
-    const chars = 'abcdef0123456789';
-    let full = 'rd_live_';
-    for(let i=0;i<32;i++) full += chars[Math.floor(Math.random()*chars.length)];
+  async function generateApiToken(){
+    if(!API_CONNECTED){ showToast(t('acc.tokenBackendReq')); return; }
     const expiryChoice = document.querySelector('input[name="token-expiry"]:checked').value;
-    let expiry = 'No expiry';
-    if(expiryChoice !== 'none'){
-      const d = new Date('2026-07-03');
-      d.setDate(d.getDate() + parseInt(expiryChoice));
-      expiry = d.toISOString().slice(0,10);
+    try {
+      const created = await apiCreateToken({ expiresInDays: expiryChoice === 'none' ? 'none' : parseInt(expiryChoice, 10) });
+      // Reveal the raw value exactly once — it is never retrievable again.
+      document.getElementById('token-reveal-value').value = created.token || '';
+      document.getElementById('token-reveal').style.display = 'block';
+      document.getElementById('new-token-form').style.display = 'none';
+      await loadApiTokens();
+      showToast(t('acc.tokenGenerated'));
+    } catch(e){
+      showToast(t('acc.tokenGenFailed'));
     }
-    const token = {id: tokenIdCounter++, masked: full.slice(0,9) + '••••' + full.slice(-4), created:'2026-07-03', expiry, revoked:false, usage:[]};
-    API_TOKENS.unshift(token);
-    document.getElementById('token-reveal-value').value = full;
-    document.getElementById('token-reveal').style.display = 'block';
-    document.getElementById('new-token-form').style.display = 'none';
-    renderTokensTable();
-    showToast(t('acc.tokenGenerated'));
   }
   function copyRevealedToken(){
     const el = document.getElementById('token-reveal-value');
@@ -3614,13 +3658,18 @@
 
   function revokeToken(id){
     const tk = API_TOKENS.find(x=>x.id===id);
+    if(!tk) return;
     showAppConfirm(
       t('acc.revokeTitle'),
       t('acc.revokeBody').replace('{token}', tk.masked),
-      ()=>{
-        tk.revoked = true;
-        renderTokensTable();
-        showToast(t('acc.tokenRevoked'));
+      async ()=>{
+        try {
+          await apiRevokeToken(id);
+          await loadApiTokens();
+          showToast(t('acc.tokenRevoked'));
+        } catch(e){
+          showToast(t('acc.tokenRevokeFailed'));
+        }
       },
       t('acc.revoke')
     );
@@ -3692,21 +3741,13 @@
       skipWeekends: true
     };
 
-    // Add client people as client users scoped to this project.
-    people.forEach(person=>{
-      const existing = USERS.find(u=>u.email.toLowerCase() === person.email.toLowerCase());
-      if(existing){
-        existing.projects = existing.projects || [];
-        if(!existing.projects.includes(projectKey)) existing.projects.push(projectKey);
-      } else {
-        USERS.push({name: person.name, email: person.email, role:'client', projects:[projectKey], invitePending:true, twoFactor:false});
-      }
-    });
+    // Invite the client's people as real client-role accounts (best-effort;
+    // each gets an invitation link/e-mail). Runs async and refreshes the list.
+    reconcileClientPeople(people, projectKey, clientKey);
 
     logAudit('added', 'Project', 'Created project "' + name + '"', name + ' (' + clientName + ')');
     persistProject(projectKey);
     persistClients();
-    persistRoster();
 
     // Refresh dependent views and open the new project.
     renderProjectsList();
@@ -3814,6 +3855,9 @@
       persistDeployment(rec.id);
       renderClientPortal(currentClientScenario);
       showToast('Schedule approved — confirmation sent to the release manager');
+      const projName = (PROJECTS[rec.projectKey]||{}).name || rec.projectKey;
+      dispatchEventNotification('decision', rec.projectKey, 'RollDesk — ' + t('ev.decision'),
+        (rec.id ? rec.id + ' — ' : '') + projName + '\n' + t('dep.aApproved'), false);
     } else if(action === 'commented'){
       showAppPrompt('Comment on the schedule', '', (note)=>{
         if(note === null) return;
@@ -4005,7 +4049,7 @@
             <div style="max-height:240px; overflow-y:auto;">
               ${timeline.map(e=>`
                 <div style="display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--line-soft);">
-                  <div class="mono" style="width:96px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${e.date ? e.date + (e.time ? ' ' + e.time : '') : 'pending'}</div>
+                  <div class="mono" style="width:96px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${e.date ? e.date + (e.time ? ' ' + e.time : '') : t('dtl.pending')}</div>
                   <div style="flex-shrink:0;">${e.icon}</div>
                   <div style="flex:1; font-size:12.5px;">${e.text}</div>
                 </div>`).join('')}
@@ -4046,13 +4090,26 @@
   // in some embedded/sandboxed viewers, which silently breaks any button relying on them.
   let appModalCallback = null;
   let appModalMultiline = false;
-  function showAppPrompt(title, defaultValue, callback, subtitle, multiline){
+  let appModalValidator = null;
+  // showAppPrompt(title, defaultValue, callback, subtitle, multiline, options, validator)
+  // validator(value) -> error string keeps the modal OPEN and shows the message;
+  // return falsy to allow OK to close it. Cancel/Escape always close (value = null).
+  function showAppPrompt(title, defaultValue, callback, subtitle, multiline, options, validator){
     document.getElementById('app-modal-title').textContent = title;
     document.getElementById('app-modal-subtitle').textContent = subtitle || '';
     document.getElementById('app-modal-subtitle').style.display = subtitle ? 'block' : 'none';
+    const errEl = document.getElementById('app-modal-error');
+    if(errEl){ errEl.style.display = 'none'; errEl.textContent = ''; }
+    appModalValidator = typeof validator === 'function' ? validator : null;
     appModalMultiline = !!multiline;
     const input = document.getElementById('app-modal-input');
     const textarea = document.getElementById('app-modal-textarea');
+    // Optional suggestions: the field stays free-text, but offers a pick list.
+    const datalist = document.getElementById('app-modal-datalist');
+    if(datalist){
+      datalist.innerHTML = (Array.isArray(options) ? options : [])
+        .filter(Boolean).map(o=>`<option value="${String(o).replace(/"/g,'&quot;')}"></option>`).join('');
+    }
     if(appModalMultiline){
       input.style.display = 'none';
       textarea.style.display = 'block';
@@ -4067,10 +4124,23 @@
     (appModalMultiline ? textarea : input).focus();
   }
   function closeAppModal(confirmed){
-    document.getElementById('app-modal-overlay').style.display = 'none';
     const val = appModalMultiline
       ? document.getElementById('app-modal-textarea').value
       : document.getElementById('app-modal-input').value;
+    // On OK, run the validator first — if it complains, keep the modal open so the
+    // user can fix the input (or press Cancel). Only Cancel bypasses validation.
+    if(confirmed && appModalValidator){
+      const err = appModalValidator(val);
+      if(err){
+        const errEl = document.getElementById('app-modal-error');
+        if(errEl){ errEl.textContent = err; errEl.style.display = 'block'; }
+        return;
+      }
+    }
+    document.getElementById('app-modal-overlay').style.display = 'none';
+    const errEl = document.getElementById('app-modal-error');
+    if(errEl){ errEl.style.display = 'none'; errEl.textContent = ''; }
+    appModalValidator = null;
     const cb = appModalCallback;
     appModalCallback = null;
     if(cb) cb(confirmed ? val : null);
@@ -4270,10 +4340,9 @@
   }
 
   // Best-effort persistence for the whole-collection settings. No-ops offline.
-  function persistRoster(){
-    if(!API_CONNECTED) return;
-    apiPutState('roster', USERS).catch(err => console.warn('Failed to save roster:', err.message));
-  }
+  // The user directory is now backed by the `users` table (see /api/users), so
+  // there is no separate roster to persist. Kept as a no-op for any callers.
+  function persistRoster(){}
   function persistClients(){
     if(!API_CONNECTED) return;
     apiPutState('clients', CLIENTS).catch(err => console.warn('Failed to save clients:', err.message));
@@ -4347,6 +4416,93 @@
     renderInstallerPanel();
   }
 
+  // ---- Personal access tokens (automation API) ----
+  async function apiListTokens(){
+    const res = await apiFetch('/api/tokens');
+    if(!res.ok) throw new Error('GET /api/tokens ' + res.status);
+    return res.json();
+  }
+  async function apiCreateToken(body){
+    const res = await apiFetch('/api/tokens', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{})});
+    if(!res.ok) throw new Error('POST /api/tokens ' + res.status);
+    return res.json();
+  }
+  async function apiRevokeToken(id){
+    const res = await apiFetch('/api/tokens/' + encodeURIComponent(id) + '/revoke', {method:'POST'});
+    if(!res.ok) throw new Error('revoke ' + res.status);
+    return res.json();
+  }
+  // Fetch the signed-in user's tokens and redraw the table.
+  async function loadApiTokens(){
+    if(!API_CONNECTED) return;
+    try {
+      API_TOKENS = await apiListTokens();
+      renderTokensTable();
+    } catch(e){ console.warn('Failed to load API tokens:', e.message); }
+  }
+
+  // ---- User directory (real accounts + invitations) ----
+  async function apiListUsers(){
+    const res = await apiFetch('/api/users');
+    if(!res.ok) throw new Error('GET /api/users ' + res.status);
+    return res.json();
+  }
+  async function apiCreateUser(body){
+    const res = await apiFetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    if(!res.ok){ let e={}; try{e=await res.json();}catch(_){} throw new Error(e.error || ('POST /api/users ' + res.status)); }
+    return res.json();
+  }
+  async function apiUpdateUser(id, body){
+    const res = await apiFetch('/api/users/' + encodeURIComponent(id), {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    if(!res.ok){ let e={}; try{e=await res.json();}catch(_){} throw new Error(e.error || ('PUT /api/users ' + res.status)); }
+    return res.json();
+  }
+  async function apiUserAction(id, action, body){
+    const res = await apiFetch('/api/users/' + encodeURIComponent(id) + '/' + action, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{})});
+    if(!res.ok){ let e={}; try{e=await res.json();}catch(_){} throw new Error(e.error || ('POST /api/users/'+action+' ' + res.status)); }
+    return res.json();
+  }
+  // Fetch the directory from the backend and redraw the Users table.
+  async function loadUsers(){
+    if(!API_CONNECTED) return;
+    try {
+      const rows = await apiListUsers();
+      USERS.length = 0;
+      rows.forEach(u=>USERS.push(u));
+      if(currentUser) applyCurrentUser(currentUser);
+      renderUsersTable();
+    } catch(e){ console.warn('Failed to load users:', e.message); }
+  }
+  // Show the single-use invitation link so the admin can copy/share it even
+  // without SMTP; auto-copies to the clipboard as a convenience.
+  function showInviteLink(invite, email){
+    if(!invite || !invite.link) return;
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(invite.link).catch(()=>{});
+    }
+    const sub = invite.emailed
+      ? tf('usr.inviteEmailed', {email})
+      : t('usr.inviteNotEmailed');
+    showAppPrompt(t('usr.inviteLinkTitle'), invite.link, ()=>{}, sub);
+  }
+  // Best-effort creation of client-role accounts for a project's client people.
+  async function reconcileClientPeople(people, projectKey, clientKey){
+    if(!API_CONNECTED || !people || !people.length) return;
+    for(const person of people){
+      if(!person || !person.email) continue;
+      const existing = USERS.find(u => (u.email||'').toLowerCase() === person.email.toLowerCase());
+      try {
+        if(existing){
+          const projs = Array.from(new Set([...(existing.projects||[]), projectKey]));
+          await apiUpdateUser(existing.id, {name: existing.name, role: existing.role, projects: projs, clientKey: existing.clientKey || clientKey});
+        } else {
+          await apiCreateUser({name: person.name, email: person.email, role:'client', projects:[projectKey], clientKey});
+        }
+      } catch(e){ console.warn('Could not create client account for', person.email, e.message); }
+    }
+    await loadUsers();
+  }
+
   // Attempt to connect to the backend and load data from the database on startup.
   async function initApiConnection(){
     try {
@@ -4409,16 +4565,8 @@
       try { renderInstallerPanel(); } catch(e){}
       try { renderClientPortal(currentClientScenario); } catch(e){}
 
-      // Load the persisted user roster (keeping the signed-in account present).
-      try {
-        const savedRoster = await apiGetState('roster');
-        if(Array.isArray(savedRoster)){
-          USERS.length = 0;
-          savedRoster.forEach(u=>USERS.push(u));
-          if(currentUser) applyCurrentUser(currentUser);
-          try { renderUsersTable(); } catch(e){}
-        }
-      } catch(e){ console.warn('Failed to load roster:', e.message); }
+      // Load the user directory (real accounts) from the backend.
+      try { await loadUsers(); } catch(e){ console.warn('Failed to load users:', e.message); }
 
       // Load the persisted audit log (change history).
       try {
@@ -4429,6 +4577,9 @@
           try { renderAuditLog(); } catch(e){}
         }
       } catch(e){ console.warn('Failed to load audit log:', e.message); }
+
+      // Load the signed-in user's personal access tokens for the profile.
+      try { await loadApiTokens(); } catch(e){ console.warn('Failed to load tokens:', e.message); }
 
       showToast('Loaded ' + rows.length + ' deployment(s) from the database');
     } catch(err){
@@ -4822,7 +4973,7 @@ Kind regards.`;
     showToast('Schedule changes saved — notifications sent to everyone');
   }
 
-  const statusLabelFull = {installed:'Installed', scheduled:'Scheduled', failed:'Failed', rolledback:'Rolled back', aborted:'Aborted'};
+  const statusLabelFull = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
 
   function getClientTimeline(d, proj){
     // Build a client-facing timeline for a client-portal deployment record.
@@ -4863,20 +5014,26 @@ Kind regards.`;
   function getDeploymentTimeline(r){
     const events = [];
     const appsLabel = r.apps.map(a=>`${a.name} ${a.version}`).join(', ');
-    const createdBy = r.createdBy || 'Release Manager';
-    events.push({date: r.createdDate, icon:'📝', text:`Schedule created by <strong>${createdBy}</strong> — ${appsLabel}` + (r.mode==='batch' ? ` (${r.totalLocations} locations, ${r.days} working days)` : ` (${r.location})`)});
+    const createdBy = r.createdBy || actorName();
+    const locLabel = /^Environment /.test(r.location||'')
+      ? tf('dcard.envLoc', {env: (r.location||'').replace(/^Environment /, '')})
+      : r.location;
+    const createdSuffix = r.mode==='batch'
+      ? ` (${tf('dtl.locsDays', {n: r.totalLocations, d: r.days})})`
+      : ` (${locLabel})`;
+    events.push({date: r.createdDate, time: r.createdTime, icon:'📝', text: tf('dtl.created', {by: `<strong>${createdBy}</strong>`, apps: appsLabel}) + createdSuffix});
 
     if(r.env === 'Production'){
-      events.push({date: r.createdDate, icon:'📧', text:'A request for approval was sent to the client'});
-      const who = r.clientApprovalBy ? `<strong>${r.clientApprovalBy}</strong>` : 'Client';
+      events.push({date: r.createdDate, time: r.createdTime, icon:'📧', text: t('dtl.approvalSent')});
+      const who = r.clientApprovalBy ? `<strong>${r.clientApprovalBy}</strong>` : t('dtl.client');
       if(r.clientApproval === 'approved'){
-        events.push({date: r.clientApprovalDate, time: r.clientApprovalTime, icon:'✅', text: who + ' approved the schedule'});
+        events.push({date: r.clientApprovalDate, time: r.clientApprovalTime, icon:'✅', text: tf('dtl.approved', {who})});
       } else if(r.clientApproval === 'commented'){
-        events.push({date: r.clientApprovalDate, time: r.clientApprovalTime, icon:'💬', text: who + ' commented: „' + (r.clientComment||'') + '”'});
+        events.push({date: r.clientApprovalDate, time: r.clientApprovalTime, icon:'💬', text: tf('dtl.commented', {who, text: r.clientComment||''})});
       } else if(r.clientApproval === 'rejected'){
-        events.push({date: r.clientApprovalDate, time: r.clientApprovalTime, icon:'❌', text: who + ' rejected the schedule: „' + (r.clientComment||'') + '”'});
+        events.push({date: r.clientApprovalDate, time: r.clientApprovalTime, icon:'❌', text: tf('dtl.rejected', {who, text: r.clientComment||''})});
       } else {
-        events.push({date: null, icon:'⏳', text:'Awaiting client approval'});
+        events.push({date: null, icon:'⏳', text: t('dtl.awaiting')});
       }
     }
 
@@ -4885,14 +5042,14 @@ Kind regards.`;
       const byDate = {};
       hist.forEach(h=>{ (byDate[h.date] = byDate[h.date] || []).push(h.location); });
       Object.keys(byDate).sort().forEach(date=>{
-        events.push({date, time: r.time, icon:'✅', text:`Deployed to ${byDate[date].length} locations`, locations: byDate[date]});
+        events.push({date, time: r.time, icon:'✅', text: tf('dtl.deployedTo', {n: byDate[date].length}), locations: byDate[date]});
       });
       if(r.failedLocations && r.failedLocations.length){
         const byDateF = {};
         r.failedLocations.forEach(f=>{ (byDateF[f.date] = byDateF[f.date] || []).push(f); });
         Object.keys(byDateF).sort().forEach(date=>{
           const items = byDateF[date];
-          events.push({date, time: r.time, icon:'⚠️', text:`Failed for ${items.length} locations — ${items[0].reason}`, locations: items.map(i=>i.location)});
+          events.push({date, time: r.time, icon:'⚠️', text: tf('dtl.failedFor', {n: items.length, reason: items[0].reason}), locations: items.map(i=>i.location)});
         });
       }
     } else {
@@ -4906,7 +5063,7 @@ Kind regards.`;
         const icon = c.icon || '⚙️';
         events.push({date: c.date, time: c.time, icon, text: c.text + (c.author ? ' <span style="color:var(--text-faint);">— ' + c.author + '</span>' : '')});
       } else {
-        events.push({date: c.date, time: c.time, icon:'🗒️', text:'Komentarz — <strong>' + (c.author || 'Release Manager') + '</strong>: „' + c.text + '”'});
+        events.push({date: c.date, time: c.time, icon:'🗒️', text: tf('dtl.comment', {who: '<strong>' + (c.author || 'Release Manager') + '</strong>', text: c.text})});
       }
     });
 
@@ -4957,11 +5114,11 @@ Kind regards.`;
     const events = getDeploymentTimeline(r);
     if(!events.length) return '';
     return `<div style="margin:12px 0;">
-      <div style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px;">Timeline</div>
+      <div style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px;">${t('dcard.timeline')}</div>
       <div style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:4px 10px;">
         ${events.map(e=>`
           <div style="display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--line-soft);">
-            <div class="mono" style="width:92px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${e.date ? e.date + (e.time ? ' ' + e.time : '') : 'pending'}</div>
+            <div class="mono" style="width:92px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${e.date ? e.date + (e.time ? ' ' + e.time : '') : t('dtl.pending')}</div>
             <div style="flex-shrink:0;">${e.icon}</div>
             <div style="flex:1; font-size:12px;">
               ${e.text}
@@ -5071,10 +5228,10 @@ Kind regards.`;
 
     // Waiting for client approval — informational, not actionable.
     if(waiting.length){
-      html += '<label style="margin-bottom:8px; display:block;">Awaiting client approval</label>';
+      html += '<label style="margin-bottom:8px; display:block;">' + t('dtl.awaiting') + '</label>';
       html += waiting.map(r=>{
         const appsLabel = r.apps.map(a=>`${a.name} v${a.version}`).join(', ');
-        const stMap = {pending:'awaiting approval', commented:'client commented', rejected:'rejected by the client'};
+        const stMap = {pending:t('rep.stPending'), commented:t('rep.stCommented'), rejected:t('rep.stRejected')};
         // Concise "when distribution starts" info (day of week + short date).
         let planHtml = '';
         const shortDate = iso => { const p = iso.split('-'); return p[2] + '.' + p[1]; };
@@ -5092,7 +5249,7 @@ Kind regards.`;
           <strong style="font-size:13px;">${r.project.name} — ${appsLabel}</strong>${deployIdBadge(r)}${internalBadge(r)}</div>
           ${planHtml}
           ${installerNotesHtml(r)}
-          <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">It will appear for reporting once the client approves the schedule.</div>
+          <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">${t('rep.appearAfterApproval')}</div>
         </div>`;
       }).join('');
     }
@@ -5155,8 +5312,8 @@ Kind regards.`;
             <textarea id="today-fail-reason-i-${r.idx}" placeholder="Failure reason (for unchecked)"></textarea>
             <button class="btn" style="margin-top:8px;" onclick="reportBatchDayResult(${r.idx}, 'i')">Save result</button>
             ${installerTimelineHtml(r)}
-            <textarea id="new-comment-i-${r.idx}" style="margin-top:12px;" placeholder="Add a comment..."></textarea>
-            <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'i'); renderInstallerPanel();">Save comment</button>
+            <textarea id="new-comment-i-${r.idx}" style="margin-top:12px;" placeholder="${t('dcard.addCommentPh')}"></textarea>
+            <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'i'); renderInstallerPanel();">${t('dcard.saveComment')}</button>
           </div>`;
         } else {
           return `<div class="card" id="installer-card-${r.idx}" style="margin-bottom:14px;">
@@ -5165,14 +5322,14 @@ Kind regards.`;
             ${depWarningHtml(r)}
             ${installerNotesHtml(r)}
             ${assigneeControlHtml(r)}
-            <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px 0;">By default we assume success — confirm it or report that it failed.</p>
+            <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px 0;">${t('rep.assumeSuccess')}</p>
             <div style="display:flex; gap:8px; margin-bottom:10px;">
-              <button class="btn ghost" onclick="installerMarkSingle(${r.idx}, 'installed')">✅ Confirm: installed</button>
-              <button class="btn ghost" onclick="installerMarkSingle(${r.idx}, 'failed')">⚠️ Report: failed</button>
+              <button class="btn ghost" onclick="installerMarkSingle(${r.idx}, 'installed')">${t('rep.confirmInstalled')}</button>
+              <button class="btn ghost" onclick="installerMarkSingle(${r.idx}, 'failed')">${t('rep.reportFailed')}</button>
             </div>
             ${installerTimelineHtml(r)}
-            <textarea id="new-comment-i-${r.idx}" placeholder="Add a comment..."></textarea>
-            <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'i'); renderInstallerPanel();">Save comment</button>
+            <textarea id="new-comment-i-${r.idx}" placeholder="${t('dcard.addCommentPh')}"></textarea>
+            <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'i'); renderInstallerPanel();">${t('dcard.saveComment')}</button>
           </div>`;
         }
       }).join('');
@@ -5361,6 +5518,9 @@ Kind regards.`;
         renderDeploymentsTable();
         showToast('Marked as failed — moved to completed, notification sent to the release manager');
         highlightInstallerCard(idx);
+        const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
+        dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + t('ev.failure'),
+          (d.id ? d.id + ' — ' : '') + projName + '\n' + reason, false);
       }, 'Failure reason', true);
       return;
     }
@@ -5726,7 +5886,7 @@ Kind regards.`;
         <div style="max-height:260px; overflow-y:auto; margin-bottom:16px;">
           ${events.map(e=>`
             <div style="display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--line-soft);">
-              <div class="mono" style="width:96px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${e.date ? e.date + (e.time ? ' ' + e.time : '') : 'pending'}</div>
+              <div class="mono" style="width:96px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${e.date ? e.date + (e.time ? ' ' + e.time : '') : t('dtl.pending')}</div>
               <div style="flex-shrink:0;">${e.icon}</div>
               <div style="flex:1; font-size:12.5px;">
                 ${e.text}
@@ -5737,9 +5897,9 @@ Kind regards.`;
 
       const commentForm = `
         <div class="field" style="margin-bottom:16px;">
-          <label>Add a comment</label>
-          <textarea id="new-comment-w-${r.idx}" placeholder="e.g. reason for the delay, a decision made during the rollout..."></textarea>
-          <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'w')">Save comment</button>
+          <label>${t('dcard.addComment')}</label>
+          <textarea id="new-comment-w-${r.idx}" placeholder="${t('dcard.addCommentExamplePh')}"></textarea>
+          <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'w')">${t('dcard.saveComment')}</button>
         </div>`;
 
       let actionHtml = '';
@@ -5808,16 +5968,25 @@ Kind regards.`;
 
       const changelogHtml = r.changelog ? `
         <div class="field" style="margin-bottom:16px;">
-          <label style="margin-bottom:4px;">Changelog${r.apps && r.apps.length ? ' — ' + r.apps.map(a=>a.name+' v'+a.version).join(', ') : ''}</label>
+          <label style="margin-bottom:4px;">${t('sch.changelog')}${r.apps && r.apps.length ? ' — ' + r.apps.map(a=>a.name+' v'+a.version).join(', ') : ''}</label>
           <div style="white-space:pre-line; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px; padding:10px 12px; line-height:1.6; font-size:12.5px;">${r.changelog}</div>
           ${attachmentLinkHtml(r.attachment, r.attachmentId)}
         </div>` : '';
 
+      // Action buttons live in the same bar as the deployment ID, pushed to the right.
+      const isActiveDep = (r.mode === 'batch' && r.counts.scheduled > 0) || (r.mode === 'single' && r.status === 'scheduled');
+      const isBatch = r.mode === 'batch';
+      const barBtns = [];
+      if(isBatch) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportScheduleXls(${r.idx})">⬇ Schedule XLS</button>`);
+      if(isBatch) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">⬇ Schedule PDF</button>`);
+      if(isActiveDep) barBtns.push(`<button class="mini-btn icon-btn accent" onclick="event.stopPropagation(); generateEndUserMessage(${r.idx})"><span class="mb-ic">✉</span> ${t('dcard.genMessage')}</button>`);
+      if(isActiveDep && !r.paused) barBtns.push(`<button class="mini-btn icon-btn warn" onclick="event.stopPropagation(); pauseDeployment(${r.idx})"><span class="mb-ic">⏸</span> ${t('dcard.pause')}</button>`);
       const idHtml = `
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; padding:10px 12px; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px;">
-          <span style="font-size:11.5px; color:var(--text-muted);">Deployment ID (API)</span>
+          <span style="font-size:11.5px; color:var(--text-muted);">${t('dcard.idLabel')}</span>
           <span class="mono" style="font-size:13px; font-weight:700;">${r.id || '—'}</span>
-          <button class="mini-btn" title="Copy ID" style="padding:4px 7px; display:inline-flex; align-items:center;" onclick="event.stopPropagation(); copyDeploymentId('${r.id||''}')">${COPY_ICON}</button>
+          <button class="mini-btn" title="${t('dcard.copyId')}" style="padding:4px 7px; display:inline-flex; align-items:center;" onclick="event.stopPropagation(); copyDeploymentId('${r.id||''}')">${COPY_ICON}</button>
+          ${barBtns.length ? `<div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">${barBtns.join('')}</div>` : ''}
         </div>`;
 
       const depHtml = (r.dependsOn && r.dependsOn.length) ? (function(){
@@ -5830,45 +5999,30 @@ Kind regards.`;
             : '<span class="mono" style="font-size:10px; font-weight:700; padding:1px 7px; border-radius:20px; background:var(--red-soft); color:#A81E1E;">⧗ in progress</span>';
           return `<div style="display:flex; align-items:center; gap:8px; padding:4px 0;"><span class="mono" style="font-size:11px; font-weight:700;">${depId}</span> <span style="font-size:12px; color:var(--text-muted);">${apps}</span> ${badge}</div>`;
         }).join('');
-        return `<div class="field" style="margin-bottom:16px;"><label style="margin-bottom:4px;">Dependencies (must be deployed first)</label><div style="border:1px solid var(--line); border-radius:8px; padding:8px 12px;">${items}</div></div>`;
+        return `<div class="field" style="margin-bottom:16px;"><label style="margin-bottom:4px;">${t('dcard.dependencies')}</label><div style="border:1px solid var(--line); border-radius:8px; padding:8px 12px;">${items}</div></div>`;
       })() : '';
 
-      // Pause / resume control — available while the deployment is still active.
-      const isActiveDep = (r.mode === 'batch' && r.counts.scheduled > 0) || (r.mode === 'single' && r.status === 'scheduled');
+      // Paused state — informational box with the resume control (active-state
+      // controls now live in the ID bar above).
       let pauseHtml = '';
       if(r.paused){
         pauseHtml = `<div style="margin-bottom:16px; padding:10px 12px; background:#FDF1E1; border:1px solid #F0D9A8; border-radius:8px;">
-          <div style="font-size:12.5px; color:#8A5A05; font-weight:600;">⏸ Deployment paused</div>
-          <div style="font-size:12px; color:var(--text-muted); margin-top:3px;">Reason: ${r.pauseReason ? '„'+r.pauseReason+'”' : '—'}</div>
-          ${r.pausedBy ? `<div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">Paused by: <strong>${r.pausedBy}</strong>${r.pausedAt ? ' · ' + r.pausedAt : ''}</div>` : ''}
-          <button class="mini-btn" style="margin-top:8px;" onclick="event.stopPropagation(); resumeDeployment(${r.idx})">▶ Resume deployment</button>
-        </div>`;
-      } else if(isActiveDep){
-        pauseHtml = `<div style="margin-bottom:16px;">
-          <button class="mini-btn" onclick="event.stopPropagation(); pauseDeployment(${r.idx})">⏸ Pause deployment</button>
+          <div style="font-size:12.5px; color:#8A5A05; font-weight:600;">⏸ ${t('dcard.paused')}</div>
+          <div style="font-size:12px; color:var(--text-muted); margin-top:3px;">${t('dcard.reason')}: ${r.pauseReason ? '„'+r.pauseReason+'”' : '—'}</div>
+          ${r.pausedBy ? `<div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">${t('dcard.pausedBy')}: <strong>${r.pausedBy}</strong>${r.pausedAt ? ' · ' + r.pausedAt : ''}</div>` : ''}
+          <button class="mini-btn icon-btn ok" style="margin-top:8px;" onclick="event.stopPropagation(); resumeDeployment(${r.idx})"><span class="mb-ic">▶</span> ${t('dcard.resume')}</button>
         </div>`;
       }
-
-      // Schedule export (for batch) + message for end users.
-      // The message only makes sense BEFORE the deployment — we don't show it for completed ones.
-      const isBatch = r.mode === 'batch';
-      const beforeInstall = (r.mode === 'batch' && r.counts.scheduled > 0) || (r.mode === 'single' && r.status === 'scheduled');
-      const exportBtns = [];
-      if(isBatch) exportBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportScheduleXls(${r.idx})">⬇ Schedule XLS</button>`);
-      if(isBatch) exportBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">⬇ Schedule PDF</button>`);
-      if(beforeInstall) exportBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); generateEndUserMessage(${r.idx})">✉ Generate a message for users</button>`);
-      const exportHtml = exportBtns.length ? `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">${exportBtns.join('')}</div>` : '';
 
       return `<tr><td colspan="${totalCols}" style="background:var(--paper);" onclick="event.stopPropagation();">
         <div style="padding:14px;">
           ${idHtml}
           ${r.assignedTo ? `<div style="font-size:12px; color:var(--text-muted); margin:-4px 0 12px 0;">Assigned to / done by: <strong>${r.assignedTo}</strong></div>` : ''}
-          ${exportHtml}
           ${pauseHtml}
           ${installerNotesHtml(r)}
           ${depHtml}
           ${changelogHtml}
-          <label style="margin-bottom:8px;">Timeline</label>
+          <label style="margin-bottom:8px;">${t('dcard.timeline')}</label>
           ${timelineHtml}
           ${commentForm}
           ${r.paused ? '' : actionHtml}
@@ -5876,7 +6030,7 @@ Kind regards.`;
       </td></tr>`;
     }
 
-    const statusLabel = {installed:'installed', scheduled:'scheduled', failed:'failed', rolledback:'rolled back', aborted:'aborted'};
+    const statusLabel = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
     const statusOptions = ['scheduled','installed','failed','rolledback','aborted'];
     const tbody = document.getElementById('deploy-table');
     let html = '';
@@ -5933,7 +6087,7 @@ Kind regards.`;
           ${statusOptions.map(s=>`<option value="${s}" ${s===r.status?'selected':''}>${statusLabel[s]}</option>`).join('')}
         </select>${r.paused ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ PAUSED${r.pauseReason ? ' — ' + r.pauseReason : ''}</div>` : ''}</td>`);
         cells.push(approvalBadgeHtml(r));
-        cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();"><button class="mini-btn" onclick="toggleEditDeployment(${r.idx})">Edit</button></td>`);
+        cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();"><button class="mini-btn" onclick="toggleEditDeployment(${r.idx})">${t('usr.edit')}</button></td>`);
         html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
         if(expandedBatchIdx === r.idx) html += timelinePanelHtml(r);
       }
@@ -6030,24 +6184,29 @@ Kind regards.`;
       'There is no account for „' + name + '”. Create a client account for this person with access to the „' + p.name + '” project (' + clientLabel + ')?',
       ()=>{
         const domainHint = client && client.domain ? ' (domain: ' + client.domain + ')' : '';
-        showAppPrompt('E-mail address for ' + name, '', (email)=>{
+        showAppPrompt('E-mail address for ' + name, '', async (email)=>{
           if(email === null) return;
           email = (email || '').trim();
           if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ showToast('Enter a valid e-mail address'); return; }
           if(client && client.domain && (email.split('@')[1] || '').toLowerCase() !== client.domain.toLowerCase()){
             showToast('The e-mail must be from the domain „' + client.domain + '”'); return;
           }
-          const existing = USERS.find(u => (u.email || '').toLowerCase() === email.toLowerCase());
-          if(existing){
-            existing.projects = existing.projects || [];
-            if(!existing.projects.includes(projectKey)) existing.projects.push(projectKey);
-          } else {
-            USERS.push({name, email, role:'client', projects:[projectKey], invitePending:true, twoFactor:false});
-          }
-          logAudit('added', 'User', 'Added client account „' + name + '” from a deployment approval', p.name + ' (' + clientLabel + ')');
-          try { renderUsersTable(); } catch(e){}
-          persistRoster();
-          showToast('Client account created for „' + name + '” — an invitation was sent to ' + email);
+          if(!API_CONNECTED){ showToast('Not connected to the backend — cannot create an account'); return; }
+          try {
+            const existing = USERS.find(u => (u.email || '').toLowerCase() === email.toLowerCase());
+            if(existing){
+              const projs = Array.from(new Set([...(existing.projects||[]), projectKey]));
+              await apiUpdateUser(existing.id, {name: existing.name, role: existing.role, projects: projs, clientKey: existing.clientKey || (client && client.key) || null});
+              await loadUsers();
+              showToast('„' + name + '” already had an account — access to „' + p.name + '” was granted');
+            } else {
+              const created = await apiCreateUser({name, email, role:'client', projects:[projectKey], clientKey: (client && client.key) || null});
+              logAudit('added', 'User', 'Added client account „' + name + '” from a deployment approval', p.name + ' (' + clientLabel + ')');
+              await loadUsers();
+              showToast('Client account created for „' + name + '”');
+              showInviteLink(created.invite, email);
+            }
+          } catch(e){ showToast('⚠ ' + (e.message || 'Could not create the account')); }
         }, 'They will get an invitation to set a password' + domainHint);
       },
       'Create account'
@@ -6057,9 +6216,12 @@ Kind regards.`;
   function changeClientApproval(idx, newStatus){
     const d = DEPLOYMENTS_DATA[idx];
     let who = d.clientApprovalBy || '';
-    const labels = {pending:'awaiting approval', approved:'approved', commented:'commented', rejected:'rejected'};
+    const labels = {pending:t('rep.stPending'), approved:t('dec.approved'), commented:t('dec.commented'), rejected:t('dec.rejected')};
     if(newStatus !== 'pending'){
-      showAppPrompt('Who on the client side made this decision?', who, (entered)=>{
+      // Suggest known client people for this project, but keep the field free-text.
+      const people = USERS.filter(u => u.role === 'client' && (u.projects || []).includes(d.projectKey))
+        .map(u => u.name).filter(Boolean);
+      showAppPrompt(t('dec.whoDecided'), who, (entered)=>{
         if(entered === null) return;
         who = entered.trim();
         d.clientApproval = newStatus;
@@ -6068,23 +6230,23 @@ Kind regards.`;
         d.clientApprovalTime = '14:25';
         persistDeployment(idx);
         renderDeploymentsTable();
-        showToast('Saved manually: ' + labels[newStatus] + ' (e.g. the client replied by email outside the system)');
+        showToast(tf('dec.savedManually', {status: labels[newStatus]}));
         offerCreateClientAccount(who, d.projectKey);
-      }, 'Full name');
+      }, t('dec.pickOrType'), false, people);
       return;
     }
     d.clientApproval = newStatus;
     persistDeployment(idx);
     renderDeploymentsTable();
-    showToast('Saved manually: ' + labels[newStatus] + ' (e.g. the client replied by email outside the system)');
+    showToast(tf('dec.savedManually', {status: labels[newStatus]}));
   }
 
   function pauseDeployment(idx){
     const d = DEPLOYMENTS_DATA[idx];
-    showAppPrompt('Pause deployment', '', (reason)=>{
+    showAppPrompt(t('dcard.pause'), '', (reason)=>{
       if(reason === null) return;
       const trimmed = (reason || '').trim();
-      if(!trimmed){ showToast('Enter the reason for pausing'); return; }
+      if(!trimmed){ return; }
       const _sp = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
       const who = actorName();
       d.paused = true;
@@ -6105,7 +6267,7 @@ Kind regards.`;
       renderDeploymentsTable();
       renderInstallerPanel();
       showToast('Deployment paused — notified: ' + notifySummary('paused', d.projectKey, clientSees));
-    }, 'Enter the reason for pausing (e.g. incident, no confirmation from branches)', true);
+    }, t('pause.reasonHint'), true, undefined, (v)=> (v||'').trim() ? '' : t('pause.reasonRequired'));
   }
 
   function resumeDeployment(idx){
@@ -6142,9 +6304,9 @@ Kind regards.`;
   function copyDeploymentId(id){
     if(!id){ return; }
     if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(id).then(()=>showToast('Copied ID: ' + id)).catch(()=>showToast('Deployment ID: ' + id));
+      navigator.clipboard.writeText(id).then(()=>showToast(tf('dcard.copiedId', {id}))).catch(()=>showToast(tf('dcard.deploymentId', {id})));
     } else {
-      showToast('Deployment ID: ' + id);
+      showToast(tf('dcard.deploymentId', {id}));
     }
   }
 
@@ -6164,7 +6326,7 @@ Kind regards.`;
   //  mandatory TOTP MFA. The login overlay is a small state machine; the app
   //  behind it is only revealed once a valid session token is obtained.
   // ============================================================================
-  const AUTH_PANELS = ['boot-panel','setup-panel','login-panel','mfa-enroll-panel','mfa-code-panel','reset-panel'];
+  const AUTH_PANELS = ['boot-panel','setup-panel','login-panel','mfa-enroll-panel','mfa-code-panel','reset-panel','invite-panel'];
   let authStageToken = ''; // short-lived token carried between login and MFA steps
 
   function showLoginScreen(){ document.getElementById('login-screen').style.display = 'flex'; }
@@ -6175,6 +6337,60 @@ Kind regards.`;
     if(target) target.style.display = 'block';
   }
   function showLoginPanel(){ showAuthPanel('login-panel'); }
+
+  // ---- Invitation / password-reset acceptance (#/invite/<token>) ----
+  let inviteToken = null;
+  // If the URL is an invitation link, take over the boot: show the set-password
+  // panel instead of the normal setup/login gate. Returns true if it did.
+  function handleInviteRoute(){
+    const m = /^#\/invite\/([A-Za-z0-9]+)$/.exec(location.hash || '');
+    if(!m) return false;
+    inviteToken = m[1];
+    showLoginScreen();
+    showAuthPanel('invite-panel');
+    clearAuthError('invite-error');
+    const btn = document.getElementById('invite-btn'); if(btn) btn.disabled = false;
+    fetch(API_BASE + '/api/auth/invite/' + encodeURIComponent(inviteToken))
+      .then(r => r.ok ? r.json() : Promise.reject(r))
+      .then(info => {
+        document.getElementById('invite-email').value = info.email || '';
+        const desc = document.getElementById('invite-desc');
+        if(desc) desc.textContent = info.mode === 'reset' ? t('auth.inviteResetDesc') : t('auth.inviteDesc');
+        const p = document.getElementById('invite-pass'); if(p) p.focus();
+      })
+      .catch(async (r) => {
+        let msg = t('auth.inviteInvalid');
+        try { const d = await r.json(); if(d && d.error) msg = d.error; } catch(e){}
+        authError('invite-error', msg);
+        if(btn) btn.disabled = true;
+      });
+    return true;
+  }
+  async function submitInvitePassword(){
+    clearAuthError('invite-error');
+    const p1 = document.getElementById('invite-pass').value;
+    const p2 = document.getElementById('invite-pass2').value;
+    const strength = passwordStrength(p1);
+    if(!strength.strong){ authError('invite-error', strength.message); return; }
+    if(p1 !== p2){ authError('invite-error', t('auth.passMismatch')); return; }
+    const btn = document.getElementById('invite-btn'); btn.disabled = true;
+    try {
+      const r = await authPost('/api/auth/invite/' + encodeURIComponent(inviteToken), { password: p1 });
+      if(!r.ok){ authError('invite-error', r.data.error || t('auth.inviteFailed')); btn.disabled = false; return; }
+      // Drop the invite hash so a refresh doesn't reopen the panel, then sign in.
+      try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
+      const email = document.getElementById('invite-email').value;
+      showLoginPanel();
+      document.getElementById('login-email').value = email;
+      document.getElementById('login-password').value = '';
+      document.getElementById('login-password').focus();
+      showToast(t('auth.invitePwSet'));
+      checkAuthStatus();
+    } catch(e){
+      authError('invite-error', 'Backend unavailable — please try again.');
+      btn.disabled = false;
+    }
+  }
   function showResetPanel(){
     showAuthPanel('reset-panel');
     document.getElementById('reset-step-request').style.display = 'block';
@@ -6478,13 +6694,17 @@ Kind regards.`;
   // and reflect it in the language toggles.
   syncLanguageControls();
   if(LANG !== 'en') applyLanguage();
-  // Restore the view from the URL hash (deep-link / refresh) and set the tab title.
-  routeFromHash();
   // Check for a newer published version on GitHub (fails quietly if offline).
   checkLatestVersion();
-  // Gate the app behind authentication: decide setup vs login, and only load
-  // data from the API once a session token has been obtained (in onAuthenticated).
-  checkAuthStatus();
+  // An invitation link takes over the boot (show the set-password panel);
+  // otherwise restore the view from the hash and run the normal auth gate.
+  if(!handleInviteRoute()){
+    // Restore the view from the URL hash (deep-link / refresh) and set the tab title.
+    routeFromHash();
+    // Gate the app behind authentication: decide setup vs login, and only load
+    // data from the API once a session token has been obtained.
+    checkAuthStatus();
+  }
 
 </script>
 </body>

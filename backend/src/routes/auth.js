@@ -17,6 +17,7 @@ import {
   otpauthUrl,
   qrDataUrl,
   verifyTotp,
+  sha256hex,
 } from '../auth.js';
 
 const router = Router();
@@ -86,6 +87,8 @@ router.post('/login', credentialLimiter, async (req, res) => {
   const user = await findUserByEmail(email);
   const ok = user && (await verifyPassword(password, user.password_hash));
   if (!ok) return res.status(401).json({ error: 'Invalid email or password' });
+  // Archived accounts keep their history but can no longer sign in.
+  if (user.archived) return res.status(403).json({ error: 'This account has been archived' });
 
   const stage = user.mfa_enabled ? 'mfa-login' : 'mfa-setup';
   const token = signStageToken(user, stage);
@@ -151,7 +154,50 @@ router.get('/login-history', requireStage('session'), async (req, res) => {
 router.get('/me', requireStage('session'), async (req, res) => {
   const user = await findUserById(req.auth.sub);
   if (!user) return res.status(401).json({ error: 'Authentication required' });
-  res.json({ id: user.id, email: user.email, role: user.role });
+  res.json({ id: user.id, email: user.email, role: user.role, name: user.name || null });
+});
+
+// GET /api/auth/invite/:token — validate an invitation / reset link. Open
+// endpoint (the token IS the credential). Returns whom it's for and whether
+// this is a first-time invite (enroll MFA next) or a password reset.
+router.get('/invite/:token', async (req, res) => {
+  const hash = sha256hex(String(req.params.token || ''));
+  const { rows } = await query(
+    'SELECT email, name, mfa_enabled, archived, invite_expires FROM users WHERE invite_token = $1',
+    [hash]
+  );
+  const user = rows[0];
+  if (!user || user.archived) return res.status(404).json({ error: 'Invalid or expired link' });
+  if (user.invite_expires && new Date(user.invite_expires).getTime() < Date.now()) {
+    return res.status(410).json({ error: 'This link has expired' });
+  }
+  res.json({ email: user.email, name: user.name, mode: user.mfa_enabled ? 'reset' : 'invite' });
+});
+
+// POST /api/auth/invite/:token — set the password for an invited/reset account
+// and clear the token. The user then signs in normally (enrolling MFA on the
+// first sign-in of a brand-new account).
+router.post('/invite/:token', credentialLimiter, async (req, res) => {
+  const hash = sha256hex(String(req.params.token || ''));
+  const password = String((req.body && req.body.password) || '');
+  if (password.length < 8) return res.status(422).json({ error: 'Password must be at least 8 characters' });
+
+  const { rows } = await query(
+    'SELECT id, archived, invite_expires FROM users WHERE invite_token = $1',
+    [hash]
+  );
+  const user = rows[0];
+  if (!user || user.archived) return res.status(404).json({ error: 'Invalid or expired link' });
+  if (user.invite_expires && new Date(user.invite_expires).getTime() < Date.now()) {
+    return res.status(410).json({ error: 'This link has expired' });
+  }
+
+  const password_hash = await hashPassword(password);
+  await query(
+    'UPDATE users SET password_hash = $1, invite_token = NULL, invite_expires = NULL WHERE id = $2',
+    [password_hash, user.id]
+  );
+  res.json({ ok: true });
 });
 
 // POST /api/auth/mfa/reconfigure — (session) generate a NEW pending secret for
