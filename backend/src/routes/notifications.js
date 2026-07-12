@@ -3,11 +3,15 @@
 // to an e-mail address via the configured SMTP transport.
 import { Router } from 'express';
 import { sendMail } from '../mailer.js';
+import { config } from '../config.js';
 
 const router = Router();
 
 const TEST_TEXT =
   'This is a test message from RollDesk. If you can see it, the notification target is configured correctly.';
+
+// Public app URL (if configured) so notifications can link back to RollDesk.
+const APP_URL = config.appBaseUrl;
 
 // POST a JSON body to a webhook with a bounded timeout.
 async function postWebhook(url, payload, timeoutMs = 10000) {
@@ -36,15 +40,36 @@ router.post('/test', async (req, res) => {
     if (!/^https?:\/\//i.test(url)) {
       return res.status(422).json({ error: 'A valid webhook URL (http/https) is required' });
     }
-    // Legacy MessageCard payload — accepted by Teams incoming webhooks.
-    const payload = {
-      '@type': 'MessageCard',
-      '@context': 'http://schema.org/extensions',
-      themeColor: '0A6E7A',
-      summary: 'RollDesk test notification',
-      title: 'RollDesk — test notification',
-      text: TEST_TEXT,
-    };
+    // The payload shape depends on the target: Slack incoming webhooks expect a
+    // simple { text }, while Teams incoming webhooks expect a MessageCard.
+    // Sending the wrong shape makes the target reject the request (e.g. Slack
+    // returns HTTP 400 "invalid_payload"), so pick the format from the host.
+    const isSlack = /(^|\.)slack\.com$/i.test((() => { try { return new URL(url).hostname; } catch { return ''; } })());
+    let payload;
+    if (isSlack) {
+      // Slack renders <url|label> as a link inside the message text.
+      payload = {
+        text: 'RollDesk — test notification\n' + TEST_TEXT +
+          (APP_URL ? `\n<${APP_URL}|Open RollDesk>` : ''),
+      };
+    } else {
+      payload = {
+        '@type': 'MessageCard',
+        '@context': 'http://schema.org/extensions',
+        themeColor: '0A6E7A',
+        summary: 'RollDesk test notification',
+        title: 'RollDesk — test notification',
+        text: TEST_TEXT,
+      };
+      // Teams MessageCard shows an "Open RollDesk" button when a URL is configured.
+      if (APP_URL) {
+        payload.potentialAction = [{
+          '@type': 'OpenUri',
+          name: 'Open RollDesk',
+          targets: [{ os: 'default', uri: APP_URL }],
+        }];
+      }
+    }
     try {
       const r = await postWebhook(url, payload);
       if (!r.ok) return res.status(502).json({ error: 'Webhook returned HTTP ' + r.status, detail: (r.text || '').slice(0, 300) });
@@ -61,11 +86,13 @@ router.post('/test', async (req, res) => {
       return res.status(422).json({ error: 'A valid e-mail address is required' });
     }
     try {
+      const linkText = APP_URL ? `\n\nOpen RollDesk: ${APP_URL}` : '';
+      const linkHtml = APP_URL ? `<p><a href="${APP_URL}">Open RollDesk</a></p>` : '';
       const result = await sendMail({
         to,
         subject: 'RollDesk — test notification',
-        text: TEST_TEXT,
-        html: `<p>${TEST_TEXT}</p>`,
+        text: TEST_TEXT + linkText,
+        html: `<p>${TEST_TEXT}</p>${linkHtml}`,
       });
       if (result.skipped) return res.status(503).json({ error: 'E-mail sending is disabled (SMTP_HOST not set)' });
       return res.json({ ok: true, messageId: result.messageId });

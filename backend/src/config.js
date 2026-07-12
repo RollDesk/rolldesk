@@ -23,6 +23,10 @@ export const config = {
   env,
   isProd,
   version,
+  // Public base URL where RollDesk is reachable (e.g. https://rolldesk.example.com).
+  // Used to embed clickable links back to the app in outgoing notifications.
+  // Trailing slashes are trimmed so callers can safely append paths.
+  appBaseUrl: (process.env.APP_BASE_URL || '').trim().replace(/\/+$/, ''),
   port: parseInt(process.env.PORT || '3000', 10),
   trustProxy: process.env.TRUST_PROXY === '1',
   allowedIps: (process.env.ALLOWED_IPS || '')
