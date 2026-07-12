@@ -18,12 +18,26 @@ services:
       timeout: 5s
       retries: 10
 
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "clamdcheck.sh || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
+
   backend:
     image: ${IMAGE_PREFIX:-ghcr.io/your-org/rolldesk}-backend:${TAG:-latest}
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
+      clamav:
+        condition: service_started
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -32,6 +46,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required in production}
       ALLOWED_IPS: ${ALLOWED_IPS:-}
       TRUST_PROXY: "1"
+      CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+      CLAMAV_FAIL_MODE: ${CLAMAV_FAIL_MODE:-reject}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-false}
@@ -51,3 +68,4 @@ services:
 
 volumes:
   db-data:
+  clamav-data:

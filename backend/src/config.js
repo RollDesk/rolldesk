@@ -31,6 +31,16 @@ export const config = {
     // Issuer/label shown in the user's authenticator app.
     mfaIssuer: process.env.MFA_ISSUER || 'RollDesk',
   },
+  // ClamAV virus scanning for uploaded attachments. When CLAMAV_HOST is set the
+  // backend streams each upload to clamd (INSTREAM) before storing it. If a scan
+  // can't be completed, failMode decides whether to reject ('reject', default —
+  // fail closed) or accept ('allow', fail open) the upload.
+  av: {
+    host: (process.env.CLAMAV_HOST || '').trim(),
+    port: parseInt(process.env.CLAMAV_PORT || '3310', 10),
+    timeoutMs: parseInt(process.env.CLAMAV_TIMEOUT_MS || '30000', 10),
+    failMode: (process.env.CLAMAV_FAIL_MODE || 'reject').toLowerCase() === 'allow' ? 'allow' : 'reject',
+  },
   smtp: {
     host: process.env.SMTP_HOST || '',
     port: parseInt(process.env.SMTP_PORT || '587', 10),

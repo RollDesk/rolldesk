@@ -14,6 +14,24 @@ services:
       timeout: 5s
       retries: 10
 
+  clamav:
+    image: clamav/clamav:stable
+    # The official ClamAV image is published for amd64 only; pin the platform so
+    # it also runs on arm64 hosts (e.g. Apple Silicon) via emulation.
+    platform: linux/amd64
+    restart: unless-stopped
+    volumes:
+      # Persist the virus database so freshclam doesn't re-download it on every start.
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      # clamdcheck.sh (shipped in the image) pings clamd; only healthy once the
+      # daemon has loaded the signature database.
+      test: ["CMD-SHELL", "clamdcheck.sh || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
+
   backend:
     build: ./backend
     image: rolldesk/backend:${TAG:-latest}
@@ -21,6 +39,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      clamav:
+        condition: service_started
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -31,6 +51,12 @@ services:
       # Empty = no restriction at the backend layer (nginx filters anyway).
       ALLOWED_IPS: ${ALLOWED_IPS:-}
       TRUST_PROXY: "1"
+      # ClamAV virus scanning for uploaded attachments (separate container).
+      CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+      # 'reject' = block uploads if the scanner is unreachable (fail closed);
+      # 'allow' = accept unscanned uploads if the scanner is down (fail open).
+      CLAMAV_FAIL_MODE: ${CLAMAV_FAIL_MODE:-reject}
       # SMTP — server address comes from configuration, not from code:
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -60,3 +86,4 @@ services:
 
 volumes:
   db-data:
+  clamav-data:

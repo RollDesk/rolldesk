@@ -7,6 +7,8 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { query } from '../db.js';
+import { config } from '../config.js';
+import { avEnabled, scanBuffer } from '../antivirus.js';
 
 const MAX_BYTES = 25 * 1024 * 1024; // 25 MB per file
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_BYTES } });
@@ -30,6 +32,24 @@ router.post('/deployments/:id/attachments', upload.single('file'), async (req, r
   if (!req.file) return res.status(422).json({ error: 'No file uploaded (form field "file")' });
   const dep = await query('SELECT id FROM deployments WHERE id = $1', [req.params.id]);
   if (!dep.rows.length) return res.status(404).json({ error: 'Deployment not found' });
+
+  // Virus-scan the upload before it is stored (when a ClamAV host is configured).
+  if (avEnabled()) {
+    let result;
+    try {
+      result = await scanBuffer(req.file.buffer);
+    } catch (err) {
+      console.warn('[av] scan failed:', err.message);
+      if (config.av.failMode !== 'allow') {
+        return res.status(503).json({ error: 'Virus scan unavailable — upload rejected', detail: err.message });
+      }
+      // fail-open: allow the upload but note it wasn't scanned.
+    }
+    if (result && !result.clean) {
+      return res.status(422).json({ error: 'File rejected by virus scan', virus: result.virus });
+    }
+  }
+
   const { originalname, mimetype, size, buffer } = req.file;
   const uploadedBy = req.auth && req.auth.sub ? req.auth.sub : null;
   const { rows } = await query(

@@ -83,14 +83,17 @@ flowchart LR
       N[frontend: nginx<br/>static UI + IP allowlist + /api proxy]
       B[backend: Express API<br/>IP allowlist + migrations on start]
       D[(PostgreSQL<br/>db-data volume)]
+      A[clamav: clamd<br/>virus scanning]
       N -->|/api, /health| B
       B --> D
+      B -->|INSTREAM scan| A
     end
 ```
 
 - **frontend** — an nginx container that serves the single-page UI (`frontend/app/index.html`), proxies `/api` and `/health` to the backend, and enforces an IP allowlist built from `ALLOWED_IPS`.
-- **backend** — an Express API that persists data to PostgreSQL, runs database migrations on startup, applies a second IP-allowlist layer, and can send email notifications via SMTP.
-- **db** — PostgreSQL. Deployments and projects are stored with filterable columns plus a `JSONB` `data` column holding the full object, so the UI can evolve its shape without constant migrations.
+- **backend** — an Express API that persists data to PostgreSQL, runs database migrations on startup, applies a second IP-allowlist layer, virus-scans uploaded attachments via ClamAV, and can send email notifications via SMTP.
+- **db** — PostgreSQL. Deployments and projects are stored with filterable columns plus a `JSONB` `data` column holding the full object, so the UI can evolve its shape without constant migrations. Uploaded files are kept in an `attachments` table.
+- **clamav** — a ClamAV (clamd) container that scans uploaded attachments before they are stored.
 
 **Connected vs demo mode:** the UI auto-detects the backend. With the backend up (via `docker compose`) it runs in **CONNECTED** mode — loading from and saving to the database (a "● database connected" indicator shows bottom-right). Opened as a bare file with no backend, it runs in **DEMO** mode on in-memory placeholder data ("○ demo mode").
 
@@ -189,6 +192,8 @@ All configuration comes from environment variables (see `.env.example`). Key one
 | `MFA_ISSUER` | `RollDesk` | Label shown for the account in the user's authenticator app. |
 | `TRUST_PROXY` | `1` (in compose) | Trust `X-Forwarded-For` for the real client IP behind a proxy. |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | *(empty)* | SMTP for email notifications; if `SMTP_HOST` is unset, sending is skipped. |
+| `CLAMAV_HOST` / `CLAMAV_PORT` | `clamav` / `3310` | clamd host/port for virus-scanning uploads. Compose points these at the bundled `clamav` container; leave `CLAMAV_HOST` empty to disable scanning. |
+| `CLAMAV_FAIL_MODE` | `reject` | When the scanner is unreachable: `reject` (block the upload — fail closed) or `allow` (accept unscanned — fail open). |
 | `IMAGE_PREFIX` / `TAG` | — | Used by `docker-compose.prod.yml` to pick which registry images/version to run. |
 
 ### Restricting access by IP
@@ -198,6 +203,12 @@ ALLOWED_IPS=203.0.113.4, 198.51.100.0/24, 10.8.0.0/24
 ```
 
 Filtering runs at **nginx** (whole UI + API) and again in the **backend**. IPv4/IPv6 single addresses and CIDR ranges are supported. Typically you allow your office's public IP and the team VPN subnet.
+
+### Virus scanning of uploads
+
+Uploaded attachments are streamed to a **ClamAV** container (`clamav`, speaking clamd's INSTREAM protocol) before they are stored. An infected file is rejected with `422` and never written to the database. On first start ClamAV downloads its signature database (a few minutes); the signatures are cached in the `clamav-data` volume. If the scanner is unreachable, `CLAMAV_FAIL_MODE` decides whether uploads are blocked (`reject`, default) or accepted unscanned (`allow`). Set `CLAMAV_HOST=` (empty) to turn scanning off entirely.
+
+> The official `clamav/clamav` image is amd64-only; the dev compose pins `platform: linux/amd64` so it also runs on Apple Silicon via emulation.
 
 ---
 
@@ -255,6 +266,10 @@ All endpoints are under `/api` (IP-filtered). `/health` is unfiltered for monito
 | DELETE | `/api/attachments/:id` | session | Delete a single attachment. |
 | GET | `/api/projects` | session | List projects (with default days/time and apps). |
 | PUT | `/api/projects/:key` | session | Create or update a project. |
+| GET | `/api/audit` | session | Change-history entries, newest first. |
+| POST | `/api/audit` | session | Append one change-history entry. |
+| GET | `/api/state/:key` | session | Read a shared collection (`roster`, `clients`, `notifications`). |
+| PUT | `/api/state/:key` | session | Replace a shared collection (last-write-wins). |
 | GET | `/health` | — | Liveness + DB reachability. |
 
 Deployment statuses: `scheduled`, `installed`, `failed`, `rolledback`, `aborted`, `paused`.

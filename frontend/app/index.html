@@ -4312,7 +4312,14 @@
       method: 'POST',
       body: fd  // no Content-Type header — the browser sets the multipart boundary
     });
-    if(!res.ok) throw new Error('POST attachment ' + res.status);
+    if(!res.ok){
+      let info = {};
+      try { info = await res.json(); } catch(e){}
+      const err = new Error(info.error || ('POST attachment ' + res.status));
+      err.status = res.status;
+      err.virus = info.virus || null;
+      throw err;
+    }
     return res.json();
   }
 
@@ -4448,10 +4455,24 @@
       try {
         await apiSaveDeployment(d);
         if(file){
-          const meta = await apiUploadAttachment(d.id, file);
-          d.attachmentId = meta.id;
-          d.attachment = meta.filename;
-          await apiSaveDeployment(d);
+          try {
+            const meta = await apiUploadAttachment(d.id, file);
+            d.attachmentId = meta.id;
+            d.attachment = meta.filename;
+            await apiSaveDeployment(d);
+          } catch(upErr){
+            // Surface a clear message for a virus rejection or an unavailable
+            // scanner; the deployment itself is still saved, just without the file.
+            d.attachment = null;
+            await apiSaveDeployment(d);
+            if(upErr.virus){
+              showToast('⚠ Attachment rejected by virus scan (' + upErr.virus + ') — deployment saved without the file');
+            } else if(upErr.status === 503){
+              showToast('⚠ Virus scanner unavailable — deployment saved without the attachment');
+            } else {
+              showToast('⚠ Could not upload the attachment — deployment saved without it');
+            }
+          }
         }
       } catch(err){
         console.warn('Failed to finalize deployment', d.id, err.message);
