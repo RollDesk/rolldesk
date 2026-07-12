@@ -1847,6 +1847,7 @@
     renderClientsTable();
     populateClientSelect();
     renderProjectsList();
+    persistClients();
     toggleClientForm();
   }
 
@@ -2004,14 +2005,19 @@
     const now = new Date();
     const pad = n => String(n).padStart(2,'0');
     const ts = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes());
-    AUDIT_LOG.unshift({
+    const entry = {
       ts,
       actor: actorName(),
       role: currentLoggedInRole,
       action, entity, detail,
       project: project || '—'
-    });
+    };
+    AUDIT_LOG.unshift(entry);
     if(typeof renderAuditLog === 'function') renderAuditLog();
+    // Persist the entry server-side so the change history survives refreshes.
+    if(typeof API_CONNECTED !== 'undefined' && API_CONNECTED && typeof apiAppendAudit === 'function'){
+      apiAppendAudit(entry).catch(err => console.warn('Failed to save audit entry:', err.message));
+    }
   }
 
   function renderAuditLog(){
@@ -2147,6 +2153,7 @@
     if(!emails.length && !hooks.length){ showToast('Add at least one recipient (e-mail or webhook)'); return; }
     const activeEmails = emails.filter(e=>e.enabled).length;
     const activeHooks = hooks.filter(c=>c.enabled).length;
+    persistNotifications();
     showToast('Settings saved — active: ' + activeEmails + ' e-mail address(es), ' + activeHooks + ' webhook(s)');
   }
   function isLoggedInAsAdmin(){
@@ -2316,6 +2323,7 @@
       showToast('User „' + name + '” added — an invitation with a link to set a password has been sent to ' + email);
     }
     renderUsersTable();
+    persistRoster();
     toggleUserForm();
   }
 
@@ -2340,6 +2348,7 @@
       USERS[i].archivedReason = reason.trim();
       logAudit('removed', 'User', 'Archived user „' + name + '”' + (reason.trim() ? ' (reason: ' + reason.trim() + ')' : ''), '—');
       renderUsersTable();
+      persistRoster();
       showToast('User „' + name + '” archived');
     }, 'Reason for archiving (optional) — e.g. „left the company”, „role change”');
   }
@@ -2351,6 +2360,7 @@
     USERS[i].archivedReason = '';
     logAudit('changed', 'User', 'Restored user „' + name + '”', '—');
     renderUsersTable();
+    persistRoster();
     showToast('User „' + name + '” restored');
   }
 
@@ -2661,7 +2671,8 @@
       return;
     }
     const fileInput = document.getElementById('schedule-changelog-file');
-    const attachment = (fileInput.files && fileInput.files.length) ? fileInput.files[0].name : null;
+    const fileToUpload = (fileInput.files && fileInput.files.length) ? fileInput.files[0] : null;
+    const attachment = fileToUpload ? fileToUpload.name : null;
 
     const testEnvs = Array.from(document.querySelectorAll('#schedule-envs-checks input:checked')).map(c=>c.value);
     const testDate = document.getElementById('date-test').value || '2026-07-13';
@@ -2740,8 +2751,9 @@
       created.push('prod');
     }
 
-    // Save the newly created deployments to the database (if connected).
-    for(let i = createdIdsStart; i < DEPLOYMENTS_DATA.length; i++){ persistDeployment(i); }
+    // Save the newly created deployments to the database (if connected) and,
+    // when a changelog file was chosen, upload it and link its stored id.
+    finalizeCreatedDeployments(createdIdsStart, fileToUpload);
 
     renderDeploymentsTable();
     renderInstallerPanel();
@@ -3824,6 +3836,8 @@
 
     logAudit('added', 'Project', 'Created project "' + name + '"', name + ' (' + clientName + ')');
     persistProject(projectKey);
+    persistClients();
+    persistRoster();
 
     // Refresh dependent views and open the new project.
     renderProjectsList();
@@ -4056,7 +4070,7 @@
           env: d.env, date: dateStr, time: d.time || '',
           status: clientStatus,
           clientApproval: d.clientApproval, clientComment: d.clientComment, clientReply: d.clientReply,
-          changelog: d.changelog, attachment: d.attachment
+          changelog: d.changelog, attachment: d.attachment, attachmentId: d.attachmentId
         });
       });
     });
@@ -4143,7 +4157,7 @@
             ${d.changelog ? `<div style="margin-top:14px; font-size:12.5px;">
               <div style="color:var(--text-muted); margin-bottom:4px; font-weight:600;">${t('client.changelogFor')}</div>
               <div style="white-space:pre-line; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px; padding:10px 12px; line-height:1.6;">${d.changelog}</div>
-              ${d.attachment ? `<a href="#" onclick="event.preventDefault(); showToast(tf('client.download',{name:'${d.attachment}'}));" style="display:inline-flex; align-items:center; gap:6px; margin-top:8px; font-size:12px; color:var(--cyan); text-decoration:none;">📎 ${d.attachment}</a>` : ''}
+              ${attachmentLinkHtml(d.attachment, d.attachmentId)}
             </div>` : ''}
             ${timelineHtml}
           </div>
@@ -4289,6 +4303,55 @@
     return true;
   }
 
+  // Upload a file as an attachment of a deployment (multipart). Returns the
+  // stored attachment metadata ({id, filename, mime, size, ...}).
+  async function apiUploadAttachment(deploymentId, file){
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await apiFetch('/api/deployments/' + encodeURIComponent(deploymentId) + '/attachments', {
+      method: 'POST',
+      body: fd  // no Content-Type header — the browser sets the multipart boundary
+    });
+    if(!res.ok) throw new Error('POST attachment ' + res.status);
+    return res.json();
+  }
+
+  // Download a stored attachment via an authenticated fetch, then hand the
+  // bytes to the browser as a normal file download.
+  async function downloadAttachment(att){
+    if(!att || !att.id){ showToast('Attachment is not available'); return; }
+    try {
+      const res = await apiFetch('/api/attachments/' + encodeURIComponent(att.id));
+      if(!res.ok) throw new Error('GET attachment ' + res.status);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = att.filename || 'attachment';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 1500);
+    } catch(e){
+      console.warn('attachment download failed', e.message);
+      showToast('Could not download the attachment');
+    }
+  }
+
+  // Renders the attachment line: a real download link when the file is stored
+  // in the DB (attachmentId present), otherwise a plain label (e.g. offline or
+  // legacy records where only the filename was kept).
+  function attachmentLinkHtml(filename, attachmentId){
+    if(!filename) return '';
+    const safeName = String(filename).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const label = '📎 ' + filename;
+    const style = 'display:inline-flex; align-items:center; gap:6px; margin-top:8px; font-size:12px; text-decoration:none;';
+    if(attachmentId){
+      return `<a href="#" onclick="event.preventDefault(); event.stopPropagation(); downloadAttachment({id:'${attachmentId}', filename:'${safeName}'});" style="${style} color:var(--cyan);">${label}</a>`;
+    }
+    return `<span style="${style} color:var(--text-muted);">${label}</span>`;
+  }
+
   async function apiListProjects(){
     const res = await apiFetch('/api/projects');
     if(!res.ok) throw new Error('GET /api/projects ' + res.status);
@@ -4302,6 +4365,47 @@
     });
     if(!res.ok) throw new Error('PUT /api/projects ' + res.status);
     return res.json();
+  }
+
+  // ---- Audit log + shared collections (roster / clients / notifications) ----
+  async function apiListAudit(){
+    const res = await apiFetch('/api/audit');
+    if(!res.ok) throw new Error('GET /api/audit ' + res.status);
+    return res.json();
+  }
+  async function apiAppendAudit(entry){
+    const res = await apiFetch('/api/audit', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(entry)
+    });
+    if(!res.ok) throw new Error('POST /api/audit ' + res.status);
+    return res.json();
+  }
+  async function apiGetState(key){
+    const res = await apiFetch('/api/state/' + encodeURIComponent(key));
+    if(!res.ok) throw new Error('GET /api/state ' + res.status);
+    return res.json();
+  }
+  async function apiPutState(key, data){
+    const res = await apiFetch('/api/state/' + encodeURIComponent(key), {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+    if(!res.ok) throw new Error('PUT /api/state ' + res.status);
+    return res.json();
+  }
+
+  // Best-effort persistence for the whole-collection settings. No-ops offline.
+  function persistRoster(){
+    if(!API_CONNECTED) return;
+    apiPutState('roster', USERS).catch(err => console.warn('Failed to save roster:', err.message));
+  }
+  function persistClients(){
+    if(!API_CONNECTED) return;
+    apiPutState('clients', CLIENTS).catch(err => console.warn('Failed to save clients:', err.message));
+  }
+  function persistNotifications(){
+    if(!API_CONNECTED) return;
+    apiPutState('notifications', {emails: NOTIF_EMAILS, teams: NOTIF_TEAMS})
+      .catch(err => console.warn('Failed to save notifications:', err.message));
   }
 
   // Persist a project to the database (best-effort; no-op when offline).
@@ -4331,6 +4435,33 @@
     apiDeleteDeployment(id).catch(err => console.warn('Failed to delete from the database:', err.message));
   }
 
+  // Persist freshly created deployments and, if a changelog file was attached,
+  // upload it to each one and store the returned attachment id so it can later
+  // be downloaded. Runs async; re-renders once the uploads have completed.
+  async function finalizeCreatedDeployments(startIdx, file){
+    if(!API_CONNECTED){
+      // Offline: nothing to upload; keep the filename for display only.
+      return;
+    }
+    for(let i = startIdx; i < DEPLOYMENTS_DATA.length; i++){
+      const d = DEPLOYMENTS_DATA[i];
+      try {
+        await apiSaveDeployment(d);
+        if(file){
+          const meta = await apiUploadAttachment(d.id, file);
+          d.attachmentId = meta.id;
+          d.attachment = meta.filename;
+          await apiSaveDeployment(d);
+        }
+      } catch(err){
+        console.warn('Failed to finalize deployment', d.id, err.message);
+        showToast('⚠ Could not save to the database — change is local only');
+      }
+    }
+    renderDeploymentsTable();
+    renderInstallerPanel();
+  }
+
   // Attempt to connect to the backend and load data from the database on startup.
   async function initApiConnection(){
     try {
@@ -4345,6 +4476,16 @@
           if(!pr || !pr.key) return;
           PROJECTS[pr.key] = normalizeProject(Object.assign({}, pr));
         });
+        // Load the persisted client list first (so manually-added clients and
+        // their real domains survive), then top it up with any clients that
+        // only appear on projects.
+        try {
+          const savedClients = await apiGetState('clients');
+          if(Array.isArray(savedClients)){
+            CLIENTS.length = 0;
+            savedClients.forEach(c=>CLIENTS.push(c));
+          }
+        } catch(e){ console.warn('Failed to load clients:', e.message); }
         // Derive the client list from the projects' clients (kept in sync so
         // filters/tables reflect real data without a separate clients table).
         const seenClients = new Set(CLIENTS.map(c=>c.key));
@@ -4382,6 +4523,41 @@
       try { renderDeploymentsTable(); } catch(e){}
       try { renderInstallerPanel(); } catch(e){}
       try { renderClientPortal(currentClientScenario); } catch(e){}
+
+      // Load the persisted user roster (keeping the signed-in account present).
+      try {
+        const savedRoster = await apiGetState('roster');
+        if(Array.isArray(savedRoster)){
+          USERS.length = 0;
+          savedRoster.forEach(u=>USERS.push(u));
+          if(currentUser) applyCurrentUser(currentUser);
+          try { renderUsersTable(); } catch(e){}
+        }
+      } catch(e){ console.warn('Failed to load roster:', e.message); }
+
+      // Load persisted notification recipients (email + Teams webhooks).
+      try {
+        const savedNotif = await apiGetState('notifications');
+        if(savedNotif && (Array.isArray(savedNotif.emails) || Array.isArray(savedNotif.teams))){
+          NOTIF_EMAILS.length = 0;
+          (savedNotif.emails || []).forEach(e=>NOTIF_EMAILS.push(e));
+          NOTIF_TEAMS.length = 0;
+          (savedNotif.teams || []).forEach(t=>NOTIF_TEAMS.push(t));
+          try { renderNotifEmails(); } catch(e){}
+          try { renderNotifTeams(); } catch(e){}
+        }
+      } catch(e){ console.warn('Failed to load notifications:', e.message); }
+
+      // Load the persisted audit log (change history).
+      try {
+        const auditRows = await apiListAudit();
+        if(Array.isArray(auditRows)){
+          AUDIT_LOG.length = 0;
+          auditRows.forEach(a=>AUDIT_LOG.push(a));
+          try { renderAuditLog(); } catch(e){}
+        }
+      } catch(e){ console.warn('Failed to load audit log:', e.message); }
+
       showToast('Loaded ' + rows.length + ' deployment(s) from the database');
     } catch(err){
       API_CONNECTED = false;
@@ -4892,6 +5068,28 @@ Kind regards.`;
     </div>`;
   }
 
+  // Compact timeline for the deployer panel so comments the deployer adds (and
+  // other timeline events) are actually visible there — the deployer has no
+  // access to the full deployments list where the timeline is otherwise shown.
+  function installerTimelineHtml(r){
+    const events = getDeploymentTimeline(r);
+    if(!events.length) return '';
+    return `<div style="margin:12px 0;">
+      <div style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px;">Timeline</div>
+      <div style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:4px 10px;">
+        ${events.map(e=>`
+          <div style="display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--line-soft);">
+            <div class="mono" style="width:92px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${e.date ? e.date + (e.time ? ' ' + e.time : '') : 'pending'}</div>
+            <div style="flex-shrink:0;">${e.icon}</div>
+            <div style="flex:1; font-size:12px;">
+              ${e.text}
+              ${e.locations ? `<div class="mono" style="margin-top:3px; font-size:11px; color:var(--text-muted);">${e.locations.join(', ')}</div>` : ''}
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
   function depWarningHtml(r){
     const s = depsStatus(r);
     if(!s.blocked) return '';
@@ -5074,6 +5272,9 @@ Kind regards.`;
             </div>
             <textarea id="today-fail-reason-i-${r.idx}" placeholder="Failure reason (for unchecked)"></textarea>
             <button class="btn" style="margin-top:8px;" onclick="reportBatchDayResult(${r.idx}, 'i')">Save result</button>
+            ${installerTimelineHtml(r)}
+            <textarea id="new-comment-i-${r.idx}" style="margin-top:12px;" placeholder="Add a comment..."></textarea>
+            <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'i'); renderInstallerPanel();">Save comment</button>
           </div>`;
         } else {
           return `<div class="card" id="installer-card-${r.idx}" style="margin-bottom:14px;">
@@ -5087,6 +5288,7 @@ Kind regards.`;
               <button class="btn ghost" onclick="installerMarkSingle(${r.idx}, 'installed')">✅ Confirm: installed</button>
               <button class="btn ghost" onclick="installerMarkSingle(${r.idx}, 'failed')">⚠️ Report: failed</button>
             </div>
+            ${installerTimelineHtml(r)}
             <textarea id="new-comment-i-${r.idx}" placeholder="Add a comment..."></textarea>
             <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'i'); renderInstallerPanel();">Save comment</button>
           </div>`;
@@ -5485,6 +5687,7 @@ Kind regards.`;
   function addDeploymentComment(idx, scope){
     scope = scope || 'w';
     const ta = document.getElementById('new-comment-' + scope + '-' + idx);
+    if(!ta) return;
     const text = ta.value.trim();
     if(!text) return;
     const d = DEPLOYMENTS_DATA[idx];
@@ -5717,7 +5920,7 @@ Kind regards.`;
         <div class="field" style="margin-bottom:16px;">
           <label style="margin-bottom:4px;">Changelog${r.apps && r.apps.length ? ' — ' + r.apps.map(a=>a.name+' v'+a.version).join(', ') : ''}</label>
           <div style="white-space:pre-line; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px; padding:10px 12px; line-height:1.6; font-size:12.5px;">${r.changelog}</div>
-          ${r.attachment ? `<a href="#" onclick="event.preventDefault(); showToast('Downloading: ${r.attachment}');" style="display:inline-flex; align-items:center; gap:6px; margin-top:8px; font-size:12px; color:var(--cyan); text-decoration:none;">📎 ${r.attachment}</a>` : ''}
+          ${attachmentLinkHtml(r.attachment, r.attachmentId)}
         </div>` : '';
 
       const idHtml = `
@@ -5891,13 +6094,25 @@ Kind regards.`;
     const envEl = row.querySelector('.edit-env');
     const dateEl = row.querySelector('.edit-date');
     const timeEl = row.querySelector('.edit-time');
-    if(envEl) d.env = envEl.value;
-    if(dateEl) d.date = dateEl.value;
-    if(timeEl) d.time = timeEl.value;
+    // Capture the previous values so the change can be recorded on the timeline
+    // and in the audit log (editing a single deployment previously left no trace).
+    const changes = [];
+    if(envEl && envEl.value !== d.env){ changes.push('environment ' + d.env + ' → ' + envEl.value); d.env = envEl.value; }
+    if(dateEl && dateEl.value !== d.date){ changes.push('date ' + (d.date||'—') + ' → ' + (dateEl.value||'—')); d.date = dateEl.value; }
+    if(timeEl && timeEl.value !== d.time){ changes.push('time ' + (d.time||'—') + ' → ' + (timeEl.value||'—')); d.time = timeEl.value; }
     editingDeployIdx = null;
+    if(changes.length){
+      const _s = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
+      const who = actorName();
+      const summary = changes.join(', ');
+      d.comments = d.comments || [];
+      d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'📅', text:'Deployment changed (' + summary + ')'});
+      logAudit('changed','Deployment','Changed deployment ' + (d.id||'') + ' — ' + summary, (PROJECTS[d.projectKey]||{}).name || d.projectKey);
+    }
     persistDeployment(idx);
     renderDeploymentsTable();
-    showToast('Deployment updated');
+    renderInstallerPanel();
+    showToast(changes.length ? 'Deployment updated' : 'No changes');
   }
 
   function changeDeploymentStatus(idx, newStatus){
@@ -5941,6 +6156,7 @@ Kind regards.`;
           }
           logAudit('added', 'User', 'Added client account „' + name + '” from a deployment approval', p.name + ' (' + clientLabel + ')');
           try { renderUsersTable(); } catch(e){}
+          persistRoster();
           showToast('Client account created for „' + name + '” — an invitation was sent to ' + email);
         }, 'They will get an invitation to set a password' + domainHint);
       },

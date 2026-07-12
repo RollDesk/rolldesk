@@ -8,6 +8,8 @@ import health from './routes/health.js';
 import authRouter from './routes/auth.js';
 import deployments from './routes/deployments.js';
 import projects from './routes/projects.js';
+import attachments from './routes/attachments.js';
+import state from './routes/state.js';
 
 const app = express();
 if (config.trustProxy) app.set('trust proxy', true);
@@ -22,6 +24,11 @@ app.use('/api', ipAllowlist);
 // Auth endpoints are open (they issue the tokens); each self-guards.
 app.use('/api/auth', authRouter);
 // Everything else requires a valid session token.
+// Attachments are mounted at /api so both `/api/deployments/:id/attachments`
+// and `/api/attachments/:id` resolve here; more specific deployment sub-routes
+// are matched before the generic deployments router below.
+app.use('/api', requireAuth, attachments);
+app.use('/api', requireAuth, state);
 app.use('/api/deployments', requireAuth, deployments);
 app.use('/api/projects', requireAuth, projects);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown endpoint' }));

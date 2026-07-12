@@ -99,7 +99,7 @@ flowchart LR
 ## Tech stack
 
 - **Frontend:** a single self-contained `index.html` (vanilla HTML/CSS/JS, no build step), served by **nginx**.
-- **Backend:** **Node.js 20**, **Express 4**, **pg**, **nodemailer**, **ipaddr.js** (ES modules).
+- **Backend:** **Node.js 20**, **Express 4**, **pg**, **nodemailer**, **multer** (file uploads), **ipaddr.js** (ES modules).
 - **Database:** **PostgreSQL 16**.
 - **Infra/CI:** **Docker** + **Docker Compose**, **GitHub Actions**, images published to **GHCR**.
 - **Tests:** Node's built-in `node:test` runner (zero extra dependencies).
@@ -248,7 +248,11 @@ All endpoints are under `/api` (IP-filtered). `/health` is unfiltered for monito
 | GET | `/api/deployments/:id` | session | Details of one deployment. |
 | POST | `/api/deployments` | session | Create (id from body or generated). |
 | PUT | `/api/deployments/:id` | session | Create or update the full object (used by the UI). |
-| DELETE | `/api/deployments/:id` | session | Delete. |
+| DELETE | `/api/deployments/:id` | session | Delete (cascades to its attachments). |
+| POST | `/api/deployments/:id/attachments` | session | Upload a file (`multipart/form-data`, field `file`); returns its metadata. |
+| GET | `/api/deployments/:id/attachments` | session | List a deployment's attachment metadata (no bytes). |
+| GET | `/api/attachments/:id` | session | Download the stored file bytes. |
+| DELETE | `/api/attachments/:id` | session | Delete a single attachment. |
 | GET | `/api/projects` | session | List projects (with default days/time and apps). |
 | PUT | `/api/projects/:key` | session | Create or update a project. |
 | GET | `/health` | — | Liveness + DB reachability. |
