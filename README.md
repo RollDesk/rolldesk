@@ -6,7 +6,7 @@ It gives everyone involved in a release — the release manager, the person doin
 
 The whole thing ships as a small, runnable package: a static UI + an Express API + PostgreSQL, all in Docker, with IP-based access control and ready-to-use CI/CD.
 
-> **Status:** early / functional prototype. The infrastructure, API, database, and CI/CD are real; the UI is a rich mockup and authentication is not yet real (see [Project status](#project-status)).
+> **Status:** early / functional prototype. The infrastructure, API, database, authentication, and CI/CD are real; the UI is still a rich single-file app (see [Project status](#project-status)).
 
 ---
 
@@ -22,6 +22,7 @@ The whole thing ships as a small, runnable package: a static UI + an Express API
 - [Configuration](#configuration)
 - [Database: migrations & seeding](#database-migrations--seeding)
 - [HTTP API](#http-api)
+- [Authentication](#authentication)
 - [Tests](#tests)
 - [Deployment](#deployment)
 - [Contributing](#contributing)
@@ -82,14 +83,17 @@ flowchart LR
       N[frontend: nginx<br/>static UI + IP allowlist + /api proxy]
       B[backend: Express API<br/>IP allowlist + migrations on start]
       D[(PostgreSQL<br/>db-data volume)]
+      A[clamav: clamd<br/>virus scanning]
       N -->|/api, /health| B
       B --> D
+      B -->|INSTREAM scan| A
     end
 ```
 
 - **frontend** — an nginx container that serves the single-page UI (`frontend/app/index.html`), proxies `/api` and `/health` to the backend, and enforces an IP allowlist built from `ALLOWED_IPS`.
-- **backend** — an Express API that persists data to PostgreSQL, runs database migrations on startup, applies a second IP-allowlist layer, and can send email notifications via SMTP.
-- **db** — PostgreSQL. Deployments and projects are stored with filterable columns plus a `JSONB` `data` column holding the full object, so the UI can evolve its shape without constant migrations.
+- **backend** — an Express API that persists data to PostgreSQL, runs database migrations on startup, applies a second IP-allowlist layer, virus-scans uploaded attachments via ClamAV, and can send email notifications via SMTP.
+- **db** — PostgreSQL. Deployments and projects are stored with filterable columns plus a `JSONB` `data` column holding the full object, so the UI can evolve its shape without constant migrations. Uploaded files are kept in an `attachments` table.
+- **clamav** — a ClamAV (clamd) container that scans uploaded attachments before they are stored.
 
 **Connected vs demo mode:** the UI auto-detects the backend. With the backend up (via `docker compose`) it runs in **CONNECTED** mode — loading from and saving to the database (a "● database connected" indicator shows bottom-right). Opened as a bare file with no backend, it runs in **DEMO** mode on in-memory placeholder data ("○ demo mode").
 
@@ -98,8 +102,8 @@ flowchart LR
 ## Tech stack
 
 - **Frontend:** a single self-contained `index.html` (vanilla HTML/CSS/JS, no build step), served by **nginx**.
-- **Backend:** **Node.js 20**, **Express 4**, **pg**, **nodemailer**, **ipaddr.js** (ES modules).
-- **Database:** **PostgreSQL 16**.
+- **Backend:** **Node.js 20**, **Express 4**, **pg**, **nodemailer**, **multer** (file uploads), **ipaddr.js** (ES modules).
+- **Database:** **PostgreSQL 18**.
 - **Infra/CI:** **Docker** + **Docker Compose**, **GitHub Actions**, images published to **GHCR**.
 - **Tests:** Node's built-in `node:test` runner (zero extra dependencies).
 
@@ -113,8 +117,7 @@ rolldesk/
 ├── docker-compose.prod.yml       # production stack: runs pre-built images from a registry
 ├── .env.example                  # configuration template (copy to .env)
 ├── .github/workflows/
-│   ├── deploy.yml                # push to main:        test → build & push images → deploy over SSH
-│   └── release.yml               # version tag/release: test → build & push versioned images
+│   └── deploy.yml                # test → build & publish images to GHCR (versioned on git tags)
 ├── frontend/                     # nginx serving the UI + /api proxy + IP allowlist
 │   ├── Dockerfile
 │   ├── nginx.conf.template
@@ -155,6 +158,8 @@ docker compose up --build
 
 Migrations run automatically on backend start. To load sample data, see [seeding](#local-test-data-not-committed).
 
+**First run:** there is no default user. The first time you open the UI you're shown a **setup wizard** to create the administrator account. On that account's first login you must **enroll TOTP MFA** (scan the QR code with an authenticator app); every later login then requires the 6-digit code. See [Authentication](#authentication).
+
 ### Run the backend on its own (fast iteration)
 
 You need a PostgreSQL reachable via `DATABASE_URL`.
@@ -182,8 +187,13 @@ All configuration comes from environment variables (see `.env.example`). Key one
 | `ALLOWED_IPS` | *(empty)* | Comma/space-separated IPs and CIDR ranges allowed to reach the UI + API. Empty = no restriction (**dev only**). |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `rolldesk` | Database credentials. |
 | `DATABASE_URL` | *(built from the above)* | Backend connection string. |
+| `JWT_SECRET` | *(dev: ephemeral)* | Secret used to sign session tokens. **Required in production** — the backend refuses to start without it. Generate with `openssl rand -hex 32`. In dev, if unset, an ephemeral secret is used (sessions reset on restart). |
+| `SESSION_TTL` / `MFA_STAGE_TTL` | `12h` / `10m` | Lifetime of a session token, and of the short-lived token carried between login and the MFA step. |
+| `MFA_ISSUER` | `RollDesk` | Label shown for the account in the user's authenticator app. |
 | `TRUST_PROXY` | `1` (in compose) | Trust `X-Forwarded-For` for the real client IP behind a proxy. |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | *(empty)* | SMTP for email notifications; if `SMTP_HOST` is unset, sending is skipped. |
+| `CLAMAV_HOST` / `CLAMAV_PORT` | `clamav` / `3310` | clamd host/port for virus-scanning uploads. Compose points these at the bundled `clamav` container; leave `CLAMAV_HOST` empty to disable scanning. |
+| `CLAMAV_FAIL_MODE` | `reject` | When the scanner is unreachable: `reject` (block the upload — fail closed) or `allow` (accept unscanned — fail open). |
 | `IMAGE_PREFIX` / `TAG` | — | Used by `docker-compose.prod.yml` to pick which registry images/version to run. |
 
 ### Restricting access by IP
@@ -193,6 +203,12 @@ ALLOWED_IPS=203.0.113.4, 198.51.100.0/24, 10.8.0.0/24
 ```
 
 Filtering runs at **nginx** (whole UI + API) and again in the **backend**. IPv4/IPv6 single addresses and CIDR ranges are supported. Typically you allow your office's public IP and the team VPN subnet.
+
+### Virus scanning of uploads
+
+Uploaded attachments are streamed to a **ClamAV** container (`clamav`, speaking clamd's INSTREAM protocol) before they are stored. An infected file is rejected with `422` and never written to the database. On first start ClamAV downloads its signature database (a few minutes); the signatures are cached in the `clamav-data` volume. If the scanner is unreachable, `CLAMAV_FAIL_MODE` decides whether uploads are blocked (`reject`, default) or accepted unscanned (`allow`). Set `CLAMAV_HOST=` (empty) to turn scanning off entirely.
+
+> The official `clamav/clamav` image is amd64-only; the dev compose pins `platform: linux/amd64` so it also runs on Apple Silicon via emulation.
 
 ---
 
@@ -224,24 +240,89 @@ docker compose exec backend npm run seed
 
 The dev `docker-compose.yml` mounts `backend/src/seeds` into the backend container so the git-ignored file is available at runtime.
 
+### Using an external / managed database
+
+By default the stack runs its own PostgreSQL container (`db`) and the backend connects to it. To point RollDesk at an **external database** instead (e.g. Amazon RDS, Cloud SQL, Azure Database, or an existing on-prem PostgreSQL), override `DATABASE_URL` and don't start the bundled `db` service:
+
+1. **Set `DATABASE_URL`** to your server's connection string. It takes precedence over the per-part `POSTGRES_*` values:
+
+```bash
+# .env
+DATABASE_URL=postgres://USER:PASSWORD@db.example.com:5432/rolldesk?sslmode=require
+```
+
+   Include `?sslmode=require` (or stricter) for managed providers that enforce TLS. The database/user must already exist; the backend creates the tables itself by running the migrations on startup.
+
+2. **Start only the services you need** (skip the local `db`):
+
+```bash
+# dev compose (build local images)
+docker compose up -d --build backend frontend clamav
+# or production compose (pre-built images)
+docker compose -f docker-compose.prod.yml up -d backend frontend clamav
+```
+
+Because migrations run automatically on backend start, the external database is provisioned on first launch — no manual step required (you can still run `npm run migrate` manually against `DATABASE_URL` if you prefer). The bundled `db` service and its `db-data` volume are simply left unused; you can delete the `db` block from your compose file if you never want it.
+
+### Using an external ClamAV
+
+The same idea applies to virus scanning: the `clamav` container is a convenience, not a requirement. To use a **shared/managed ClamAV (clamd)** instead, point the backend at it and skip the bundled container:
+
+```bash
+# .env
+CLAMAV_HOST=clamav.internal.example.com
+CLAMAV_PORT=3310
+```
+
+Then start the stack without the `clamav` service (e.g. `docker compose up -d backend frontend`, plus `db` if you use the bundled database). Set `CLAMAV_HOST=` (empty) to disable scanning altogether. See [Virus scanning of uploads](#virus-scanning-of-uploads) for the fail-open/fail-closed behaviour (`CLAMAV_FAIL_MODE`).
+
 ---
 
 ## HTTP API
 
-All endpoints are under `/api` (IP-filtered). `/health` is unfiltered for monitoring.
+All endpoints are under `/api` (IP-filtered). `/health` is unfiltered for monitoring. The `/api/deployments` and `/api/projects` routes require a valid session token (`Authorization: Bearer <token>`); the `/api/auth` routes issue those tokens (see [Authentication](#authentication)).
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/deployments` | List (filters: `project`, `env`, `status`). |
-| GET | `/api/deployments/:id` | Details of one deployment. |
-| POST | `/api/deployments` | Create (id from body or generated). |
-| PUT | `/api/deployments/:id` | Create or update the full object (used by the UI). |
-| DELETE | `/api/deployments/:id` | Delete. |
-| GET | `/api/projects` | List projects (with default days/time and apps). |
-| PUT | `/api/projects/:key` | Create or update a project. |
-| GET | `/health` | Liveness + DB reachability. |
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/auth/status` | — | Whether an admin account exists yet (`{ configured }`). |
+| POST | `/api/auth/setup` | — | Create the first admin. `409` once configured. |
+| POST | `/api/auth/login` | — | Verify password; returns a stage token (`mfa-setup` or `mfa-login`). |
+| POST | `/api/auth/mfa/setup` | stage | Start MFA enrollment; returns `otpauthUrl` + QR data URL. |
+| POST | `/api/auth/mfa/verify` | stage | Verify the first code, enable MFA, return a session token. |
+| POST | `/api/auth/mfa/login` | stage | Verify a code for an enrolled user, return a session token. |
+| GET | `/api/auth/me` | session | Current user (`{ id, email, role }`). |
+| GET | `/api/deployments` | session | List (filters: `project`, `env`, `status`). |
+| GET | `/api/deployments/:id` | session | Details of one deployment. |
+| POST | `/api/deployments` | session | Create (id from body or generated). |
+| PUT | `/api/deployments/:id` | session | Create or update the full object (used by the UI). |
+| DELETE | `/api/deployments/:id` | session | Delete (cascades to its attachments). |
+| POST | `/api/deployments/:id/attachments` | session | Upload a file (`multipart/form-data`, field `file`); returns its metadata. |
+| GET | `/api/deployments/:id/attachments` | session | List a deployment's attachment metadata (no bytes). |
+| GET | `/api/attachments/:id` | session | Download the stored file bytes. |
+| DELETE | `/api/attachments/:id` | session | Delete a single attachment. |
+| GET | `/api/projects` | session | List projects (with default days/time and apps). |
+| PUT | `/api/projects/:key` | session | Create or update a project. |
+| GET | `/api/audit` | session | Change-history entries, newest first. |
+| POST | `/api/audit` | session | Append one change-history entry. |
+| GET | `/api/state/:key` | session | Read a shared collection (`roster`, `clients`, `notifications`). |
+| PUT | `/api/state/:key` | session | Replace a shared collection (last-write-wins). |
+| POST | `/api/notifications/test` | session | Send a test message to a Teams webhook (`{channel:'teams', url}`) or e-mail (`{channel:'email', address}`). |
+| GET | `/health` | — | Liveness + DB reachability. |
 
 Deployment statuses: `scheduled`, `installed`, `failed`, `rolledback`, `aborted`, `paused`.
+
+---
+
+## Authentication
+
+RollDesk ships with **no default account** and stays locked until one is created.
+
+1. **First run — setup wizard.** `GET /api/auth/status` reports `configured: false`, so the UI shows a wizard to create the initial admin (`POST /api/auth/setup`). Passwords are hashed with bcrypt.
+2. **Login.** `POST /api/auth/login` verifies the password and returns a short-lived *stage* token indicating the next step.
+3. **Mandatory MFA.** On the admin's first login, MFA enrollment is forced: the UI shows a QR code (from `POST /api/auth/mfa/setup`) to scan with an authenticator app, and `POST /api/auth/mfa/verify` confirms the first code and enables MFA. Later logins require the 6-digit code via `POST /api/auth/mfa/login`.
+4. **Session.** A successful MFA step returns a session JWT (signed with `JWT_SECRET`, `SESSION_TTL` lifetime). The UI stores it in `localStorage` and sends it as `Authorization: Bearer` on every `/api` call. A `401` clears the token and returns to the login screen.
+
+TOTP MFA uses [`otplib`](https://www.npmjs.com/package/otplib); QR codes are rendered with [`qrcode`](https://www.npmjs.com/package/qrcode); tokens use [`jsonwebtoken`](https://www.npmjs.com/package/jsonwebtoken).
 
 ---
 
@@ -261,43 +342,37 @@ They cover the IP allowlist (exact IPs, CIDR ranges, IPv4/IPv6, the `X-Forwarded
 
 ## Deployment
 
-### Continuous deployment (push to `main`)
+### Build & publish images (CI)
 
-`.github/workflows/deploy.yml` runs on every push to `main`: **test → build & push images to GHCR → deploy over SSH** (copies `docker-compose.prod.yml`, then `docker compose pull && up -d`). Migrations are baked into the backend image and applied on startup.
+`.github/workflows/deploy.yml` runs the automated tests, then builds and pushes both Docker images to GHCR. **The pipeline ends at publishing the images — it does not deploy to a server.** `GITHUB_TOKEN` is provided automatically and is the only credential needed.
 
-**Server prerequisites:** Docker + Compose plugin; a deploy directory (e.g. `/opt/rolldesk`) containing a production `.env`; an SSH user that can run `docker`.
+It triggers on pushes to `main`, on version tags, and manually (`workflow_dispatch`). Image tags produced:
 
-**Required GitHub secrets** (Settings → Secrets and variables → Actions):
+| Trigger | Image tags |
+|---------|-----------|
+| push to `main` | `latest`, `<commit-sha>` |
+| push tag `vX.Y.Z` | `latest`, `<commit-sha>`, `X.Y.Z` |
 
-| Secret | Description |
-|--------|-------------|
-| `SSH_HOST` | Server hostname or IP |
-| `SSH_USER` | SSH username |
-| `SSH_KEY` | Private SSH key (PEM) for that user |
-| `SSH_PORT` | SSH port (e.g. `22`) |
-| `DEPLOY_PATH` | Absolute path to the deploy directory (e.g. `/opt/rolldesk`) |
-
-`GITHUB_TOKEN` is provided automatically and is used to push and pull images. Tip: create a `production` GitHub Environment (referenced by the deploy job) for reviewers/scoped secrets.
-
-### Versioned releases
-
-`.github/workflows/release.yml` triggers on a published Release or a `v*.*.*` tag: it runs tests, then builds and pushes images tagged with the version **and** `latest`.
+Cut a versioned image from a tag:
 
 ```bash
-git tag v1.4.0 && git push origin v1.4.0   # or publish a Release in the UI
+git tag v1.4.0 && git push origin v1.4.0
+# produces ghcr.io/<owner>/<repo>-backend:1.4.0 and -frontend:1.4.0
 ```
 
-Deploy a specific version by setting `TAG=<version>` in the server `.env` and re-running `docker compose pull && up -d`.
+### Deploying to a server (manual)
 
-### Manual deploy (no workflow)
+Deployment is decoupled from CI — run the published images on any Docker host that has a production `.env` (see `.env.example`) and `docker-compose.prod.yml`:
 
 ```bash
 export IMAGE_PREFIX=ghcr.io/RollDesk/rolldesk
-export TAG=latest
+export TAG=1.4.0          # the version to run (or `latest`)
 docker login ghcr.io
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 ```
+
+Migrations are baked into the backend image and applied automatically on startup, so no extra steps are needed.
 
 ### HTTPS
 
@@ -321,14 +396,15 @@ Key rules: **no secrets or real client data in commits** (real data goes in the 
 
 ## Project status
 
-**Ready:** Docker infrastructure, durable PostgreSQL with an automatic migration runner (schema-only migrations; sample data in local, uncommitted seeds), a persisting API, IP restriction (nginx + backend), CI that tests/builds/deploys, and the served UI.
+**Ready:** Docker infrastructure, durable PostgreSQL with an automatic migration runner (schema-only migrations; sample data in local, uncommitted seeds), a persisting API, real authentication (first-run setup wizard, bcrypt password login, mandatory TOTP MFA, JWT sessions guarding the API), IP restriction (nginx + backend), CI that tests/builds/deploys, and the served UI.
 
 **Known limitations / next steps:**
 
-- **Authentication is a mockup** — the login/2FA screen accepts any 6-digit code. Real auth is the top priority and depends on how the team wants to sign in.
+- **Single-user auth.** Only the bootstrapped admin is a real account; the in-app Users screen is still demo data. Multi-user management + invites are a follow-up.
+- **No password reset yet.** The "Forgot your password?" panel is not wired to a backend flow.
 - **Writes are "last write wins"** (no concurrency locks) — fine for a small team, to be hardened under load.
 - **Project/app definitions** currently originate in the UI; moving them fully behind the `GET/PUT /api/projects` API is a natural next step.
-- The **UI is one large `index.html`** — great for a zero-build mockup, a candidate for componentisation as it grows.
+- The **UI is one large `index.html`** — great for zero-build iteration, a candidate for componentisation as it grows.
 
 ---
 

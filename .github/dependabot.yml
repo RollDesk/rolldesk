@@ -1,0 +1,49 @@
+version: 2
+
+# Dependabot keeps dependencies current by opening PRs. It covers every place
+# this repo pulls third-party code from: the backend's npm packages, the base
+# images in each Dockerfile, and the GitHub Actions used by CI.
+updates:
+  # Backend npm dependencies.
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+    # Bundle routine minor/patch bumps into a single PR to cut noise; majors
+    # (potentially breaking) still arrive as individual PRs to review.
+    groups:
+      backend-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # otplib is intentionally pinned to v12 — v13 changed its API (removed the
+      # `authenticator` export) and breaks our auth code/tests. Revisit manually.
+      - dependency-name: "otplib"
+        update-types: ["version-update:semver-major"]
+
+  # Base images in the Dockerfiles (backend + frontend).
+  - package-ecosystem: "docker"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(docker)"
+
+  - package-ecosystem: "docker"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(docker)"
+
+  # GitHub Actions used by the CI/CD workflows.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(ci)"

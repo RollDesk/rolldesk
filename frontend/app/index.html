@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>RollDesk — mockup</title>
+<title>RollDesk</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -322,25 +322,82 @@
 <body>
 
 <div id="login-screen" style="position:fixed; inset:0; z-index:2000; background:linear-gradient(135deg, #0F1720, #1B2A38); display:flex; align-items:center; justify-content:center;">
-  <div id="login-panel" style="background:var(--paper-alt, #fff); border-radius:16px; padding:32px; width:min(400px, 90%); box-shadow:0 20px 60px rgba(0,0,0,0.35);">
+  <!-- Boot: while we ask the backend whether an admin exists yet. -->
+  <div id="boot-panel" style="background:var(--paper-alt, #fff); border-radius:16px; padding:32px; width:min(400px, 90%); box-shadow:0 20px 60px rgba(0,0,0,0.35); text-align:center;">
+    <div style="display:flex; align-items:center; justify-content:center; gap:8px; font-weight:700; font-size:18px; margin-bottom:12px;"><span style="width:10px; height:10px; border-radius:50%; background:var(--cyan); display:inline-block;"></span> RollDesk</div>
+    <p id="boot-message" style="font-size:12.5px; color:var(--text-muted); margin:0;">Connecting…</p>
+    <button class="btn" id="boot-retry" style="display:none; margin-top:16px; justify-content:center;" onclick="checkAuthStatus()">Retry</button>
+  </div>
+
+  <!-- First-run setup wizard: create the initial admin account. -->
+  <div id="setup-panel" style="display:none; background:var(--paper-alt, #fff); border-radius:16px; padding:32px; width:min(420px, 90%); box-shadow:0 20px 60px rgba(0,0,0,0.35);">
+    <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:18px; margin-bottom:4px;"><span style="width:10px; height:10px; border-radius:50%; background:var(--cyan); display:inline-block;"></span> RollDesk</div>
+    <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;">Welcome — set up your admin account</p>
+    <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 18px 0;">This is the first run. Create the administrator account used to sign in. There is no default user.</p>
+    <div class="field">
+      <label>Admin e-mail</label>
+      <input type="text" id="setup-email" class="mono" autocomplete="username" placeholder="you@example.com">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="setup-password" autocomplete="new-password" oninput="updatePasswordStrength('setup-password','setup-strength')" placeholder="••••••••••••">
+    </div>
+    <div id="setup-strength" style="margin:-4px 0 12px 0;"></div>
+    <div class="field">
+      <label>Repeat password</label>
+      <input type="password" id="setup-password2" autocomplete="new-password" placeholder="••••••••••••">
+    </div>
+    <div id="setup-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
+    <button class="btn" id="setup-btn" style="width:100%; justify-content:center;" onclick="submitSetup()">Create admin account</button>
+  </div>
+
+  <!-- Login: email + password. -->
+  <div id="login-panel" style="display:none; background:var(--paper-alt, #fff); border-radius:16px; padding:32px; width:min(400px, 90%); box-shadow:0 20px 60px rgba(0,0,0,0.35);">
     <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:18px; margin-bottom:4px;"><span style="width:10px; height:10px; border-radius:50%; background:var(--cyan); display:inline-block;"></span> RollDesk</div>
     <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 20px 0;">Sign in to manage your deployments.</p>
     <div class="field">
       <label>E-mail</label>
-      <input type="text" id="login-email" class="mono" value="riley.stone@example.com">
+      <input type="text" id="login-email" class="mono" autocomplete="username" placeholder="you@example.com">
     </div>
     <div class="field">
       <label>Password</label>
-      <input type="password" id="login-password" value="demo1234">
-    </div>
-    <div class="field" id="login-2fa-field" style="display:none;">
-      <label>Code from your authenticator app (2FA)</label>
-      <input type="text" id="login-2fa" class="mono" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder="000000" style="letter-spacing:4px; text-align:center; font-size:18px;">
+      <input type="password" id="login-password" autocomplete="current-password">
     </div>
     <div id="login-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
-    <button class="btn" id="login-btn" style="width:100%; justify-content:center;" onclick="loginStep()">Sign in</button>
+    <button class="btn" id="login-btn" style="width:100%; justify-content:center;" onclick="submitLogin()">Sign in</button>
     <p style="text-align:center; margin:12px 0 0 0;"><a href="#" onclick="event.preventDefault(); showResetPanel();" style="font-size:12px; color:var(--cyan); text-decoration:none;">Forgot your password?</a></p>
-    <p style="font-size:11px; color:var(--text-faint); margin:14px 0 0 0; text-align:center;">Demonstration mockup — the login details are sample data.</p>
+  </div>
+
+  <!-- MFA enrollment (first login): scan QR + confirm a code. -->
+  <div id="mfa-enroll-panel" style="display:none; background:var(--paper-alt, #fff); border-radius:16px; padding:32px; width:min(420px, 90%); box-shadow:0 20px 60px rgba(0,0,0,0.35);">
+    <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:18px; margin-bottom:4px;"><span style="width:10px; height:10px; border-radius:50%; background:var(--cyan); display:inline-block;"></span> RollDesk</div>
+    <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;">Set up two-factor authentication</p>
+    <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 14px 0;">Scan this QR code with an authenticator app (Google Authenticator, 1Password, Authy…), then enter the 6-digit code to finish. MFA is required.</p>
+    <div style="text-align:center; margin-bottom:12px;">
+      <img id="mfa-qr" alt="MFA QR code" style="width:180px; height:180px; border-radius:8px; background:#fff;">
+    </div>
+    <p style="font-size:11px; color:var(--text-faint); margin:0 0 12px 0; text-align:center; word-break:break-all;">Can't scan? Enter this key manually: <span class="mono" id="mfa-secret"></span></p>
+    <div class="field">
+      <label>6-digit code</label>
+      <input type="text" id="mfa-enroll-code" class="mono" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder="000000" style="letter-spacing:4px; text-align:center; font-size:18px;">
+    </div>
+    <div id="mfa-enroll-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
+    <button class="btn" id="mfa-enroll-btn" style="width:100%; justify-content:center;" onclick="submitMfaEnroll()">Verify and finish</button>
+    <p style="text-align:center; margin:12px 0 0 0;"><a href="#" onclick="event.preventDefault(); logout();" style="font-size:12px; color:var(--cyan); text-decoration:none;">← Cancel</a></p>
+  </div>
+
+  <!-- MFA code (returning user). -->
+  <div id="mfa-code-panel" style="display:none; background:var(--paper-alt, #fff); border-radius:16px; padding:32px; width:min(400px, 90%); box-shadow:0 20px 60px rgba(0,0,0,0.35);">
+    <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:18px; margin-bottom:4px;"><span style="width:10px; height:10px; border-radius:50%; background:var(--cyan); display:inline-block;"></span> RollDesk</div>
+    <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;">Two-factor authentication</p>
+    <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 16px 0;">Enter the 6-digit code from your authenticator app.</p>
+    <div class="field">
+      <label>Code</label>
+      <input type="text" id="mfa-login-code" class="mono" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder="000000" style="letter-spacing:4px; text-align:center; font-size:18px;">
+    </div>
+    <div id="mfa-login-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
+    <button class="btn" id="mfa-login-btn" style="width:100%; justify-content:center;" onclick="submitMfaCode()">Sign in</button>
+    <p style="text-align:center; margin:12px 0 0 0;"><a href="#" onclick="event.preventDefault(); logout();" style="font-size:12px; color:var(--cyan); text-decoration:none;">← Cancel</a></p>
   </div>
 
   <div id="reset-panel" style="display:none; background:var(--paper-alt, #fff); border-radius:16px; padding:32px; width:min(400px, 90%); box-shadow:0 20px 60px rgba(0,0,0,0.35);">
@@ -359,7 +416,6 @@
       <div style="width:48px; height:48px; border-radius:50%; background:var(--green-soft); color:#0F7A38; display:flex; align-items:center; justify-content:center; font-size:26px; margin:16px auto;">✓</div>
       <p style="font-size:13px; font-weight:600; margin:0 0 6px 0;">Link sent</p>
       <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 14px 0;">If the account <span class="mono" id="reset-sent-email"></span> exists, we've sent it a link to set a new password. Check your inbox (and the spam folder). The link is valid for 60 minutes.</p>
-      <p style="font-size:11px; color:var(--text-faint); margin:0 0 6px 0;">Mockup: click below to simulate opening the link from the e-mail.</p>
       <button class="mini-btn" onclick="showResetSetStep()">Open link and set a new password →</button>
     </div>
     <div id="reset-step-set" style="display:none;">
@@ -453,8 +509,8 @@
       <h1 id="topbar-title">Projects</h1>
     </div>
     <div style="display:flex; align-items:center; gap:12px;">
-      <span class="sub mono" id="topbar-project-slug">acme / core</span>
-      <div class="avatar" onclick="goToView('account')" title="My profile" style="cursor:pointer;">RM</div>
+      <span class="sub mono" id="topbar-project-slug"></span>
+      <div class="avatar" id="topbar-avatar" onclick="goToView('account')" title="My profile" style="cursor:pointer;"></div>
     </div>
   </div>
 
@@ -465,11 +521,11 @@
         <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.projects">Projects</h2>
         <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.projects">All clients and their projects in the system.</p>
       </div>
-      <button class="btn" onclick="goToView('newproject')">+ New project</button>
+      <button class="btn" onclick="goToView('newproject')" data-i18n="proj.newBtn">+ New project</button>
     </div>
     <div class="card">
       <table>
-        <thead><tr><th>Client</th><th>Project</th><th>Targets: production</th><th>Targets: non-production</th><th>Applications</th><th></th></tr></thead>
+        <thead><tr><th data-i18n="proj.thClient">Client</th><th data-i18n="proj.thProject">Project</th><th data-i18n="proj.thProd">Targets: production</th><th data-i18n="proj.thNonProd">Targets: non-production</th><th data-i18n="proj.thApps">Applications</th><th></th></tr></thead>
         <tbody id="projects-table"></tbody>
       </table>
     </div>
@@ -477,77 +533,77 @@
     <div id="project-apps-panel" style="display:none; margin-top:20px;">
       <div class="toolbar">
         <div>
-          <h2 class="section-title" style="margin-bottom:2px;" id="apps-title">Applications</h2>
-          <p class="section-desc" style="margin-bottom:0;" id="apps-desc">Structure of the Core project (ACME).</p>
+          <h2 class="section-title" style="margin-bottom:2px;" id="apps-title" data-i18n="proj.apps">Applications</h2>
+          <p class="section-desc" style="margin-bottom:0;" id="apps-desc">No project selected. Create a project to get started.</p>
         </div>
-        <button class="btn" onclick="toggleAppForm()">+ Add application</button>
+        <button class="btn" onclick="toggleAppForm()" data-i18n="proj.addApp">+ Add application</button>
       </div>
 
       <div id="app-form-home">
         <div class="card" id="app-form" style="display:none; margin-bottom:18px;">
           <div class="toolbar" style="margin-bottom:14px;">
-            <strong id="app-form-title" style="font-size:13px;">New application</strong>
-            <button class="mini-btn" onclick="closeAppForm()">Cancel</button>
+            <strong id="app-form-title" style="font-size:13px;" data-i18n="proj.newApp">New application</strong>
+            <button class="mini-btn" onclick="closeAppForm()" data-i18n="proj.cancel">Cancel</button>
           </div>
 
           <div class="grid-2">
             <div class="field">
-              <label>Application name</label>
+              <label data-i18n="proj.appName">Application name</label>
               <input type="text" id="app-name" placeholder="e.g. fintrack-notifications">
             </div>
             <div class="field">
-              <label>Repository link</label>
+              <label data-i18n="proj.repoLink">Repository link</label>
               <input type="text" id="app-repo" class="mono" placeholder="https://github.com/org/repo">
             </div>
           </div>
-          <button class="btn" id="app-form-submit" onclick="addApplication()">Add application</button>
+          <button class="btn" id="app-form-submit" onclick="addApplication()" data-i18n="proj.addAppBtn">Add application</button>
         </div>
       </div>
 
       <div class="card">
         <table>
-          <thead><tr><th>Application</th><th>Last deployment</th><th></th></tr></thead>
+          <thead><tr><th data-i18n="proj.thApp">Application</th><th data-i18n="proj.thLastDeploy">Last deployment</th><th></th></tr></thead>
           <tbody id="apps-table"></tbody>
         </table>
       </div>
 
       <div class="toolbar" style="margin-top:24px;">
         <div>
-          <h2 class="section-title" style="margin-bottom:2px;" id="locations-title">Deployment targets</h2>
-          <p class="section-desc" style="margin-bottom:0;" id="locations-desc">Deployment targets (locations, servers, tenants, regions…) of this project.</p>
+          <h2 class="section-title" style="margin-bottom:2px;" id="locations-title" data-i18n="proj.targets">Deployment targets</h2>
+          <p class="section-desc" style="margin-bottom:0;" id="locations-desc" data-i18n="proj.targetsDesc">Deployment targets (locations, servers, tenants, regions…) of this project.</p>
         </div>
         <div style="display:flex; gap:8px;">
-          <button class="mini-btn" onclick="addCustomLocationField()">+ Add field</button>
-          <button class="btn" onclick="toggleLocationForm()">+ Add target</button>
+          <button class="mini-btn" onclick="addCustomLocationField()" data-i18n="proj.addField">+ Add field</button>
+          <button class="btn" onclick="toggleLocationForm()" data-i18n="proj.addTarget">+ Add target</button>
         </div>
       </div>
 
       <div class="card" id="location-form" style="display:none; margin-bottom:18px;">
         <div class="toolbar" style="margin-bottom:14px;">
-          <strong style="font-size:13px;">New deployment target</strong>
-          <button class="mini-btn" onclick="toggleLocationForm()">Cancel</button>
+          <strong style="font-size:13px;" data-i18n="proj.newTarget">New deployment target</strong>
+          <button class="mini-btn" onclick="toggleLocationForm()" data-i18n="proj.cancel">Cancel</button>
         </div>
         <div class="grid-2">
           <div class="field">
-            <label>Target name</label>
+            <label data-i18n="proj.targetName">Target name</label>
             <input type="text" id="location-code-input" placeholder="e.g. Central branch, server app-prod-03, region eu-west">
           </div>
           <div class="field">
-            <label>Type</label>
+            <label data-i18n="proj.type">Type</label>
             <select id="location-type-input">
-              <option value="Production">Production</option>
-              <option value="Non-production">Non-production</option>
+              <option value="Production" data-i18n="proj.prod">Production</option>
+              <option value="Non-production" data-i18n="proj.nonprod">Non-production</option>
             </select>
           </div>
         </div>
         <div id="location-custom-fields"></div>
-        <button class="btn" onclick="addLocation()">Add target</button>
+        <button class="btn" onclick="addLocation()" data-i18n="proj.addTargetBtn">Add target</button>
       </div>
 
       <div class="card">
         <div class="toolbar">
-          <strong style="font-size:13px;">Target list (<span id="locations-count">0</span>)</strong>
-          <input type="text" id="locations-search" placeholder="Search targets..." style="width:180px; padding:6px 10px; font-size:12.5px;" oninput="renderLocationsTable()">
+          <strong style="font-size:13px;"><span data-i18n="proj.targetList">Target list</span> (<span id="locations-count">0</span>)</strong>
+          <input type="text" id="locations-search" data-i18n-ph="proj.searchTargets" placeholder="Search targets..." style="width:180px; padding:6px 10px; font-size:12.5px;" oninput="renderLocationsTable()">
         </div>
         <div style="max-height:340px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; margin-top:10px;">
           <table>
@@ -558,16 +614,34 @@
       </div>
 
       <div class="card" style="margin-top:20px;">
-        <h2 class="section-title" style="margin-bottom:2px;">Post-deployment notifications</h2>
-        <p class="section-desc">An additional notification sent after a production deployment of this project is completed — e.g. to the maintenance team, the service desk, or the client-side contact person.</p>
+        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="proj.defaults">Deployment defaults</h2>
+        <p class="section-desc" data-i18n="proj.defaultsDesc">Default schedule used when the release manager plans a deployment for this project.</p>
+        <div class="grid-2">
+          <div class="field">
+            <label data-i18n="proj.defaultDays">Standard number of working days</label>
+            <input type="number" id="project-default-days" min="1" value="5" class="mono" style="width:100%;">
+            <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;" data-i18n="proj.defaultDaysNote">How multi-target deployments are split across working days by default.</p>
+          </div>
+          <div class="field">
+            <label data-i18n="proj.defaultTime">Deployment start time</label>
+            <input type="time" id="project-default-time" value="20:00" class="mono" style="width:100%;">
+            <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;" data-i18n="proj.defaultTimeNote">The time at which a deployment usually begins.</p>
+          </div>
+        </div>
+        <button class="btn" onclick="saveProjectDefaults()" data-i18n="proj.saveDefaults">Save defaults</button>
+      </div>
+
+      <div class="card" style="margin-top:20px;">
+        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="proj.postDeploy">Post-deployment notifications</h2>
+        <p class="section-desc" data-i18n="proj.postDeployDesc">An additional notification sent after a production deployment of this project is completed — e.g. to the maintenance team, the service desk, or the client-side contact person.</p>
         <div class="field">
-          <label>Group / channel to notify after installation</label>
-          <input type="text" id="project-postdeploy-target" placeholder="e.g. maintenance-core@example.com or a webhook for the „Core — maintenance” channel">
+          <label data-i18n="proj.postDeployTarget">Group / channel to notify after installation</label>
+          <input type="text" id="project-postdeploy-target" data-i18n-ph="proj.postDeployTargetPh" placeholder="e.g. maintenance-core@example.com or a webhook for the „Core — maintenance” channel">
         </div>
         <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400; margin-bottom:12px;">
-          <input type="checkbox" id="project-postdeploy-enabled" style="width:auto;"> Enable notification after a production deployment is completed
+          <input type="checkbox" id="project-postdeploy-enabled" style="width:auto;"> <span data-i18n="proj.postDeployEnable">Enable notification after a production deployment is completed</span>
         </label>
-        <button class="btn" onclick="saveProjectPostDeploy()">Save project notification</button>
+        <button class="btn" onclick="saveProjectPostDeploy()" data-i18n="proj.savePostDeploy">Save project notification</button>
       </div>
     </div>
   </div>
@@ -580,106 +654,106 @@
     <div class="grid-2" style="align-items:start;">
       <div class="card">
         <div class="field">
-          <label>Project name</label>
-          <input type="text" id="np-name" placeholder="e.g. LogiHub">
+          <label data-i18n="np.name">Project name</label>
+          <input type="text" id="np-name" data-i18n-ph="np.namePh" placeholder="e.g. LogiHub">
         </div>
         <div class="field">
-          <label>Client</label>
+          <label data-i18n="np.client">Client</label>
           <select id="np-client-select" onchange="toggleNewClientInput()"></select>
-          <input type="text" id="np-client-new" placeholder="New client name" style="display:none; margin-top:8px;">
+          <input type="text" id="np-client-new" data-i18n-ph="np.clientNewPh" placeholder="New client name" style="display:none; margin-top:8px;">
         </div>
 
         <div class="field">
-          <label>Client-side people with access to this project</label>
+          <label data-i18n="np.people">Client-side people with access to this project</label>
           <div id="np-people">
             <div class="person-row" style="display:flex; gap:8px; margin-bottom:8px;">
-              <input type="text" class="np-person-name" placeholder="Full name" value="Casey Bell" style="flex:1;">
-              <input type="text" class="np-person-email mono" placeholder="e-mail" value="casey.bell@acme.example" style="flex:1;">
-              <button class="mini-btn" onclick="removePersonRow(this)" style="display:none;">Remove</button>
+              <input type="text" class="np-person-name" data-i18n-ph="np.personNamePh" placeholder="Full name" style="flex:1;">
+              <input type="text" class="np-person-email mono" data-i18n-ph="np.personEmailPh" placeholder="e-mail" style="flex:1;">
+              <button class="mini-btn" onclick="removePersonRow(this)" style="display:none;" data-i18n="np.remove">Remove</button>
             </div>
           </div>
-          <button class="mini-btn" onclick="addPersonRow()">+ Add person</button>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;">A person added only here sees this project alone. If you also add them to other projects of this client, they will have access to all the projects they have been added to.</p>
+          <button class="mini-btn" onclick="addPersonRow()" data-i18n="np.addPerson">+ Add person</button>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="np.peopleNote">A person added only here sees this project alone. If you also add them to other projects of this client, they will have access to all the projects they have been added to.</p>
         </div>
 
         <div class="field">
           <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px; color:var(--text);">
             <input type="checkbox" id="np-multi-toggle" onchange="toggleMultiLocation()" style="width:auto;">
-            This is a special case — the project has multiple deployment locations (e.g. a network of client branches)
+            <span data-i18n="np.multiLabel">This is a special case — the project has multiple deployment locations (e.g. a network of client branches)</span>
           </label>
         </div>
 
         <div class="field">
-          <label id="np-loc-label">Deployment location</label>
+          <label id="np-loc-label" data-i18n="np.locLabel">Deployment location</label>
           <div id="np-locations">
             <div class="loc-row" style="display:flex; gap:8px; margin-bottom:8px;">
               <input type="text" class="np-loc-input" value="Main office" style="flex:1;">
-              <button class="mini-btn" onclick="removeLocRow(this)" style="display:none;">Remove</button>
+              <button class="mini-btn" onclick="removeLocRow(this)" style="display:none;" data-i18n="np.remove">Remove</button>
             </div>
           </div>
-          <button class="mini-btn" id="np-add-loc-btn" onclick="addLocRow()" style="display:none;">+ Add location</button>
+          <button class="mini-btn" id="np-add-loc-btn" onclick="addLocRow()" style="display:none;" data-i18n="np.addLocation">+ Add location</button>
         </div>
 
         <div class="field">
-          <label>Project test environments</label>
+          <label data-i18n="np.testEnvs">Project test environments</label>
           <div id="np-testenvs">
             <div class="loc-row" style="display:flex; gap:8px; margin-bottom:8px;">
               <input type="text" class="np-env-input" value="Test" style="flex:1;">
-              <button class="mini-btn" onclick="removeEnvRow(this)" style="display:none;">Remove</button>
+              <button class="mini-btn" onclick="removeEnvRow(this)" style="display:none;" data-i18n="np.remove">Remove</button>
             </div>
           </div>
-          <button class="mini-btn" onclick="addEnvRow()">+ Add test environment</button>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;">Some projects have several parallel test environments (e.g. Test1, Test2, Test3) — add as many as you need. Applications in this project will choose which ones they deploy to.</p>
+          <button class="mini-btn" onclick="addEnvRow()" data-i18n="np.addTestEnv">+ Add test environment</button>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="np.testEnvsNote">Some projects have several parallel test environments (e.g. Test1, Test2, Test3) — add as many as you need. Applications in this project will choose which ones they deploy to.</p>
         </div>
 
         <div class="field">
-          <label>Project applications</label>
+          <label data-i18n="np.apps">Project applications</label>
           <div id="np-apps">
             <div class="loc-row" style="display:flex; gap:8px; margin-bottom:8px;">
               <input type="text" class="np-app-input" value="portal-web" style="flex:1;">
-              <button class="mini-btn" onclick="removeAppRow(this)">Remove</button>
+              <button class="mini-btn" onclick="removeAppRow(this)" data-i18n="np.remove">Remove</button>
             </div>
             <div class="loc-row" style="display:flex; gap:8px; margin-bottom:8px;">
               <input type="text" class="np-app-input" value="service-b" style="flex:1;">
-              <button class="mini-btn" onclick="removeAppRow(this)">Remove</button>
+              <button class="mini-btn" onclick="removeAppRow(this)" data-i18n="np.remove">Remove</button>
             </div>
           </div>
-          <button class="mini-btn" onclick="addAppRow()">+ Add application</button>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;">You can also add applications later, in the Applications tab — there you'll set the repository and deployment path for each one.</p>
+          <button class="mini-btn" onclick="addAppRow()" data-i18n="np.addApp">+ Add application</button>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="np.appsNote">You can also add applications later, in the Applications tab — there you will set the repository and deployment path for each one.</p>
         </div>
 
         <div class="field">
-          <label>Default schedule parameters</label>
+          <label data-i18n="np.defaults">Default schedule parameters</label>
           <div class="grid-2">
             <div>
-              <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">Standard number of working days</label>
+              <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px;" data-i18n="np.days">Standard number of working days</label>
               <input type="number" id="np-default-days" min="1" value="5" class="mono" style="width:100%;">
-              <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;">Default schedule split for multi-target deployments.</p>
+              <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;" data-i18n="np.daysNote">Default schedule split for multi-target deployments.</p>
             </div>
             <div>
-              <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">Default start time</label>
+              <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px;" data-i18n="np.startTime">Default start time</label>
               <input type="time" id="np-default-time" value="20:00" class="mono" style="width:100%;">
-              <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;">The time at which a deployment usually begins.</p>
+              <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;" data-i18n="np.startTimeNote">The time at which a deployment usually begins.</p>
             </div>
           </div>
         </div>
 
         <div class="field">
-          <label>Client visibility</label>
-          <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:400;"><input type="checkbox" id="np-client-visible" checked style="width:auto;"> The client sees the deployment schedule</label>
+          <label data-i18n="np.clientVisibility">Client visibility</label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:400;"><input type="checkbox" id="np-client-visible" checked style="width:auto;"> <span data-i18n="np.clientVisibleLabel">The client sees the deployment schedule</span></label>
         </div>
 
-        <button class="btn" onclick="createProject()">Create project</button>
+        <button class="btn" onclick="createProject()" data-i18n="np.create">Create project</button>
       </div>
 
       <div class="card">
-        <label style="margin-bottom:10px;">Resulting schedule mode</label>
+        <label style="margin-bottom:10px;" data-i18n="np.modeLabel">Resulting schedule mode</label>
         <div id="np-mode-box" style="background:var(--cyan-soft); border:1px solid #BEE7EB; border-radius:10px; padding:16px; margin-bottom:14px;">
-          <div class="mono" style="font-size:12px; color:#0A6E7A; margin-bottom:4px;">MODE SELECTED AUTOMATICALLY</div>
-          <div id="np-mode-text" style="font-size:15px; font-weight:600; color:#0A6E7A;">One date for everything</div>
-          <div id="np-mode-sub" style="font-size:12.5px; color:#0A6E7A; margin-top:4px;">1 location — this is the standard case. The whole project deploys on a single day.</div>
+          <div class="mono" style="font-size:12px; color:#0A6E7A; margin-bottom:4px;" data-i18n="np.modeAuto">MODE SELECTED AUTOMATICALLY</div>
+          <div id="np-mode-text" style="font-size:15px; font-weight:600; color:#0A6E7A;" data-i18n="np.modeOne">One date for everything</div>
+          <div id="np-mode-sub" style="font-size:12.5px; color:#0A6E7A; margin-top:4px;" data-i18n="np.modeOneSub">1 location — this is the standard case. The whole project deploys on a single day.</div>
         </div>
-        <p style="font-size:12.5px; color:var(--text-muted); line-height:1.5;">
+        <p style="font-size:12.5px; color:var(--text-muted); line-height:1.5;" data-i18n-html="np.rule">
           Rule: <strong>1 location</strong> (default) → one shared deployment date.<br>
           <strong>Multiple locations</strong> (special case) → the deployment is spread proportionally across working days once the release manager plans a specific release.
         </p>
@@ -689,90 +763,88 @@
 
   <!-- ============ VIEW: SCHEDULE GENERATOR ============ -->
   <div class="view" id="view-schedule">
-    <a href="#" onclick="goToView('deployments'); return false;" style="font-size:12.5px; color:var(--text-muted); text-decoration:none; display:inline-block; margin-bottom:10px;">← Back to deployments</a>
+    <a href="#" onclick="goToView('deployments'); return false;" style="font-size:12.5px; color:var(--text-muted); text-decoration:none; display:inline-block; margin-bottom:10px;" data-i18n="sch.back">← Back to deployments</a>
     <h2 class="section-title" data-i18n="title.schedule">New deployment</h2>
     <p class="section-desc" data-i18n="desc.schedule">Choose a version and how it's spread over time. The system will calculate the split into working days automatically.</p>
 
     <div class="grid-2" style="align-items:start;">
       <div class="card">
         <div class="field">
-          <label>Project</label>
+          <label data-i18n="sch.project">Project</label>
           <select id="schedule-project-select" class="mono" onchange="switchProject(this.value)"></select>
         </div>
         <div class="field">
-          <label>Applications and versions included in this deployment</label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;">A single deployment can cover several applications. Select the applications and provide a version for each one (the version is required).</p>
+          <label data-i18n="sch.appsVersions">Applications and versions included in this deployment</label>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;" data-i18n="sch.appsVersionsNote">A single deployment can cover several applications. Select the applications and provide a version for each one (the version is required).</p>
           <div id="schedule-apps-list" style="display:flex; flex-direction:column; gap:8px;"></div>
         </div>
         <div class="field">
-          <label>Changelog <span style="color:#A81E1E;">*</span></label>
-          <textarea id="schedule-changelog" placeholder="Describe the changes in this release (required)...">- Fix for monthly report generation
-- Update to the SEPA payments module
-- Minor UI fixes in the client panel</textarea>
+          <label><span data-i18n="sch.changelog">Changelog</span> <span style="color:#A81E1E;">*</span></label>
+          <textarea id="schedule-changelog" data-i18n-ph="sch.changelogPh" placeholder="Describe the changes in this release (required)..."></textarea>
         </div>
         <div class="field">
-          <label>Changelog attachment (optional)</label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">You can attach a file (e.g. full release notes, an instruction). The file name will be included in the notification to the client.</p>
+          <label data-i18n="sch.changelogAttach">Changelog attachment (optional)</label>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;" data-i18n="sch.changelogAttachNote">You can attach a file (e.g. full release notes, an instruction). The file name will be included in the notification to the client.</p>
           <input type="file" id="schedule-changelog-file" onchange="onChangelogFileChange()">
           <div id="schedule-changelog-file-name" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
         </div>
         <div class="field">
-          <label>Instructions for deployers (optional)</label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">Actions to perform during the deployment — e.g. „stop the service before installation", „after installation run the migration.sql script". They will be shown in the deployer panel for this deployment.</p>
+          <label data-i18n="sch.installerNotes">Instructions for deployers (optional)</label>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;" data-i18n="sch.installerNotesNote">Actions to perform during the deployment — e.g. „stop the service before installation", „after installation run the migration.sql script". They will be shown in the deployer panel for this deployment.</p>
           <textarea id="schedule-installer-notes" placeholder="e.g.&#10;1. Stop the ServiceA service&#10;2. Make a database backup&#10;3. After installation run migrations.sql"></textarea>
         </div>
         <div class="field">
-          <label>Dependencies — must be deployed earlier (optional)</label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">If this deployment requires another one to be completed first (e.g. application A only after application B), select it here. The deployer will get a warning until the dependency is completed.</p>
+          <label data-i18n="sch.deps">Dependencies — must be deployed earlier (optional)</label>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;" data-i18n="sch.depsNote">If this deployment requires another one to be completed first (e.g. application A only after application B), select it here. The deployer will get a warning until the dependency is completed.</p>
           <div id="schedule-deps-list" style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto;"></div>
         </div>
         <div class="field">
-          <label>Deployment path — set for this specific deployment</label>
+          <label data-i18n="sch.path">Deployment path — set for this specific deployment</label>
           <div class="radio-row">
-            <label class="radio-pill"><input type="radio" name="schedule-path" value="test-only" onchange="onSchedulePathChange()"> Test environment only</label>
-            <label class="radio-pill selected"><input type="radio" name="schedule-path" value="test-prod" checked onchange="onSchedulePathChange()"> Test environment + production</label>
-            <label class="radio-pill"><input type="radio" name="schedule-path" value="prod-only" onchange="onSchedulePathChange()"> Production only</label>
+            <label class="radio-pill"><input type="radio" name="schedule-path" value="test-only" onchange="onSchedulePathChange()"> <span data-i18n="sch.pathTestOnly">Test environment only</span></label>
+            <label class="radio-pill selected"><input type="radio" name="schedule-path" value="test-prod" checked onchange="onSchedulePathChange()"> <span data-i18n="sch.pathTestProd">Test environment + production</span></label>
+            <label class="radio-pill"><input type="radio" name="schedule-path" value="prod-only" onchange="onSchedulePathChange()"> <span data-i18n="sch.pathProdOnly">Production only</span></label>
           </div>
         </div>
         <div class="field" id="schedule-envs-field">
-          <label>Test environments included in this deployment</label>
+          <label data-i18n="sch.envs">Test environments included in this deployment</label>
           <div id="schedule-envs-checks" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
         </div>
         <div class="field">
-          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="schedule-internal" style="width:auto;"> Internal deployment — not visible to the client</label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;">Select this if it's a deployment to an internal environment. It won't appear in the client panel and doesn't require their approval — only the team and the deployer can see it.</p>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="schedule-internal" style="width:auto;"> <span data-i18n="sch.internal">Internal deployment — not visible to the client</span></label>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="sch.internalNote">Select this if it's a deployment to an internal environment. It won't appear in the client panel and doesn't require their approval — only the team and the deployer can see it.</p>
         </div>
         <div class="field" id="schedule-rollout-fields">
-          <label>Schedule mode (defined when the project was created)</label>
+          <label data-i18n="sch.modeField">Schedule mode (defined when the project was created)</label>
           <div id="schedule-mode-badge" style="background:var(--cyan-soft); border:1px solid #BEE7EB; border-radius:8px; padding:10px 12px; font-size:13px; color:#0A6E7A; font-weight:600;">
             Spread across working days — the project has 400 locations
           </div>
         </div>
         <div class="card" id="schedule-test-only-note" style="background:var(--paper); display:none; margin-bottom:14px;">
-          <div style="font-size:12.5px; color:var(--text-muted); line-height:1.5;">
+          <div style="font-size:12.5px; color:var(--text-muted); line-height:1.5;" data-i18n="sch.testOnlyNote">
             ℹ️ A test environment is a single instance — one installation to the selected test environment(s) is enough, with no spreading across multiple locations and days. The split across locations applies to production only.
           </div>
         </div>
         <div class="grid-2" id="schedule-rollout-fields-2">
           <div class="field">
-            <label>Number of locations covered</label>
+            <label data-i18n="sch.locsCovered">Number of locations covered</label>
             <input type="number" id="loc-count" value="400" class="mono" disabled style="background:var(--paper); color:var(--text-muted);">
           </div>
           <div class="field">
-            <label>Number of working days</label>
+            <label data-i18n="sch.workingDays">Number of working days</label>
             <input type="number" id="day-count" value="10" class="mono">
           </div>
         </div>
 
         <div class="field" id="schedule-daybreakdown-field">
           <div class="toolbar" style="margin-bottom:8px;">
-            <label style="margin-bottom:0;">Per-day breakdown and PM guidelines</label>
-            <button class="mini-btn" onclick="buildDayBreakdown()">Spread across days</button>
+            <label style="margin-bottom:0;" data-i18n="sch.perDay">Per-day breakdown and PM guidelines</label>
+            <button class="mini-btn" onclick="buildDayBreakdown()" data-i18n="sch.spreadDays">Spread across days</button>
           </div>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;">Set the number of locations and constraints for each day — "Generate schedule" will take them into account.</p>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;" data-i18n="sch.perDayNote">Set the number of locations and constraints for each day — "Generate schedule" will take them into account.</p>
           <div style="max-height:260px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;">
             <table>
-              <thead><tr><th>Day</th><th>Number of locations</th><th>Restrict type</th><th>Max count (0 = none of this type)</th></tr></thead>
+              <thead><tr><th data-i18n="sch.thDay">Day</th><th data-i18n="sch.thLocs">Number of locations</th><th data-i18n="sch.thRestrict">Restrict type</th><th data-i18n="sch.thMax">Max count (0 = none of this type)</th></tr></thead>
               <tbody id="day-breakdown-table"></tbody>
             </table>
           </div>
@@ -780,64 +852,64 @@
 
         <div class="grid-2" id="schedule-test-date-fields">
           <div class="field">
-            <label>Start (test) — date</label>
+            <label data-i18n="sch.startTestDate">Start (test) — date</label>
             <input type="date" id="date-test" value="2026-07-13">
           </div>
           <div class="field">
-            <label>Time</label>
+            <label data-i18n="sch.time">Time</label>
             <input type="time" id="time-test" value="20:00" class="mono">
           </div>
         </div>
         <div class="grid-2" id="schedule-prod-date-fields">
           <div class="field">
-            <label>Start (production) — date</label>
+            <label data-i18n="sch.startProdDate">Start (production) — date</label>
             <input type="date" id="date-prod" value="2026-07-20">
           </div>
           <div class="field">
-            <label>Time</label>
+            <label data-i18n="sch.time">Time</label>
             <input type="time" id="time-prod" value="22:00" class="mono">
           </div>
         </div>
         <button class="btn" id="schedule-generate-btn" onclick="generateManifest()">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-          Generate schedule
+          <span data-i18n="sch.generate">Generate schedule</span>
         </button>
       </div>
 
       <div>
         <div id="schedule-rollout-preview">
         <div class="card" style="margin-bottom:16px;">
-          <label style="margin-bottom:10px;">Rollout preview — production environment</label>
+          <label style="margin-bottom:10px;" data-i18n="sch.rolloutPreview">Rollout preview — production environment</label>
           <div class="manifest" id="manifest-strip"></div>
-          <p style="font-size:12px; color:var(--text-muted); margin:0;">Weekends are skipped automatically. You can manually move individual locations between days in the table below.</p>
+          <p style="font-size:12px; color:var(--text-muted); margin:0;" data-i18n="sch.weekendsNote">Weekends are skipped automatically. You can manually move individual locations between days in the table below.</p>
         </div>
 
         <div class="card">
           <div class="toolbar">
-            <strong style="font-size:13px;">Location assignment (preview)</strong>
-            <input type="text" id="manifest-search" placeholder="Search locations..." style="width:180px; padding:6px 10px; font-size:12.5px;" oninput="filterManifestTable()">
+            <strong style="font-size:13px;" data-i18n="sch.locAssign">Location assignment (preview)</strong>
+            <input type="text" id="manifest-search" data-i18n-ph="sch.searchLocs" placeholder="Search locations..." style="width:180px; padding:6px 10px; font-size:12.5px;" oninput="filterManifestTable()">
           </div>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;">Move selected branches to the start or end of the queue — e.g. if the client wants a specific location to go first or only at the very end.</p>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;" data-i18n="sch.locAssignNote">Move selected branches to the start or end of the queue — e.g. if the client wants a specific location to go first or only at the very end.</p>
           <div style="max-height:340px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;">
             <table>
-              <thead><tr><th>Location</th><th>Type</th><th>Day</th><th>Date</th><th>Time</th><th>Environment</th><th></th></tr></thead>
+              <thead><tr><th data-i18n="sch.thLocation">Location</th><th data-i18n="sch.thType">Type</th><th data-i18n="sch.thDay">Day</th><th data-i18n="sch.thDate">Date</th><th data-i18n="sch.time">Time</th><th data-i18n="sch.thEnv">Environment</th><th></th></tr></thead>
               <tbody id="manifest-table"></tbody>
             </table>
           </div>
         </div>
         </div>
         <div class="card" id="schedule-test-only-preview-note" style="display:none;">
-          <div style="font-size:12.5px; color:var(--text-muted); line-height:1.5;">
+          <div style="font-size:12.5px; color:var(--text-muted); line-height:1.5;" data-i18n="sch.testOnlyPreviewNote">
             This deployment applies only to the test environment(s) — it's installed once, manually, without a schedule spread across locations.
           </div>
         </div>
         <div class="card" id="schedule-approval-notice" style="background:var(--cyan-soft); border:1px solid #BEE7EB; margin-top:16px; display:none;">
-          <div style="font-size:12.5px; color:#0A6E7A; line-height:1.5;">
+          <div style="font-size:12.5px; color:#0A6E7A; line-height:1.5;" data-i18n-html="sch.approvalNotice">
             📧 Because this path includes <strong>production</strong>, once you approve it the client will automatically receive an e-mail asking them to approve the schedule. In response they can approve it, submit comments, or reject the schedule — in each of these cases a notification is also sent to you and the other interested parties.
           </div>
         </div>
         <div style="display:flex; gap:10px; margin-top:16px; justify-content:flex-end;">
-          <button class="btn" onclick="confirmSchedule()">Approve schedule</button>
+          <button class="btn" onclick="confirmSchedule()" data-i18n="sch.approveSchedule">Approve schedule</button>
         </div>
       </div>
     </div>
@@ -850,7 +922,7 @@
         <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.deployments">Deployments</h2>
         <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.deployments">A list of all deployments and their statuses. Select a client to see deployments aggregated across all of their projects.</p>
       </div>
-      <button class="btn" onclick="goToView('schedule')">+ New deployment</button>
+      <button class="btn" onclick="goToView('schedule')" data-i18n="dep.newBtn">+ New deployment</button>
     </div>
 
     <div class="badge-row" id="deploy-stats"></div>
@@ -859,32 +931,30 @@
       <div class="toolbar">
         <div class="filters">
           <select id="deploy-filter-client" onchange="onDeployClientChange()">
-            <option value="all">All clients</option>
-            <option value="acme">ACME</option>
-            <option value="globex">Globex</option>
+            <option value="all" data-i18n="dep.fClients">All clients</option>
           </select>
           <select id="deploy-filter-project" onchange="onDeployProjectChange()">
-            <option value="all">All projects</option>
+            <option value="all" data-i18n="dep.fProjects">All projects</option>
           </select>
           <select id="deploy-filter-app" onchange="renderDeploymentsTable()">
-            <option value="all">All applications</option>
+            <option value="all" data-i18n="dep.fApps">All applications</option>
           </select>
           <select id="deploy-filter-env" onchange="renderDeploymentsTable()">
-            <option value="all">All environments</option>
+            <option value="all" data-i18n="dep.fEnvs">All environments</option>
           </select>
           <select id="deploy-filter-status" onchange="renderDeploymentsTable()">
-            <option value="all">All statuses</option>
-            <option value="scheduled">To be installed</option>
-            <option value="installed">Installed</option>
-            <option value="failed">Failed</option>
-            <option value="rolledback">Rolled back</option>
-            <option value="aborted">Aborted</option>
+            <option value="all" data-i18n="dep.fStatuses">All statuses</option>
+            <option value="scheduled" data-i18n="dep.sScheduled">To be installed</option>
+            <option value="installed" data-i18n="dep.sInstalled">Installed</option>
+            <option value="failed" data-i18n="dep.sFailed">Failed</option>
+            <option value="rolledback" data-i18n="dep.sRolledback">Rolled back</option>
+            <option value="aborted" data-i18n="dep.sAborted">Aborted</option>
           </select>
           <select id="deploy-filter-range" onchange="renderDeploymentsTable()">
-            <option value="14" selected>Last 14 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-            <option value="all">Full history</option>
+            <option value="14" selected data-i18n="dep.r14">Last 14 days</option>
+            <option value="30" data-i18n="dep.r30">Last 30 days</option>
+            <option value="90" data-i18n="dep.r90">Last 90 days</option>
+            <option value="all" data-i18n="dep.rAll">Full history</option>
           </select>
         </div>
       </div>
@@ -1022,33 +1092,31 @@
     </div>
 
     <div class="card" style="margin-bottom:18px;">
-      <label style="margin-bottom:6px;">Test an access scenario</label>
+      <label style="margin-bottom:6px;" data-i18n="client.testScenario">Test an access scenario</label>
       <select id="client-scenario-select" onchange="renderClientPortal(this.value)">
-        <option value="acme-all">ACME — access to all projects</option>
-        <option value="acme-portal">ACME — access to the Portal project only</option>
-        <option value="globex-all">Globex — access to all projects</option>
+        <option value="" data-i18n="client.noAccessOpt">No client access configured</option>
       </select>
     </div>
 
     <div class="card">
       <div class="toolbar">
-        <strong style="font-size:13px;">Your deployments</strong>
+        <strong style="font-size:13px;" data-i18n="client.yourDeployments">Your deployments</strong>
         <div class="filters">
           <select id="client-filter-project" onchange="renderClientPortal(currentClientScenario)">
-            <option value="all">All projects</option>
+            <option value="all" data-i18n="client.fProjects">All projects</option>
           </select>
           <select id="client-filter-app" onchange="renderClientPortal(currentClientScenario)">
-            <option value="all">All applications</option>
+            <option value="all" data-i18n="client.fApps">All applications</option>
           </select>
           <select id="client-filter-env" onchange="renderClientPortal(currentClientScenario)">
-            <option value="all">All environments</option>
-            <option value="Production">Production</option>
-            <option value="test">Test</option>
+            <option value="all" data-i18n="client.fEnvs">All environments</option>
+            <option value="Production" data-i18n="client.envProd">Production</option>
+            <option value="test" data-i18n="client.envTest">Test</option>
           </select>
           <select id="client-filter-status" onchange="renderClientPortal(currentClientScenario)">
-            <option value="all">All statuses</option>
-            <option value="installed">Installed</option>
-            <option value="scheduled">Scheduled</option>
+            <option value="all" data-i18n="client.fStatuses">All statuses</option>
+            <option value="installed" data-i18n="client.stInstalled">Installed</option>
+            <option value="scheduled" data-i18n="client.stScheduled">Scheduled</option>
           </select>
         </div>
       </div>
@@ -1070,17 +1138,17 @@
         <label class="radio-pill"><input type="radio" name="app-lang" value="pl" onchange="setLanguage('pl')"> Polish</label>
         <label class="radio-pill selected"><input type="radio" name="app-lang" value="en" checked onchange="setLanguage('en')"> English</label>
       </div>
-      <p style="font-size:11px; color:var(--text-muted); margin:8px 0 0 0;" data-i18n="account.languageNote">The switch translates the navigation and main headings (a demonstration in the mockup).</p>
+      <p style="font-size:11px; color:var(--text-muted); margin:8px 0 0 0;" data-i18n="account.languageNote">The switch translates the navigation and main headings.</p>
     </div>
 
     <div class="grid-2" style="align-items:start;">
       <div>
         <div class="card" style="margin-bottom:16px;">
           <div style="display:flex; align-items:center; gap:10px;">
-            <div class="avatar">RM</div>
+            <div class="avatar" id="profile-avatar"></div>
             <div>
-              <div style="font-weight:600; font-size:13px;">Release Manager</div>
-              <div class="mono" style="font-size:11.5px; color:var(--text-muted);">rm@rolldesk.example</div>
+              <div style="font-weight:600; font-size:13px;" id="profile-name"></div>
+              <div class="mono" style="font-size:11.5px; color:var(--text-muted);" id="profile-email"></div>
             </div>
           </div>
         </div>
@@ -1303,66 +1371,185 @@
 <div id="twofa-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(20,24,30,0.45); z-index:999; align-items:center; justify-content:center;">
   <div class="card" style="max-width:420px; width:90%; background:var(--paper-alt, #fff);">
     <div style="font-weight:600; font-size:14px; margin-bottom:4px;">Two-factor authentication setup</div>
-    <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:14px;">Scan the QR code in your authenticator app (Google Authenticator, Microsoft Authenticator, Authy), then enter the 6-digit code to confirm.</div>
+    <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:14px;">Scan the QR code in your authenticator app (Google Authenticator, Microsoft Authenticator, Authy), then enter the 6-digit code to confirm. Your current authenticator keeps working until you confirm the new one.</div>
     <div style="display:flex; justify-content:center; margin-bottom:14px;">
-      <div style="width:140px; height:140px; background:repeating-conic-gradient(#111 0% 25%, #fff 0% 50%) 50% / 16px 16px; border:6px solid #fff; box-shadow:0 0 0 1px var(--line);"></div>
+      <img id="twofa-qr" alt="MFA QR code" style="width:160px; height:160px; border-radius:8px; background:#fff;">
     </div>
-    <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-bottom:14px;">Can't scan it? Enter the key manually:<br><span class="mono" style="font-size:12px; color:var(--text);">JBSW Y3DP EHPK 3PXP</span></div>
+    <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-bottom:14px;">Can't scan it? Enter the key manually:<br><span class="mono" id="twofa-secret" style="font-size:12px; color:var(--text); word-break:break-all;"></span></div>
     <label style="font-size:12px;">6-digit code from the app</label>
     <input type="text" id="twofa-code-input" class="mono" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder="000000" style="width:100%; margin:6px 0 16px 0; box-sizing:border-box; letter-spacing:4px; text-align:center; font-size:18px;">
+    <div id="twofa-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
     <div style="display:flex; gap:8px; justify-content:flex-end;">
       <button class="mini-btn" onclick="close2FAModal()">Cancel</button>
-      <button class="btn" onclick="confirm2FASetup()">Confirm and enable 2FA</button>
+      <button class="btn" id="twofa-confirm-btn" onclick="confirm2FASetup()">Confirm and enable 2FA</button>
     </div>
   </div>
 </div>
 
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.1.0';
-  const ROLLDESK_LATEST = '0.1.0'; // latest available version (would come from server)
+  const ROLLDESK_VERSION = '0.2.0';
+  // GitHub repository used to look up the latest published release.
+  const GITHUB_REPO = 'RollDesk/rolldesk';
+  // Populated asynchronously from the GitHub Releases API (null = not checked yet).
+  let ROLLDESK_LATEST = null;
+  let versionCheckState = 'idle'; // idle | checking | ok | error
 
-  // ---- Release Notes / admin notes ----
+  // ---- Version / update check ----
   function renderRollDeskVersion(){
     const wrap = document.getElementById('rolldesk-version');
     if(!wrap) return;
-    const upToDate = compareVersions(ROLLDESK_VERSION, ROLLDESK_LATEST) >= 0;
+    let statusHtml;
+    if(versionCheckState === 'checking'){
+      statusHtml = '<span style="font-size:11px; color:var(--text-muted);">checking…</span>';
+    } else if(versionCheckState === 'error' || !ROLLDESK_LATEST){
+      statusHtml = '<span title="Could not reach GitHub" style="font-size:11px; color:var(--text-muted);">latest unknown</span>';
+    } else if(compareVersions(ROLLDESK_VERSION, ROLLDESK_LATEST) >= 0){
+      statusHtml = '<span title="You have the latest version" style="font-size:11px; color:#0F7A38;">✓ up to date</span>';
+    } else {
+      statusHtml = `<a href="https://github.com/${GITHUB_REPO}/releases/latest" target="_blank" rel="noopener" title="Update available" style="font-size:11px; color:#A81E1E; text-decoration:none;">⚠ update available: v${ROLLDESK_LATEST}</a>`;
+    }
     wrap.innerHTML = `
       <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
         <span class="mono" style="font-size:12px; font-weight:700;">RollDesk v${ROLLDESK_VERSION}</span>
-        ${upToDate
-          ? '<span title="You have the latest version" style="font-size:11px; color:#0F7A38;">✓ up to date</span>'
-          : `<span title="Update available" style="font-size:11px; color:#A81E1E;">⚠ v${ROLLDESK_LATEST}</span>`}
-      </div>
-      <div style="font-size:10px; color:var(--text-faint); margin-top:2px;">demonstration mockup</div>`;
+        ${statusHtml}
+      </div>`;
+  }
+
+  // Query the GitHub Releases API for the newest published version and refresh
+  // the badge. Fails quietly (offline / rate-limited / no releases yet).
+  async function checkLatestVersion(){
+    versionCheckState = 'checking';
+    renderRollDeskVersion();
+    try {
+      const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+        headers: { 'Accept': 'application/vnd.github+json' }
+      });
+      if(!res.ok) throw new Error('GitHub API ' + res.status);
+      const data = await res.json();
+      const tag = (data.tag_name || data.name || '').trim();
+      ROLLDESK_LATEST = tag.replace(/^v/i, '') || null;
+      versionCheckState = ROLLDESK_LATEST ? 'ok' : 'error';
+    } catch(err){
+      versionCheckState = 'error';
+      ROLLDESK_LATEST = null;
+      console.info('Version check skipped:', err.message);
+    }
+    renderRollDeskVersion();
   }
 
   // ---- Language / i18n (EN default, PL available) ----
   let LANG = 'en';
   const I18N = {
     pl: {
-      'grp.rm':'Release manager', 'grp.installer':'Deployer', 'grp.client':'Client', 'grp.admin':'Administrator', 'grp.account':'Account',
-      'nav.projects':'Projects', 'nav.deployments':'Deployments', 'nav.installer':'Deployer panel', 'nav.client':'Client panel',
-      'nav.users':'Users', 'nav.clients':'Clients', 'nav.audit':'Change history', 'nav.notifications':'Notifications',
-      'nav.account':'My profile', 'nav.logout':'Log out', 'nav.help':'Help',
-      'title.projects':'Projects', 'title.newproject':'New project', 'title.schedule':'New deployment', 'title.deployments':'Deployments',
-      'title.users':'Users', 'title.clients':'Clients', 'title.installer':'Deployer panel', 'title.account':'My profile',
-      'title.audit':'Change history', 'title.notifications':'Notifications', 'title.help':'Help',
-      'desc.projects':'All clients and their projects in the system.',
-      'desc.newproject':'The deployment schedule for this project will be adjusted automatically to the number of locations — you set it once, here.',
-      'desc.schedule':'Choose a version and how it is spread over time. The system will calculate the split into working days automatically.',
-      'desc.deployments':'A list of all deployments and their statuses. Select a client to see deployments aggregated across all of their projects.',
-      'desc.users':'Who has access to the system and in what role. Only an Administrator can add and edit users.',
-      'desc.clients':'The companies that projects are delivered for. Only an Administrator can add and edit clients.',
-      'desc.installer':'Here you report what succeeded and what did not, and add comments — without access to changing the schedule, the order of locations, or client approval.',
-      'desc.account':'Your account, API tokens and activity history.',
-      'desc.audit':'Who changed what and when — additions, removals and modifications of targets, applications and users.',
-      'desc.notifications':'Add recipients (e-mail addresses and webhooks). You can enable or disable each recipient and choose which events they are notified about.',
-      'desc.client':'Your deployments — statuses, production schedules and approvals.',
-      'account.language':'Interface language', 'account.languageNote':'The switch translates the navigation and main headings (a demonstration in the mockup).',
-      'topbar.projects':'Projects','topbar.newproject':'New project','topbar.schedule':'New deployment','topbar.deployments':'Deployments',
-      'topbar.apps':'Applications','topbar.users':'Users','topbar.clients':'Clients','topbar.installer':'Deployer panel',
-      'topbar.client':'Client panel','topbar.account':'My profile','topbar.audit':'Change history','topbar.notifications':'Notifications','topbar.help':'Help'
+      'grp.rm':'Menedżer wydań', 'grp.installer':'Wdrożeniowiec', 'grp.client':'Klient', 'grp.admin':'Administrator', 'grp.account':'Konto',
+      'nav.projects':'Projekty', 'nav.deployments':'Wdrożenia', 'nav.installer':'Panel wdrożeniowca', 'nav.client':'Panel klienta',
+      'nav.users':'Użytkownicy', 'nav.clients':'Klienci', 'nav.audit':'Historia zmian', 'nav.notifications':'Powiadomienia',
+      'nav.account':'Mój profil', 'nav.logout':'Wyloguj', 'nav.help':'Pomoc',
+      'title.projects':'Projekty', 'title.newproject':'Nowy projekt', 'title.schedule':'Nowe wdrożenie', 'title.deployments':'Wdrożenia',
+      'title.users':'Użytkownicy', 'title.clients':'Klienci', 'title.installer':'Panel wdrożeniowca', 'title.account':'Mój profil',
+      'title.audit':'Historia zmian', 'title.notifications':'Powiadomienia', 'title.help':'Pomoc',
+      'desc.projects':'Wszyscy klienci i ich projekty w systemie.',
+      'desc.newproject':'Harmonogram wdrożeń dla tego projektu zostanie automatycznie dopasowany do liczby lokalizacji — ustawiasz go raz, tutaj.',
+      'desc.schedule':'Wybierz wersję i sposób jej rozłożenia w czasie. System automatycznie obliczy podział na dni robocze.',
+      'desc.deployments':'Lista wszystkich wdrożeń i ich statusów. Wybierz klienta, aby zobaczyć wdrożenia zagregowane ze wszystkich jego projektów.',
+      'desc.users':'Kto ma dostęp do systemu i w jakiej roli. Tylko Administrator może dodawać i edytować użytkowników.',
+      'desc.clients':'Firmy, dla których realizowane są projekty. Tylko Administrator może dodawać i edytować klientów.',
+      'desc.installer':'Tutaj raportujesz, co się udało, a co nie, i dodajesz komentarze — bez dostępu do zmiany harmonogramu, kolejności lokalizacji czy akceptacji klienta.',
+      'desc.account':'Twoje konto, tokeny API i historia aktywności.',
+      'desc.audit':'Kto, co i kiedy zmienił — dodania, usunięcia i modyfikacje lokalizacji, aplikacji oraz użytkowników.',
+      'desc.notifications':'Dodaj odbiorców (adresy e-mail i webhooki). Możesz włączać lub wyłączać każdego odbiorcę i wybierać, o jakich zdarzeniach ma być powiadamiany.',
+      'desc.client':'Twoje wdrożenia — statusy, harmonogramy produkcyjne i akceptacje.',
+      'account.language':'Język interfejsu', 'account.languageNote':'Przełącznik tłumaczy nawigację i główne nagłówki.',
+      'topbar.projects':'Projekty','topbar.newproject':'Nowy projekt','topbar.schedule':'Nowe wdrożenie','topbar.deployments':'Wdrożenia',
+      'topbar.apps':'Aplikacje','topbar.users':'Użytkownicy','topbar.clients':'Klienci','topbar.installer':'Panel wdrożeniowca',
+      'topbar.client':'Panel klienta','topbar.account':'Mój profil','topbar.audit':'Historia zmian','topbar.notifications':'Powiadomienia','topbar.help':'Pomoc',
+      'client.testScenario':'Przetestuj scenariusz dostępu','client.noAccessOpt':'Brak skonfigurowanego dostępu klienta',
+      'client.yourDeployments':'Twoje wdrożenia','client.fProjects':'Wszystkie projekty','client.fApps':'Wszystkie aplikacje',
+      'client.fEnvs':'Wszystkie środowiska','client.envProd':'Produkcja','client.envTest':'Test','client.fStatuses':'Wszystkie statusy',
+      'client.stInstalled':'Zainstalowane','client.stScheduled':'Zaplanowane',
+      'client.portalTitle':'Panel klienta','client.noAccessYet':'Nie skonfigurowano jeszcze dostępu klienta.',
+      'client.welcome':'Witaj, {name}','client.accessAll':'Masz dostęp do wszystkich projektów {name}: {list}','client.accessOne':'Masz dostęp do projektu {name}',
+      'client.noPeople':'Nie przypisano żadnych osób.',
+      'client.colProject':'Projekt','client.colApp':'Aplikacja','client.colVersion':'Wersja','client.colEnv':'Środowisko',
+      'client.colDate':'Data','client.colTime':'Godzina','client.colStatus':'Status','client.colProdSchedule':'Harmonogram produkcyjny',
+      'client.approve':'Zatwierdź','client.proposeDate':'Zaproponuj inny termin','client.comment':'Skomentuj',
+      'client.appApproved':'Zatwierdzono','client.appCommented':'Skomentowano','client.appRejected':'Odrzucono',
+      'client.noMatch':'Żadne wdrożenie nie pasuje do filtrów.','client.collapse':'Zwiń ▲','client.previewTimeline':'Podgląd i oś czasu ▾',
+      'client.timeline':'Oś czasu','client.deploymentId':'ID wdrożenia','client.appVersion':'Aplikacja / wersja',
+      'client.environment':'Środowisko','client.date':'Data','client.numLocations':'Liczba lokalizacji','client.deploymentStatus':'Status wdrożenia',
+      'client.yourComment':'Twój komentarz','client.changelogFor':'Lista zmian dla tej wersji','client.download':'Pobieranie: {name}',
+      'status.installed':'zainstalowane','status.scheduled':'zaplanowane','status.progress':'w trakcie','status.failed':'nieudane','status.rolledback':'wycofane','status.aborted':'przerwane',
+      'tl.created':'Harmonogram wdrożenia utworzony przez zespół wdrożeniowy — {app} v{version} ({env})',
+      'tl.reqApprove':'Otrzymałeś prośbę o zatwierdzenie harmonogramu',
+      'tl.approved':'Zatwierdziłeś harmonogram — wdrożenie może się rozpocząć',
+      'tl.commented':'Skomentowałeś: „{c}”','tl.rejected':'Odrzuciłeś harmonogram: „{c}”','tl.awaiting':'Oczekuje na Twoje zatwierdzenie',
+      'tl.prodDone':'Wdrożenie produkcyjne zakończone — wszystkie lokalizacje ({n})','tl.testDone':'Wdrożenie na środowisku testowym zakończone',
+      'tl.prodWillStart':'Wdrożenie produkcyjne rozpocznie się {date} o {time} ({n} lokalizacji)',
+      'tl.prodPlannedAfter':'Planowany start wdrożenia: {date} o {time} — po zatwierdzeniu',
+      'tl.scheduledFor':'Wdrożenie zaplanowane na {date} {time}',
+      'proj.newBtn':'+ Nowy projekt','proj.open':'Otwórz',
+      'proj.thClient':'Klient','proj.thProject':'Projekt','proj.thProd':'Cele: produkcyjne','proj.thNonProd':'Cele: nieprodukcyjne','proj.thApps':'Aplikacje',
+      'proj.apps':'Aplikacje','proj.appsDescEmpty':'Nie wybrano projektu. Utwórz projekt, aby rozpocząć.','proj.appsDescOf':'Struktura projektu {name} ({client}).',
+      'proj.addApp':'+ Dodaj aplikację','proj.newApp':'Nowa aplikacja','proj.cancel':'Anuluj','proj.appName':'Nazwa aplikacji','proj.repoLink':'Link do repozytorium','proj.addAppBtn':'Dodaj aplikację',
+      'proj.thApp':'Aplikacja','proj.thLastDeploy':'Ostatnie wdrożenie',
+      'proj.targets':'Cele wdrożenia','proj.targetsDesc':'Cele wdrożenia (lokalizacje, serwery, dzierżawcy, regiony…) tego projektu.',
+      'proj.addField':'+ Dodaj pole','proj.addTarget':'+ Dodaj cel','proj.newTarget':'Nowy cel wdrożenia','proj.targetName':'Nazwa celu','proj.type':'Typ',
+      'proj.prod':'Produkcja','proj.nonprod':'Nieprodukcyjne','proj.addTargetBtn':'Dodaj cel','proj.targetList':'Lista celów','proj.searchTargets':'Szukaj celów...',
+      'proj.postDeploy':'Powiadomienia po wdrożeniu','proj.postDeployDesc':'Dodatkowe powiadomienie wysyłane po zakończeniu wdrożenia produkcyjnego tego projektu — np. do zespołu utrzymania, service desku lub osoby kontaktowej po stronie klienta.',
+      'proj.postDeployTarget':'Grupa / kanał do powiadomienia po instalacji','proj.postDeployTargetPh':'np. utrzymanie-core@example.com lub webhook kanału „Core — utrzymanie”',
+      'proj.postDeployEnable':'Włącz powiadomienie po zakończeniu wdrożenia produkcyjnego','proj.savePostDeploy':'Zapisz powiadomienie projektu',
+      'proj.defaults':'Domyślne parametry wdrożenia','proj.defaultsDesc':'Domyślne ustawienia harmonogramu używane, gdy menedżer wydań planuje wdrożenie tego projektu.',
+      'proj.defaultDays':'Standardowa liczba dni roboczych','proj.defaultDaysNote':'Jak domyślnie rozkładane są wdrożenia wielocelowe na dni robocze.',
+      'proj.defaultTime':'Godzina rozpoczęcia wdrożenia','proj.defaultTimeNote':'Godzina, o której zwykle rozpoczyna się wdrożenie.',
+      'proj.saveDefaults':'Zapisz ustawienia domyślne','proj.defaultsSaved':'Zapisano domyślne parametry wdrożenia',
+      'np.name':'Nazwa projektu','np.namePh':'np. LogiHub','np.client':'Klient','np.clientNewPh':'Nazwa nowego klienta',
+      'np.people':'Osoby po stronie klienta z dostępem do tego projektu','np.personNamePh':'Imię i nazwisko','np.personEmailPh':'e-mail','np.addPerson':'+ Dodaj osobę',
+      'np.peopleNote':'Osoba dodana tylko tutaj widzi wyłącznie ten projekt. Jeśli dodasz ją także do innych projektów tego klienta, uzyska dostęp do wszystkich projektów, do których została dodana.',
+      'np.multiLabel':'To przypadek szczególny — projekt ma wiele lokalizacji wdrożenia (np. sieć oddziałów klienta)',
+      'np.locLabel':'Lokalizacja wdrożenia','np.locLabelMulti':'Lokalizacje wdrożenia','np.addLocation':'+ Dodaj lokalizację','np.locPh':'Nazwa lokalizacji',
+      'np.testEnvs':'Środowiska testowe projektu','np.addTestEnv':'+ Dodaj środowisko testowe',
+      'np.testEnvsNote':'Niektóre projekty mają kilka równoległych środowisk testowych (np. Test1, Test2, Test3) — dodaj tyle, ile potrzebujesz. Aplikacje w tym projekcie wybiorą, na które z nich się wdrażają.',
+      'np.apps':'Aplikacje projektu','np.addApp':'+ Dodaj aplikację',
+      'np.appsNote':'Aplikacje możesz dodać także później, w zakładce Aplikacje — tam ustawisz repozytorium i ścieżkę wdrożenia dla każdej z nich.',
+      'np.defaults':'Domyślne parametry harmonogramu','np.days':'Standardowa liczba dni roboczych','np.daysNote':'Domyślny podział harmonogramu dla wdrożeń wielocelowych.',
+      'np.startTime':'Domyślna godzina rozpoczęcia','np.startTimeNote':'Godzina, o której zwykle rozpoczyna się wdrożenie.',
+      'np.clientVisibility':'Widoczność dla klienta','np.clientVisibleLabel':'Klient widzi harmonogram wdrożeń','np.create':'Utwórz projekt',
+      'np.modeLabel':'Wynikowy tryb harmonogramu','np.modeAuto':'TRYB WYBRANY AUTOMATYCZNIE','np.modeOne':'Jedna data dla wszystkiego',
+      'np.modeOneSub':'1 lokalizacja — to standardowy przypadek. Cały projekt wdraża się jednego dnia.',
+      'np.modeSpread':'Rozłożone na dni robocze','np.modeSpreadSub':'{n} lokalizacji — przypadek szczególny. Harmonogram rozłoży wdrożenia na kolejne dni robocze.',
+      'np.rule':'Zasada: <strong>1 lokalizacja</strong> (domyślnie) → jedna wspólna data wdrożenia.<br><strong>Wiele lokalizacji</strong> (przypadek szczególny) → wdrożenie jest rozkładane proporcjonalnie na dni robocze, gdy menedżer wydań zaplanuje konkretne wydanie.',
+      'np.remove':'Usuń',
+      'sch.back':'← Powrót do wdrożeń','sch.project':'Projekt',
+      'sch.appsVersions':'Aplikacje i wersje objęte tym wdrożeniem','sch.appsVersionsNote':'Jedno wdrożenie może obejmować kilka aplikacji. Wybierz aplikacje i podaj wersję dla każdej z nich (wersja jest wymagana).',
+      'sch.changelog':'Lista zmian','sch.changelogPh':'Opisz zmiany w tym wydaniu (wymagane)...',
+      'sch.changelogAttach':'Załącznik listy zmian (opcjonalnie)','sch.changelogAttachNote':'Możesz dołączyć plik (np. pełne release notes, instrukcję). Nazwa pliku zostanie dołączona do powiadomienia dla klienta.',
+      'sch.installerNotes':'Instrukcje dla wdrożeniowców (opcjonalnie)','sch.installerNotesNote':'Czynności do wykonania podczas wdrożenia — np. „zatrzymaj usługę przed instalacją”, „po instalacji uruchom skrypt migration.sql”. Zostaną pokazane w panelu wdrożeniowca dla tego wdrożenia.',
+      'sch.deps':'Zależności — muszą zostać wdrożone wcześniej (opcjonalnie)','sch.depsNote':'Jeśli to wdrożenie wymaga wcześniejszego ukończenia innego (np. aplikacja A dopiero po aplikacji B), wybierz je tutaj. Wdrożeniowiec otrzyma ostrzeżenie, dopóki zależność nie zostanie ukończona.',
+      'sch.path':'Ścieżka wdrożenia — ustawiana dla tego konkretnego wdrożenia','sch.pathTestOnly':'Tylko środowisko testowe','sch.pathTestProd':'Środowisko testowe + produkcja','sch.pathProdOnly':'Tylko produkcja',
+      'sch.envs':'Środowiska testowe objęte tym wdrożeniem',
+      'sch.internal':'Wdrożenie wewnętrzne — niewidoczne dla klienta','sch.internalNote':'Zaznacz, jeśli to wdrożenie na środowisko wewnętrzne. Nie pojawi się w panelu klienta i nie wymaga jego akceptacji — widzą je tylko zespół i wdrożeniowiec.',
+      'sch.modeField':'Tryb harmonogramu (zdefiniowany przy tworzeniu projektu)',
+      'sch.testOnlyNote':'ℹ️ Środowisko testowe to pojedyncza instancja — wystarczy jedna instalacja na wybrane środowiska testowe, bez rozkładania na wiele lokalizacji i dni. Podział na lokalizacje dotyczy tylko produkcji.',
+      'sch.locsCovered':'Liczba objętych lokalizacji','sch.workingDays':'Liczba dni roboczych',
+      'sch.perDay':'Rozbicie na dni i wytyczne PM','sch.spreadDays':'Rozłóż na dni','sch.perDayNote':'Ustaw liczbę lokalizacji i ograniczenia dla każdego dnia — „Generuj harmonogram” je uwzględni.',
+      'sch.thDay':'Dzień','sch.thLocs':'Liczba lokalizacji','sch.thRestrict':'Ogranicz typ','sch.thMax':'Maks. liczba (0 = brak tego typu)',
+      'sch.startTestDate':'Start (test) — data','sch.time':'Godzina','sch.startProdDate':'Start (produkcja) — data','sch.generate':'Generuj harmonogram',
+      'sch.rolloutPreview':'Podgląd rolloutu — środowisko produkcyjne','sch.weekendsNote':'Weekendy są pomijane automatycznie. Poszczególne lokalizacje możesz ręcznie przenosić między dniami w tabeli poniżej.',
+      'sch.locAssign':'Przypisanie lokalizacji (podgląd)','sch.searchLocs':'Szukaj lokalizacji...','sch.locAssignNote':'Przenoś wybrane oddziały na początek lub koniec kolejki — np. gdy klient chce, aby konkretna lokalizacja była pierwsza lub dopiero na końcu.',
+      'sch.thLocation':'Lokalizacja','sch.thType':'Typ','sch.thDate':'Data','sch.thEnv':'Środowisko',
+      'sch.testOnlyPreviewNote':'To wdrożenie dotyczy tylko środowiska testowego (środowisk testowych) — instalowane jest raz, ręcznie, bez harmonogramu rozłożonego na lokalizacje.',
+      'sch.approvalNotice':'📧 Ponieważ ta ścieżka obejmuje <strong>produkcję</strong>, po jej zatwierdzeniu klient automatycznie otrzyma e-mail z prośbą o akceptację harmonogramu. W odpowiedzi może go zatwierdzić, zgłosić uwagi lub odrzucić — w każdym z tych przypadków powiadomienie trafia również do Ciebie i pozostałych zainteresowanych.',
+      'sch.approveSchedule':'Zatwierdź harmonogram',
+      'sch.badgeOne':'Jedna data dla wszystkiego — projekt ma 1 cel produkcyjny','sch.badgeSpread':'Rozłożone na dni robocze — projekt ma {n} celów produkcyjnych',
+      'sch.noApps':'Ten projekt nie ma jeszcze żadnych aplikacji.','sch.noDeps':'W tym projekcie nie ma innych aktywnych wdrożeń, od których to wdrożenie mogłoby zależeć.',
+      'dep.newBtn':'+ Nowe wdrożenie','dep.fClients':'Wszyscy klienci','dep.fProjects':'Wszystkie projekty','dep.fProjectsClient':'Wszystkie projekty klienta','dep.fApps':'Wszystkie aplikacje','dep.fEnvs':'Wszystkie środowiska','dep.fStatuses':'Wszystkie statusy',
+      'dep.sScheduled':'Do zainstalowania','dep.sInstalled':'Zainstalowane','dep.sFailed':'Nieudane','dep.sRolledback':'Wycofane','dep.sAborted':'Przerwane',
+      'dep.r14':'Ostatnie 14 dni','dep.r30':'Ostatnie 30 dni','dep.r90':'Ostatnie 90 dni','dep.rAll':'Pełna historia',
+      'dep.thClient':'Klient','dep.thProject':'Projekt','dep.thAppVer':'Aplikacja / wersja','dep.thLocations':'Lokalizacje','dep.thEnv':'Środowisko','dep.thDate':'Data','dep.thTime':'Godzina','dep.thProgress':'Postęp','dep.thApproval':'Akceptacja klienta',
+      'dep.aPending':'Oczekuje na akceptację','dep.aApproved':'Zatwierdzono','dep.aCommented':'Skomentowano','dep.aRejected':'Odrzucono',
+      'dep.reply':'Odpowiedz','dep.changeReply':'Zmień odpowiedź','dep.yourReply':'Twoja odpowiedź',
+      'app.settings':'Ustawienia','app.noDeployments':'brak wdrożeń'
     },
     en: {
       'grp.rm':'Release manager', 'grp.installer':'Deployer', 'grp.client':'Client', 'grp.admin':'Administrator', 'grp.account':'Account',
@@ -1383,19 +1570,121 @@
       'desc.audit':'Who changed what and when — additions, removals and edits of targets, apps and users.',
       'desc.notifications':'Add recipients (e-mail addresses and webhooks). Each recipient can be enabled or disabled and configured per event.',
       'desc.client':'Your deployments — statuses, production schedules and approvals.',
-      'account.language':'Interface language', 'account.languageNote':'The switch translates navigation and main headings (mockup demonstration).',
+      'account.language':'Interface language', 'account.languageNote':'The switch translates navigation and main headings.',
       'topbar.projects':'Projects','topbar.newproject':'New project','topbar.schedule':'New deployment','topbar.deployments':'Deployments',
       'topbar.apps':'Applications','topbar.users':'Users','topbar.clients':'Clients','topbar.installer':'Deployer panel',
-      'topbar.client':'Client panel','topbar.account':'My profile','topbar.audit':'Change history','topbar.notifications':'Notifications','topbar.help':'Help'
+      'topbar.client':'Client panel','topbar.account':'My profile','topbar.audit':'Change history','topbar.notifications':'Notifications','topbar.help':'Help',
+      'client.testScenario':'Test an access scenario','client.noAccessOpt':'No client access configured',
+      'client.yourDeployments':'Your deployments','client.fProjects':'All projects','client.fApps':'All applications',
+      'client.fEnvs':'All environments','client.envProd':'Production','client.envTest':'Test','client.fStatuses':'All statuses',
+      'client.stInstalled':'Installed','client.stScheduled':'Scheduled',
+      'client.portalTitle':'Client portal','client.noAccessYet':'No client access configured yet.',
+      'client.welcome':'Welcome, {name}','client.accessAll':'You have access to all {name} projects: {list}','client.accessOne':'You have access to the {name} project',
+      'client.noPeople':'No people assigned.',
+      'client.colProject':'Project','client.colApp':'Application','client.colVersion':'Version','client.colEnv':'Environment',
+      'client.colDate':'Date','client.colTime':'Time','client.colStatus':'Status','client.colProdSchedule':'Production schedule',
+      'client.approve':'Approve','client.proposeDate':'Propose another date','client.comment':'Comment',
+      'client.appApproved':'Approved','client.appCommented':'Commented','client.appRejected':'Rejected',
+      'client.noMatch':'No deployments match the filters.','client.collapse':'Collapse ▲','client.previewTimeline':'Preview and timeline ▾',
+      'client.timeline':'Timeline','client.deploymentId':'Deployment ID','client.appVersion':'Application / version',
+      'client.environment':'Environment','client.date':'Date','client.numLocations':'Number of locations','client.deploymentStatus':'Deployment status',
+      'client.yourComment':'Your comment','client.changelogFor':'Changelog for this version','client.download':'Downloading: {name}',
+      'status.installed':'installed','status.scheduled':'scheduled','status.progress':'in progress','status.failed':'failed','status.rolledback':'rolled back','status.aborted':'aborted',
+      'tl.created':'Deployment schedule created by the deployment team — {app} v{version} ({env})',
+      'tl.reqApprove':'You received a request to approve the schedule',
+      'tl.approved':'You approved the schedule — the deployment can start',
+      'tl.commented':'You commented: „{c}”','tl.rejected':'You rejected the schedule: „{c}”','tl.awaiting':'Awaiting your approval',
+      'tl.prodDone':'Production deployment completed — all {n} locations','tl.testDone':'Deployment on the test environment completed',
+      'tl.prodWillStart':'The production deployment will start on {date} at {time} ({n} locations)',
+      'tl.prodPlannedAfter':'Planned deployment start: {date} at {time} — after approval',
+      'tl.scheduledFor':'Deployment scheduled for {date} {time}',
+      'proj.newBtn':'+ New project','proj.open':'Open',
+      'proj.thClient':'Client','proj.thProject':'Project','proj.thProd':'Targets: production','proj.thNonProd':'Targets: non-production','proj.thApps':'Applications',
+      'proj.apps':'Applications','proj.appsDescEmpty':'No project selected. Create a project to get started.','proj.appsDescOf':'Structure of the {name} project ({client}).',
+      'proj.addApp':'+ Add application','proj.newApp':'New application','proj.cancel':'Cancel','proj.appName':'Application name','proj.repoLink':'Repository link','proj.addAppBtn':'Add application',
+      'proj.thApp':'Application','proj.thLastDeploy':'Last deployment',
+      'proj.targets':'Deployment targets','proj.targetsDesc':'Deployment targets (locations, servers, tenants, regions…) of this project.',
+      'proj.addField':'+ Add field','proj.addTarget':'+ Add target','proj.newTarget':'New deployment target','proj.targetName':'Target name','proj.type':'Type',
+      'proj.prod':'Production','proj.nonprod':'Non-production','proj.addTargetBtn':'Add target','proj.targetList':'Target list','proj.searchTargets':'Search targets...',
+      'proj.postDeploy':'Post-deployment notifications','proj.postDeployDesc':'An additional notification sent after a production deployment of this project is completed — e.g. to the maintenance team, the service desk, or the client-side contact person.',
+      'proj.postDeployTarget':'Group / channel to notify after installation','proj.postDeployTargetPh':'e.g. maintenance-core@example.com or a webhook for the „Core — maintenance” channel',
+      'proj.postDeployEnable':'Enable notification after a production deployment is completed','proj.savePostDeploy':'Save project notification',
+      'proj.defaults':'Deployment defaults','proj.defaultsDesc':'Default schedule used when the release manager plans a deployment for this project.',
+      'proj.defaultDays':'Standard number of working days','proj.defaultDaysNote':'How multi-target deployments are split across working days by default.',
+      'proj.defaultTime':'Deployment start time','proj.defaultTimeNote':'The time at which a deployment usually begins.',
+      'proj.saveDefaults':'Save defaults','proj.defaultsSaved':'Deployment defaults saved',
+      'np.name':'Project name','np.namePh':'e.g. LogiHub','np.client':'Client','np.clientNewPh':'New client name',
+      'np.people':'Client-side people with access to this project','np.personNamePh':'Full name','np.personEmailPh':'e-mail','np.addPerson':'+ Add person',
+      'np.peopleNote':'A person added only here sees this project alone. If you also add them to other projects of this client, they will have access to all the projects they have been added to.',
+      'np.multiLabel':'This is a special case — the project has multiple deployment locations (e.g. a network of client branches)',
+      'np.locLabel':'Deployment location','np.locLabelMulti':'Deployment locations','np.addLocation':'+ Add location','np.locPh':'Location name',
+      'np.testEnvs':'Project test environments','np.addTestEnv':'+ Add test environment',
+      'np.testEnvsNote':'Some projects have several parallel test environments (e.g. Test1, Test2, Test3) — add as many as you need. Applications in this project will choose which ones they deploy to.',
+      'np.apps':'Project applications','np.addApp':'+ Add application',
+      'np.appsNote':'You can also add applications later, in the Applications tab — there you will set the repository and deployment path for each one.',
+      'np.defaults':'Default schedule parameters','np.days':'Standard number of working days','np.daysNote':'Default schedule split for multi-target deployments.',
+      'np.startTime':'Default start time','np.startTimeNote':'The time at which a deployment usually begins.',
+      'np.clientVisibility':'Client visibility','np.clientVisibleLabel':'The client sees the deployment schedule','np.create':'Create project',
+      'np.modeLabel':'Resulting schedule mode','np.modeAuto':'MODE SELECTED AUTOMATICALLY','np.modeOne':'One date for everything',
+      'np.modeOneSub':'1 location — this is the standard case. The whole project deploys on a single day.',
+      'np.modeSpread':'Spread across working days','np.modeSpreadSub':'{n} locations — a special case. The schedule will spread the deployments across consecutive working days.',
+      'np.rule':'Rule: <strong>1 location</strong> (default) → one shared deployment date.<br><strong>Multiple locations</strong> (special case) → the deployment is spread proportionally across working days once the release manager plans a specific release.',
+      'np.remove':'Remove',
+      'sch.back':'← Back to deployments','sch.project':'Project',
+      'sch.appsVersions':'Applications and versions included in this deployment','sch.appsVersionsNote':'A single deployment can cover several applications. Select the applications and provide a version for each one (the version is required).',
+      'sch.changelog':'Changelog','sch.changelogPh':'Describe the changes in this release (required)...',
+      'sch.changelogAttach':'Changelog attachment (optional)','sch.changelogAttachNote':'You can attach a file (e.g. full release notes, an instruction). The file name will be included in the notification to the client.',
+      'sch.installerNotes':'Instructions for deployers (optional)','sch.installerNotesNote':'Actions to perform during the deployment — e.g. „stop the service before installation”, „after installation run the migration.sql script”. They will be shown in the deployer panel for this deployment.',
+      'sch.deps':'Dependencies — must be deployed earlier (optional)','sch.depsNote':'If this deployment requires another one to be completed first (e.g. application A only after application B), select it here. The deployer will get a warning until the dependency is completed.',
+      'sch.path':'Deployment path — set for this specific deployment','sch.pathTestOnly':'Test environment only','sch.pathTestProd':'Test environment + production','sch.pathProdOnly':'Production only',
+      'sch.envs':'Test environments included in this deployment',
+      'sch.internal':'Internal deployment — not visible to the client','sch.internalNote':'Select this if it is a deployment to an internal environment. It will not appear in the client panel and does not require their approval — only the team and the deployer can see it.',
+      'sch.modeField':'Schedule mode (defined when the project was created)',
+      'sch.testOnlyNote':'ℹ️ A test environment is a single instance — one installation to the selected test environment(s) is enough, with no spreading across multiple locations and days. The split across locations applies to production only.',
+      'sch.locsCovered':'Number of locations covered','sch.workingDays':'Number of working days',
+      'sch.perDay':'Per-day breakdown and PM guidelines','sch.spreadDays':'Spread across days','sch.perDayNote':'Set the number of locations and constraints for each day — "Generate schedule" will take them into account.',
+      'sch.thDay':'Day','sch.thLocs':'Number of locations','sch.thRestrict':'Restrict type','sch.thMax':'Max count (0 = none of this type)',
+      'sch.startTestDate':'Start (test) — date','sch.time':'Time','sch.startProdDate':'Start (production) — date','sch.generate':'Generate schedule',
+      'sch.rolloutPreview':'Rollout preview — production environment','sch.weekendsNote':'Weekends are skipped automatically. You can manually move individual locations between days in the table below.',
+      'sch.locAssign':'Location assignment (preview)','sch.searchLocs':'Search locations...','sch.locAssignNote':'Move selected branches to the start or end of the queue — e.g. if the client wants a specific location to go first or only at the very end.',
+      'sch.thLocation':'Location','sch.thType':'Type','sch.thDate':'Date','sch.thEnv':'Environment',
+      'sch.testOnlyPreviewNote':'This deployment applies only to the test environment(s) — it is installed once, manually, without a schedule spread across locations.',
+      'sch.approvalNotice':'📧 Because this path includes <strong>production</strong>, once you approve it the client will automatically receive an e-mail asking them to approve the schedule. In response they can approve it, submit comments, or reject the schedule — in each of these cases a notification is also sent to you and the other interested parties.',
+      'sch.approveSchedule':'Approve schedule',
+      'sch.badgeOne':'One date for everything — the project has 1 production target','sch.badgeSpread':'Spread across working days — the project has {n} production targets',
+      'sch.noApps':'This project has no applications yet.','sch.noDeps':'There are no other active deployments in this project that this deployment could depend on.',
+      'dep.newBtn':'+ New deployment','dep.fClients':'All clients','dep.fProjects':'All projects','dep.fProjectsClient':'All projects for the client','dep.fApps':'All applications','dep.fEnvs':'All environments','dep.fStatuses':'All statuses',
+      'dep.sScheduled':'To be installed','dep.sInstalled':'Installed','dep.sFailed':'Failed','dep.sRolledback':'Rolled back','dep.sAborted':'Aborted',
+      'dep.r14':'Last 14 days','dep.r30':'Last 30 days','dep.r90':'Last 90 days','dep.rAll':'Full history',
+      'dep.thClient':'Client','dep.thProject':'Project','dep.thAppVer':'Application / version','dep.thLocations':'Locations','dep.thEnv':'Environment','dep.thDate':'Date','dep.thTime':'Time','dep.thProgress':'Progress','dep.thApproval':'Client approval',
+      'dep.aPending':'Awaiting approval','dep.aApproved':'Approved','dep.aCommented':'Commented','dep.aRejected':'Rejected',
+      'dep.reply':'Reply','dep.changeReply':'Change reply','dep.yourReply':'Your reply',
+      'app.settings':'Settings','app.noDeployments':'no deployments'
     }
   };
   function t(key){ return (I18N[LANG] && I18N[LANG][key]) || (I18N.pl[key]) || key; }
+  // Translate + interpolate {token} placeholders, e.g. tf('client.welcome', {name:'ACME'}).
+  function tf(key, params){
+    let s = t(key);
+    if(params){ for(const k in params){ s = s.split('{'+k+'}').join(params[k]); } }
+    return s;
+  }
   function titleFor(view){ return t('topbar.' + view); }
   function applyLanguage(){
     document.querySelectorAll('[data-i18n]').forEach(el=>{
       const key = el.getAttribute('data-i18n');
       const val = I18N[LANG] && I18N[LANG][key];
       if(val != null) el.textContent = val;
+    });
+    // Placeholders (inputs / textareas / selects).
+    document.querySelectorAll('[data-i18n-ph]').forEach(el=>{
+      const val = I18N[LANG] && I18N[LANG][el.getAttribute('data-i18n-ph')];
+      if(val != null) el.setAttribute('placeholder', val);
+    });
+    // Rich text that legitimately contains inline markup (e.g. <strong>, <br>).
+    document.querySelectorAll('[data-i18n-html]').forEach(el=>{
+      const val = I18N[LANG] && I18N[LANG][el.getAttribute('data-i18n-html')];
+      if(val != null) el.innerHTML = val;
     });
     // refresh the current topbar title in the active language
     const active = document.querySelector('.nav-item.active');
@@ -1405,6 +1694,26 @@
     LANG = (lang === 'en') ? 'en' : 'pl';
     applyLanguage();
     if(typeof renderHelp === 'function') renderHelp();
+    // Re-render JS-driven views so their dynamic strings pick up the new language.
+    try { if(typeof renderClientPortal === 'function') renderClientPortal(currentClientScenario); } catch(e){}
+    try { if(typeof renderProjectsList === 'function') renderProjectsList(); } catch(e){}
+    try { if(typeof switchProject === 'function') switchProject(currentProjectKey); } catch(e){}
+    // Deployments view: filter dropdowns are (re)built in JS, so re-label their
+    // leading "All …" option and re-render the table head/rows in the new language.
+    try {
+      [['deploy-filter-client','dep.fClients'],['deploy-filter-app','dep.fApps'],['deploy-filter-env','dep.fEnvs']].forEach(([id,key])=>{
+        const s = document.getElementById(id); if(s && s.options.length) s.options[0].textContent = t(key);
+      });
+      const projSel = document.getElementById('deploy-filter-project'), clientSel = document.getElementById('deploy-filter-client');
+      if(projSel && projSel.options.length) projSel.options[0].textContent = (clientSel && clientSel.value !== 'all') ? t('dep.fProjectsClient') : t('dep.fProjects');
+      if(typeof renderDeploymentsTable === 'function') renderDeploymentsTable();
+    } catch(e){}
+    // New-project view: mode box + location label depend on toggle state, not just data-i18n.
+    try { if(typeof updateProjectMode === 'function') updateProjectMode(); } catch(e){}
+    try {
+      const mt = document.getElementById('np-multi-toggle'), ll = document.getElementById('np-loc-label');
+      if(mt && ll) ll.textContent = mt.checked ? t('np.locLabelMulti') : t('np.locLabel');
+    } catch(e){}
     showToast(LANG === 'en' ? 'Language changed to English' : 'Language changed to Polish');
   }
 
@@ -1457,133 +1766,24 @@
     }
   });
 
-  // ---- Real client/project data used to drive the mockup ----
-  // Each app defines reusable deployment templates (path + environments) —
-  // these are starting points, not a fixed setting. The actual path is chosen
-  // each time a deployment is scheduled (see New deployment).
-  const PROJECTS = {
-    'acme:core':  { client:'acme', clientName:'ACME', name:'Core', locations:400, testEnvs:['Test1','Test2','Test3'], defaultDays:10, defaultTime:'22:00',
-      apps:[
-      {name:'service-a', repo:'github.com/acme/service-a', locations:400, deployedVersions:[
-        {env:'Test1', version:'52.12.75', date:'2026-07-13'},
-        {env:'Test2', version:'52.12.73', date:'2026-07-01'},
-        {env:'Test3', version:'52.12.73', date:'2026-06-25'},
-        {env:'Production', version:'52.12.73', date:'2026-06-28'}
-      ]},
-      {name:'service-c', repo:'github.com/acme/service-c', locations:400, deployedVersions:[
-        {env:'Test1', version:'16.8.57', date:'2026-06-17'},
-        {env:'Production', version:'16.8.40', date:'2026-06-20'}
-      ]},
-      {name:'service-b', repo:'github.com/acme/service-b', locations:400, deployedVersions:[
-        {env:'Test1', version:'38.15.1', date:'2026-07-10'},
-        {env:'Production', version:'38.15.1', date:'2026-06-20'}
-      ]},
-      {name:'service-e', repo:'github.com/acme/service-e', locations:400, deployedVersions:[
-        {env:'Test1', version:'5.2.0', date:'2026-06-22'}
-      ]},
-      {name:'service-d', repo:'github.com/acme/service-d', locations:400, deployedVersions:[
-        {env:'Production', version:'3.0.1', date:'2026-06-18'}
-      ]},
-      {name:'service-f', repo:'github.com/acme/service-f', locations:400, deployedVersions:[
-        {env:'Test1', version:'1.13.0.25038', date:'2026-06-17'},
-        {env:'Production', version:'1.13.0.25038', date:'2026-06-20'}
-      ]},
-      {name:'service-g', repo:'github.com/acme/service-g', locations:400, deployedVersions:[
-        {env:'Test1', version:'2.4.0', date:'2026-06-20'}
-      ]},
-      {name:'service-h', repo:'github.com/acme/service-h', locations:400, deployedVersions:[
-        {env:'Test1', version:'1.1.2', date:'2026-06-15'},
-        {env:'Production', version:'1.1.1', date:'2026-05-30'}
-      ]},
-      {name:'service-i', repo:'github.com/acme/service-i', locations:400, deployedVersions:[
-        {env:'Production', version:'1.0.4', date:'2026-05-30'}
-      ]}
-    ]},
-    'acme:portal':    { client:'acme', clientName:'ACME', name:'Portal',     locations:1,   testEnvs:['Test'], apps:[
-      {name:'portal-web', repo:'github.com/acme/portal-web', locations:1, deployedVersions:[
-        {env:'Test', version:'1.9.0', date:'2026-07-05'},
-        {env:'Production', version:'1.9.0', date:'2026-06-10'}
-      ]},
-      {name:'portal-mobile', repo:'github.com/acme/portal-mobile', locations:1, deployedVersions:[
-        {env:'Test', version:'0.9.0', date:'2026-06-08'}
-      ]}
-    ]},
-    'acme:field':    { client:'acme', clientName:'ACME', name:'Field',     locations:51,  testEnvs:['Test1','Test2','Test3'], apps:[
-      {name:'field-web', repo:'github.com/acme/field-web', locations:51, deployedVersions:[
-        {env:'Test1', version:'1.0.0', date:'2026-06-25'}
-      ]}
-    ]},
-    'globex:alpha':      { client:'globex', clientName:'Globex', name:'Alpha',       locations:1,   testEnvs:['Test1','Test2','Test3'], apps:[
-      {name:'alpha-core', repo:'github.com/globex/alpha-core', locations:1, deployedVersions:[
-        {env:'Test3', version:'2.3.0', date:'2026-06-18'}
-      ]}
-    ]},
-    'globex:beta':    { client:'globex', clientName:'Globex', name:'Beta',     locations:1,   testEnvs:['Test1','Test2','Test3'], apps:[
-      {name:'beta-core', repo:'github.com/globex/beta-core', locations:1, deployedVersions:[
-        {env:'Test1', version:'1.4.2', date:'2026-06-05'},
-        {env:'Production', version:'1.4.1', date:'2026-05-20'}
-      ]}
-    ]},
-  };
-  let currentProjectKey = 'acme:core';
+  // Projects are loaded from the backend (GET /api/projects) on connect.
+  // No seed/demo data — the app starts empty until real projects are created.
+  const PROJECTS = {};
+  let currentProjectKey = null;
 
-  // Generic list of independent field sites — each is a separate deployment target.
-  const WORD_TARGETS = [
-    'Site 01','Site 02','Site 03','Site 04','Site 05','Site 06',
-    'Site 07','Site 08','Site 09','Site 10',
-    'Site 11','Site 12','Site 13','Site 14',
-    'Site 15','Site 16','Site 17','Site 18',
-    'Site 19','Site 20',
-    'Site 21','Site 22','Site 23','Site 24',
-    'Site 25','Site 26','Site 27',
-    'Site 28','Site 29','Site 30','Site 31',
-    'Site 32',
-    'Site 33','Site 34',
-    'Site 35',
-    'Site 36','Site 37','Site 38','Site 39',
-    'Site 40','Site 41','Site 42',
-    'Site 43','Site 44',
-    'Site 45','Site 46',
-    'Site 47','Site 48','Site 49',
-  ];
+  // Ensure a project object loaded from the API has all the array/scalar fields
+  // the UI expects, so rendering never trips over a missing property.
+  function normalizeProject(p){
+    p.apps = Array.isArray(p.apps) ? p.apps : [];
+    p.testEnvs = Array.isArray(p.testEnvs) && p.testEnvs.length ? p.testEnvs : ['Test'];
+    p.locationsList = Array.isArray(p.locationsList) ? p.locationsList : [];
+    p.customLocationFields = Array.isArray(p.customLocationFields) ? p.customLocationFields : [];
+    if(typeof p.locations !== 'number') p.locations = p.locationsList.length;
+    if(!p.client) p.client = (p.clientName || '').toLowerCase().replace(/[^a-z0-9]+/g,'-') || 'client';
+    return p;
+  }
 
-  Object.values(PROJECTS).forEach(p=>{
-    p.locationsList = [];
-    p.customLocationFields = p.customLocationFields || [];
-
-    // Field: named production targets (one per site)
-    if(p.name === 'Field'){
-      WORD_TARGETS.forEach(name=>{
-        p.locationsList.push({code: name, label: name, type:'Production', custom:{}});
-      });
-      // plus one non-production (test) environment
-      p.locationsList.push({code:'Test environment', label:'Test environment', type:'Non-production', custom:{}});
-      p.locations = p.locationsList.length;
-      return;
-    }
-
-    // Alpha / Beta: a single production target + one non-production environment
-    if(p.name === 'Alpha' || p.name === 'Beta'){
-      p.locationsList.push({code: p.locationName || 'Main office', label: p.locationName || 'Main office', type:'Production', custom:{}});
-      p.locationsList.push({code:'Test environment', label:'Test environment', type:'Non-production', custom:{}});
-      p.locations = p.locationsList.length;
-      return;
-    }
-
-    for(let i=0; i<p.locations; i++){
-      if(p.locations <= 1){
-        p.locationsList.push({code: p.locationName || 'Main office', type:'Production', custom:{}});
-      } else {
-        const cls = classifyLocation(i);
-        p.locationsList.push({code: officeCode(i), type: cls.type, label: cls.name, custom:{}});
-      }
-    }
-  });
-
-  let CLIENTS = [
-    {key:'acme', name:'ACME', domain:'acme.example'},
-    {key:'globex', name:'Globex', domain:'globex.example'},
-  ];
+  let CLIENTS = [];
   let editingClientKey = null;
 
   function slugifyClientName(name){
@@ -1647,6 +1847,7 @@
     renderClientsTable();
     populateClientSelect();
     renderProjectsList();
+    persistClients();
     toggleClientForm();
   }
 
@@ -1686,14 +1887,8 @@
     client:    {label:'Client',          desc:'Approves, proposes reschedules and sees the deployment status of their projects.', color:'#0F7A38', bg:'var(--green-soft)'},
   };
 
-  let USERS = [
-    {name:'Riley Stone',   email:'riley.stone@example.com', role:'admin', projects:[]},
-    {name:'Alex Johnson',   email:'alex.johnson@example.com', role:'rm', projects:[]},
-    {name:'Sam Carter', email:'sam.carter@example.com', role:'installer', projects:['acme:core']},
-    {name:'Jordan Lee', email:'jordan.lee@example.com', role:'installer', projects:['acme:core','acme:field','globex:alpha']},
-    {name:'Taylor Reed',  email:'taylor.reed@acme.example', role:'client', projects:['acme:core']},
-    {name:'Morgan Fox', email:'morgan.fox@acme.example', role:'client', projects:['acme:field']},
-  ];
+  // No seed users — the real signed-in account is added after authentication.
+  let USERS = [];
 
   let usersTab = 'active';
 
@@ -1743,27 +1938,86 @@
 
   // Activity / audit log — records who added/removed/changed what, so changes to
   // targets, apps and users are traceable (important for regulated clients).
-  const AUDIT_LOG = [
-    {ts:'2026-07-03 09:14', actor:'Riley Stone', role:'admin', action:'added', entity:'User', detail:'Added user „Sam Carter” (Deployer)', project:'—'},
-    {ts:'2026-07-02 16:40', actor:'Alex Johnson', role:'rm', action:'changed', entity:'Deployment target', detail:'Changed the type of target „U0137” from Non-production to Production', project:'Core (ACME)'},
-    {ts:'2026-07-01 11:22', actor:'Alex Johnson', role:'rm', action:'added', entity:'Application', detail:'Added application „service-i”', project:'Core (ACME)'},
-    {ts:'2026-06-28 14:05', actor:'Riley Stone', role:'admin', action:'removed', entity:'Deployment target', detail:'Removed target „U0402” (closed branch)', project:'Core (ACME)'},
-  ];
+  // Audit entries accumulate at runtime from real actions — no seed history.
+  const AUDIT_LOG = [];
   const ROLE_SHORT = {admin:'Administrator', rm:'Release Manager', installer:'Deployer', client:'Client'};
-  const CURRENT_ACTOR = {admin:'Riley Stone', rm:'Alex Johnson', installer:'Sam Carter', client:'Taylor Reed'};
+
+  // The signed-in user (from GET /api/auth/me); drives the profile card and the
+  // "actor" attributed to audit entries and comments.
+  let currentUser = null;
+  function actorName(){
+    if(currentUser){
+      if(currentUser.name) return currentUser.name;
+      if(currentUser.email) return currentUser.email.split('@')[0];
+    }
+    return ROLE_SHORT[currentLoggedInRole] || 'User';
+  }
+
+  // Populate the profile card, avatars and the Users list from the signed-in
+  // account returned by GET /api/auth/me ({ id, email, role }).
+  function applyCurrentUser(me){
+    if(!me) return;
+    currentUser = me;
+    if(me.role) currentLoggedInRole = me.role;
+    const email = me.email || '';
+    const name = me.name || (email ? email.split('@')[0] : (ROLE_SHORT[me.role] || 'User'));
+    const initials = (name || 'U').trim().split(/[.\s_@-]+/).filter(Boolean).slice(0,2).map(s=>s[0].toUpperCase()).join('') || 'U';
+    const setText = (id,val)=>{ const el = document.getElementById(id); if(el) el.textContent = val; };
+    setText('profile-name', name);
+    setText('profile-email', email);
+    setText('profile-avatar', initials);
+    setText('topbar-avatar', initials);
+    // Reflect the real account in the Users list (the single bootstrapped admin)
+    // instead of leaving it empty or showing demo people.
+    if(email && !USERS.some(u => (u.email||'').toLowerCase() === email.toLowerCase())){
+      USERS.unshift({name, email, role: me.role || 'admin', projects:[], self:true});
+    }
+    try { renderUsersTable(); } catch(e){}
+  }
+
+  // Derive a short "Browser, OS" label from a user-agent string.
+  function deviceFromUA(ua){
+    ua = ua || '';
+    const os = /Windows/.test(ua)?'Windows':(/Mac OS X|Macintosh/.test(ua)?'macOS':(/Android/.test(ua)?'Android':(/iPhone|iPad/.test(ua)?'iOS':(/Linux/.test(ua)?'Linux':''))));
+    const br = /Edg\//.test(ua)?'Edge':(/Chrome\//.test(ua)?'Chrome':(/Firefox\//.test(ua)?'Firefox':(/Safari\//.test(ua)?'Safari':'Browser')));
+    return os ? br+', '+os : br;
+  }
+
+  // Load the real, persisted sign-in history for the current user from the API.
+  async function loadLoginHistory(){
+    if(!getToken()) return;
+    try {
+      const res = await apiFetch('/api/auth/login-history');
+      if(!res.ok) return;
+      const rows = await res.json();
+      const pad = n => String(n).padStart(2,'0');
+      LOGIN_HISTORY.length = 0;
+      rows.forEach(r=>{
+        const d = new Date(r.at);
+        const date = d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+        LOGIN_HISTORY.push({date, ip: r.ip || '—', device: deviceFromUA(r.userAgent)});
+      });
+      try { renderLoginHistory(); } catch(e){}
+    } catch(e){}
+  }
 
   function logAudit(action, entity, detail, project){
-    const now = new Date('2026-07-04T12:00:00');
+    const now = new Date();
     const pad = n => String(n).padStart(2,'0');
     const ts = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes());
-    AUDIT_LOG.unshift({
+    const entry = {
       ts,
-      actor: CURRENT_ACTOR[currentLoggedInRole] || 'User',
+      actor: actorName(),
       role: currentLoggedInRole,
       action, entity, detail,
       project: project || '—'
-    });
+    };
+    AUDIT_LOG.unshift(entry);
     if(typeof renderAuditLog === 'function') renderAuditLog();
+    // Persist the entry server-side so the change history survives refreshes.
+    if(typeof API_CONNECTED !== 'undefined' && API_CONNECTED && typeof apiAppendAudit === 'function'){
+      apiAppendAudit(entry).catch(err => console.warn('Failed to save audit entry:', err.message));
+    }
   }
 
   function renderAuditLog(){
@@ -1818,8 +2072,8 @@
     return m;
   }
   // Each recipient: enabled flag + its own per-event map.
-  const NOTIF_EMAILS = [{address:'deployments-team@example.com', enabled:true, events:defaultEventMap()}];
-  const NOTIF_TEAMS = [{name:'Deployments', url:'https://teams.microsoft.com/l/channel/deployments', enabled:true, events:defaultEventMap()}];
+  const NOTIF_EMAILS = [];
+  const NOTIF_TEAMS = [];
 
   // Who would receive a given event — used to make notifications tangible in the mockup.
   function notifyRecipientsFor(eventKey){
@@ -1873,6 +2127,7 @@
           <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" ${rec.enabled?'checked':''} onchange="NOTIF_TEAMS[${i}].enabled=this.checked; renderNotifTeams();" style="width:auto;"></label>
           <input type="text" value="${(rec.name||'').replace(/"/g,'&quot;')}" placeholder="Name (e.g. Deployments — Teams)" onchange="NOTIF_TEAMS[${i}].name=this.value.trim()" style="width:200px; font-size:12.5px;">
           <input type="text" class="mono" value="${(rec.url||'').replace(/"/g,'&quot;')}" placeholder="https://... (webhook address)" onchange="NOTIF_TEAMS[${i}].url=this.value.trim()" style="flex:1; font-size:12.5px;">
+          <button class="mini-btn" onclick="testNotifWebhook(${i})" title="Send a test message to this webhook">Send test</button>
           <button class="mini-btn" onclick="removeNotifTeams(${i})">Remove</button>
         </div>
         <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">Notify about events:</div>
@@ -1881,6 +2136,24 @@
   }
   function addNotifTeams(){ NOTIF_TEAMS.push({name:'', url:'', enabled:true, events:defaultEventMap()}); renderNotifTeams(); }
   function removeNotifTeams(i){ NOTIF_TEAMS.splice(i,1); renderNotifTeams(); }
+
+  // Send a one-off test message to a configured webhook (server-side, so there
+  // are no browser CORS restrictions on the Teams endpoint).
+  async function testNotifWebhook(i){
+    const rec = NOTIF_TEAMS[i];
+    if(!rec || !(rec.url || '').trim()){ showToast('Enter the webhook URL first'); return; }
+    if(typeof API_CONNECTED === 'undefined' || !API_CONNECTED){ showToast('Not connected to the backend — cannot send a test'); return; }
+    showToast('Sending a test message…');
+    try {
+      const res = await apiFetch('/api/notifications/test', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({channel:'teams', url: rec.url.trim()})
+      });
+      let info = {}; try { info = await res.json(); } catch(e){}
+      if(res.ok){ showToast('✅ Test message sent to „' + (rec.name || 'webhook') + '”'); }
+      else { showToast('⚠ Test failed: ' + (info.error || ('HTTP ' + res.status))); }
+    } catch(e){ showToast('⚠ Could not send the test message'); }
+  }
 
   function renderNotificationsView(){
     renderNotifEmails();
@@ -1899,6 +2172,7 @@
     if(!emails.length && !hooks.length){ showToast('Add at least one recipient (e-mail or webhook)'); return; }
     const activeEmails = emails.filter(e=>e.enabled).length;
     const activeHooks = hooks.filter(c=>c.enabled).length;
+    persistNotifications();
     showToast('Settings saved — active: ' + activeEmails + ' e-mail address(es), ' + activeHooks + ' webhook(s)');
   }
   function isLoggedInAsAdmin(){
@@ -2068,6 +2342,7 @@
       showToast('User „' + name + '” added — an invitation with a link to set a password has been sent to ' + email);
     }
     renderUsersTable();
+    persistRoster();
     toggleUserForm();
   }
 
@@ -2092,6 +2367,7 @@
       USERS[i].archivedReason = reason.trim();
       logAudit('removed', 'User', 'Archived user „' + name + '”' + (reason.trim() ? ' (reason: ' + reason.trim() + ')' : ''), '—');
       renderUsersTable();
+      persistRoster();
       showToast('User „' + name + '” archived');
     }, 'Reason for archiving (optional) — e.g. „left the company”, „role change”');
   }
@@ -2103,6 +2379,7 @@
     USERS[i].archivedReason = '';
     logAudit('changed', 'User', 'Restored user „' + name + '”', '—');
     renderUsersTable();
+    persistRoster();
     showToast('User „' + name + '” restored');
   }
 
@@ -2134,6 +2411,7 @@
   }
 
   function openProjectFromList(key){
+    if(!key || !PROJECTS[key]) return;
     const sel = document.getElementById('schedule-project-select');
     if(sel) sel.value = key;
     switchProject(key);
@@ -2146,16 +2424,17 @@
   function renderProjectsList(){
     const tbody = document.getElementById('projects-table');
     tbody.innerHTML = Object.entries(PROJECTS).map(([key,p])=>{
-      const prodCount = p.locationsList.filter(t=>t.type === 'Production').length;
-      const nonProdCount = p.locationsList.filter(t=>t.type === 'Non-production').length;
+      const locs = p.locationsList || [];
+      const prodCount = locs.filter(t=>t.type === 'Production').length;
+      const nonProdCount = locs.filter(t=>t.type === 'Non-production').length;
       return `
       <tr class="project-row" data-key="${key}" onclick="openProjectFromList('${key}')" style="cursor:pointer;">
         <td>${p.clientName}</td>
         <td><a href="#" class="project-link" onclick="event.stopPropagation(); openProjectFromList('${key}'); return false;">${p.name}</a></td>
         <td class="mono">${prodCount}</td>
         <td class="mono">${nonProdCount}</td>
-        <td class="mono">${p.apps.length}</td>
-        <td><button class="mini-btn" onclick="event.stopPropagation(); openProjectFromList('${key}')">Open</button></td>
+        <td class="mono">${(p.apps||[]).length}</td>
+        <td><button class="mini-btn" onclick="event.stopPropagation(); openProjectFromList('${key}')">${t('proj.open')}</button></td>
       </tr>`;
     }).join('');
   }
@@ -2171,22 +2450,33 @@
       const opts = projects.map(p=>`<option value="${p.key}">${p.name}</option>`).join('');
       return `<optgroup label="${clientName}">${opts}</optgroup>`;
     }).join('');
-    sel.value = currentProjectKey;
+    if(currentProjectKey) sel.value = currentProjectKey;
   }
 
   function onProjectSelectChange(key){
     switchProject(key);
-    showToast('Switched to project: ' + PROJECTS[key].name);
+    if(PROJECTS[key]) showToast('Switched to project: ' + PROJECTS[key].name);
   }
 
   function switchProject(key){
     currentProjectKey = key;
-    const p = PROJECTS[key];
-    document.getElementById('topbar-project-slug').textContent = key.replace(':',' / ');
+    const p = key ? PROJECTS[key] : null;
+    document.getElementById('topbar-project-slug').textContent = key ? key.replace(':',' / ') : '';
+
+    // No project selected/available — show an empty apps view and stop.
+    if(!p){
+      const panel = document.getElementById('project-apps-panel');
+      if(panel) panel.style.display = 'none';
+      const title = document.getElementById('apps-title');
+      if(title) title.textContent = t('proj.apps');
+      const desc = document.getElementById('apps-desc');
+      if(desc) desc.textContent = t('proj.appsDescEmpty');
+      return;
+    }
 
     // Apps view
-    document.getElementById('apps-title').textContent = 'Applications';
-    document.getElementById('apps-desc').textContent = `Structure of the ${p.name} project (${p.clientName}).`;
+    document.getElementById('apps-title').textContent = t('proj.apps');
+    document.getElementById('apps-desc').textContent = tf('proj.appsDescOf', {name: p.name, client: p.clientName});
     rebuildAppsTable(p);
     renderLocationsTable();
 
@@ -2196,15 +2486,21 @@
     if(pdTarget) pdTarget.value = p.postDeployTarget || '';
     if(pdEnabled) pdEnabled.checked = !!p.postDeployEnabled;
 
+    // Deployment defaults (working-day split + start time) — editable per project.
+    const ddDays = document.getElementById('project-default-days');
+    const ddTime = document.getElementById('project-default-time');
+    if(ddDays) ddDays.value = p.defaultDays || 5;
+    if(ddTime) ddTime.value = p.defaultTime || '20:00';
+
     // Schedule view — count only Production targets, matching what confirmSchedule saves.
     const prodTargets = (p.locationsList||[]).filter(t=>t.type === 'Production');
     const prodCount = prodTargets.length;
     const modeBox = document.getElementById('schedule-mode-badge');
     if(prodCount <= 1){
       modeBox.style.background = 'var(--cyan-soft)';
-      modeBox.textContent = `One date for everything — the project has 1 production target${p.locationName ? ' ('+p.locationName+')' : ''}`;
+      modeBox.textContent = t('sch.badgeOne') + (p.locationName ? ' ('+p.locationName+')' : '');
     } else {
-      modeBox.textContent = `Spread across working days — the project has ${prodCount} production targets`;
+      modeBox.textContent = tf('sch.badgeSpread', {n: prodCount});
     }
     document.getElementById('loc-count').value = prodCount;
     document.getElementById('day-count').value = prodCount <= 1 ? 1 : (p.defaultDays || 10);
@@ -2221,6 +2517,18 @@
     clearManifestPreview();
   }
 
+  function saveProjectDefaults(){
+    const p = PROJECTS[currentProjectKey];
+    if(!p) return;
+    const days = parseInt(document.getElementById('project-default-days').value) || 5;
+    const time = document.getElementById('project-default-time').value || '20:00';
+    p.defaultDays = days < 1 ? 1 : days;
+    p.defaultTime = time;
+    persistProject(currentProjectKey);
+    logAudit('changed', 'Project', 'Changed deployment defaults (' + p.defaultDays + ' working days, start ' + p.defaultTime + ')', p.name + ' (' + p.clientName + ')');
+    showToast(t('proj.defaultsSaved'));
+  }
+
   function saveProjectPostDeploy(){
     const p = PROJECTS[currentProjectKey];
     if(!p) return;
@@ -2229,6 +2537,7 @@
     if(enabled && !target){ showToast('Enter a group or channel to notify after installation'); return; }
     p.postDeployTarget = target;
     p.postDeployEnabled = enabled;
+    persistProject(currentProjectKey);
     logAudit('changed', 'Project', 'Changed the post-deployment notification' + (enabled ? ' (enabled: ' + target + ')' : ' (disabled)'), p.name + ' (' + p.clientName + ')');
     showToast(enabled ? 'Post-deployment notification enabled — ' + target : 'Post-deployment notification disabled');
   }
@@ -2236,7 +2545,7 @@
   function renderScheduleAppsList(){
     const p = PROJECTS[currentProjectKey];
     const wrap = document.getElementById('schedule-apps-list');
-    if(!wrap) return;
+    if(!wrap || !p) return;
     wrap.innerHTML = p.apps.map((a,i)=>{
       // suggest the current production version as a starting point, if known
       const prod = (a.deployedVersions||[]).find(v=>v.env==='Production');
@@ -2251,7 +2560,7 @@
         </div>
         <div class="schedule-version-hint" style="display:none; font-size:11px; color:#8A5A05; margin-top:5px;"></div>
       </div>`;
-    }).join('') || '<div style="color:var(--text-faint); font-size:12.5px;">This project has no applications yet.</div>';
+    }).join('') || `<div style="color:var(--text-faint); font-size:12.5px;">${t('sch.noApps')}</div>`;
   }
 
   function renderScheduleDeps(){
@@ -2265,7 +2574,7 @@
         return !done; // only unfinished ones are meaningful as blockers
       });
     if(!candidates.length){
-      wrap.innerHTML = '<div style="color:var(--text-faint); font-size:12px;">There are no other active deployments in this project that this deployment could depend on.</div>';
+      wrap.innerHTML = `<div style="color:var(--text-faint); font-size:12px;">${t('sch.noDeps')}</div>`;
       return;
     }
     wrap.innerHTML = candidates.map(d=>{
@@ -2381,7 +2690,8 @@
       return;
     }
     const fileInput = document.getElementById('schedule-changelog-file');
-    const attachment = (fileInput.files && fileInput.files.length) ? fileInput.files[0].name : null;
+    const fileToUpload = (fileInput.files && fileInput.files.length) ? fileInput.files[0] : null;
+    const attachment = fileToUpload ? fileToUpload.name : null;
 
     const testEnvs = Array.from(document.querySelectorAll('#schedule-envs-checks input:checked')).map(c=>c.value);
     const testDate = document.getElementById('date-test').value || '2026-07-13';
@@ -2460,8 +2770,9 @@
       created.push('prod');
     }
 
-    // Save the newly created deployments to the database (if connected).
-    for(let i = createdIdsStart; i < DEPLOYMENTS_DATA.length; i++){ persistDeployment(i); }
+    // Save the newly created deployments to the database (if connected) and,
+    // when a changelog file was chosen, upload it and link its stored id.
+    finalizeCreatedDeployments(createdIdsStart, fileToUpload);
 
     renderDeploymentsTable();
     renderInstallerPanel();
@@ -2710,11 +3021,11 @@
       const last = lastDeploymentForApp(currentProjectKey, a.name);
       const lastCell = last
         ? `<span class="mono" style="font-size:12px;">v${last.version}</span> <span style="font-size:11px; color:var(--text-muted);">· ${last.env} · ${last.date}</span>`
-        : '<span style="color:var(--text-faint); font-size:11.5px;">no deployments</span>';
+        : `<span style="color:var(--text-faint); font-size:11.5px;">${t('app.noDeployments')}</span>`;
       return `<tr class="app-row" data-idx="${i}" onclick="openAppSettings(${i})" style="cursor:pointer;">
         <td><strong>${a.name}</strong></td>
         <td>${lastCell}</td>
-        <td><button class="mini-btn" onclick="event.stopPropagation(); openAppSettings(${i})">Settings</button></td>
+        <td><button class="mini-btn" onclick="event.stopPropagation(); openAppSettings(${i})">${t('app.settings')}</button></td>
       </tr>`;
     }).join('');
   }
@@ -2729,7 +3040,7 @@
     const row = document.createElement('div');
     row.className = 'person-row';
     row.style.cssText = 'display:flex; gap:8px; margin-bottom:8px;';
-    row.innerHTML = `<input type="text" class="np-person-name" placeholder="Full name" style="flex:1;"><input type="text" class="np-person-email mono" placeholder="e-mail" style="flex:1;"><button class="mini-btn" onclick="removePersonRow(this)">Remove</button>`;
+    row.innerHTML = `<input type="text" class="np-person-name" placeholder="${t('np.personNamePh')}" style="flex:1;"><input type="text" class="np-person-email mono" placeholder="${t('np.personEmailPh')}" style="flex:1;"><button class="mini-btn" onclick="removePersonRow(this)">${t('np.remove')}</button>`;
     wrap.appendChild(row);
     document.querySelectorAll('#np-people .mini-btn').forEach(b=> b.style.display = 'inline-block');
   }
@@ -2747,7 +3058,7 @@
     const row = document.createElement('div');
     row.className = 'loc-row';
     row.style.cssText = 'display:flex; gap:8px; margin-bottom:8px;';
-    row.innerHTML = `<input type="text" class="np-app-input" placeholder="e.g. app-name" style="flex:1;"><button class="mini-btn" onclick="removeAppRow(this)">Remove</button>`;
+    row.innerHTML = `<input type="text" class="np-app-input" placeholder="e.g. app-name" style="flex:1;"><button class="mini-btn" onclick="removeAppRow(this)">${t('np.remove')}</button>`;
     wrap.appendChild(row);
   }
   function removeAppRow(btn){
@@ -2761,7 +3072,7 @@
     const row = document.createElement('div');
     row.className = 'loc-row';
     row.style.cssText = 'display:flex; gap:8px; margin-bottom:8px;';
-    row.innerHTML = `<input type="text" class="np-env-input" placeholder="e.g. Test2" style="flex:1;"><button class="mini-btn" onclick="removeEnvRow(this)">Remove</button>`;
+    row.innerHTML = `<input type="text" class="np-env-input" placeholder="e.g. Test2" style="flex:1;"><button class="mini-btn" onclick="removeEnvRow(this)">${t('np.remove')}</button>`;
     wrap.appendChild(row);
     document.querySelectorAll('#np-testenvs .mini-btn').forEach(b=> b.style.display = 'inline-block');
   }
@@ -3070,7 +3381,7 @@
   function toggleMultiLocation(){
     const multi = document.getElementById('np-multi-toggle').checked;
     document.getElementById('np-add-loc-btn').style.display = multi ? 'inline-flex' : 'none';
-    document.getElementById('np-loc-label').textContent = multi ? 'Deployment locations' : 'Deployment location';
+    document.getElementById('np-loc-label').textContent = multi ? t('np.locLabelMulti') : t('np.locLabel');
     document.querySelectorAll('#np-locations .loc-row .mini-btn').forEach(b=>{ b.style.display = multi ? 'inline-block' : 'none'; });
     if(!multi){
       const rows = document.querySelectorAll('#np-locations .loc-row');
@@ -3084,11 +3395,11 @@
     const text = document.getElementById('np-mode-text');
     const sub = document.getElementById('np-mode-sub');
     if(rows <= 1){
-      text.textContent = 'One date for everything';
-      sub.textContent = '1 location — this is the standard case. The whole project deploys on a single day.';
+      text.textContent = t('np.modeOne');
+      sub.textContent = t('np.modeOneSub');
     } else {
-      text.textContent = 'Spread across working days';
-      sub.textContent = rows + ' locations — a special case. The schedule will spread the deployments across consecutive working days.';
+      text.textContent = t('np.modeSpread');
+      sub.textContent = tf('np.modeSpreadSub', {n: rows});
     }
   }
   function addLocRow(){
@@ -3096,7 +3407,7 @@
     const row = document.createElement('div');
     row.className = 'loc-row';
     row.style.cssText = 'display:flex; gap:8px; margin-bottom:8px;';
-    row.innerHTML = `<input type="text" class="np-loc-input" placeholder="Location name" style="flex:1;"><button class="mini-btn" onclick="removeLocRow(this)">Remove</button>`;
+    row.innerHTML = `<input type="text" class="np-loc-input" placeholder="${t('np.locPh')}" style="flex:1;"><button class="mini-btn" onclick="removeLocRow(this)">${t('np.remove')}</button>`;
     wrap.appendChild(row);
     updateProjectMode();
   }
@@ -3106,18 +3417,9 @@
     btn.closest('.loc-row').remove();
     updateProjectMode();
   }
-  const LOGIN_HISTORY = (function(){
-    const devices = ['Chrome, Windows','Chrome, Windows','Edge, Windows','Safari, macOS','Chrome, Android'];
-    const ips = ['10.44.2.19','10.44.2.19','10.44.2.19','10.44.2.19','85.221.14.3','192.168.1.42'];
-    const rows = [];
-    let cursor = new Date('2026-07-03T08:52:00');
-    for(let i=0;i<180;i++){
-      const dateStr = cursor.toISOString().slice(0,16).replace('T',' ');
-      rows.push({date: dateStr, ip: ips[i % ips.length], device: devices[i % devices.length]});
-      cursor.setHours(cursor.getHours() - (14 + (i%5)));
-    }
-    return rows;
-  })();
+  // Login history is recorded at runtime (a row is added on each successful
+  // sign-in); it starts empty rather than with synthetic sample data.
+  const LOGIN_HISTORY = [];
   let loginHistoryShown = 15;
 
   function renderLoginHistory(){
@@ -3150,18 +3452,8 @@
     renderLoginHistory();
   }
 
-  let API_TOKENS = [
-    {id:1, masked:'rd_live_••••3f2a', created:'2026-06-10', expiry:'2026-09-08', revoked:false, usage:[
-      {date:'2026-07-02 22:04', action:'PATCH /deployments/1287', ip:'10.44.2.19', ok:true},
-      {date:'2026-07-02 20:11', action:'PATCH /deployments/1252', ip:'10.44.2.19', ok:true},
-      {date:'2026-06-30 19:47', action:'PATCH /deployments/1198', ip:'10.44.2.19', ok:true},
-      {date:'2026-06-28 08:15', action:'PATCH /deployments/1104', ip:'85.221.14.3', ok:false},
-    ]},
-    {id:2, masked:'rd_live_••••9c71', created:'2026-05-02', expiry:'No expiry', revoked:true, usage:[
-      {date:'2026-05-10 09:00', action:'PATCH /deployments/998', ip:'10.44.2.19', ok:true},
-    ]},
-  ];
-  let tokenIdCounter = 3;
+  let API_TOKENS = [];
+  let tokenIdCounter = 1;
   let expandedTokenId = null;
 
   function renderTokensTable(){
@@ -3208,22 +3500,55 @@
     renderTokensTable();
   }
 
-  function reconfigure2FA(){
+  async function reconfigure2FA(){
+    const err = document.getElementById('twofa-error');
+    if(err){ err.style.display = 'none'; }
     document.getElementById('twofa-code-input').value = '';
-    document.getElementById('twofa-modal-overlay').style.display = 'flex';
-    document.getElementById('twofa-code-input').focus();
+    document.getElementById('twofa-qr').src = '';
+    document.getElementById('twofa-secret').textContent = '';
+    if(!API_CONNECTED){ showToast('Backend unavailable — cannot reconfigure 2FA'); return; }
+    try {
+      // Ask the backend for a fresh secret + QR for the signed-in account.
+      const res = await apiFetch('/api/auth/mfa/reconfigure', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+      if(!res.ok) throw new Error('reconfigure ' + res.status);
+      const data = await res.json();
+      document.getElementById('twofa-qr').src = data.qrDataUrl || '';
+      const m = /[?&]secret=([^&]+)/.exec(data.otpauthUrl || '');
+      document.getElementById('twofa-secret').textContent = m ? decodeURIComponent(m[1]) : '';
+      document.getElementById('twofa-modal-overlay').style.display = 'flex';
+      document.getElementById('twofa-code-input').focus();
+    } catch(e){
+      showToast('Could not start 2FA reconfiguration');
+    }
   }
   function close2FAModal(){
     document.getElementById('twofa-modal-overlay').style.display = 'none';
   }
-  function confirm2FASetup(){
+  async function confirm2FASetup(){
+    const err = document.getElementById('twofa-error');
+    if(err){ err.style.display = 'none'; }
     const code = (document.getElementById('twofa-code-input').value || '').trim();
-    if(!/^\d{6}$/.test(code)){ showToast('Enter the 6-digit code from your authenticator app'); return; }
-    close2FAModal();
-    document.getElementById('twofa-badge').textContent = '✓ Active';
-    document.getElementById('twofa-badge').style.background = 'var(--green-soft)';
-    document.getElementById('twofa-badge').style.color = '#0F7A38';
-    showToast('Two-factor authentication reconfigured');
+    if(!/^\d{6}$/.test(code)){
+      if(err){ err.textContent = 'Enter the 6-digit code from your authenticator app.'; err.style.display = 'block'; }
+      return;
+    }
+    const btn = document.getElementById('twofa-confirm-btn'); if(btn) btn.disabled = true;
+    try {
+      const res = await apiFetch('/api/auth/mfa/reconfigure/verify', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code })
+      });
+      if(!res.ok){
+        if(err){ err.textContent = 'Invalid code — try again with the current code from your app.'; err.style.display = 'block'; }
+        return;
+      }
+      close2FAModal();
+      document.getElementById('twofa-badge').textContent = '✓ Active';
+      document.getElementById('twofa-badge').style.background = 'var(--green-soft)';
+      document.getElementById('twofa-badge').style.color = '#0F7A38';
+      showToast('Two-factor authentication reconfigured');
+    } catch(e){
+      if(err){ err.textContent = 'Something went wrong — please try again.'; err.style.display = 'block'; }
+    } finally { if(btn) btn.disabled = false; }
   }
 
   function toggleNewTokenForm(){
@@ -3309,7 +3634,7 @@
         ex2Title:'Example: single target result (batch)',
         errTitle:'Responses and errors',
         errDesc:'Responses in JSON format. Codes: 200 OK, 401 missing/invalid token, 404 unknown ID, 422 invalid status or target code.',
-        note:'Demonstration mockup — the endpoints are illustrative and not active.'
+        note:'The token-based automation API is illustrative and not available yet.'
       }
     },
     en: {
@@ -3351,7 +3676,7 @@
         ex2Title:'Example: single target result (batch)',
         errTitle:'Responses and errors',
         errDesc:'Responses in JSON. Codes: 200 OK, 401 missing/invalid token, 404 unknown ID, 422 invalid status or target code.',
-        note:'Demo mockup — endpoints are illustrative and not active.'
+        note:'The token-based automation API is illustrative and not available yet.'
       }
     }
   };
@@ -3529,6 +3854,9 @@
     });
 
     logAudit('added', 'Project', 'Created project "' + name + '"', name + ' (' + clientName + ')');
+    persistProject(projectKey);
+    persistClients();
+    persistRoster();
 
     // Refresh dependent views and open the new project.
     renderProjectsList();
@@ -3619,12 +3947,8 @@
     renderScheduleAppsList();
   }
 
-  const CLIENT_SCENARIOS = {
-    'acme-all':  { clientName:'ACME', projectKeys:['acme:core','acme:portal','acme:field'] },
-    'acme-portal': { clientName:'ACME', projectKeys:['acme:portal'] },
-    'globex-all':   { clientName:'Globex',  projectKeys:['globex:alpha','globex:beta'] },
-  };
-  let currentClientScenario = 'acme-all';
+  const CLIENT_SCENARIOS = {};
+  let currentClientScenario = null;
   let expandedClientRow = null;
 
   function toggleClientRowDetail(key){
@@ -3676,14 +4000,22 @@
 
   function renderClientPortal(scenarioKey){
     currentClientScenario = scenarioKey;
-    const scenario = CLIENT_SCENARIOS[scenarioKey];
-    const projectNames = scenario.projectKeys.map(k=>PROJECTS[k].name);
+    const scenario = scenarioKey ? CLIENT_SCENARIOS[scenarioKey] : null;
+    // No client-access scenario configured — show a neutral empty banner and stop.
+    if(!scenario){
+      const bn = document.getElementById('client-banner-name');
+      const bs = document.getElementById('client-banner-sub');
+      if(bn) bn.textContent = t('client.portalTitle');
+      if(bs) bs.textContent = t('client.noAccessYet');
+      return;
+    }
+    const projectNames = scenario.projectKeys.map(k=> PROJECTS[k] ? PROJECTS[k].name : k);
     const multiProject = scenario.projectKeys.length > 1;
 
-    document.getElementById('client-banner-name').textContent = 'Welcome, ' + scenario.clientName;
+    document.getElementById('client-banner-name').textContent = tf('client.welcome', {name: scenario.clientName});
     document.getElementById('client-banner-sub').textContent = multiProject
-      ? `You have access to all ${scenario.clientName} projects: ${projectNames.join(', ')}`
-      : `You have access to the ${projectNames[0]} project`;
+      ? tf('client.accessAll', {name: scenario.clientName, list: projectNames.join(', ')})
+      : tf('client.accessOne', {name: projectNames[0]});
 
     const usersWrap = document.getElementById('client-users-list');
     if(usersWrap){
@@ -3697,7 +4029,7 @@
               </div>
               <span style="font-size:11.5px; color:var(--text-muted);">${(u.projects||[]).map(pk=>PROJECTS[pk] ? PROJECTS[pk].name : pk).join(', ')}</span>
             </div>`).join('')
-        : '<div style="color:var(--text-faint); font-size:12.5px;">No people assigned.</div>';
+        : `<div style="color:var(--text-faint); font-size:12.5px;">${t('client.noPeople')}</div>`;
     }
 
     // Populate filter dropdowns based on the projects/apps in this scenario.
@@ -3708,7 +4040,7 @@
     const prevProj = projFilter ? projFilter.value : 'all';
     const prevApp = appFilter ? appFilter.value : 'all';
     if(projFilter){
-      projFilter.innerHTML = '<option value="all">All projects</option>' +
+      projFilter.innerHTML = `<option value="all">${t('client.fProjects')}</option>` +
         scenario.projectKeys.map(pk=>`<option value="${pk}">${PROJECTS[pk].name}</option>`).join('');
       if(Array.from(projFilter.options).some(o=>o.value===prevProj)) projFilter.value = prevProj;
     }
@@ -3719,7 +4051,7 @@
       (d.apps||[]).forEach(a=>appSet.add(a.name));
     });
     if(appFilter){
-      appFilter.innerHTML = '<option value="all">All applications</option>' +
+      appFilter.innerHTML = `<option value="all">${t('client.fApps')}</option>` +
         Array.from(appSet).sort().map(a=>`<option>${a}</option>`).join('');
       if(Array.from(appFilter.options).some(o=>o.value===prevApp)) appFilter.value = prevApp;
     }
@@ -3728,12 +4060,12 @@
     const fEnv = envFilter ? envFilter.value : 'all';
     const fStatus = statusFilter ? statusFilter.value : 'all';
 
-    const statusLabel = {installed:'zainstalowane', scheduled:'zaplanowane', progress:'w trakcie', failed:'nieudane', rolledback:'wycofane', aborted:'przerwane'};
+    const statusLabel = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
     const head = document.getElementById('client-table-head');
     const body = document.getElementById('client-table-body');
     const cols = multiProject
-      ? ['Project','Application','Version','Environment','Date','Time','Status','Production schedule','']
-      : ['Application','Version','Environment','Date','Time','Status','Production schedule',''];
+      ? [t('client.colProject'),t('client.colApp'),t('client.colVersion'),t('client.colEnv'),t('client.colDate'),t('client.colTime'),t('client.colStatus'),t('client.colProdSchedule'),'']
+      : [t('client.colApp'),t('client.colVersion'),t('client.colEnv'),t('client.colDate'),t('client.colTime'),t('client.colStatus'),t('client.colProdSchedule'),''];
     head.innerHTML = '<tr>' + cols.map(c=>`<th>${c}</th>`).join('') + '</tr>';
 
     // Single source of truth: the client sees the same DEPLOYMENTS_DATA records the RM
@@ -3757,7 +4089,7 @@
           env: d.env, date: dateStr, time: d.time || '',
           status: clientStatus,
           clientApproval: d.clientApproval, clientComment: d.clientComment, clientReply: d.clientReply,
-          changelog: d.changelog, attachment: d.attachment
+          changelog: d.changelog, attachment: d.attachment, attachmentId: d.attachmentId
         });
       });
     });
@@ -3773,7 +4105,7 @@
     // Newest first.
     rows.sort((a,b)=> (b.date||'').localeCompare(a.date||''));
     if(!rows.length){
-      body.innerHTML = `<tr><td colspan="${cols.length}" style="color:var(--text-faint); font-size:12.5px; text-align:center; padding:16px;">No deployments match the filters.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="${cols.length}" style="color:var(--text-faint); font-size:12.5px; text-align:center; padding:16px;">${t('client.noMatch')}</td></tr>`;
       return;
     }
     body.innerHTML = rows.map(d=>{
@@ -3791,17 +4123,17 @@
         cells.push(`<td style="color:var(--text-faint); font-size:12px;">—</td>`);
       } else if(d.clientApproval === 'pending'){
         cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();">
-          <button class="mini-btn" onclick="clientRespondApproval('${d.depId}', 'approved')">Approve</button>
-          <button class="mini-btn" onclick="clientRespondApproval('${d.depId}', 'reschedule')">Propose another date</button>
-          <button class="mini-btn" onclick="clientRespondApproval('${d.depId}', 'commented')">Comment</button>
+          <button class="mini-btn" onclick="clientRespondApproval('${d.depId}', 'approved')">${t('client.approve')}</button>
+          <button class="mini-btn" onclick="clientRespondApproval('${d.depId}', 'reschedule')">${t('client.proposeDate')}</button>
+          <button class="mini-btn" onclick="clientRespondApproval('${d.depId}', 'commented')">${t('client.comment')}</button>
         </td>`);
       } else if(!d.clientApproval){
         cells.push(`<td style="color:var(--text-faint); font-size:12px;">—</td>`);
       } else {
         const map = {
-          approved:  {label:'Approved', bg:'var(--green-soft)', color:'#0F7A38'},
-          commented: {label:'Commented', bg:'#FDF1E1', color:'#8A5A05'},
-          rejected:  {label:'Rejected', bg:'var(--red-soft)', color:'#A81E1E'},
+          approved:  {label:t('client.appApproved'), bg:'var(--green-soft)', color:'#0F7A38'},
+          commented: {label:t('client.appCommented'), bg:'#FDF1E1', color:'#8A5A05'},
+          rejected:  {label:t('client.appRejected'), bg:'var(--red-soft)', color:'#A81E1E'},
         };
         const st = map[d.clientApproval] || map.approved;
         let html = `<span class="mono" style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:${st.bg}; color:${st.color};">${st.label}</span>`;
@@ -3810,7 +4142,7 @@
       }
       const rowKey = d.depId;
       const isExpanded = expandedClientRow === rowKey;
-      cells.push(`<td style="color:var(--text-faint); font-size:12px; white-space:nowrap;">${isExpanded ? 'Collapse ▲' : 'Preview and timeline ▾'}</td>`);
+      cells.push(`<td style="color:var(--text-faint); font-size:12px; white-space:nowrap;">${isExpanded ? t('client.collapse') : t('client.previewTimeline')}</td>`);
 
       let rowsHtml = `<tr class="deploy-row" onclick="toggleClientRowDetail('${rowKey}')" style="cursor:pointer;">` + cells.join('') + '</tr>';
       if(isExpanded){
@@ -3819,7 +4151,7 @@
         const timeline = getClientTimeline(d, proj);
         const timelineHtml = `
           <div style="margin-top:16px;">
-            <div style="color:var(--text-muted); font-size:12.5px; margin-bottom:8px; font-weight:600;">Timeline</div>
+            <div style="color:var(--text-muted); font-size:12.5px; margin-bottom:8px; font-weight:600;">${t('client.timeline')}</div>
             <div style="max-height:240px; overflow-y:auto;">
               ${timeline.map(e=>`
                 <div style="display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--line-soft);">
@@ -3832,19 +4164,19 @@
         rowsHtml += `<tr><td colspan="${totalCols}" style="background:var(--paper);">
           <div style="padding:14px;">
             <div style="display:flex; gap:28px; flex-wrap:wrap; font-size:12.5px;">
-              <div><div style="color:var(--text-muted); margin-bottom:2px;">Deployment ID</div><strong class="mono" style="display:inline-flex; align-items:center; gap:6px;">${d.id || '—'}${d.id ? `<button title="Copy ID" onclick="event.stopPropagation(); copyDeploymentId('${d.id}')" style="background:none; border:none; padding:0; cursor:pointer; color:var(--text-muted); display:inline-flex;">${COPY_ICON}</button>` : ''}</strong></div>
-              <div><div style="color:var(--text-muted); margin-bottom:2px;">Projekt</div><strong>${proj.name} (${proj.clientName})</strong></div>
-              <div><div style="color:var(--text-muted); margin-bottom:2px;">Application / wersja</div><strong>${d.app} v${d.version}</strong></div>
-              <div><div style="color:var(--text-muted); margin-bottom:2px;">Environment</div><strong>${d.env}</strong></div>
-              <div><div style="color:var(--text-muted); margin-bottom:2px;">Date</div><strong>${d.date} ${d.time}</strong></div>
-              ${d.env === 'Production' ? `<div><div style="color:var(--text-muted); margin-bottom:2px;">Number of locations</div><strong>${proj.locations}</strong></div>` : ''}
-              <div><div style="color:var(--text-muted); margin-bottom:2px;">Deployment status</div><strong>${statusLabel[d.status]}</strong></div>
+              <div><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.deploymentId')}</div><strong class="mono" style="display:inline-flex; align-items:center; gap:6px;">${d.id || '—'}${d.id ? `<button title="Copy ID" onclick="event.stopPropagation(); copyDeploymentId('${d.id}')" style="background:none; border:none; padding:0; cursor:pointer; color:var(--text-muted); display:inline-flex;">${COPY_ICON}</button>` : ''}</strong></div>
+              <div><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.colProject')}</div><strong>${proj.name} (${proj.clientName})</strong></div>
+              <div><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.appVersion')}</div><strong>${d.app} v${d.version}</strong></div>
+              <div><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.environment')}</div><strong>${d.env}</strong></div>
+              <div><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.date')}</div><strong>${d.date} ${d.time}</strong></div>
+              ${d.env === 'Production' ? `<div><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.numLocations')}</div><strong>${proj.locations}</strong></div>` : ''}
+              <div><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.deploymentStatus')}</div><strong>${statusLabel[d.status]}</strong></div>
             </div>
-            ${d.clientComment ? `<div style="margin-top:12px; font-size:12.5px;"><div style="color:var(--text-muted); margin-bottom:2px;">Your comment</div><div style="font-style:italic;">"${d.clientComment}"</div></div>` : ''}
+            ${d.clientComment ? `<div style="margin-top:12px; font-size:12.5px;"><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.yourComment')}</div><div style="font-style:italic;">"${d.clientComment}"</div></div>` : ''}
             ${d.changelog ? `<div style="margin-top:14px; font-size:12.5px;">
-              <div style="color:var(--text-muted); margin-bottom:4px; font-weight:600;">Changelog for this version</div>
+              <div style="color:var(--text-muted); margin-bottom:4px; font-weight:600;">${t('client.changelogFor')}</div>
               <div style="white-space:pre-line; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px; padding:10px 12px; line-height:1.6;">${d.changelog}</div>
-              ${d.attachment ? `<a href="#" onclick="event.preventDefault(); showToast('Downloading: ${d.attachment}');" style="display:inline-flex; align-items:center; gap:6px; margin-top:8px; font-size:12px; color:var(--cyan); text-decoration:none;">📎 ${d.attachment}</a>` : ''}
+              ${attachmentLinkHtml(d.attachment, d.attachmentId)}
             </div>` : ''}
             ${timelineHtml}
           </div>
@@ -3944,33 +4276,39 @@
   const API_BASE = ''; // same origin (nginx forwards /api to the backend)
   let API_CONNECTED = false;
 
-  function setApiBadge(){
-    let badge = document.getElementById('api-mode-badge');
-    if(!badge){
-      badge = document.createElement('div');
-      badge.id = 'api-mode-badge';
-      badge.style.cssText = 'position:fixed; bottom:10px; right:12px; z-index:900; font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:20px; font-family:monospace;';
-      document.body.appendChild(badge);
+  // ---- Session token ----
+  const TOKEN_KEY = 'rolldesk_token';
+  function getToken(){ try { return localStorage.getItem(TOKEN_KEY) || ''; } catch(e){ return ''; } }
+  function setToken(t){ try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch(e){} }
+
+  // fetch wrapper that injects the Bearer token and treats 401 as "session
+  // expired" — it clears the token and sends the user back to the login screen.
+  async function apiFetch(path, opts){
+    opts = opts || {};
+    const headers = Object.assign({}, opts.headers || {});
+    const token = getToken();
+    if(token) headers['Authorization'] = 'Bearer ' + token;
+    const res = await fetch(API_BASE + path, Object.assign({}, opts, { headers }));
+    if(res.status === 401){
+      setToken('');
+      API_CONNECTED = false;
+      showLoginScreen();
+      showLoginPanel();
+      const le = document.getElementById('login-error');
+      if(le){ le.textContent = 'Your session has expired. Please sign in again.'; le.style.display = 'block'; }
+      throw new Error('Unauthorized');
     }
-    if(API_CONNECTED){
-      badge.textContent = '● database connected';
-      badge.style.background = 'var(--green-soft, #E4F5EA)';
-      badge.style.color = '#0F7A38';
-    } else {
-      badge.textContent = '○ demo mode (no database)';
-      badge.style.background = 'var(--paper, #F1F3F5)';
-      badge.style.color = 'var(--text-muted, #667)';
-    }
+    return res;
   }
 
   async function apiListDeployments(){
-    const res = await fetch(API_BASE + '/api/deployments');
+    const res = await apiFetch('/api/deployments');
     if(!res.ok) throw new Error('GET /api/deployments ' + res.status);
     return res.json();
   }
   async function apiSaveDeployment(d){
     // Upsert the whole deployment object (PUT by stable id).
-    const res = await fetch(API_BASE + '/api/deployments/' + encodeURIComponent(d.id), {
+    const res = await apiFetch('/api/deployments/' + encodeURIComponent(d.id), {
       method: 'PUT',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(d)
@@ -3979,9 +4317,132 @@
     return res.json();
   }
   async function apiDeleteDeployment(id){
-    const res = await fetch(API_BASE + '/api/deployments/' + encodeURIComponent(id), {method:'DELETE'});
+    const res = await apiFetch('/api/deployments/' + encodeURIComponent(id), {method:'DELETE'});
     if(!res.ok && res.status !== 404) throw new Error('DELETE /api/deployments ' + res.status);
     return true;
+  }
+
+  // Upload a file as an attachment of a deployment (multipart). Returns the
+  // stored attachment metadata ({id, filename, mime, size, ...}).
+  async function apiUploadAttachment(deploymentId, file){
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await apiFetch('/api/deployments/' + encodeURIComponent(deploymentId) + '/attachments', {
+      method: 'POST',
+      body: fd  // no Content-Type header — the browser sets the multipart boundary
+    });
+    if(!res.ok){
+      let info = {};
+      try { info = await res.json(); } catch(e){}
+      const err = new Error(info.error || ('POST attachment ' + res.status));
+      err.status = res.status;
+      err.virus = info.virus || null;
+      throw err;
+    }
+    return res.json();
+  }
+
+  // Download a stored attachment via an authenticated fetch, then hand the
+  // bytes to the browser as a normal file download.
+  async function downloadAttachment(att){
+    if(!att || !att.id){ showToast('Attachment is not available'); return; }
+    try {
+      const res = await apiFetch('/api/attachments/' + encodeURIComponent(att.id));
+      if(!res.ok) throw new Error('GET attachment ' + res.status);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = att.filename || 'attachment';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 1500);
+    } catch(e){
+      console.warn('attachment download failed', e.message);
+      showToast('Could not download the attachment');
+    }
+  }
+
+  // Renders the attachment line: a real download link when the file is stored
+  // in the DB (attachmentId present), otherwise a plain label (e.g. offline or
+  // legacy records where only the filename was kept).
+  function attachmentLinkHtml(filename, attachmentId){
+    if(!filename) return '';
+    const safeName = String(filename).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const label = '📎 ' + filename;
+    const style = 'display:inline-flex; align-items:center; gap:6px; margin-top:8px; font-size:12px; text-decoration:none;';
+    if(attachmentId){
+      return `<a href="#" onclick="event.preventDefault(); event.stopPropagation(); downloadAttachment({id:'${attachmentId}', filename:'${safeName}'});" style="${style} color:var(--cyan);">${label}</a>`;
+    }
+    return `<span style="${style} color:var(--text-muted);">${label}</span>`;
+  }
+
+  async function apiListProjects(){
+    const res = await apiFetch('/api/projects');
+    if(!res.ok) throw new Error('GET /api/projects ' + res.status);
+    return res.json();
+  }
+  async function apiSaveProject(key, obj){
+    const res = await apiFetch('/api/projects/' + encodeURIComponent(key), {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(obj)
+    });
+    if(!res.ok) throw new Error('PUT /api/projects ' + res.status);
+    return res.json();
+  }
+
+  // ---- Audit log + shared collections (roster / clients / notifications) ----
+  async function apiListAudit(){
+    const res = await apiFetch('/api/audit');
+    if(!res.ok) throw new Error('GET /api/audit ' + res.status);
+    return res.json();
+  }
+  async function apiAppendAudit(entry){
+    const res = await apiFetch('/api/audit', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(entry)
+    });
+    if(!res.ok) throw new Error('POST /api/audit ' + res.status);
+    return res.json();
+  }
+  async function apiGetState(key){
+    const res = await apiFetch('/api/state/' + encodeURIComponent(key));
+    if(!res.ok) throw new Error('GET /api/state ' + res.status);
+    return res.json();
+  }
+  async function apiPutState(key, data){
+    const res = await apiFetch('/api/state/' + encodeURIComponent(key), {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+    if(!res.ok) throw new Error('PUT /api/state ' + res.status);
+    return res.json();
+  }
+
+  // Best-effort persistence for the whole-collection settings. No-ops offline.
+  function persistRoster(){
+    if(!API_CONNECTED) return;
+    apiPutState('roster', USERS).catch(err => console.warn('Failed to save roster:', err.message));
+  }
+  function persistClients(){
+    if(!API_CONNECTED) return;
+    apiPutState('clients', CLIENTS).catch(err => console.warn('Failed to save clients:', err.message));
+  }
+  function persistNotifications(){
+    if(!API_CONNECTED) return;
+    apiPutState('notifications', {emails: NOTIF_EMAILS, teams: NOTIF_TEAMS})
+      .catch(err => console.warn('Failed to save notifications:', err.message));
+  }
+
+  // Persist a project to the database (best-effort; no-op when offline).
+  function persistProject(key){
+    if(!API_CONNECTED || !key) return;
+    const p = PROJECTS[key];
+    if(!p) return;
+    apiSaveProject(key, Object.assign({key}, p)).catch(err => {
+      console.warn('Failed to save project:', err.message);
+      showToast('⚠ Could not save the project to the database — change is local only');
+    });
   }
 
   // Save a single deployment (by id or index). Safe in demo mode.
@@ -4000,11 +4461,91 @@
     apiDeleteDeployment(id).catch(err => console.warn('Failed to delete from the database:', err.message));
   }
 
+  // Persist freshly created deployments and, if a changelog file was attached,
+  // upload it to each one and store the returned attachment id so it can later
+  // be downloaded. Runs async; re-renders once the uploads have completed.
+  async function finalizeCreatedDeployments(startIdx, file){
+    if(!API_CONNECTED){
+      // Offline: nothing to upload; keep the filename for display only.
+      return;
+    }
+    for(let i = startIdx; i < DEPLOYMENTS_DATA.length; i++){
+      const d = DEPLOYMENTS_DATA[i];
+      try {
+        await apiSaveDeployment(d);
+        if(file){
+          try {
+            const meta = await apiUploadAttachment(d.id, file);
+            d.attachmentId = meta.id;
+            d.attachment = meta.filename;
+            await apiSaveDeployment(d);
+          } catch(upErr){
+            // Surface a clear message for a virus rejection or an unavailable
+            // scanner; the deployment itself is still saved, just without the file.
+            d.attachment = null;
+            await apiSaveDeployment(d);
+            if(upErr.virus){
+              showToast('⚠ Attachment rejected by virus scan (' + upErr.virus + ') — deployment saved without the file');
+            } else if(upErr.status === 503){
+              showToast('⚠ Virus scanner unavailable — deployment saved without the attachment');
+            } else {
+              showToast('⚠ Could not upload the attachment — deployment saved without it');
+            }
+          }
+        }
+      } catch(err){
+        console.warn('Failed to finalize deployment', d.id, err.message);
+        showToast('⚠ Could not save to the database — change is local only');
+      }
+    }
+    renderDeploymentsTable();
+    renderInstallerPanel();
+  }
+
   // Attempt to connect to the backend and load data from the database on startup.
   async function initApiConnection(){
     try {
       const rows = await apiListDeployments();
       API_CONNECTED = true;
+
+      // Load projects from the database (empty until real projects are created).
+      try {
+        const projectRows = await apiListProjects();
+        Object.keys(PROJECTS).forEach(k => delete PROJECTS[k]);
+        projectRows.forEach(pr => {
+          if(!pr || !pr.key) return;
+          PROJECTS[pr.key] = normalizeProject(Object.assign({}, pr));
+        });
+        // Load the persisted client list first (so manually-added clients and
+        // their real domains survive), then top it up with any clients that
+        // only appear on projects.
+        try {
+          const savedClients = await apiGetState('clients');
+          if(Array.isArray(savedClients)){
+            CLIENTS.length = 0;
+            savedClients.forEach(c=>CLIENTS.push(c));
+          }
+        } catch(e){ console.warn('Failed to load clients:', e.message); }
+        // Derive the client list from the projects' clients (kept in sync so
+        // filters/tables reflect real data without a separate clients table).
+        const seenClients = new Set(CLIENTS.map(c=>c.key));
+        Object.values(PROJECTS).forEach(p=>{
+          if(p.client && !seenClients.has(p.client)){
+            seenClients.add(p.client);
+            CLIENTS.push({key:p.client, name:p.clientName || p.client, domain:(p.client)+'.example'});
+          }
+        });
+        const keys = Object.keys(PROJECTS);
+        currentProjectKey = keys.length ? keys[0] : null;
+        try { renderProjectsList(); } catch(e){}
+        try { initProjectSelect(); } catch(e){}
+        try { populateClientSelect(); } catch(e){}
+        try { populateDeployClientFilter(); } catch(e){}
+        try { renderClientsTable(); } catch(e){}
+        try { onDeployClientChange(); } catch(e){}
+        try { switchProject(currentProjectKey); } catch(e){}
+      } catch(e){ console.warn('Failed to load projects:', e.message); }
+
       // Replace the contents of DEPLOYMENTS_DATA with data from the database (without changing the const reference).
       DEPLOYMENTS_DATA.length = 0;
       rows.forEach(r => DEPLOYMENTS_DATA.push(r));
@@ -4022,12 +4563,46 @@
       try { renderDeploymentsTable(); } catch(e){}
       try { renderInstallerPanel(); } catch(e){}
       try { renderClientPortal(currentClientScenario); } catch(e){}
-      showToast('Connected to the database — loaded ' + rows.length + ' deployments');
+
+      // Load the persisted user roster (keeping the signed-in account present).
+      try {
+        const savedRoster = await apiGetState('roster');
+        if(Array.isArray(savedRoster)){
+          USERS.length = 0;
+          savedRoster.forEach(u=>USERS.push(u));
+          if(currentUser) applyCurrentUser(currentUser);
+          try { renderUsersTable(); } catch(e){}
+        }
+      } catch(e){ console.warn('Failed to load roster:', e.message); }
+
+      // Load persisted notification recipients (email + Teams webhooks).
+      try {
+        const savedNotif = await apiGetState('notifications');
+        if(savedNotif && (Array.isArray(savedNotif.emails) || Array.isArray(savedNotif.teams))){
+          NOTIF_EMAILS.length = 0;
+          (savedNotif.emails || []).forEach(e=>NOTIF_EMAILS.push(e));
+          NOTIF_TEAMS.length = 0;
+          (savedNotif.teams || []).forEach(t=>NOTIF_TEAMS.push(t));
+          try { renderNotifEmails(); } catch(e){}
+          try { renderNotifTeams(); } catch(e){}
+        }
+      } catch(e){ console.warn('Failed to load notifications:', e.message); }
+
+      // Load the persisted audit log (change history).
+      try {
+        const auditRows = await apiListAudit();
+        if(Array.isArray(auditRows)){
+          AUDIT_LOG.length = 0;
+          auditRows.forEach(a=>AUDIT_LOG.push(a));
+          try { renderAuditLog(); } catch(e){}
+        }
+      } catch(e){ console.warn('Failed to load audit log:', e.message); }
+
+      showToast('Loaded ' + rows.length + ' deployment(s) from the database');
     } catch(err){
       API_CONNECTED = false;
-      console.info('Backend unavailable — demo mode (in-memory data).');
+      console.warn('Failed to load data from the backend:', err.message);
     }
-    setApiBadge();
   }
 
 
@@ -4196,7 +4771,7 @@
         @media print{ .noprint{display:none;} }
       </style></head><body>
       <h1>${title}</h1>
-      <div class="sub">ID: ${r.id || '—'} · Number of targets: ${rows.length} · Generated in RollDesk (mockup)</div>
+      <div class="sub">ID: ${r.id || '—'} · Number of targets: ${rows.length} · Generated in RollDesk</div>
       <button class="noprint" onclick="window.print()" style="margin-bottom:14px; padding:8px 14px;">Print / Save as PDF</button>
       <table><thead><tr><th>Application</th><th>Version</th><th>Target code</th><th>Date</th><th>Day of week</th></tr></thead><tbody>${body}</tbody></table>
       <script>window.onload=function(){setTimeout(function(){window.print();}, 300);};<\/script>
@@ -4394,7 +4969,7 @@ Kind regards.`;
     d._pendingDayDates = null;
     if(!changedDays.length){ renderDeploymentsTable(); showToast('No actual changes'); return; }
     const _s = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
-    const who = CURRENT_ACTOR[currentLoggedInRole] || 'Release Manager';
+    const who = actorName();
     d.comments = d.comments || [];
     const summary = changedDays.sort((a,b)=>a-b).map(day=>`day ${day} → ${d.dayDates[day]}`).join(', ');
     d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'📅', text:'Schedule changed (' + summary + ')'});
@@ -4412,30 +4987,30 @@ Kind regards.`;
     // Mirrors the RM timeline but from the client's perspective.
     const events = [];
     const created = d.date; // schedule date as a stand-in for "created"
-    events.push({date: created, icon:'📝', text:`Deployment schedule created by the deployment team — ${d.app} v${d.version} (${d.env})`});
+    events.push({date: created, icon:'📝', text: tf('tl.created', {app: d.app, version: d.version, env: d.env})});
 
     if(d.env === 'Production'){
-      events.push({date: created, icon:'📧', text:'You received a request to approve the schedule'});
+      events.push({date: created, icon:'📧', text: t('tl.reqApprove')});
       if(d.clientApproval === 'approved'){
-        events.push({date: created, icon:'✅', text:'You approved the schedule — the deployment can start'});
+        events.push({date: created, icon:'✅', text: t('tl.approved')});
       } else if(d.clientApproval === 'commented'){
-        events.push({date: created, icon:'💬', text:'You commented: „' + (d.clientComment||'') + '”'});
+        events.push({date: created, icon:'💬', text: tf('tl.commented', {c: d.clientComment||''})});
       } else if(d.clientApproval === 'rejected'){
-        events.push({date: created, icon:'❌', text:'You rejected the schedule: „' + (d.clientComment||'') + '”'});
+        events.push({date: created, icon:'❌', text: tf('tl.rejected', {c: d.clientComment||''})});
       } else {
-        events.push({date: null, icon:'⏳', text:'Awaiting your approval'});
+        events.push({date: null, icon:'⏳', text: t('tl.awaiting')});
       }
     }
 
     if(d.status === 'installed'){
-      events.push({date: d.date, time: d.time, icon:'✅', text: (d.env==='Production' ? `Production deployment completed — all ${proj.locations} locations` : 'Deployment on the test environment completed')});
+      events.push({date: d.date, time: d.time, icon:'✅', text: (d.env==='Production' ? tf('tl.prodDone', {n: proj.locations}) : t('tl.testDone'))});
     } else if(d.status === 'scheduled'){
       if(d.env === 'Production' && d.clientApproval === 'approved'){
-        events.push({date: d.date, time: d.time, icon:'📅', text: `The production deployment will start on ${d.date} at ${d.time} (${proj.locations} locations)`});
+        events.push({date: d.date, time: d.time, icon:'📅', text: tf('tl.prodWillStart', {date: d.date, time: d.time, n: proj.locations})});
       } else if(d.env === 'Production'){
-        events.push({date: d.date, time: d.time, icon:'📅', text: `Planned deployment start: ${d.date} at ${d.time} — after approval`});
+        events.push({date: d.date, time: d.time, icon:'📅', text: tf('tl.prodPlannedAfter', {date: d.date, time: d.time})});
       } else {
-        events.push({date: d.date, time: d.time, icon:'📅', text: 'Deployment scheduled for ' + d.date + ' ' + d.time});
+        events.push({date: d.date, time: d.time, icon:'📅', text: tf('tl.scheduledFor', {date: d.date, time: d.time})});
       }
     }
 
@@ -4533,6 +5108,28 @@ Kind regards.`;
     </div>`;
   }
 
+  // Compact timeline for the deployer panel so comments the deployer adds (and
+  // other timeline events) are actually visible there — the deployer has no
+  // access to the full deployments list where the timeline is otherwise shown.
+  function installerTimelineHtml(r){
+    const events = getDeploymentTimeline(r);
+    if(!events.length) return '';
+    return `<div style="margin:12px 0;">
+      <div style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px;">Timeline</div>
+      <div style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:4px 10px;">
+        ${events.map(e=>`
+          <div style="display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--line-soft);">
+            <div class="mono" style="width:92px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${e.date ? e.date + (e.time ? ' ' + e.time : '') : 'pending'}</div>
+            <div style="flex-shrink:0;">${e.icon}</div>
+            <div style="flex:1; font-size:12px;">
+              ${e.text}
+              ${e.locations ? `<div class="mono" style="margin-top:3px; font-size:11px; color:var(--text-muted);">${e.locations.join(', ')}</div>` : ''}
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
   function depWarningHtml(r){
     const s = depsStatus(r);
     if(!s.blocked) return '';
@@ -4575,7 +5172,7 @@ Kind regards.`;
   }
 
   function assignToMe(idx){
-    assignDeployment(idx, CURRENT_ACTOR[currentLoggedInRole] || 'Deployer');
+    assignDeployment(idx, actorName());
   }
 
   function internalBadge(r){
@@ -4599,7 +5196,9 @@ Kind regards.`;
   function renderInstallerPanel(){
     const wrap = document.getElementById('installer-list');
     if(!wrap) return;
-    const all = DEPLOYMENTS_DATA.map((d,i)=>Object.assign({idx:i}, d, {project:PROJECTS[d.projectKey]}));
+    const all = DEPLOYMENTS_DATA.map((d,i)=>Object.assign({idx:i}, d, {
+      project: PROJECTS[d.projectKey] || {name: d.projectKey || 'Unknown project', clientName:'', testEnvs:[], apps:[], locationsList:[]}
+    }));
     // A production deployment is only actionable by the installer once the client has
     // approved it. Pending / commented / rejected prod schedules stay hidden here.
     // Paused deployments are shown separately (read-only, with the pause reason).
@@ -4713,6 +5312,9 @@ Kind regards.`;
             </div>
             <textarea id="today-fail-reason-i-${r.idx}" placeholder="Failure reason (for unchecked)"></textarea>
             <button class="btn" style="margin-top:8px;" onclick="reportBatchDayResult(${r.idx}, 'i')">Save result</button>
+            ${installerTimelineHtml(r)}
+            <textarea id="new-comment-i-${r.idx}" style="margin-top:12px;" placeholder="Add a comment..."></textarea>
+            <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'i'); renderInstallerPanel();">Save comment</button>
           </div>`;
         } else {
           return `<div class="card" id="installer-card-${r.idx}" style="margin-bottom:14px;">
@@ -4726,6 +5328,7 @@ Kind regards.`;
               <button class="btn ghost" onclick="installerMarkSingle(${r.idx}, 'installed')">✅ Confirm: installed</button>
               <button class="btn ghost" onclick="installerMarkSingle(${r.idx}, 'failed')">⚠️ Report: failed</button>
             </div>
+            ${installerTimelineHtml(r)}
             <textarea id="new-comment-i-${r.idx}" placeholder="Add a comment..."></textarea>
             <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'i'); renderInstallerPanel();">Save comment</button>
           </div>`;
@@ -4901,7 +5504,7 @@ Kind regards.`;
 
   function installerMarkSingle(idx, status){
     const d = DEPLOYMENTS_DATA[idx];
-    const who = CURRENT_ACTOR[currentLoggedInRole] || 'Deployer';
+    const who = actorName();
     if(!d.assignedTo) d.assignedTo = who; // acting on it self-assigns
     if(status === 'failed'){
       showAppPrompt('Report as failed', '', (reason)=>{
@@ -4980,7 +5583,7 @@ Kind regards.`;
     const failedList = todayBatch.filter(loc=>failedSet.has(loc));
 
     getBatchHistoryRows(d); // ensure d.history is initialized before we append to it
-    const who = CURRENT_ACTOR[currentLoggedInRole] || 'Deployer';
+    const who = actorName();
     if(!d.assignedTo) d.assignedTo = who;
     const dateStr = getDateForDay(d, dayNum);
     successList.forEach(loc=> d.history.push({location: loc, date: dateStr, time: d.time}));
@@ -5124,6 +5727,7 @@ Kind regards.`;
   function addDeploymentComment(idx, scope){
     scope = scope || 'w';
     const ta = document.getElementById('new-comment-' + scope + '-' + idx);
+    if(!ta) return;
     const text = ta.value.trim();
     if(!text) return;
     const d = DEPLOYMENTS_DATA[idx];
@@ -5149,7 +5753,7 @@ Kind regards.`;
     });
     const appSet = new Set();
     entries.forEach(([k,p])=> (p.apps||[]).forEach(a=>appSet.add(a.name)));
-    appSel.innerHTML = '<option value="all">All applications</option>' +
+    appSel.innerHTML = `<option value="all">${t('dep.fApps')}</option>` +
       Array.from(appSet).sort().map(a=>`<option>${a}</option>`).join('');
     if(Array.from(appSel.options).some(o=>o.value===prev)) appSel.value = prev;
   }
@@ -5159,18 +5763,29 @@ Kind regards.`;
     renderDeploymentsTable();
   }
 
+  // Rebuild the deployments "client" filter from the real client list, keeping
+  // the current selection where possible.
+  function populateDeployClientFilter(){
+    const sel = document.getElementById('deploy-filter-client');
+    if(!sel) return;
+    const cur = sel.value || 'all';
+    sel.innerHTML = `<option value="all">${t('dep.fClients')}</option>` +
+      CLIENTS.map(c=>`<option value="${c.key}">${c.name}</option>`).join('');
+    sel.value = CLIENTS.some(c=>c.key===cur) || cur==='all' ? cur : 'all';
+  }
+
   function onDeployClientChange(){
     const clientVal = document.getElementById('deploy-filter-client').value;
     const projSel = document.getElementById('deploy-filter-project');
     const projectEntries = Object.entries(PROJECTS).filter(([k,p])=> clientVal === 'all' || p.client === clientVal);
-    projSel.innerHTML = '<option value="all">All projects' + (clientVal!=='all' ? ' for the client' : '') + '</option>' +
+    projSel.innerHTML = `<option value="all">${clientVal!=='all' ? t('dep.fProjectsClient') : t('dep.fProjects')}</option>` +
       projectEntries.map(([k,p])=>`<option value="${k}">${p.name}</option>`).join('');
 
     const envSel = document.getElementById('deploy-filter-env');
     const envSet = new Set();
-    projectEntries.forEach(([k,p])=> p.testEnvs.forEach(e=>envSet.add(e)));
+    projectEntries.forEach(([k,p])=> (p.testEnvs||[]).forEach(e=>envSet.add(e)));
     envSet.add('Production');
-    envSel.innerHTML = '<option value="all">All environments</option>' +
+    envSel.innerHTML = `<option value="all">${t('dep.fEnvs')}</option>` +
       Array.from(envSet).map(e=>`<option>${e}</option>`).join('');
 
     populateDeployAppFilter();
@@ -5225,19 +5840,19 @@ Kind regards.`;
 
     const head = document.getElementById('deploy-table-head');
     const cols = [];
-    if(showClientCol) cols.push('Client');
-    if(showProjectCol) cols.push('Project');
-    cols.push('Application / version','Locations','Environment','Date','Time','Progress','Client approval','');
+    if(showClientCol) cols.push(t('dep.thClient'));
+    if(showProjectCol) cols.push(t('dep.thProject'));
+    cols.push(t('dep.thAppVer'),t('dep.thLocations'),t('dep.thEnv'),t('dep.thDate'),t('dep.thTime'),t('dep.thProgress'),t('dep.thApproval'),'');
     head.innerHTML = '<tr>' + cols.map(c=>`<th>${c}</th>`).join('') + '</tr>';
     const totalCols = cols.length;
 
     function approvalBadgeHtml(r){
       if(r.env !== 'Production') return '<td style="color:var(--text-faint); font-size:12px;">—</td>';
       const map = {
-        pending:   {label:'Awaiting approval',       bg:'#FDF1E1', color:'#8A5A05'},
-        approved:  {label:'Approved',                bg:'var(--green-soft)', color:'#0F7A38'},
-        commented: {label:'Commented',               bg:'#FDF1E1', color:'#8A5A05'},
-        rejected:  {label:'Rejected',                bg:'var(--red-soft)', color:'#A81E1E'},
+        pending:   {label:t('dep.aPending'),   bg:'#FDF1E1', color:'#8A5A05'},
+        approved:  {label:t('dep.aApproved'),  bg:'var(--green-soft)', color:'#0F7A38'},
+        commented: {label:t('dep.aCommented'), bg:'#FDF1E1', color:'#8A5A05'},
+        rejected:  {label:t('dep.aRejected'),  bg:'var(--red-soft)', color:'#A81E1E'},
       };
       const current = r.clientApproval || 'pending';
       const st = map[current];
@@ -5247,10 +5862,10 @@ Kind regards.`;
         html += `<div style="margin-top:5px; font-size:11px; color:var(--text-muted); font-style:italic;">💬 „${r.clientComment.length>60?r.clientComment.slice(0,60)+'…':r.clientComment}"</div>`;
       }
       if(r.clientReply){
-        html += `<div style="margin-top:3px; font-size:11px; color:#0A6E7A;">↳ Your reply: „${r.clientReply.length>50?r.clientReply.slice(0,50)+'…':r.clientReply}"</div>`;
+        html += `<div style="margin-top:3px; font-size:11px; color:#0A6E7A;">↳ ${t('dep.yourReply')}: „${r.clientReply.length>50?r.clientReply.slice(0,50)+'…':r.clientReply}"</div>`;
       }
       if(r.clientComment){
-        html += `<div style="margin-top:4px;"><button class="mini-btn" style="padding:2px 6px; font-size:10.5px;" onclick="event.stopPropagation(); replyToClientComment(${r.idx})">${r.clientReply ? 'Change reply' : 'Reply'}</button></div>`;
+        html += `<div style="margin-top:4px;"><button class="mini-btn" style="padding:2px 6px; font-size:10.5px;" onclick="event.stopPropagation(); replyToClientComment(${r.idx})">${r.clientReply ? t('dep.changeReply') : t('dep.reply')}</button></div>`;
       }
       return `<td style="min-width:170px;" onclick="event.stopPropagation();">${html}</td>`;
     }
@@ -5345,7 +5960,7 @@ Kind regards.`;
         <div class="field" style="margin-bottom:16px;">
           <label style="margin-bottom:4px;">Changelog${r.apps && r.apps.length ? ' — ' + r.apps.map(a=>a.name+' v'+a.version).join(', ') : ''}</label>
           <div style="white-space:pre-line; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px; padding:10px 12px; line-height:1.6; font-size:12.5px;">${r.changelog}</div>
-          ${r.attachment ? `<a href="#" onclick="event.preventDefault(); showToast('Downloading: ${r.attachment}');" style="display:inline-flex; align-items:center; gap:6px; margin-top:8px; font-size:12px; color:var(--cyan); text-decoration:none;">📎 ${r.attachment}</a>` : ''}
+          ${attachmentLinkHtml(r.attachment, r.attachmentId)}
         </div>` : '';
 
       const idHtml = `
@@ -5519,13 +6134,25 @@ Kind regards.`;
     const envEl = row.querySelector('.edit-env');
     const dateEl = row.querySelector('.edit-date');
     const timeEl = row.querySelector('.edit-time');
-    if(envEl) d.env = envEl.value;
-    if(dateEl) d.date = dateEl.value;
-    if(timeEl) d.time = timeEl.value;
+    // Capture the previous values so the change can be recorded on the timeline
+    // and in the audit log (editing a single deployment previously left no trace).
+    const changes = [];
+    if(envEl && envEl.value !== d.env){ changes.push('environment ' + d.env + ' → ' + envEl.value); d.env = envEl.value; }
+    if(dateEl && dateEl.value !== d.date){ changes.push('date ' + (d.date||'—') + ' → ' + (dateEl.value||'—')); d.date = dateEl.value; }
+    if(timeEl && timeEl.value !== d.time){ changes.push('time ' + (d.time||'—') + ' → ' + (timeEl.value||'—')); d.time = timeEl.value; }
     editingDeployIdx = null;
+    if(changes.length){
+      const _s = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
+      const who = actorName();
+      const summary = changes.join(', ');
+      d.comments = d.comments || [];
+      d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'📅', text:'Deployment changed (' + summary + ')'});
+      logAudit('changed','Deployment','Changed deployment ' + (d.id||'') + ' — ' + summary, (PROJECTS[d.projectKey]||{}).name || d.projectKey);
+    }
     persistDeployment(idx);
     renderDeploymentsTable();
-    showToast('Deployment updated');
+    renderInstallerPanel();
+    showToast(changes.length ? 'Deployment updated' : 'No changes');
   }
 
   function changeDeploymentStatus(idx, newStatus){
@@ -5534,6 +6161,47 @@ Kind regards.`;
     renderDeploymentsTable();
     const labels = {scheduled:'scheduled', installed:'installed', failed:'failed', rolledback:'rolled back', aborted:'aborted'};
     showToast('Status changed to: ' + labels[newStatus]);
+  }
+
+  // When a decision is recorded against a person who isn't in the system yet,
+  // offer to create a client account for them (scoped to this deployment's
+  // project) right here, instead of forcing a detour to the Users tab.
+  function offerCreateClientAccount(name, projectKey){
+    name = (name || '').trim();
+    if(!name || !projectKey) return;
+    const p = PROJECTS[projectKey];
+    if(!p) return;
+    // Already known? (any roster entry with this exact name)
+    if(USERS.some(u => (u.name || '').trim().toLowerCase() === name.toLowerCase())) return;
+    const client = CLIENTS.find(c => c.key === p.client);
+    const clientLabel = p.clientName || (client && client.name) || p.client;
+    showAppConfirm(
+      'Create a client account?',
+      'There is no account for „' + name + '”. Create a client account for this person with access to the „' + p.name + '” project (' + clientLabel + ')?',
+      ()=>{
+        const domainHint = client && client.domain ? ' (domain: ' + client.domain + ')' : '';
+        showAppPrompt('E-mail address for ' + name, '', (email)=>{
+          if(email === null) return;
+          email = (email || '').trim();
+          if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ showToast('Enter a valid e-mail address'); return; }
+          if(client && client.domain && (email.split('@')[1] || '').toLowerCase() !== client.domain.toLowerCase()){
+            showToast('The e-mail must be from the domain „' + client.domain + '”'); return;
+          }
+          const existing = USERS.find(u => (u.email || '').toLowerCase() === email.toLowerCase());
+          if(existing){
+            existing.projects = existing.projects || [];
+            if(!existing.projects.includes(projectKey)) existing.projects.push(projectKey);
+          } else {
+            USERS.push({name, email, role:'client', projects:[projectKey], invitePending:true, twoFactor:false});
+          }
+          logAudit('added', 'User', 'Added client account „' + name + '” from a deployment approval', p.name + ' (' + clientLabel + ')');
+          try { renderUsersTable(); } catch(e){}
+          persistRoster();
+          showToast('Client account created for „' + name + '” — an invitation was sent to ' + email);
+        }, 'They will get an invitation to set a password' + domainHint);
+      },
+      'Create account'
+    );
   }
 
   function changeClientApproval(idx, newStatus){
@@ -5551,6 +6219,7 @@ Kind regards.`;
         persistDeployment(idx);
         renderDeploymentsTable();
         showToast('Saved manually: ' + labels[newStatus] + ' (e.g. the client replied by email outside the system)');
+        offerCreateClientAccount(who, d.projectKey);
       }, 'Full name');
       return;
     }
@@ -5567,7 +6236,7 @@ Kind regards.`;
       const trimmed = (reason || '').trim();
       if(!trimmed){ showToast('Enter the reason for pausing'); return; }
       const _sp = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
-      const who = CURRENT_ACTOR[currentLoggedInRole] || 'Release Manager';
+      const who = actorName();
       d.paused = true;
       d.pauseReason = trimmed;
       d.pausedBy = who;
@@ -5592,7 +6261,7 @@ Kind regards.`;
       d.pauseReason = null;
       d.comments = d.comments || [];
       const _sr = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
-      const whoR = CURRENT_ACTOR[currentLoggedInRole] || 'Release Manager';
+      const whoR = actorName();
       d.comments.push({date:_sr.date, time:_sr.time, author: whoR, type:'system', icon:'▶', text:'Deployment resumed'});
       logAudit('changed', 'Deployment', 'Resumed deployment ' + (d.id||''), (PROJECTS[d.projectKey]||{}).name || d.projectKey);
       persistDeployment(idx);
@@ -5636,38 +6305,24 @@ Kind regards.`;
   }
 
   initProjectSelect();
-  // ---- Login / logout (mockup) ----
-  let loginAwaiting2FA = false;
-  function loginStep(){
-    const err = document.getElementById('login-error');
-    err.style.display = 'none';
-    if(!loginAwaiting2FA){
-      const email = document.getElementById('login-email').value.trim();
-      const pass = document.getElementById('login-password').value;
-      if(!email || !pass){ err.textContent = 'Enter your e-mail and password.'; err.style.display = 'block'; return; }
-      loginAwaiting2FA = true;
-      document.getElementById('login-2fa-field').style.display = 'block';
-      document.getElementById('login-btn').textContent = 'Confirm code and sign in';
-      document.getElementById('login-2fa').focus();
-      return;
-    }
-    const code = document.getElementById('login-2fa').value.trim();
-    if(!/^\d{6}$/.test(code)){ err.textContent = 'Enter the 6-digit code from your authenticator app.'; err.style.display = 'block'; return; }
-    document.getElementById('login-screen').style.display = 'none';
-    showToast('Signed in — welcome to RollDesk');
+  // ============================================================================
+  //  AUTH — real authentication: first-run setup wizard, password login and
+  //  mandatory TOTP MFA. The login overlay is a small state machine; the app
+  //  behind it is only revealed once a valid session token is obtained.
+  // ============================================================================
+  const AUTH_PANELS = ['boot-panel','setup-panel','login-panel','mfa-enroll-panel','mfa-code-panel','reset-panel'];
+  let authStageToken = ''; // short-lived token carried between login and MFA steps
+
+  function showLoginScreen(){ document.getElementById('login-screen').style.display = 'flex'; }
+  function hideLoginScreen(){ document.getElementById('login-screen').style.display = 'none'; }
+  function showAuthPanel(id){
+    AUTH_PANELS.forEach(p => { const el = document.getElementById(p); if(el) el.style.display = 'none'; });
+    const target = document.getElementById(id);
+    if(target) target.style.display = 'block';
   }
-  function logout(){
-    loginAwaiting2FA = false;
-    document.getElementById('login-2fa-field').style.display = 'none';
-    document.getElementById('login-2fa').value = '';
-    document.getElementById('login-btn').textContent = 'Sign in';
-    document.getElementById('login-error').style.display = 'none';
-    showLoginPanel();
-    document.getElementById('login-screen').style.display = 'flex';
-  }
+  function showLoginPanel(){ showAuthPanel('login-panel'); }
   function showResetPanel(){
-    document.getElementById('login-panel').style.display = 'none';
-    document.getElementById('reset-panel').style.display = 'block';
+    showAuthPanel('reset-panel');
     document.getElementById('reset-step-request').style.display = 'block';
     document.getElementById('reset-step-sent').style.display = 'none';
     document.getElementById('reset-step-set').style.display = 'none';
@@ -5677,9 +6332,178 @@ Kind regards.`;
     em.value = document.getElementById('login-email').value || '';
     em.focus();
   }
-  function showLoginPanel(){
-    document.getElementById('reset-panel').style.display = 'none';
-    document.getElementById('login-panel').style.display = 'block';
+  function authError(id, msg){ const el = document.getElementById(id); if(el){ el.textContent = msg; el.style.display = 'block'; } }
+  function clearAuthError(id){ const el = document.getElementById(id); if(el) el.style.display = 'none'; }
+
+  async function authPost(path, body, token){
+    const headers = { 'Content-Type': 'application/json' };
+    if(token) headers['Authorization'] = 'Bearer ' + token;
+    const res = await fetch(API_BASE + path, { method:'POST', headers, body: JSON.stringify(body || {}) });
+    let data = null;
+    try { data = await res.json(); } catch(e){}
+    return { ok: res.ok, status: res.status, data: data || {} };
+  }
+
+  // Boot entry point: decide between the setup wizard and login.
+  async function checkAuthStatus(){
+    showAuthPanel('boot-panel');
+    document.getElementById('boot-retry').style.display = 'none';
+    document.getElementById('boot-message').textContent = 'Connecting…';
+    let status;
+    try {
+      const res = await fetch(API_BASE + '/api/auth/status');
+      if(!res.ok) throw new Error('status ' + res.status);
+      status = await res.json();
+    } catch(err){
+      // The app must NOT start without a configured user and a reachable backend.
+      document.getElementById('boot-message').textContent = 'Backend unavailable. RollDesk cannot start until it can reach the server.';
+      document.getElementById('boot-retry').style.display = 'inline-flex';
+      return;
+    }
+    if(!status.configured){
+      showAuthPanel('setup-panel');
+      document.getElementById('setup-email').focus();
+      return;
+    }
+    // Configured: resume a still-valid session token if we have one.
+    if(getToken()){
+      try {
+        const meRes = await fetch(API_BASE + '/api/auth/me', { headers: { 'Authorization': 'Bearer ' + getToken() } });
+        if(meRes.ok){
+          const me = await meRes.json();
+          applyCurrentUser(me);
+          await loadLoginHistory();
+          hideLoginScreen();
+          await initApiConnection();
+          return;
+        }
+      } catch(e){ /* fall through to login */ }
+      setToken('');
+    }
+    showLoginPanel();
+    document.getElementById('login-email').focus();
+  }
+
+  async function submitSetup(){
+    clearAuthError('setup-error');
+    const email = document.getElementById('setup-email').value.trim();
+    const p1 = document.getElementById('setup-password').value;
+    const p2 = document.getElementById('setup-password2').value;
+    if(!email){ authError('setup-error', 'Enter an e-mail address.'); return; }
+    const strength = passwordStrength(p1);
+    if(!strength.strong){ authError('setup-error', strength.message); return; }
+    if(p1 !== p2){ authError('setup-error', 'The passwords do not match.'); return; }
+    const btn = document.getElementById('setup-btn'); btn.disabled = true;
+    try {
+      const r = await authPost('/api/auth/setup', { email, password: p1 });
+      if(!r.ok){ authError('setup-error', r.data.error || 'Could not create the account.'); return; }
+      // Account created — proceed to login (which will force MFA enrollment).
+      showLoginPanel();
+      document.getElementById('login-email').value = email;
+      document.getElementById('login-password').value = '';
+      document.getElementById('login-password').focus();
+      showToast('Admin account created — please sign in');
+    } catch(err){
+      authError('setup-error', 'Backend unavailable — please try again.');
+    } finally { btn.disabled = false; }
+  }
+
+  async function submitLogin(){
+    clearAuthError('login-error');
+    const email = document.getElementById('login-email').value.trim();
+    const pass = document.getElementById('login-password').value;
+    if(!email || !pass){ authError('login-error', 'Enter your e-mail and password.'); return; }
+    const btn = document.getElementById('login-btn'); btn.disabled = true;
+    try {
+      const r = await authPost('/api/auth/login', { email, password: pass });
+      if(!r.ok){ authError('login-error', r.data.error || 'Invalid email or password.'); return; }
+      authStageToken = r.data.token;
+      if(r.data.stage === 'mfa-setup'){
+        await startMfaEnroll();
+      } else {
+        showAuthPanel('mfa-code-panel');
+        document.getElementById('mfa-login-code').value = '';
+        clearAuthError('mfa-login-error');
+        document.getElementById('mfa-login-code').focus();
+      }
+    } catch(err){
+      authError('login-error', 'Backend unavailable — please try again.');
+    } finally { btn.disabled = false; }
+  }
+
+  // Fetch a pending MFA secret + QR and show the enrollment panel.
+  async function startMfaEnroll(){
+    try {
+      const r = await authPost('/api/auth/mfa/setup', {}, authStageToken);
+      if(!r.ok){ showLoginPanel(); authError('login-error', r.data.error || 'Could not start MFA setup.'); return; }
+      document.getElementById('mfa-qr').src = r.data.qrDataUrl || '';
+      // Surface the base32 key from the otpauth URL for manual entry.
+      const m = /[?&]secret=([^&]+)/.exec(r.data.otpauthUrl || '');
+      document.getElementById('mfa-secret').textContent = m ? decodeURIComponent(m[1]) : '';
+      showAuthPanel('mfa-enroll-panel');
+      document.getElementById('mfa-enroll-code').value = '';
+      clearAuthError('mfa-enroll-error');
+      document.getElementById('mfa-enroll-code').focus();
+    } catch(err){
+      showLoginPanel();
+      authError('login-error', 'Backend unavailable — please try again.');
+    }
+  }
+
+  async function submitMfaEnroll(){
+    clearAuthError('mfa-enroll-error');
+    const code = document.getElementById('mfa-enroll-code').value.trim();
+    if(!/^\d{6}$/.test(code)){ authError('mfa-enroll-error', 'Enter the 6-digit code from your app.'); return; }
+    const btn = document.getElementById('mfa-enroll-btn'); btn.disabled = true;
+    try {
+      const r = await authPost('/api/auth/mfa/verify', { code }, authStageToken);
+      if(!r.ok){ authError('mfa-enroll-error', r.data.error || 'Invalid code.'); return; }
+      await onAuthenticated(r.data.token);
+    } catch(err){
+      authError('mfa-enroll-error', 'Backend unavailable — please try again.');
+    } finally { btn.disabled = false; }
+  }
+
+  async function submitMfaCode(){
+    clearAuthError('mfa-login-error');
+    const code = document.getElementById('mfa-login-code').value.trim();
+    if(!/^\d{6}$/.test(code)){ authError('mfa-login-error', 'Enter the 6-digit code from your app.'); return; }
+    const btn = document.getElementById('mfa-login-btn'); btn.disabled = true;
+    try {
+      const r = await authPost('/api/auth/mfa/login', { code }, authStageToken);
+      if(!r.ok){ authError('mfa-login-error', r.data.error || 'Invalid code.'); return; }
+      await onAuthenticated(r.data.token);
+    } catch(err){
+      authError('mfa-login-error', 'Backend unavailable — please try again.');
+    } finally { btn.disabled = false; }
+  }
+
+  // A full session token was obtained: store it, resolve the current user,
+  // reveal the app and load data from the (now authenticated) API.
+  async function onAuthenticated(token){
+    setToken(token);
+    authStageToken = '';
+    try {
+      const res = await apiFetch('/api/auth/me');
+      if(res.ok){
+        const me = await res.json();
+        applyCurrentUser(me);
+      }
+    } catch(e){}
+    await loadLoginHistory();
+    hideLoginScreen();
+    showToast('Signed in — welcome to RollDesk');
+    await initApiConnection();
+  }
+
+  function logout(){
+    setToken('');
+    authStageToken = '';
+    API_CONNECTED = false;
+    ['login-password','mfa-enroll-code','mfa-login-code'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+    ['login-error','mfa-enroll-error','mfa-login-error'].forEach(clearAuthError);
+    showLoginScreen();
+    checkAuthStatus();
   }
   function sendResetLink(){
     const email = document.getElementById('reset-email').value.trim();
@@ -5773,19 +6597,20 @@ Kind regards.`;
 
   document.addEventListener('keydown', (e)=>{
     const screen = document.getElementById('login-screen');
-    if(screen && screen.style.display !== 'none' && e.key === 'Enter'){
-      if(document.getElementById('reset-panel').style.display !== 'none'){
-        if(document.getElementById('reset-step-request').style.display !== 'none') sendResetLink();
-      } else {
-        loginStep();
-      }
-    }
+    if(!(screen && screen.style.display !== 'none' && e.key === 'Enter')) return;
+    const visible = id => { const el = document.getElementById(id); return el && el.style.display !== 'none'; };
+    if(visible('reset-panel')){
+      if(document.getElementById('reset-step-request').style.display !== 'none') sendResetLink();
+    } else if(visible('setup-panel')){ submitSetup(); }
+    else if(visible('login-panel')){ submitLogin(); }
+    else if(visible('mfa-enroll-panel')){ submitMfaEnroll(); }
+    else if(visible('mfa-code-panel')){ submitMfaCode(); }
   });
 
   renderProjectsList();
   switchProject(currentProjectKey);
-  openProjectFromList(currentProjectKey);
-  renderClientPortal('acme-all');
+  renderClientPortal(currentClientScenario);
+  populateDeployClientFilter();
   onDeployClientChange();
   renderUsersTable();
   renderClientsTable();
@@ -5795,8 +6620,11 @@ Kind regards.`;
   renderInstallerPanel();
   clearManifestPreview();
   renderRollDeskVersion();
-  // Try to connect to the database and load deployments (if the backend is available).
-  initApiConnection();
+  // Check for a newer published version on GitHub (fails quietly if offline).
+  checkLatestVersion();
+  // Gate the app behind authentication: decide setup vs login, and only load
+  // data from the API once a session token has been obtained (in onAuthenticated).
+  checkAuthStatus();
 
 </script>
 </body>

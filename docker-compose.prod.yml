@@ -4,19 +4,33 @@
 # (or are exported by the deploy step).
 services:
   db:
-    image: postgres:16
+    image: postgres:18
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-rolldesk}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rolldesk}
       POSTGRES_DB: ${POSTGRES_DB:-rolldesk}
     volumes:
-      - db-data:/var/lib/postgresql/data
+      # PostgreSQL 18+ images store data under /var/lib/postgresql (in a
+      # major-version subdirectory), so the volume is mounted there.
+      - db-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rolldesk}"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "clamdcheck.sh || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
 
   backend:
     image: ${IMAGE_PREFIX:-ghcr.io/your-org/rolldesk}-backend:${TAG:-latest}
@@ -24,12 +38,19 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      clamav:
+        condition: service_started
     environment:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: postgres://${POSTGRES_USER:-rolldesk}:${POSTGRES_PASSWORD:-rolldesk}@db:5432/${POSTGRES_DB:-rolldesk}
+      # REQUIRED: the backend refuses to start in production without a JWT secret.
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required in production}
       ALLOWED_IPS: ${ALLOWED_IPS:-}
       TRUST_PROXY: "1"
+      CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+      CLAMAV_FAIL_MODE: ${CLAMAV_FAIL_MODE:-reject}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-false}
@@ -49,3 +70,4 @@ services:
 
 volumes:
   db-data:
+  clamav-data:

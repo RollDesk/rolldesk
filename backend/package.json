@@ -1,6 +1,6 @@
 {
   "name": "rolldesk-backend",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "RollDesk backend — Express + PostgreSQL + IP allowlist",
   "type": "module",
   "main": "src/index.js",
@@ -14,10 +14,15 @@
     "node": ">=20"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
-    "express": "^4.19.2",
+    "express": "^5.2.1",
     "ipaddr.js": "^2.2.0",
-    "nodemailer": "^6.9.14",
-    "pg": "^8.12.0"
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.2.0",
+    "nodemailer": "^9.0.3",
+    "otplib": "^12.0.1",
+    "pg": "^8.12.0",
+    "qrcode": "^1.5.4"
   }
 }

@@ -1,6 +1,6 @@
 # Frontend: nginx serving the application (RollDesk) + reverse proxy to the API,
 # with IP-based access restriction (ALLOWED_IPS).
-FROM nginx:1.27-alpine
+FROM nginx:1.31-alpine
 
 # Configuration as a template + entrypoint that builds the allowlist from ALLOWED_IPS
 COPY nginx.conf.template /etc/nginx/conf.d/default.conf.template
