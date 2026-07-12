@@ -1549,7 +1549,10 @@
       'dep.thClient':'Klient','dep.thProject':'Projekt','dep.thAppVer':'Aplikacja / wersja','dep.thLocations':'Lokalizacje','dep.thEnv':'Środowisko','dep.thDate':'Data','dep.thTime':'Godzina','dep.thProgress':'Postęp','dep.thApproval':'Akceptacja klienta',
       'dep.aPending':'Oczekuje na akceptację','dep.aApproved':'Zatwierdzono','dep.aCommented':'Skomentowano','dep.aRejected':'Odrzucono',
       'dep.reply':'Odpowiedz','dep.changeReply':'Zmień odpowiedź','dep.yourReply':'Twoja odpowiedź',
-      'app.settings':'Ustawienia','app.noDeployments':'brak wdrożeń'
+      'app.settings':'Ustawienia','app.noDeployments':'brak wdrożeń',
+      'rep.total':'Wdrożenia widoczne łącznie','rep.pending':'W trakcie / do zainstalowania','rep.installed':'Zainstalowane','rep.issues':'Nieudane / wycofane / przerwane',
+      'rep.noActive':'Brak aktywnych wdrożeń do zaraportowania.',
+      'rep.completedNote':'Te wdrożenia zniknęły z listy „Do zaraportowania", ponieważ są już ukończone. Jeśli to pomyłka, popraw to tutaj.'
     },
     en: {
       'grp.rm':'Release manager', 'grp.installer':'Deployer', 'grp.client':'Client', 'grp.admin':'Administrator', 'grp.account':'Account',
@@ -1659,7 +1662,10 @@
       'dep.thClient':'Client','dep.thProject':'Project','dep.thAppVer':'Application / version','dep.thLocations':'Locations','dep.thEnv':'Environment','dep.thDate':'Date','dep.thTime':'Time','dep.thProgress':'Progress','dep.thApproval':'Client approval',
       'dep.aPending':'Awaiting approval','dep.aApproved':'Approved','dep.aCommented':'Commented','dep.aRejected':'Rejected',
       'dep.reply':'Reply','dep.changeReply':'Change reply','dep.yourReply':'Your reply',
-      'app.settings':'Settings','app.noDeployments':'no deployments'
+      'app.settings':'Settings','app.noDeployments':'no deployments',
+      'rep.total':'Deployments visible in total','rep.pending':'In progress / to install','rep.installed':'Installed','rep.issues':'Failed / rolled back / aborted',
+      'rep.noActive':'No active deployments to report.',
+      'rep.completedNote':'These deployments disappeared from the "To report" list because they are already completed. If a mistake occurred, fix it here.'
     }
   };
   function t(key){ return (I18N[LANG] && I18N[LANG][key]) || (I18N.pl[key]) || key; }
@@ -1708,6 +1714,8 @@
       if(projSel && projSel.options.length) projSel.options[0].textContent = (clientSel && clientSel.value !== 'all') ? t('dep.fProjectsClient') : t('dep.fProjects');
       if(typeof renderDeploymentsTable === 'function') renderDeploymentsTable();
     } catch(e){}
+    // Deployer panel: reporting stats + "To report" list are built in JS.
+    try { if(typeof renderInstallerPanel === 'function') renderInstallerPanel(); } catch(e){}
     // New-project view: mode box + location label depend on toggle state, not just data-i18n.
     try { if(typeof updateProjectMode === 'function') updateProjectMode(); } catch(e){}
     try {
@@ -5257,7 +5265,7 @@ Kind regards.`;
 
     html += '<label style="margin-bottom:8px; display:block;">To report</label>';
     if(!active.length){
-      html += '<div class="card" style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">No active deployments to report.</div>';
+      html += '<div class="card" style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">'+t('rep.noActive')+'</div>';
     } else {
       html += active.map(r=>{
         const appsLabel = r.apps.map(a=>`${a.name} v${a.version}`).join(', ');
@@ -5414,7 +5422,7 @@ Kind regards.`;
     };
 
     html += '<label style="margin:20px 0 8px 0; display:block;">Completed (last 14 days) — you can report a correction</label>';
-    html += '<p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;">These deployments disappeared from the "To report" list because they are already completed. If a mistake occurred, fix it here.</p>';
+    html += '<p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;">'+t('rep.completedNote')+'</p>';
     if(!recentCompleted.length){
       html += '<div class="card" style="color:var(--text-muted); font-size:13px;">No completed deployments from the last 14 days.</div>';
     } else {
@@ -6109,10 +6117,10 @@ Kind regards.`;
       }
     });
     stats.innerHTML = `
-      <div class="stat"><div class="num mono">${total}</div><div class="lbl">Deployments visible in total</div></div>
-      <div class="stat"><div class="num mono" style="color:var(--text-muted);">${pending}</div><div class="lbl">In progress / to install</div></div>
-      <div class="stat"><div class="num mono" style="color:var(--green);">${installed}</div><div class="lbl">Installed</div></div>
-      <div class="stat"><div class="num mono" style="color:var(--red);">${issues}</div><div class="lbl">Failed / rolled back / aborted</div></div>
+      <div class="stat"><div class="num mono">${total}</div><div class="lbl">${t('rep.total')}</div></div>
+      <div class="stat"><div class="num mono" style="color:var(--text-muted);">${pending}</div><div class="lbl">${t('rep.pending')}</div></div>
+      <div class="stat"><div class="num mono" style="color:var(--green);">${installed}</div><div class="lbl">${t('rep.installed')}</div></div>
+      <div class="stat"><div class="num mono" style="color:var(--red);">${issues}</div><div class="lbl">${t('rep.issues')}</div></div>
     `;
   }
 
