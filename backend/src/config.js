@@ -1,8 +1,18 @@
 // Configuration read from environment variables.
 import crypto from 'node:crypto';
+import { createRequire } from 'node:module';
 
 const env = process.env.NODE_ENV || 'development';
 const isProd = env === 'production';
+
+// Application version, read from package.json so /health can report it.
+const require = createRequire(import.meta.url);
+let version = '0.0.0';
+try {
+  version = require('../package.json').version || version;
+} catch {
+  /* fall back to default if package.json can't be read */
+}
 
 // JWT signing secret. Required in production; in development we fall back to an
 // ephemeral random secret (sessions won't survive a backend restart) and warn.
@@ -12,6 +22,7 @@ const jwtSecret = jwtSecretFromEnv || (isProd ? '' : crypto.randomBytes(32).toSt
 export const config = {
   env,
   isProd,
+  version,
   port: parseInt(process.env.PORT || '3000', 10),
   trustProxy: process.env.TRUST_PROXY === '1',
   allowedIps: (process.env.ALLOWED_IPS || '')
