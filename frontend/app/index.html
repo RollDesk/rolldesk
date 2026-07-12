@@ -639,8 +639,18 @@
         <h2 class="section-title" style="margin-bottom:2px;" data-i18n="proj.postDeploy">Post-deployment notifications</h2>
         <p class="section-desc" data-i18n="proj.postDeployDesc">An additional notification sent after a production deployment of this project is completed — e.g. to the maintenance team, the service desk, or the client-side contact person.</p>
         <div class="field">
-          <label data-i18n="proj.postDeployTarget">Group / channel to notify after installation</label>
-          <input type="text" id="project-postdeploy-target" data-i18n-ph="proj.postDeployTargetPh" placeholder="e.g. maintenance-core@example.com or a webhook for the „Core — maintenance” channel">
+          <label data-i18n="proj.postDeployEmail">E-mail address to notify after installation</label>
+          <div style="display:flex; gap:8px;">
+            <input type="email" id="project-postdeploy-email" data-i18n-ph="proj.postDeployEmailPh" placeholder="e.g. maintenance-core@example.com" style="flex:1;">
+            <button class="mini-btn" type="button" onclick="testProjectPostDeploy('email')" data-i18n="proj.sendTest">Send test</button>
+          </div>
+        </div>
+        <div class="field">
+          <label data-i18n="proj.postDeployWebhook">Webhook (Teams channel) to notify after installation</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="project-postdeploy-webhook" class="mono" data-i18n-ph="proj.postDeployWebhookPh" placeholder="https://... (webhook for the „Core — maintenance” channel)" style="flex:1;">
+            <button class="mini-btn" type="button" onclick="testProjectPostDeploy('teams')" data-i18n="proj.sendTest">Send test</button>
+          </div>
         </div>
         <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400; margin-bottom:12px;">
           <input type="checkbox" id="project-postdeploy-enabled" style="width:auto;"> <span data-i18n="proj.postDeployEnable">Enable notification after a production deployment is completed</span>
@@ -1444,6 +1454,7 @@
 
   // ---- Language / i18n (EN default, PL available) ----
   let LANG = 'en';
+  const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
   const I18N = {
     pl: {
       'grp.rm':'Menedżer wydań', 'grp.installer':'Wdrożeniowiec', 'grp.client':'Klient', 'grp.admin':'Administrator', 'grp.account':'Konto',
@@ -1501,7 +1512,9 @@
       'proj.addField':'+ Dodaj pole','proj.addTarget':'+ Dodaj cel','proj.newTarget':'Nowy cel wdrożenia','proj.targetName':'Nazwa celu','proj.type':'Typ',
       'proj.prod':'Produkcja','proj.nonprod':'Nieprodukcyjne','proj.addTargetBtn':'Dodaj cel','proj.targetList':'Lista celów','proj.searchTargets':'Szukaj celów...',
       'proj.postDeploy':'Powiadomienia po wdrożeniu','proj.postDeployDesc':'Dodatkowe powiadomienie wysyłane po zakończeniu wdrożenia produkcyjnego tego projektu — np. do zespołu utrzymania, service desku lub osoby kontaktowej po stronie klienta.',
-      'proj.postDeployTarget':'Grupa / kanał do powiadomienia po instalacji','proj.postDeployTargetPh':'np. utrzymanie-core@example.com lub webhook kanału „Core — utrzymanie”',
+      'proj.postDeployEmail':'Adres e-mail do powiadomienia po instalacji','proj.postDeployEmailPh':'np. utrzymanie-core@example.com',
+      'proj.postDeployWebhook':'Webhook (kanał Teams) do powiadomienia po instalacji','proj.postDeployWebhookPh':'https://... (webhook kanału „Core — utrzymanie”)',
+      'proj.sendTest':'Wyślij test',
       'proj.postDeployEnable':'Włącz powiadomienie po zakończeniu wdrożenia produkcyjnego','proj.savePostDeploy':'Zapisz powiadomienie projektu',
       'proj.defaults':'Domyślne parametry wdrożenia','proj.defaultsDesc':'Domyślne ustawienia harmonogramu używane, gdy menedżer wydań planuje wdrożenie tego projektu.',
       'proj.defaultDays':'Standardowa liczba dni roboczych','proj.defaultDaysNote':'Jak domyślnie rozkładane są wdrożenia wielocelowe na dni robocze.',
@@ -1617,7 +1630,9 @@
       'proj.addField':'+ Add field','proj.addTarget':'+ Add target','proj.newTarget':'New deployment target','proj.targetName':'Target name','proj.type':'Type',
       'proj.prod':'Production','proj.nonprod':'Non-production','proj.addTargetBtn':'Add target','proj.targetList':'Target list','proj.searchTargets':'Search targets...',
       'proj.postDeploy':'Post-deployment notifications','proj.postDeployDesc':'An additional notification sent after a production deployment of this project is completed — e.g. to the maintenance team, the service desk, or the client-side contact person.',
-      'proj.postDeployTarget':'Group / channel to notify after installation','proj.postDeployTargetPh':'e.g. maintenance-core@example.com or a webhook for the „Core — maintenance” channel',
+      'proj.postDeployEmail':'E-mail address to notify after installation','proj.postDeployEmailPh':'e.g. maintenance-core@example.com',
+      'proj.postDeployWebhook':'Webhook (Teams channel) to notify after installation','proj.postDeployWebhookPh':'https://... (webhook for the „Core — maintenance” channel)',
+      'proj.sendTest':'Send test',
       'proj.postDeployEnable':'Enable notification after a production deployment is completed','proj.savePostDeploy':'Save project notification',
       'proj.defaults':'Deployment defaults','proj.defaultsDesc':'Default schedule used when the release manager plans a deployment for this project.',
       'proj.defaultDays':'Standard number of working days','proj.defaultDaysNote':'How multi-target deployments are split across working days by default.',
@@ -2499,9 +2514,18 @@
     renderLocationsTable();
 
     // Post-deployment notification settings for this project
-    const pdTarget = document.getElementById('project-postdeploy-target');
+    const pdEmail = document.getElementById('project-postdeploy-email');
+    const pdWebhook = document.getElementById('project-postdeploy-webhook');
     const pdEnabled = document.getElementById('project-postdeploy-enabled');
-    if(pdTarget) pdTarget.value = p.postDeployTarget || '';
+    // Backward compatibility: an older single "postDeployTarget" field is split
+    // into the e-mail or webhook slot based on its shape.
+    let legacyEmail = '', legacyWebhook = '';
+    if(p.postDeployTarget){
+      if(/^https?:\/\//i.test(p.postDeployTarget)) legacyWebhook = p.postDeployTarget;
+      else legacyEmail = p.postDeployTarget;
+    }
+    if(pdEmail) pdEmail.value = p.postDeployEmail || legacyEmail || '';
+    if(pdWebhook) pdWebhook.value = p.postDeployWebhook || legacyWebhook || '';
     if(pdEnabled) pdEnabled.checked = !!p.postDeployEnabled;
 
     // Deployment defaults (working-day split + start time) — editable per project.
@@ -2560,14 +2584,47 @@
   function saveProjectPostDeploy(){
     const p = PROJECTS[currentProjectKey];
     if(!p) return;
-    const target = document.getElementById('project-postdeploy-target').value.trim();
+    const email = document.getElementById('project-postdeploy-email').value.trim();
+    const webhook = document.getElementById('project-postdeploy-webhook').value.trim();
     const enabled = document.getElementById('project-postdeploy-enabled').checked;
-    if(enabled && !target){ showToast('Enter a group or channel to notify after installation'); return; }
-    p.postDeployTarget = target;
+    if(enabled && !email && !webhook){ showToast('Enter an e-mail address or a webhook to notify after installation'); return; }
+    if(email && !EMAIL_RE.test(email)){ showToast('Enter a valid e-mail address'); return; }
+    if(webhook && !/^https?:\/\//i.test(webhook)){ showToast('The webhook must be a valid https:// URL'); return; }
+    p.postDeployEmail = email;
+    p.postDeployWebhook = webhook;
     p.postDeployEnabled = enabled;
+    delete p.postDeployTarget; // superseded by the split e-mail/webhook fields
     persistProject(currentProjectKey);
-    logAudit('changed', 'Project', 'Changed the post-deployment notification' + (enabled ? ' (enabled: ' + target + ')' : ' (disabled)'), p.name + ' (' + p.clientName + ')');
-    showToast(enabled ? 'Post-deployment notification enabled — ' + target : 'Post-deployment notification disabled');
+    const summary = [email && ('e-mail: ' + email), webhook && 'webhook'].filter(Boolean).join(', ');
+    logAudit('changed', 'Project', 'Changed the post-deployment notification' + (enabled ? ' (enabled: ' + summary + ')' : ' (disabled)'), p.name + ' (' + p.clientName + ')');
+    showToast(enabled ? 'Post-deployment notification enabled — ' + summary : 'Post-deployment notification disabled');
+  }
+
+  // Send a one-off test to the project's post-deployment e-mail or webhook,
+  // reusing the shared backend test endpoint.
+  async function testProjectPostDeploy(channel){
+    if(typeof API_CONNECTED === 'undefined' || !API_CONNECTED){ showToast('Not connected to the backend — cannot send a test'); return; }
+    const email = document.getElementById('project-postdeploy-email').value.trim();
+    const webhook = document.getElementById('project-postdeploy-webhook').value.trim();
+    let payload;
+    if(channel === 'email'){
+      if(!email){ showToast('Enter the e-mail address first'); return; }
+      if(!EMAIL_RE.test(email)){ showToast('Enter a valid e-mail address'); return; }
+      payload = {channel:'email', address: email};
+    } else {
+      if(!webhook){ showToast('Enter the webhook URL first'); return; }
+      if(!/^https?:\/\//i.test(webhook)){ showToast('The webhook must be a valid https:// URL'); return; }
+      payload = {channel:'teams', url: webhook};
+    }
+    showToast('Sending a test message…');
+    try {
+      const res = await apiFetch('/api/notifications/test', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+      });
+      let info = {}; try { info = await res.json(); } catch(e){}
+      if(res.ok){ showToast('✅ Test message sent'); }
+      else { showToast('⚠ Test failed: ' + (info.error || ('HTTP ' + res.status))); }
+    } catch(e){ showToast('⚠ Could not send the test message'); }
   }
 
   function renderScheduleAppsList(){
