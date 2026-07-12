@@ -6,7 +6,7 @@ It gives everyone involved in a release — the release manager, the person doin
 
 The whole thing ships as a small, runnable package: a static UI + an Express API + PostgreSQL, all in Docker, with IP-based access control and ready-to-use CI/CD.
 
-> **Status:** early / functional prototype. The infrastructure, API, database, and CI/CD are real; the UI is a rich mockup and authentication is not yet real (see [Project status](#project-status)).
+> **Status:** early / functional prototype. The infrastructure, API, database, authentication, and CI/CD are real; the UI is still a rich single-file app (see [Project status](#project-status)).
 
 ---
 
@@ -22,6 +22,7 @@ The whole thing ships as a small, runnable package: a static UI + an Express API
 - [Configuration](#configuration)
 - [Database: migrations & seeding](#database-migrations--seeding)
 - [HTTP API](#http-api)
+- [Authentication](#authentication)
 - [Tests](#tests)
 - [Deployment](#deployment)
 - [Contributing](#contributing)
@@ -154,6 +155,8 @@ docker compose up --build
 
 Migrations run automatically on backend start. To load sample data, see [seeding](#local-test-data-not-committed).
 
+**First run:** there is no default user. The first time you open the UI you're shown a **setup wizard** to create the administrator account. On that account's first login you must **enroll TOTP MFA** (scan the QR code with an authenticator app); every later login then requires the 6-digit code. See [Authentication](#authentication).
+
 ### Run the backend on its own (fast iteration)
 
 You need a PostgreSQL reachable via `DATABASE_URL`.
@@ -181,6 +184,9 @@ All configuration comes from environment variables (see `.env.example`). Key one
 | `ALLOWED_IPS` | *(empty)* | Comma/space-separated IPs and CIDR ranges allowed to reach the UI + API. Empty = no restriction (**dev only**). |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `rolldesk` | Database credentials. |
 | `DATABASE_URL` | *(built from the above)* | Backend connection string. |
+| `JWT_SECRET` | *(dev: ephemeral)* | Secret used to sign session tokens. **Required in production** — the backend refuses to start without it. Generate with `openssl rand -hex 32`. In dev, if unset, an ephemeral secret is used (sessions reset on restart). |
+| `SESSION_TTL` / `MFA_STAGE_TTL` | `12h` / `10m` | Lifetime of a session token, and of the short-lived token carried between login and the MFA step. |
+| `MFA_ISSUER` | `RollDesk` | Label shown for the account in the user's authenticator app. |
 | `TRUST_PROXY` | `1` (in compose) | Trust `X-Forwarded-For` for the real client IP behind a proxy. |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | *(empty)* | SMTP for email notifications; if `SMTP_HOST` is unset, sending is skipped. |
 | `IMAGE_PREFIX` / `TAG` | — | Used by `docker-compose.prod.yml` to pick which registry images/version to run. |
@@ -227,20 +233,40 @@ The dev `docker-compose.yml` mounts `backend/src/seeds` into the backend contain
 
 ## HTTP API
 
-All endpoints are under `/api` (IP-filtered). `/health` is unfiltered for monitoring.
+All endpoints are under `/api` (IP-filtered). `/health` is unfiltered for monitoring. The `/api/deployments` and `/api/projects` routes require a valid session token (`Authorization: Bearer <token>`); the `/api/auth` routes issue those tokens (see [Authentication](#authentication)).
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/deployments` | List (filters: `project`, `env`, `status`). |
-| GET | `/api/deployments/:id` | Details of one deployment. |
-| POST | `/api/deployments` | Create (id from body or generated). |
-| PUT | `/api/deployments/:id` | Create or update the full object (used by the UI). |
-| DELETE | `/api/deployments/:id` | Delete. |
-| GET | `/api/projects` | List projects (with default days/time and apps). |
-| PUT | `/api/projects/:key` | Create or update a project. |
-| GET | `/health` | Liveness + DB reachability. |
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/auth/status` | — | Whether an admin account exists yet (`{ configured }`). |
+| POST | `/api/auth/setup` | — | Create the first admin. `409` once configured. |
+| POST | `/api/auth/login` | — | Verify password; returns a stage token (`mfa-setup` or `mfa-login`). |
+| POST | `/api/auth/mfa/setup` | stage | Start MFA enrollment; returns `otpauthUrl` + QR data URL. |
+| POST | `/api/auth/mfa/verify` | stage | Verify the first code, enable MFA, return a session token. |
+| POST | `/api/auth/mfa/login` | stage | Verify a code for an enrolled user, return a session token. |
+| GET | `/api/auth/me` | session | Current user (`{ id, email, role }`). |
+| GET | `/api/deployments` | session | List (filters: `project`, `env`, `status`). |
+| GET | `/api/deployments/:id` | session | Details of one deployment. |
+| POST | `/api/deployments` | session | Create (id from body or generated). |
+| PUT | `/api/deployments/:id` | session | Create or update the full object (used by the UI). |
+| DELETE | `/api/deployments/:id` | session | Delete. |
+| GET | `/api/projects` | session | List projects (with default days/time and apps). |
+| PUT | `/api/projects/:key` | session | Create or update a project. |
+| GET | `/health` | — | Liveness + DB reachability. |
 
 Deployment statuses: `scheduled`, `installed`, `failed`, `rolledback`, `aborted`, `paused`.
+
+---
+
+## Authentication
+
+RollDesk ships with **no default account** and stays locked until one is created.
+
+1. **First run — setup wizard.** `GET /api/auth/status` reports `configured: false`, so the UI shows a wizard to create the initial admin (`POST /api/auth/setup`). Passwords are hashed with bcrypt.
+2. **Login.** `POST /api/auth/login` verifies the password and returns a short-lived *stage* token indicating the next step.
+3. **Mandatory MFA.** On the admin's first login, MFA enrollment is forced: the UI shows a QR code (from `POST /api/auth/mfa/setup`) to scan with an authenticator app, and `POST /api/auth/mfa/verify` confirms the first code and enables MFA. Later logins require the 6-digit code via `POST /api/auth/mfa/login`.
+4. **Session.** A successful MFA step returns a session JWT (signed with `JWT_SECRET`, `SESSION_TTL` lifetime). The UI stores it in `localStorage` and sends it as `Authorization: Bearer` on every `/api` call. A `401` clears the token and returns to the login screen.
+
+TOTP MFA uses [`otplib`](https://www.npmjs.com/package/otplib); QR codes are rendered with [`qrcode`](https://www.npmjs.com/package/qrcode); tokens use [`jsonwebtoken`](https://www.npmjs.com/package/jsonwebtoken).
 
 ---
 
@@ -314,14 +340,15 @@ Key rules: **no secrets or real client data in commits** (real data goes in the 
 
 ## Project status
 
-**Ready:** Docker infrastructure, durable PostgreSQL with an automatic migration runner (schema-only migrations; sample data in local, uncommitted seeds), a persisting API, IP restriction (nginx + backend), CI that tests/builds/deploys, and the served UI.
+**Ready:** Docker infrastructure, durable PostgreSQL with an automatic migration runner (schema-only migrations; sample data in local, uncommitted seeds), a persisting API, real authentication (first-run setup wizard, bcrypt password login, mandatory TOTP MFA, JWT sessions guarding the API), IP restriction (nginx + backend), CI that tests/builds/deploys, and the served UI.
 
 **Known limitations / next steps:**
 
-- **Authentication is a mockup** — the login/2FA screen accepts any 6-digit code. Real auth is the top priority and depends on how the team wants to sign in.
+- **Single-user auth.** Only the bootstrapped admin is a real account; the in-app Users screen is still demo data. Multi-user management + invites are a follow-up.
+- **No password reset yet.** The "Forgot your password?" panel is not wired to a backend flow.
 - **Writes are "last write wins"** (no concurrency locks) — fine for a small team, to be hardened under load.
 - **Project/app definitions** currently originate in the UI; moving them fully behind the `GET/PUT /api/projects` API is a natural next step.
-- The **UI is one large `index.html`** — great for a zero-build mockup, a candidate for componentisation as it grows.
+- The **UI is one large `index.html`** — great for zero-build iteration, a candidate for componentisation as it grows.
 
 ---
 

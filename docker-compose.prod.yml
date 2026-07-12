@@ -28,6 +28,8 @@ services:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: postgres://${POSTGRES_USER:-rolldesk}:${POSTGRES_PASSWORD:-rolldesk}@db:5432/${POSTGRES_DB:-rolldesk}
+      # REQUIRED: the backend refuses to start in production without a JWT secret.
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required in production}
       ALLOWED_IPS: ${ALLOWED_IPS:-}
       TRUST_PROXY: "1"
       SMTP_HOST: ${SMTP_HOST:-}
