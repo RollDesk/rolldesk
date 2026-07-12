@@ -8,7 +8,21 @@
 -- This migration is schema-only. Client/project sample data is NOT committed —
 -- it lives in local, uncommitted test data (see backend/src/seeds/). Load it
 -- with `npm run seed`.
+--
+-- Tables at a glance:
+--   projects       — one row per project (its apps, environments, targets, defaults).
+--   deployments    — one row per rollout record (schedule, status, comments, approval).
+--   users          — login accounts (password + TOTP MFA); the auth source of truth.
+--   login_history  — per-user sign-in log shown in the profile.
+--   attachments    — uploaded files (raw bytes), each linked to a deployment.
+--   audit_log      — append-only change history shown in the Audit view.
+--   app_state      — key/value store for a few whole-collection UI settings
+--                    (user roster, client list, notification recipients).
 
+-- A project belongs to a client and defines what/where it deploys. The columns
+-- are just for listing/filtering; the full editable object (apps, test
+-- environments, production targets/locations, people, approval policy, etc.)
+-- lives in `data` (JSONB) so the UI can evolve its shape without a migration.
 CREATE TABLE IF NOT EXISTS projects (
   key            TEXT PRIMARY KEY,
   client_name    TEXT NOT NULL,
@@ -20,6 +34,9 @@ CREATE TABLE IF NOT EXISTS projects (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- One rollout record. Filterable columns (project/env/status/internal) sit
+-- next to the full deployment object in `data` (JSONB) — schedule, targets,
+-- assignee, client approval, comments/timeline, changelog, attachment ref, etc.
 CREATE TABLE IF NOT EXISTS deployments (
   id           TEXT PRIMARY KEY,
   project_key  TEXT NOT NULL,
@@ -34,6 +51,9 @@ CREATE TABLE IF NOT EXISTS deployments (
 CREATE INDEX IF NOT EXISTS idx_deployments_project ON deployments (project_key);
 CREATE INDEX IF NOT EXISTS idx_deployments_status  ON deployments (status);
 
+-- Login accounts (the authentication source of truth). Created by the first-run
+-- setup wizard and password/MFA login; separate from the UI "user roster"
+-- (people shown in the Users tab), which lives in app_state under key 'roster'.
 CREATE TABLE IF NOT EXISTS users (
   id            SERIAL PRIMARY KEY,
   email         TEXT NOT NULL UNIQUE,
@@ -85,10 +105,9 @@ CREATE TABLE IF NOT EXISTS attachments (
 CREATE INDEX IF NOT EXISTS idx_attachments_deployment
   ON attachments (deployment_id, uploaded_at);
 
--- Persistence for application state the single-page UI used to keep only in
--- browser memory: the append-only change history (audit log) and a few
--- whole-collection settings (user roster, client list, notification recipients)
--- stored last-write-wins in a generic key/value table.
+-- Append-only change history ("who did what, when"), shown in the Audit view.
+-- One row per action (e.g. created a project, changed a deployment, added a
+-- user). Written via POST /api/audit and never updated or deleted.
 CREATE TABLE IF NOT EXISTS audit_log (
   id         BIGSERIAL PRIMARY KEY,
   ts         TEXT,           -- human-readable timestamp captured on the client
@@ -103,8 +122,18 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log (created_at DESC, id DESC);
 
+-- Generic key/value store (one JSONB blob per named collection) for UI settings
+-- that are small and edited as a whole, so they don't each need their own table.
+-- Read/written via GET/PUT /api/state/:key with last-write-wins semantics.
+-- Known keys:
+--   'roster'        — the Users-tab people list (name, email, role, projects,
+--                     invite/archived flags). Distinct from the `users` table,
+--                     which holds actual login accounts.
+--   'clients'       — the client list (key, display name, e-mail domain).
+--   'notifications' — notification recipients: { emails: [...], teams: [...] }
+--                     with per-event toggles (e.g. Teams webhook URLs).
 CREATE TABLE IF NOT EXISTS app_state (
-  key        TEXT PRIMARY KEY,
-  data       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  key        TEXT PRIMARY KEY,   -- collection name: 'roster' | 'clients' | 'notifications'
+  data       JSONB NOT NULL DEFAULT '{}'::jsonb,  -- the whole collection (array or object)
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -103,7 +103,7 @@ flowchart LR
 
 - **Frontend:** a single self-contained `index.html` (vanilla HTML/CSS/JS, no build step), served by **nginx**.
 - **Backend:** **Node.js 20**, **Express 4**, **pg**, **nodemailer**, **multer** (file uploads), **ipaddr.js** (ES modules).
-- **Database:** **PostgreSQL 16**.
+- **Database:** **PostgreSQL 18**.
 - **Infra/CI:** **Docker** + **Docker Compose**, **GitHub Actions**, images published to **GHCR**.
 - **Tests:** Node's built-in `node:test` runner (zero extra dependencies).
 

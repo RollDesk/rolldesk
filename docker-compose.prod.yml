@@ -4,14 +4,16 @@
 # (or are exported by the deploy step).
 services:
   db:
-    image: postgres:16
+    image: postgres:18
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-rolldesk}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rolldesk}
       POSTGRES_DB: ${POSTGRES_DB:-rolldesk}
     volumes:
-      - db-data:/var/lib/postgresql/data
+      # PostgreSQL 18+ images store data under /var/lib/postgresql (in a
+      # major-version subdirectory), so the volume is mounted there.
+      - db-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rolldesk}"]
       interval: 5s
