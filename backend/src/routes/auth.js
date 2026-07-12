@@ -7,6 +7,7 @@ import { query } from '../db.js';
 import { config } from '../config.js';
 import { clientIpFromRequest } from '../ipAllowlist.js';
 import { credentialLimiter, mfaCodeLimiter } from '../rateLimit.js';
+import { sendMail } from '../mailer.js';
 import {
   hashPassword,
   verifyPassword,
@@ -14,6 +15,7 @@ import {
   signStageToken,
   requireStage,
   generateMfaSecret,
+  generateInviteToken,
   otpauthUrl,
   qrDataUrl,
   verifyTotp,
@@ -23,6 +25,7 @@ import {
 const router = Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const RESET_TTL_MS = 3 * 24 * 60 * 60 * 1000; // reset link validity: 3 days
 
 // Record a successful sign-in for the given user (best-effort — never blocks
 // the login itself if the insert fails).
@@ -93,6 +96,47 @@ router.post('/login', credentialLimiter, async (req, res) => {
   const stage = user.mfa_enabled ? 'mfa-login' : 'mfa-setup';
   const token = signStageToken(user, stage);
   res.json({ stage, token });
+});
+
+// POST /api/auth/forgot — self-service password reset request. Always returns a
+// generic success so it never reveals whether an account exists. When the
+// account exists and is active, issue a single-use reset link (valid 7 days)
+// and e-mail it; the user then sets a new password via the #/invite/<token>
+// link (the same flow used for admin-issued resets).
+router.post('/forgot', credentialLimiter, async (req, res) => {
+  const email = String((req.body && req.body.email) || '').trim();
+  if (!EMAIL_RE.test(email)) return res.status(422).json({ error: 'A valid email is required' });
+  try {
+    const user = await findUserByEmail(email);
+    if (user && !user.archived) {
+      const { raw, hash } = generateInviteToken();
+      const expires = new Date(Date.now() + RESET_TTL_MS).toISOString();
+      await query(
+        'UPDATE users SET invite_token = $1, invite_expires = $2 WHERE id = $3',
+        [hash, expires, user.id]
+      );
+      const base = config.appBaseUrl || '';
+      const link = `${base}/#/invite/${raw}`;
+      const body =
+        `A password reset was requested for your RollDesk account.\n` +
+        `Set a new password: ${link}\n` +
+        `This link expires in 3 days.\n\n` +
+        `If you didn't request this, you can safely ignore this e-mail.`;
+      try {
+        await sendMail({
+          to: user.email,
+          subject: 'RollDesk — reset your password',
+          text: body,
+          html: `<p>${body.replace(/\n/g, '<br>')}</p>`,
+        });
+      } catch (err) {
+        console.warn('[auth] Could not send reset e-mail:', err.message);
+      }
+    }
+  } catch (err) {
+    console.warn('[auth] forgot-password error:', err.message);
+  }
+  res.json({ ok: true });
 });
 
 // POST /api/auth/mfa/setup — (stage=mfa-setup) generate + store a pending

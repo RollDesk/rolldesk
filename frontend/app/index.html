@@ -168,6 +168,22 @@
   .lang-pill input{display:none;}
   .lang-pill:hover{background:rgba(255,255,255,0.20);}
   .lang-pill.selected{background:#fff; color:#0A6E7A; border-color:#fff;}
+  /* Subtle, understated language toggle inside the white auth cards (no icons). */
+  .auth-lang-row{display:flex; justify-content:center; align-items:center; gap:8px; margin-top:14px;}
+  .lang-txt{display:inline-flex; align-items:center; cursor:pointer; font-size:11.5px; font-weight:600; letter-spacing:.03em; color:var(--text-faint); opacity:.75; transition:color .15s, opacity .15s;}
+  .lang-txt input{display:none;}
+  .lang-txt:hover{opacity:1; color:var(--text-muted);}
+  .lang-txt.active{color:var(--text-muted); opacity:1;}
+  .lang-sep{color:var(--text-faint); opacity:.5; font-size:11px; user-select:none;}
+  /* Discreet language dropdown in the top bar (next to the profile avatar). */
+  .lang-menu{position:relative;}
+  .lang-menu-btn{display:inline-flex; align-items:center; gap:4px; padding:4px 7px; font-size:11.5px; font-weight:600; letter-spacing:.03em; color:var(--text-faint); background:transparent; border:none; border-radius:6px; cursor:pointer; opacity:.8; transition:color .15s, opacity .15s, background .15s;}
+  .lang-menu-btn:hover{background:var(--paper-alt, #f4f6f8); color:var(--text-muted); opacity:1;}
+  .lang-menu-btn .caret{font-size:9px;}
+  .lang-menu-list{position:absolute; top:calc(100% + 6px); right:0; min-width:130px; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(20,24,30,0.14); padding:5px; z-index:50;}
+  .lang-menu-list button{display:flex; align-items:center; width:100%; text-align:left; padding:7px 10px; font-size:13px; color:var(--ink); background:transparent; border:none; border-radius:7px; cursor:pointer;}
+  .lang-menu-list button:hover{background:var(--paper-alt2, #eef1f4);}
+  .lang-menu-list button.active{color:#0A6E7A; font-weight:600;}
 
   .btn{
     display:inline-flex; align-items:center; gap:6px;
@@ -365,6 +381,11 @@
     </div>
     <div id="setup-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
     <button class="btn" id="setup-btn" style="width:100%; justify-content:center;" onclick="submitSetup()" data-i18n="auth.createAdmin">Create admin account</button>
+    <div class="auth-lang-row">
+      <label class="lang-txt" title="Polski"><input type="radio" name="auth-lang" value="pl" onchange="setLanguage('pl')">Polski</label>
+      <span class="lang-sep">·</span>
+      <label class="lang-txt" title="English"><input type="radio" name="auth-lang" value="en" onchange="setLanguage('en')">English</label>
+    </div>
   </div>
 
   <!-- Login: email + password. -->
@@ -382,6 +403,11 @@
     <div id="login-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
     <button class="btn" id="login-btn" style="width:100%; justify-content:center;" onclick="submitLogin()" data-i18n="auth.signIn">Sign in</button>
     <p style="text-align:center; margin:12px 0 0 0;"><a href="#" onclick="event.preventDefault(); showResetPanel();" style="font-size:12px; color:var(--cyan); text-decoration:none;" data-i18n="auth.forgot">Forgot your password?</a></p>
+    <div class="auth-lang-row">
+      <label class="lang-txt" title="Polski"><input type="radio" name="auth-lang" value="pl" onchange="setLanguage('pl')">Polski</label>
+      <span class="lang-sep">·</span>
+      <label class="lang-txt" title="English"><input type="radio" name="auth-lang" value="en" onchange="setLanguage('en')">English</label>
+    </div>
   </div>
 
   <!-- MFA enrollment (first login): scan QR + confirm a code. -->
@@ -423,37 +449,15 @@
       <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 18px 0;" data-i18n="auth.resetDesc">We'll send a link to set a new password to the e-mail address associated with your account.</p>
       <div class="field">
         <label data-i18n="auth.accountEmail">Account e-mail</label>
-        <input type="text" id="reset-email" class="mono" readonly style="background:var(--paper); color:var(--text-muted); cursor:not-allowed;">
+        <input type="text" id="reset-email" class="mono" autocomplete="username" placeholder="you@example.com">
       </div>
       <div id="reset-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
-      <button class="btn" style="width:100%; justify-content:center;" onclick="sendResetLink()" data-i18n="auth.sendResetLink">Send reset link</button>
+      <button class="btn" id="reset-send-btn" style="width:100%; justify-content:center;" onclick="sendResetLink()" data-i18n="auth.sendResetLink">Send reset link</button>
     </div>
     <div id="reset-step-sent" style="display:none; text-align:center;">
       <div style="width:48px; height:48px; border-radius:50%; background:var(--green-soft); color:#0F7A38; display:flex; align-items:center; justify-content:center; font-size:26px; margin:16px auto;">✓</div>
       <p style="font-size:13px; font-weight:600; margin:0 0 6px 0;" data-i18n="auth.linkSent">Link sent</p>
-      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 14px 0;" data-i18n-html="auth.linkSentDesc">If the account <span class="mono" id="reset-sent-email"></span> exists, we've sent it a link to set a new password. Check your inbox (and the spam folder). The link is valid for 60 minutes.</p>
-      <button class="mini-btn" onclick="showResetSetStep()" data-i18n="auth.openLink">Open link and set a new password →</button>
-    </div>
-    <div id="reset-step-set" style="display:none;">
-      <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;" data-i18n="auth.setNewPass">Set a new password</p>
-      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 16px 0;" data-i18n="auth.setNewPassDesc">The password must be strong — min. 12 characters, an uppercase and lowercase letter, a digit and a special character.</p>
-      <div class="field">
-        <label data-i18n="auth.newPassword">New password</label>
-        <input type="password" id="reset-new-pass" oninput="updatePasswordStrength('reset-new-pass','reset-strength')" placeholder="••••••••••••">
-      </div>
-      <div id="reset-strength" style="margin:-4px 0 12px 0;"></div>
-      <div class="field">
-        <label data-i18n="auth.repeatNewPassword">Repeat new password</label>
-        <input type="password" id="reset-new-pass2" placeholder="••••••••••••">
-      </div>
-      <div id="reset-set-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
-      <button class="btn" style="width:100%; justify-content:center;" onclick="submitNewPassword()" data-i18n="auth.saveNewPass">Save new password</button>
-    </div>
-    <div id="reset-step-done" style="display:none; text-align:center;">
-      <div style="width:48px; height:48px; border-radius:50%; background:var(--green-soft); color:#0F7A38; display:flex; align-items:center; justify-content:center; font-size:26px; margin:16px auto;">✓</div>
-      <p style="font-size:13px; font-weight:600; margin:0 0 6px 0;" data-i18n="auth.passChanged">Password changed</p>
-      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 18px 0;" data-i18n="auth.passChangedDesc">You can now sign in using your new password.</p>
-      <button class="btn" style="width:100%; justify-content:center;" onclick="showLoginPanel()" data-i18n="auth.goToSignIn">Go to sign in</button>
+      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 14px 0;" data-i18n-html="auth.linkSentDesc">If the account <span class="mono" id="reset-sent-email"></span> exists, we've sent it a link to set a new password. Check your inbox (and the spam folder). The link is valid for 7 days.</p>
     </div>
     <p style="text-align:center; margin:14px 0 0 0;"><a href="#" onclick="event.preventDefault(); showLoginPanel();" style="font-size:12px; color:var(--cyan); text-decoration:none;" data-i18n="auth.backToSignIn">← Back to sign in</a></p>
   </div>
@@ -480,13 +484,13 @@
     <div id="invite-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
     <button class="btn" id="invite-btn" style="width:100%; justify-content:center;" onclick="submitInvitePassword()" data-i18n="auth.saveNewPass">Save new password</button>
     <p style="text-align:center; margin:12px 0 0 0;"><a href="#" onclick="event.preventDefault(); showLoginPanel();" style="font-size:12px; color:var(--cyan); text-decoration:none;" data-i18n="auth.backToSignIn">← Back to sign in</a></p>
+    <div class="auth-lang-row">
+      <label class="lang-txt" title="Polski"><input type="radio" name="auth-lang" value="pl" onchange="setLanguage('pl')">Polski</label>
+      <span class="lang-sep">·</span>
+      <label class="lang-txt" title="English"><input type="radio" name="auth-lang" value="en" onchange="setLanguage('en')">English</label>
+    </div>
   </div>
 
-  <!-- Language switcher for the login screen (persists the choice). -->
-  <div style="position:absolute; bottom:20px; left:0; right:0; display:flex; justify-content:center; gap:10px;">
-    <label class="radio-pill lang-pill" title="Polski"><input type="radio" name="auth-lang" value="pl" onchange="setLanguage('pl')"><span class="flag">🇵🇱</span><span>PL</span></label>
-    <label class="radio-pill lang-pill" title="English"><input type="radio" name="auth-lang" value="en" onchange="setLanguage('en')"><span class="flag">🇬🇧</span><span>EN</span></label>
-  </div>
 </div>
 
 <div class="rail">
@@ -552,6 +556,15 @@
     </div>
     <div style="display:flex; align-items:center; gap:12px;">
       <span class="sub mono" id="topbar-project-slug"></span>
+      <div class="lang-menu" id="topbar-lang">
+        <button class="lang-menu-btn" onclick="toggleLangMenu(event)" title="Language / Język" aria-haspopup="true">
+          <span id="topbar-lang-code">PL</span><span class="caret">▾</span>
+        </button>
+        <div class="lang-menu-list" id="topbar-lang-list" style="display:none;">
+          <button data-lang="pl" onclick="chooseLang('pl')">Polski</button>
+          <button data-lang="en" onclick="chooseLang('en')">English</button>
+        </div>
+      </div>
       <div class="avatar" id="topbar-avatar" onclick="goToView('account')" title="My profile" style="cursor:pointer;"></div>
     </div>
   </div>
@@ -1430,11 +1443,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.4.0"></script>
-<script src="i18n/en.js?v=0.4.0"></script>
+<script src="i18n/pl.js?v=0.4.1"></script>
+<script src="i18n/en.js?v=0.4.1"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.4.0';
+  const ROLLDESK_VERSION = '0.4.1';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -1526,8 +1539,35 @@
       inp.checked = on;
       const pill = inp.closest('.radio-pill');
       if(pill) pill.classList.toggle('selected', on);
+      const txt = inp.closest('.lang-txt');
+      if(txt) txt.classList.toggle('active', on);
+    });
+    // Top-bar language dropdown (button label + active item).
+    const code = document.getElementById('topbar-lang-code');
+    if(code) code.textContent = LANG === 'en' ? 'EN' : 'PL';
+    document.querySelectorAll('#topbar-lang-list button[data-lang]').forEach(b=>{
+      b.classList.toggle('active', b.getAttribute('data-lang') === LANG);
     });
   }
+  // Compact top-bar language dropdown.
+  function toggleLangMenu(e){
+    if(e) e.stopPropagation();
+    const list = document.getElementById('topbar-lang-list');
+    if(list) list.style.display = list.style.display === 'none' ? 'block' : 'none';
+  }
+  function closeLangMenu(){
+    const list = document.getElementById('topbar-lang-list');
+    if(list) list.style.display = 'none';
+  }
+  function chooseLang(lang){
+    closeLangMenu();
+    setLanguage(lang);
+  }
+  // Close the dropdown when clicking anywhere outside it.
+  document.addEventListener('click', (e)=>{
+    const menu = document.getElementById('topbar-lang');
+    if(menu && !menu.contains(e.target)) closeLangMenu();
+  });
   function setLanguage(lang){
     LANG = (lang === 'en') ? 'en' : 'pl';
     try { localStorage.setItem(LANG_KEY, LANG); } catch(e){}
@@ -6487,8 +6527,6 @@ Kind regards.`;
     showAuthPanel('reset-panel');
     document.getElementById('reset-step-request').style.display = 'block';
     document.getElementById('reset-step-sent').style.display = 'none';
-    document.getElementById('reset-step-set').style.display = 'none';
-    document.getElementById('reset-step-done').style.display = 'none';
     document.getElementById('reset-error').style.display = 'none';
     const em = document.getElementById('reset-email');
     em.value = document.getElementById('login-email').value || '';
@@ -6667,37 +6705,27 @@ Kind regards.`;
     showLoginScreen();
     checkAuthStatus();
   }
-  function sendResetLink(){
+  async function sendResetLink(){
     const email = document.getElementById('reset-email').value.trim();
     const err = document.getElementById('reset-error');
     if(!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){
-      err.textContent = 'Enter a valid e-mail address.'; err.style.display = 'block'; return;
+      err.textContent = t('auth.enterValidEmail'); err.style.display = 'block'; return;
     }
     err.style.display = 'none';
-    // For privacy we always show the same confirmation, whether or not the account exists.
+    const btn = document.getElementById('reset-send-btn');
+    if(btn) btn.disabled = true;
+    try {
+      // Backend always returns a generic success (never reveals whether the
+      // account exists). The reset link is delivered by e-mail.
+      await authPost('/api/auth/forgot', { email });
+    } catch(e){
+      // Even on a transient network error, keep the privacy-preserving message.
+    } finally {
+      if(btn) btn.disabled = false;
+    }
     document.getElementById('reset-sent-email').textContent = email;
     document.getElementById('reset-step-request').style.display = 'none';
     document.getElementById('reset-step-sent').style.display = 'block';
-  }
-  function showResetSetStep(){
-    document.getElementById('reset-step-sent').style.display = 'none';
-    document.getElementById('reset-step-set').style.display = 'block';
-    document.getElementById('reset-new-pass').value = '';
-    document.getElementById('reset-new-pass2').value = '';
-    document.getElementById('reset-strength').innerHTML = '';
-    document.getElementById('reset-set-error').style.display = 'none';
-    document.getElementById('reset-new-pass').focus();
-  }
-  function submitNewPassword(){
-    const p1 = document.getElementById('reset-new-pass').value;
-    const p2 = document.getElementById('reset-new-pass2').value;
-    const err = document.getElementById('reset-set-error');
-    const strength = passwordStrength(p1);
-    if(!strength.strong){ err.textContent = strength.message; err.style.display='block'; return; }
-    if(p1 !== p2){ err.textContent = 'The passwords do not match.'; err.style.display='block'; return; }
-    err.style.display = 'none';
-    document.getElementById('reset-step-set').style.display = 'none';
-    document.getElementById('reset-step-done').style.display = 'block';
   }
 
   // ---- Password strength ----
