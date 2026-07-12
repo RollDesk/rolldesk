@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Translate the deployment version input placeholder ("version, e.g. …") to Polish.
+- Add missing Polish translations in the Notifications view (e-mail/webhook rows, event labels) and the deployer reporting panel ("To report", completed-corrections section); these views now also refresh on language switch.
 
 ## [0.2.1] - 2026-07-12
 

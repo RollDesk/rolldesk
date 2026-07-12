@@ -1294,21 +1294,21 @@
 
     <div class="card" style="margin-bottom:16px;">
       <div class="toolbar" style="margin-bottom:8px;">
-        <label style="margin-bottom:0;">E-mail addresses</label>
-        <button class="mini-btn" onclick="addNotifEmail()">+ Add e-mail</button>
+        <label style="margin-bottom:0;" data-i18n="notif.emails">E-mail addresses</label>
+        <button class="mini-btn" onclick="addNotifEmail()" data-i18n="notif.addEmail">+ Add e-mail</button>
       </div>
       <div id="notif-email-list" style="display:flex; flex-direction:column; gap:12px;"></div>
     </div>
 
     <div class="card" style="margin-bottom:16px;">
       <div class="toolbar" style="margin-bottom:8px;">
-        <label style="margin-bottom:0;">Webhooks (Teams / Slack / your own system)</label>
-        <button class="mini-btn" onclick="addNotifTeams()">+ Add webhook</button>
+        <label style="margin-bottom:0;" data-i18n="notif.webhooks">Webhooks (Teams / Slack / your own system)</label>
+        <button class="mini-btn" onclick="addNotifTeams()" data-i18n="notif.addWebhook">+ Add webhook</button>
       </div>
       <div id="notif-teams-list" style="display:flex; flex-direction:column; gap:12px;"></div>
     </div>
 
-    <button class="btn" onclick="saveNotificationSettings()">Save notification settings</button>
+    <button class="btn" onclick="saveNotificationSettings()" data-i18n="notif.save">Save notification settings</button>
   </div>
 
   <div class="view" id="view-help">
@@ -1572,7 +1572,11 @@
       'app.settings':'Ustawienia','app.noDeployments':'brak wdrożeń',
       'rep.total':'Wdrożenia widoczne łącznie','rep.pending':'W trakcie / do zainstalowania','rep.installed':'Zainstalowane','rep.issues':'Nieudane / wycofane / przerwane',
       'rep.noActive':'Brak aktywnych wdrożeń do zaraportowania.',
-      'rep.completedNote':'Te wdrożenia zniknęły z listy „Do zaraportowania", ponieważ są już ukończone. Jeśli to pomyłka, popraw to tutaj.'
+      'rep.completedNote':'Te wdrożenia zniknęły z listy „Do zaraportowania", ponieważ są już ukończone. Jeśli to pomyłka, popraw to tutaj.',
+      'rep.toReport':'Do zaraportowania','rep.completed14':'Zakończone (ostatnie 14 dni) — możesz zgłosić korektę','rep.noCompleted14':'Brak zakończonych wdrożeń z ostatnich 14 dni.',
+      'notif.emails':'Adresy e-mail','notif.addEmail':'+ Dodaj e-mail','notif.webhooks':'Webhooki (Teams / Slack / własny system)','notif.addWebhook':'+ Dodaj webhook','notif.save':'Zapisz ustawienia powiadomień',
+      'notif.addressPh':'adres@firma.pl','notif.remove':'Usuń','notif.notifyEvents':'Powiadamiaj o zdarzeniach:','notif.teamsNamePh':'Nazwa (np. Wdrożenia — Teams)','notif.webhookUrlPh':'https://... (adres webhooka)','notif.sendTest':'Wyślij test','notif.sendTestTitle':'Wyślij wiadomość testową na ten webhook','notif.noWebhooks':'Brak webhooków — dodaj pierwszy.',
+      'ev.created':'Utworzenie harmonogramu','ev.approval':'Prośba o akceptację','ev.decision':'Decyzja klienta','ev.clientComment':'Komentarze klienta do dystrybucji','ev.started':'Rozpoczęcie wdrożenia produkcyjnego','ev.paused':'Wstrzymanie dystrybucji','ev.failure':'Błąd na lokalizacji','ev.completed':'Zakończenie wdrożenia (ze statusem)'
     },
     en: {
       'grp.rm':'Release manager', 'grp.installer':'Deployer', 'grp.client':'Client', 'grp.admin':'Administrator', 'grp.account':'Account',
@@ -1690,7 +1694,11 @@
       'app.settings':'Settings','app.noDeployments':'no deployments',
       'rep.total':'Deployments visible in total','rep.pending':'In progress / to install','rep.installed':'Installed','rep.issues':'Failed / rolled back / aborted',
       'rep.noActive':'No active deployments to report.',
-      'rep.completedNote':'These deployments disappeared from the "To report" list because they are already completed. If a mistake occurred, fix it here.'
+      'rep.completedNote':'These deployments disappeared from the "To report" list because they are already completed. If a mistake occurred, fix it here.',
+      'rep.toReport':'To report','rep.completed14':'Completed (last 14 days) — you can report a correction','rep.noCompleted14':'No completed deployments from the last 14 days.',
+      'notif.emails':'E-mail addresses','notif.addEmail':'+ Add e-mail','notif.webhooks':'Webhooks (Teams / Slack / your own system)','notif.addWebhook':'+ Add webhook','notif.save':'Save notification settings',
+      'notif.addressPh':'address@company.com','notif.remove':'Remove','notif.notifyEvents':'Notify about events:','notif.teamsNamePh':'Name (e.g. Deployments — Teams)','notif.webhookUrlPh':'https://... (webhook address)','notif.sendTest':'Send test','notif.sendTestTitle':'Send a test message to this webhook','notif.noWebhooks':'No webhooks — add the first one.',
+      'ev.created':'Schedule created','ev.approval':'Approval request','ev.decision':'Client decision','ev.clientComment':'Client comments on a distribution','ev.started':'Production deployment started','ev.paused':'Distribution paused','ev.failure':'Failure on a target','ev.completed':'Deployment completed (with status)'
     }
   };
   function t(key){ return (I18N[LANG] && I18N[LANG][key]) || (I18N.pl[key]) || key; }
@@ -1741,6 +1749,8 @@
     } catch(e){}
     // Deployer panel: reporting stats + "To report" list are built in JS.
     try { if(typeof renderInstallerPanel === 'function') renderInstallerPanel(); } catch(e){}
+    // Notifications view: e-mail/webhook rows and event labels are built in JS.
+    try { if(typeof renderNotificationsView === 'function') renderNotificationsView(); } catch(e){}
     // New-project view: mode box + location label depend on toggle state, not just data-i18n.
     try { if(typeof updateProjectMode === 'function') updateProjectMode(); } catch(e){}
     try {
@@ -2130,7 +2140,7 @@
   function eventChecklistHtml(kind, i, rec){
     return NOTIF_EVENT_DEFS.map(e=>`
       <label style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:400; border:1px solid var(--line); border-radius:6px; padding:3px 8px;">
-        <input type="checkbox" ${rec.events[e.key]?'checked':''} ${rec.enabled?'':'disabled'} onchange="${kind==='email'?'NOTIF_EMAILS':'NOTIF_TEAMS'}[${i}].events['${e.key}']=this.checked" style="width:auto;"> ${e.label}
+        <input type="checkbox" ${rec.events[e.key]?'checked':''} ${rec.enabled?'':'disabled'} onchange="${kind==='email'?'NOTIF_EMAILS':'NOTIF_TEAMS'}[${i}].events['${e.key}']=this.checked" style="width:auto;"> ${t('ev.'+e.key)}
       </label>`).join('');
   }
 
@@ -2141,10 +2151,10 @@
       <div style="border:1px solid var(--line); border-radius:10px; padding:12px; ${rec.enabled?'':'opacity:0.55;'}">
         <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
           <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" ${rec.enabled?'checked':''} onchange="NOTIF_EMAILS[${i}].enabled=this.checked; renderNotifEmails();" style="width:auto;"></label>
-          <input type="text" class="mono" value="${(rec.address||'').replace(/"/g,'&quot;')}" placeholder="address@company.com" onchange="NOTIF_EMAILS[${i}].address=this.value.trim()" style="flex:1; font-size:12.5px;">
-          <button class="mini-btn" onclick="removeNotifEmail(${i})" ${NOTIF_EMAILS.length<=1?'disabled':''}>Remove</button>
+          <input type="text" class="mono" value="${(rec.address||'').replace(/"/g,'&quot;')}" placeholder="${t('notif.addressPh')}" onchange="NOTIF_EMAILS[${i}].address=this.value.trim()" style="flex:1; font-size:12.5px;">
+          <button class="mini-btn" onclick="removeNotifEmail(${i})" ${NOTIF_EMAILS.length<=1?'disabled':''}>${t('notif.remove')}</button>
         </div>
-        <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">Notify about events:</div>
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">${t('notif.notifyEvents')}</div>
         <div style="display:flex; flex-wrap:wrap; gap:6px;">${eventChecklistHtml('email', i, rec)}</div>
       </div>`).join('');
   }
@@ -2158,14 +2168,14 @@
       <div style="border:1px solid var(--line); border-radius:10px; padding:12px; ${rec.enabled?'':'opacity:0.55;'}">
         <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
           <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" ${rec.enabled?'checked':''} onchange="NOTIF_TEAMS[${i}].enabled=this.checked; renderNotifTeams();" style="width:auto;"></label>
-          <input type="text" value="${(rec.name||'').replace(/"/g,'&quot;')}" placeholder="Name (e.g. Deployments — Teams)" onchange="NOTIF_TEAMS[${i}].name=this.value.trim()" style="width:200px; font-size:12.5px;">
-          <input type="text" class="mono" value="${(rec.url||'').replace(/"/g,'&quot;')}" placeholder="https://... (webhook address)" onchange="NOTIF_TEAMS[${i}].url=this.value.trim()" style="flex:1; font-size:12.5px;">
-          <button class="mini-btn" onclick="testNotifWebhook(${i})" title="Send a test message to this webhook">Send test</button>
-          <button class="mini-btn" onclick="removeNotifTeams(${i})">Remove</button>
+          <input type="text" value="${(rec.name||'').replace(/"/g,'&quot;')}" placeholder="${t('notif.teamsNamePh')}" onchange="NOTIF_TEAMS[${i}].name=this.value.trim()" style="width:200px; font-size:12.5px;">
+          <input type="text" class="mono" value="${(rec.url||'').replace(/"/g,'&quot;')}" placeholder="${t('notif.webhookUrlPh')}" onchange="NOTIF_TEAMS[${i}].url=this.value.trim()" style="flex:1; font-size:12.5px;">
+          <button class="mini-btn" onclick="testNotifWebhook(${i})" title="${t('notif.sendTestTitle')}">${t('notif.sendTest')}</button>
+          <button class="mini-btn" onclick="removeNotifTeams(${i})">${t('notif.remove')}</button>
         </div>
-        <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">Notify about events:</div>
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">${t('notif.notifyEvents')}</div>
         <div style="display:flex; flex-wrap:wrap; gap:6px;">${eventChecklistHtml('teams', i, rec)}</div>
-      </div>`).join('') || '<span style="color:var(--text-faint); font-size:12px;">No webhooks — add the first one.</span>';
+      </div>`).join('') || '<span style="color:var(--text-faint); font-size:12px;">'+t('notif.noWebhooks')+'</span>';
   }
   function addNotifTeams(){ NOTIF_TEAMS.push({name:'', url:'', enabled:true, events:defaultEventMap()}); renderNotifTeams(); }
   function removeNotifTeams(i){ NOTIF_TEAMS.splice(i,1); renderNotifTeams(); }
@@ -5352,7 +5362,7 @@ Kind regards.`;
       }).join('');
     }
 
-    html += '<label style="margin-bottom:8px; display:block;">To report</label>';
+    html += '<label style="margin-bottom:8px; display:block;">'+t('rep.toReport')+'</label>';
     if(!active.length){
       html += '<div class="card" style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">'+t('rep.noActive')+'</div>';
     } else {
@@ -5510,10 +5520,10 @@ Kind regards.`;
         }
     };
 
-    html += '<label style="margin:20px 0 8px 0; display:block;">Completed (last 14 days) — you can report a correction</label>';
+    html += '<label style="margin:20px 0 8px 0; display:block;">'+t('rep.completed14')+'</label>';
     html += '<p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;">'+t('rep.completedNote')+'</p>';
     if(!recentCompleted.length){
-      html += '<div class="card" style="color:var(--text-muted); font-size:13px;">No completed deployments from the last 14 days.</div>';
+      html += '<div class="card" style="color:var(--text-muted); font-size:13px;">'+t('rep.noCompleted14')+'</div>';
     } else {
       html += recentCompleted.map(renderCompletedCard).join('');
     }
