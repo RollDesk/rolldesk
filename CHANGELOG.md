@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Hash-based routing: each top-level view is reflected in the URL (e.g. `#deployments`), so the browser Back/Forward buttons work, refreshing restores the current view, and views can be deep-linked/bookmarked. The browser tab title now updates to match the active view (and language).
+- Real event notifications: deployment **pause**, **client comments** and **completed** events now actually deliver to the configured client webhooks (Slack/Teams) and, for completion, the project's post-deployment e-mail — via a new backend `POST /api/notifications/notify` endpoint. Delivery is reported per recipient, so partial failures are surfaced to the user (previously these events were only logged).
+- Translations are now split into per-language bundles (`frontend/app/i18n/pl.js`, `en.js`) loaded before the app. Adding a language is a matter of copying a file and including it — no longer editing a large inline dictionary in `index.html`.
+
+### Fixed
+- The Help view and API documentation, the whole profile view (sign-in security, change password, API tokens, sign-in history), the change-history view, and the Users and Clients views are now fully translated to Polish (labels, table headers, dynamically rendered rows, role names/descriptions and action buttons), and re-render on language switch.
+- The project slug in the top bar is now shown only on project-scoped views (Projects, New deployment, Applications). It no longer lingers on global views such as Deployments, where it referred to a previously opened project and was misleading.
 
 ## [0.3.0] - 2026-07-12
 

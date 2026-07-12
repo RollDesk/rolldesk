@@ -1,9 +1,10 @@
 // Translation-consistency checks for the frontend UI dictionary.
 //
-// The single-page app (frontend/app/index.html) keeps its i18n dictionary in an
-// inline `const I18N = { pl: {...}, en: {...} }` object and marks translatable
-// DOM nodes with data-i18n / data-i18n-ph / data-i18n-html attributes. These
-// tests parse that file (without executing it) and enforce:
+// The single-page app keeps its translations in per-language bundles
+// (frontend/app/i18n/pl.js, en.js). Each bundle assigns `window.RD_I18N.<lang>`
+// and `window.RD_HELP.<lang>`. The markup (frontend/app/index.html) marks
+// translatable nodes with data-i18n / data-i18n-ph / data-i18n-html attributes.
+// These tests load the bundles in a sandbox (without a browser) and enforce:
 //   1. the `pl` and `en` dictionaries expose exactly the same set of keys, and
 //   2. every key referenced from the markup exists in both languages.
 //
@@ -14,66 +15,62 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 
-const HTML_PATH = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '../../frontend/app/index.html'
-);
+const APP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../frontend/app');
+const HTML_PATH = path.join(APP_DIR, 'index.html');
 
-function loadHtml() {
-  return readFileSync(HTML_PATH, 'utf8');
-}
-
-// Pull the `pl: { ... }` and `en: { ... }` blocks out of the inline I18N object.
-function languageBlocks(html) {
-  const i18nStart = html.indexOf('const I18N = {');
-  assert.ok(i18nStart !== -1, 'could not find `const I18N = {` in index.html');
-  const plStart = html.indexOf('pl: {', i18nStart);
-  const enStart = html.indexOf('en: {', plStart);
-  const enEnd = html.indexOf('};', enStart);
-  assert.ok(plStart !== -1 && enStart !== -1 && enEnd !== -1, 'could not locate pl/en dictionary blocks');
-  return {
-    pl: html.slice(plStart, enStart),
-    en: html.slice(enStart, enEnd),
-  };
-}
-
-// Keys are always written as a quoted token immediately followed by a colon,
-// e.g. 'nav.projects':'Projects'. Values never contain that pattern.
-function keysIn(block) {
-  return new Set([...block.matchAll(/'([A-Za-z0-9_.]+)'\s*:/g)].map(m => m[1]));
+// Run the language bundles in a sandbox that provides a fake `window`, then
+// return the populated RD_I18N / RD_HELP globals.
+function loadBundles() {
+  const sandbox = { window: {} };
+  vm.createContext(sandbox);
+  for (const file of ['i18n/pl.js', 'i18n/en.js']) {
+    vm.runInContext(readFileSync(path.join(APP_DIR, file), 'utf8'), sandbox, { filename: file });
+  }
+  return { I18N: sandbox.window.RD_I18N, HELP: sandbox.window.RD_HELP };
 }
 
 function usedKeys(html) {
   return new Set(
-    [...html.matchAll(/data-i18n(?:-ph|-html)?="([^"]+)"/g)].map(m => m[1])
+    [...html.matchAll(/data-i18n(?:-ph|-html)?="([^"]+)"/g)].map((m) => m[1])
   );
 }
 
 test('pl and en dictionaries expose the same keys', () => {
-  const { pl, en } = languageBlocks(loadHtml());
-  const plKeys = keysIn(pl);
-  const enKeys = keysIn(en);
+  const { I18N } = loadBundles();
+  const plKeys = new Set(Object.keys(I18N.pl));
+  const enKeys = new Set(Object.keys(I18N.en));
 
-  const missingInEn = [...plKeys].filter(k => !enKeys.has(k));
-  const missingInPl = [...enKeys].filter(k => !plKeys.has(k));
+  const missingInEn = [...plKeys].filter((k) => !enKeys.has(k));
+  const missingInPl = [...enKeys].filter((k) => !plKeys.has(k));
 
   assert.deepEqual(missingInEn, [], `keys present in pl but missing in en: ${missingInEn.join(', ')}`);
   assert.deepEqual(missingInPl, [], `keys present in en but missing in pl: ${missingInPl.join(', ')}`);
 });
 
 test('every data-i18n key used in the markup is translated in both languages', () => {
-  const html = loadHtml();
-  const { pl, en } = languageBlocks(html);
-  const plKeys = keysIn(pl);
-  const enKeys = keysIn(en);
+  const { I18N } = loadBundles();
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const plKeys = new Set(Object.keys(I18N.pl));
+  const enKeys = new Set(Object.keys(I18N.en));
 
-  const undefinedKeys = [...usedKeys(html)].filter(k => !plKeys.has(k) || !enKeys.has(k));
+  const undefinedKeys = [...usedKeys(html)].filter((k) => !plKeys.has(k) || !enKeys.has(k));
   assert.deepEqual(undefinedKeys, [], `data-i18n keys with no translation: ${undefinedKeys.join(', ')}`);
 });
 
-test('the dictionary is non-trivial (sanity check the parser found keys)', () => {
-  const { pl, en } = languageBlocks(loadHtml());
-  assert.ok(keysIn(pl).size > 50, 'expected the pl dictionary to contain many keys');
-  assert.ok(keysIn(en).size > 50, 'expected the en dictionary to contain many keys');
+test('the HELP documentation is present in both languages', () => {
+  const { HELP } = loadBundles();
+  assert.ok(HELP && HELP.pl && HELP.en, 'expected RD_HELP.pl and RD_HELP.en to be defined');
+  assert.deepEqual(
+    Object.keys(HELP.pl).sort(),
+    Object.keys(HELP.en).sort(),
+    'HELP_CONTENT pl/en expose different top-level keys'
+  );
+});
+
+test('the dictionary is non-trivial (sanity check the bundles loaded)', () => {
+  const { I18N } = loadBundles();
+  assert.ok(Object.keys(I18N.pl).length > 50, 'expected the pl dictionary to contain many keys');
+  assert.ok(Object.keys(I18N.en).length > 50, 'expected the en dictionary to contain many keys');
 });
