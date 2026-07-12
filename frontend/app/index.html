@@ -1396,7 +1396,7 @@
 
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.3.0';
+  const ROLLDESK_VERSION = '0.4.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -1766,6 +1766,7 @@
     try { localStorage.setItem(LANG_KEY, LANG); } catch(e){}
     syncLanguageControls();
     applyLanguage();
+    try { updateDocumentTitle(currentView); } catch(e){}
     if(typeof renderHelp === 'function') renderHelp();
     // Re-render JS-driven views so their dynamic strings pick up the new language.
     try { if(typeof renderClientPortal === 'function') renderClientPortal(currentClientScenario); } catch(e){}
@@ -1807,21 +1808,7 @@
     notifications: "Notifications"
   };
   document.querySelectorAll('.nav-item[data-view]').forEach(item=>{
-    item.addEventListener('click', ()=>{
-      dismissTokenRevealOnLeave();
-      if(item.dataset.view !== 'installer' && Object.keys(reportedResults).length){ reportedResults = {}; renderInstallerPanel(); }
-      document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
-      item.classList.add('active');
-      document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-      document.getElementById('view-'+item.dataset.view).classList.add('active');
-      document.getElementById('topbar-title').textContent = titleFor(item.dataset.view);
-      if(item.dataset.view === 'audit') renderAuditLog();
-      if(item.dataset.view === 'account') renderRollDeskVersion();
-      if(item.dataset.view === 'help') renderApiDocsIfNeeded();
-      if(item.dataset.view === 'client') renderClientPortal(currentClientScenario);
-      if(item.dataset.view === 'installer') renderInstallerPanel();
-      if(item.dataset.view === 'deployments') renderDeploymentsTable();
-    });
+    item.addEventListener('click', ()=> goToView(item.dataset.view));
   });
 
   document.addEventListener('click', (e)=>{
@@ -2462,16 +2449,34 @@
     }
   }
 
-  function goToView(viewName){
+  // ---- Hash-based routing --------------------------------------------------
+  // The app is a single page, but each top-level view is reflected in the URL
+  // hash (e.g. #deployments). This gives working Back/Forward buttons, restores
+  // the view on refresh, and keeps the browser tab title in sync.
+  let currentView = 'projects';
+
+  function knownViews(){
+    return new Set([...document.querySelectorAll('.view')].map(v=>v.id.replace(/^view-/,'')));
+  }
+  function updateDocumentTitle(viewName){
+    try { document.title = 'RollDesk — ' + titleFor(viewName); } catch(e){ document.title = 'RollDesk'; }
+  }
+
+  // Perform the actual view switch + per-view rendering. Does NOT touch the URL.
+  function applyView(viewName){
     const target = document.getElementById('view-'+viewName);
-    if(!target){ console.warn('goToView: unknown view', viewName); return; }
+    if(!target){ console.warn('applyView: unknown view', viewName); return; }
     dismissTokenRevealOnLeave();
+    // Leaving the deployer panel discards the in-progress (unsaved) report state.
+    if(viewName !== 'installer' && Object.keys(reportedResults).length){ reportedResults = {}; renderInstallerPanel(); }
     document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
     const item = document.querySelector(`.nav-item[data-view="${viewName}"]`);
     if(item) item.classList.add('active');
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
     target.classList.add('active');
+    currentView = viewName;
     document.getElementById('topbar-title').textContent = titleFor(viewName);
+    updateDocumentTitle(viewName);
     if(viewName === 'audit') renderAuditLog();
     if(viewName === 'account') renderRollDeskVersion();
     if(viewName === 'help') renderApiDocsIfNeeded();
@@ -2479,6 +2484,24 @@
     if(viewName === 'installer') renderInstallerPanel();
     if(viewName === 'deployments') renderDeploymentsTable();
   }
+
+  // Public navigation entry point: pushes a history entry via the URL hash so the
+  // browser Back/Forward buttons work. The hashchange handler applies the view.
+  function goToView(viewName){
+    if(!document.getElementById('view-'+viewName)){ console.warn('goToView: unknown view', viewName); return; }
+    const h = '#' + viewName;
+    // Setting a new hash fires hashchange -> routeFromHash -> applyView. When the
+    // hash is already correct no event fires, so apply (re-render) directly.
+    if(location.hash === h) applyView(viewName);
+    else location.hash = h;
+  }
+
+  // Resolve the view from the URL hash (used on load and on Back/Forward).
+  function routeFromHash(){
+    const name = decodeURIComponent((location.hash || '').replace(/^#/, '')).split('/')[0];
+    applyView(knownViews().has(name) ? name : 'projects');
+  }
+  window.addEventListener('hashchange', routeFromHash);
 
   function openProjectFromList(key){
     if(!key || !PROJECTS[key]) return;
@@ -6753,6 +6776,8 @@ Kind regards.`;
   // and reflect it in the language toggles.
   syncLanguageControls();
   if(LANG !== 'en') applyLanguage();
+  // Restore the view from the URL hash (deep-link / refresh) and set the tab title.
+  routeFromHash();
   // Check for a newer published version on GitHub (fails quietly if offline).
   checkLatestVersion();
   // Gate the app behind authentication: decide setup vs login, and only load
