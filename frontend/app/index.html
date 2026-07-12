@@ -162,6 +162,12 @@
   }
   .radio-pill.selected{border-color:var(--cyan); background:var(--cyan-soft); color:#0A6E7A; font-weight:600;}
   .radio-pill input{margin:0;}
+  /* Compact flag-based language toggle used on the login screen. */
+  .lang-pill{flex:0 0 auto; padding:6px 12px; gap:6px; font-size:12px; font-weight:600; border-radius:20px; background:rgba(255,255,255,0.10); color:#fff; border-color:rgba(255,255,255,0.25); transition:background .15s, border-color .15s, color .15s;}
+  .lang-pill .flag{font-size:15px; line-height:1;}
+  .lang-pill input{display:none;}
+  .lang-pill:hover{background:rgba(255,255,255,0.20);}
+  .lang-pill.selected{background:#fff; color:#0A6E7A; border-color:#fff;}
 
   .btn{
     display:inline-flex; align-items:center; gap:6px;
@@ -477,9 +483,9 @@
   </div>
 
   <!-- Language switcher for the login screen (persists the choice). -->
-  <div style="position:absolute; bottom:20px; left:0; right:0; display:flex; justify-content:center; gap:8px;">
-    <label class="radio-pill" style="background:rgba(255,255,255,0.08); color:#fff; border-color:rgba(255,255,255,0.25);"><input type="radio" name="auth-lang" value="pl" onchange="setLanguage('pl')"> Polski</label>
-    <label class="radio-pill" style="background:rgba(255,255,255,0.08); color:#fff; border-color:rgba(255,255,255,0.25);"><input type="radio" name="auth-lang" value="en" onchange="setLanguage('en')"> English</label>
+  <div style="position:absolute; bottom:20px; left:0; right:0; display:flex; justify-content:center; gap:10px;">
+    <label class="radio-pill lang-pill" title="Polski"><input type="radio" name="auth-lang" value="pl" onchange="setLanguage('pl')"><span class="flag">🇵🇱</span><span>PL</span></label>
+    <label class="radio-pill lang-pill" title="English"><input type="radio" name="auth-lang" value="en" onchange="setLanguage('en')"><span class="flag">🇬🇧</span><span>EN</span></label>
   </div>
 </div>
 

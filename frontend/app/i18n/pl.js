@@ -591,6 +591,10 @@ window.RD_HELP.pl = {
       "Każdy projekt należy do klienta i ma listę celów (środowisk/lokalizacji) oznaczonych jako produkcyjne lub nieprodukcyjne (można je sortować wg typu) oraz listę aplikacji."
     ],
     [
+      "Import celów z pliku CSV",
+      "Cele wdrożenia można wczytać hurtowo przyciskiem „Import CSV\" w sekcji celów. Format: pierwsza kolumna to nazwa celu, druga to typ. Wartość „Production\" (albo „produkcja/produkcyjne/prod\") oznacza cel produkcyjny; każda inna wartość — nieprodukcyjny. Obsługiwane są separatory przecinek i średnik oraz kodowanie UTF-8; opcjonalny wiersz nagłówka (np. „nazwa;typ\") jest pomijany, a duplikaty nazw są pomijane. Przykład: „Oddział centralny;Production\"."
+    ],
+    [
       "Harmonogram wdrożenia",
       "Menedżer wydań planuje wydanie: wybiera aplikacje i wersje, ścieżkę (test → produkcja), a przy wielu celach rozkłada wdrożenie na dni robocze z konfigurowalną liczbą celów na dzień."
     ],

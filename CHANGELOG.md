@@ -4,22 +4,28 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 0.4.0
+## [0.4.0] - 2026-07-12
 
 ### Added
 - Hash-based routing: each top-level view is reflected in the URL (e.g. `#deployments`), so the browser Back/Forward buttons work, refreshing restores the current view, and views can be deep-linked/bookmarked. The browser tab title now updates to match the active view (and language).
 - Real event notifications: deployment **pause**, **client comments** and **completed** events now actually deliver to the configured client webhooks (Slack/Teams) and, for completion, the project's post-deployment e-mail — via a new backend `POST /api/notifications/notify` endpoint. Delivery is reported per recipient, so partial failures are surfaced to the user (previously these events were only logged). Additional events (**schedule created**, **approval request**, **client decision**, **failure on a target**) are now wired to the same delivery path.
 - **Real multi-user management.** The Users screen is now backed by real accounts in the database (`/api/users`, admin only): invite a user (name, role, per-project/client access), and they receive a single-use link to set their own password and enroll TOTP MFA on first sign-in. The link is shown in-app (copyable) and e-mailed when SMTP is configured. Admins can edit, archive/restore, resend invitations and issue password-reset links; archived accounts can no longer sign in, and the last administrator can't be demoted or self-archived. Client accounts created while defining a project (or from a deployment-approval prompt) are now real invited accounts too. Replaces the previous in-memory user roster.
 - **Real personal access tokens** for the automation API. Tokens are generated server-side (prefix `rd_live_`), shown once, and stored only as a SHA-256 hash in a new `api_tokens` table. The data API (`/api/deployments`, `/api/projects`, …) now accepts `Authorization: Bearer rd_live_…` in addition to a session JWT, so scripts/CI can authenticate. Tokens can be created (with optional expiry), listed (masked, with last-used), and revoked from the profile; token management itself requires an interactive session. Replaces the previous in-memory mock token list and its fake usage history.
+- **CSV import of deployment targets.** Targets can be bulk-loaded from a CSV file (first column = name, second = type). Comma- and semicolon-separated files and UTF-8 are supported; a header row and duplicate names are skipped, and the type is matched loosely (PL/EN) to Production/Non-production. Documented in the Help view.
 - Translations are now split into per-language bundles (`frontend/app/i18n/pl.js`, `en.js`) loaded before the app. Adding a language is a matter of copying a file and including it — no longer editing a large inline dictionary in `index.html`.
 
 ### Changed
 - **No more demo/offline mode.** The frontend always requires the backend (it authenticates and loads all data from the API); there is no in-memory fallback. Docs updated to drop the "connected vs demo" wording and the removed database-connection badge.
 - Removed the "Test as" role switcher from the Users screen. Permissions now follow the real signed-in account (from `/api/auth/me`) rather than a manual demo toggle.
+- Pausing a deployment now actually halts progress: the installer's confirm/report and "mark the rest" actions are blocked until the deployment is resumed, and the progress badge shows "Paused". The pause-reason dialog now requires a reason (validated in place; pressing OK on an empty reason no longer closes the dialog — only Cancel does).
+- The login-screen language switcher was redesigned as compact flag pills (🇵🇱 PL / 🇬🇧 EN) instead of two full-width buttons.
 
 ### Fixed
 - The Help view and API documentation, the whole profile view (sign-in security, change password, API tokens, sign-in history), the change-history view, and the Users and Clients views are now fully translated to Polish (labels, table headers, dynamically rendered rows, role names/descriptions and action buttons), and re-render on language switch.
-- Additional Polish translations in the deployment detail/deployer panel: timeline label and "Schedule created by …" entry, "Add a comment"/"Save comment", the Changelog label, "Pause deployment", "Generate a message for users", and the "Edit" action.
+- Full Polish translation of the deployment detail/deployer panel and the pause/resume flow: the timeline, the "Schedule created by …" entry (with duplicate i18n keys de-duplicated so placeholders fill correctly), status labels in the progress dropdown, the pause/resume dialogs and badges, the failure-report dialog, the deployment-ID bar (now with right-aligned action buttons), the client-decision prompt, and the target-list description.
+- Deployment **status changes are now recorded on the timeline** and in the audit log, and the schedule "created by" entry attributes the **signed-in user** (with a timestamp) instead of a generic "Release Manager".
+- The client-decision prompt ("who on the client side made this decision?") now offers a pick-list of the client's known people while remaining free-text.
+- Added cache-busting to the i18n bundles so translation updates are picked up without a hard refresh.
 - The project slug in the top bar is now shown only on project-scoped views (Projects, New deployment, Applications). It no longer lingers on global views such as Deployments, where it referred to a previously opened project and was misleading.
 
 ## [0.3.0] - 2026-07-12
@@ -69,5 +75,7 @@ First fully functional release: real authentication, database-backed state, and 
 ### Removed
 - Demo mode: mock login, seeded demo data, and the database-connection badge.
 
+[0.4.0]: https://github.com/RollDesk/rolldesk/releases/tag/v0.4.0
+[0.3.0]: https://github.com/RollDesk/rolldesk/releases/tag/v0.3.0
 [0.2.1]: https://github.com/RollDesk/rolldesk/releases/tag/v0.2.1
 [0.2.0]: https://github.com/RollDesk/rolldesk/releases/tag/v0.2.0

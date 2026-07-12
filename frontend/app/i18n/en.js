@@ -591,6 +591,10 @@ window.RD_HELP.en = {
       "Each project belongs to a client and has a list of targets (environments/locations) marked production or non-production (sortable by type), plus a list of applications."
     ],
     [
+      "Importing targets from a CSV file",
+      "Deployment targets can be imported in bulk via the „Import CSV\" button in the targets section. Format: the first column is the target name, the second is the type. A value of „Production\" (or „prod/production\") marks a production target; any other value is treated as non-production. Comma- and semicolon-separated files and UTF-8 encoding are supported; an optional header row (e.g. „name;type\") is skipped and duplicate names are ignored. Example: „Central branch;Production\"."
+    ],
+    [
       "Deployment schedule",
       "The Release Manager plans a release: picks apps and versions, the path (test → production), and for many targets spreads the rollout across working days with a configurable number of targets per day."
     ],
