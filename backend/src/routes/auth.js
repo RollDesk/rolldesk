@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { config } from '../config.js';
 import { clientIpFromRequest } from '../ipAllowlist.js';
+import { credentialLimiter, mfaCodeLimiter } from '../rateLimit.js';
 import {
   hashPassword,
   verifyPassword,
@@ -59,7 +60,7 @@ router.get('/status', async (_req, res) => {
 });
 
 // POST /api/auth/setup — create the first admin. 409 once configured.
-router.post('/setup', async (req, res) => {
+router.post('/setup', credentialLimiter, async (req, res) => {
   if ((await userCount()) > 0) {
     return res.status(409).json({ error: 'Already configured' });
   }
@@ -79,7 +80,7 @@ router.post('/setup', async (req, res) => {
 
 // POST /api/auth/login — verify password, hand back a stage token telling the
 // client whether to enroll MFA or enter an existing code.
-router.post('/login', async (req, res) => {
+router.post('/login', credentialLimiter, async (req, res) => {
   const email = String((req.body && req.body.email) || '').trim();
   const password = String((req.body && req.body.password) || '');
   const user = await findUserByEmail(email);
@@ -107,7 +108,7 @@ router.post('/mfa/setup', requireStage('mfa-setup'), async (req, res) => {
 
 // POST /api/auth/mfa/verify — (stage=mfa-setup) verify the first code, enable
 // MFA and return a full session token.
-router.post('/mfa/verify', requireStage('mfa-setup'), async (req, res) => {
+router.post('/mfa/verify', mfaCodeLimiter, requireStage('mfa-setup'), async (req, res) => {
   const user = await findUserById(req.auth.sub);
   if (!user || !user.mfa_secret) return res.status(400).json({ error: 'MFA setup not started' });
   const code = (req.body && req.body.code) || '';
@@ -120,7 +121,7 @@ router.post('/mfa/verify', requireStage('mfa-setup'), async (req, res) => {
 
 // POST /api/auth/mfa/login — (stage=mfa-login) verify a code for an already
 // enrolled user and return a full session token.
-router.post('/mfa/login', requireStage('mfa-login'), async (req, res) => {
+router.post('/mfa/login', mfaCodeLimiter, requireStage('mfa-login'), async (req, res) => {
   const user = await findUserById(req.auth.sub);
   if (!user || !user.mfa_enabled || !user.mfa_secret) {
     return res.status(400).json({ error: 'MFA is not enabled' });
@@ -169,7 +170,7 @@ router.post('/mfa/reconfigure', requireStage('session'), async (req, res) => {
 
 // POST /api/auth/mfa/reconfigure/verify — (session) confirm a code from the new
 // authenticator; on success the pending secret becomes the active one.
-router.post('/mfa/reconfigure/verify', requireStage('session'), async (req, res) => {
+router.post('/mfa/reconfigure/verify', mfaCodeLimiter, requireStage('session'), async (req, res) => {
   const user = await findUserById(req.auth.sub);
   if (!user || !user.mfa_pending_secret) {
     return res.status(400).json({ error: 'MFA reconfigure not started' });
