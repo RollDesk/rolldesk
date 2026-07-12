@@ -136,7 +136,7 @@ The frontend is a single static file. For pure UI work, open `frontend/app/index
 ## Database changes
 
 - **Never edit an existing migration** that may have run somewhere. Add a new file instead.
-- Create it in `backend/src/migrations/` using the zero-padded prefix convention, e.g. `003_add_deployment_owner.sql` (`001_init.sql` and `002_auth.sql` already exist).
+- Create it in `backend/src/migrations/` using the zero-padded prefix convention, e.g. `002_add_deployment_owner.sql` (`001_init.sql` — the consolidated initial schema — already exists).
 - Keep statements **idempotent** where practical (`CREATE TABLE IF NOT EXISTS`, `ON CONFLICT DO NOTHING`, `ADD COLUMN IF NOT EXISTS`).
 - Migrations run automatically on backend start and via `npm run migrate`; each runs once, in its own transaction, tracked in `schema_migrations`.
 - Migrations are **schema only** — no client/project/sample data. Sample data goes in the git-ignored local seed (below).

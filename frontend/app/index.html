@@ -534,7 +534,7 @@
       <div class="toolbar">
         <div>
           <h2 class="section-title" style="margin-bottom:2px;" id="apps-title" data-i18n="proj.apps">Applications</h2>
-          <p class="section-desc" style="margin-bottom:0;" id="apps-desc" data-i18n="proj.appsDescEmpty">No project selected. Create a project to get started.</p>
+          <p class="section-desc" style="margin-bottom:0;" id="apps-desc">No project selected. Create a project to get started.</p>
         </div>
         <button class="btn" onclick="toggleAppForm()" data-i18n="proj.addApp">+ Add application</button>
       </div>
@@ -654,106 +654,106 @@
     <div class="grid-2" style="align-items:start;">
       <div class="card">
         <div class="field">
-          <label>Project name</label>
-          <input type="text" id="np-name" placeholder="e.g. LogiHub">
+          <label data-i18n="np.name">Project name</label>
+          <input type="text" id="np-name" data-i18n-ph="np.namePh" placeholder="e.g. LogiHub">
         </div>
         <div class="field">
-          <label>Client</label>
+          <label data-i18n="np.client">Client</label>
           <select id="np-client-select" onchange="toggleNewClientInput()"></select>
-          <input type="text" id="np-client-new" placeholder="New client name" style="display:none; margin-top:8px;">
+          <input type="text" id="np-client-new" data-i18n-ph="np.clientNewPh" placeholder="New client name" style="display:none; margin-top:8px;">
         </div>
 
         <div class="field">
-          <label>Client-side people with access to this project</label>
+          <label data-i18n="np.people">Client-side people with access to this project</label>
           <div id="np-people">
             <div class="person-row" style="display:flex; gap:8px; margin-bottom:8px;">
-              <input type="text" class="np-person-name" placeholder="Full name" style="flex:1;">
-              <input type="text" class="np-person-email mono" placeholder="e-mail" style="flex:1;">
-              <button class="mini-btn" onclick="removePersonRow(this)" style="display:none;">Remove</button>
+              <input type="text" class="np-person-name" data-i18n-ph="np.personNamePh" placeholder="Full name" style="flex:1;">
+              <input type="text" class="np-person-email mono" data-i18n-ph="np.personEmailPh" placeholder="e-mail" style="flex:1;">
+              <button class="mini-btn" onclick="removePersonRow(this)" style="display:none;" data-i18n="np.remove">Remove</button>
             </div>
           </div>
-          <button class="mini-btn" onclick="addPersonRow()">+ Add person</button>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;">A person added only here sees this project alone. If you also add them to other projects of this client, they will have access to all the projects they have been added to.</p>
+          <button class="mini-btn" onclick="addPersonRow()" data-i18n="np.addPerson">+ Add person</button>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="np.peopleNote">A person added only here sees this project alone. If you also add them to other projects of this client, they will have access to all the projects they have been added to.</p>
         </div>
 
         <div class="field">
           <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px; color:var(--text);">
             <input type="checkbox" id="np-multi-toggle" onchange="toggleMultiLocation()" style="width:auto;">
-            This is a special case — the project has multiple deployment locations (e.g. a network of client branches)
+            <span data-i18n="np.multiLabel">This is a special case — the project has multiple deployment locations (e.g. a network of client branches)</span>
           </label>
         </div>
 
         <div class="field">
-          <label id="np-loc-label">Deployment location</label>
+          <label id="np-loc-label" data-i18n="np.locLabel">Deployment location</label>
           <div id="np-locations">
             <div class="loc-row" style="display:flex; gap:8px; margin-bottom:8px;">
               <input type="text" class="np-loc-input" value="Main office" style="flex:1;">
-              <button class="mini-btn" onclick="removeLocRow(this)" style="display:none;">Remove</button>
+              <button class="mini-btn" onclick="removeLocRow(this)" style="display:none;" data-i18n="np.remove">Remove</button>
             </div>
           </div>
-          <button class="mini-btn" id="np-add-loc-btn" onclick="addLocRow()" style="display:none;">+ Add location</button>
+          <button class="mini-btn" id="np-add-loc-btn" onclick="addLocRow()" style="display:none;" data-i18n="np.addLocation">+ Add location</button>
         </div>
 
         <div class="field">
-          <label>Project test environments</label>
+          <label data-i18n="np.testEnvs">Project test environments</label>
           <div id="np-testenvs">
             <div class="loc-row" style="display:flex; gap:8px; margin-bottom:8px;">
               <input type="text" class="np-env-input" value="Test" style="flex:1;">
-              <button class="mini-btn" onclick="removeEnvRow(this)" style="display:none;">Remove</button>
+              <button class="mini-btn" onclick="removeEnvRow(this)" style="display:none;" data-i18n="np.remove">Remove</button>
             </div>
           </div>
-          <button class="mini-btn" onclick="addEnvRow()">+ Add test environment</button>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;">Some projects have several parallel test environments (e.g. Test1, Test2, Test3) — add as many as you need. Applications in this project will choose which ones they deploy to.</p>
+          <button class="mini-btn" onclick="addEnvRow()" data-i18n="np.addTestEnv">+ Add test environment</button>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="np.testEnvsNote">Some projects have several parallel test environments (e.g. Test1, Test2, Test3) — add as many as you need. Applications in this project will choose which ones they deploy to.</p>
         </div>
 
         <div class="field">
-          <label>Project applications</label>
+          <label data-i18n="np.apps">Project applications</label>
           <div id="np-apps">
             <div class="loc-row" style="display:flex; gap:8px; margin-bottom:8px;">
               <input type="text" class="np-app-input" value="portal-web" style="flex:1;">
-              <button class="mini-btn" onclick="removeAppRow(this)">Remove</button>
+              <button class="mini-btn" onclick="removeAppRow(this)" data-i18n="np.remove">Remove</button>
             </div>
             <div class="loc-row" style="display:flex; gap:8px; margin-bottom:8px;">
               <input type="text" class="np-app-input" value="service-b" style="flex:1;">
-              <button class="mini-btn" onclick="removeAppRow(this)">Remove</button>
+              <button class="mini-btn" onclick="removeAppRow(this)" data-i18n="np.remove">Remove</button>
             </div>
           </div>
-          <button class="mini-btn" onclick="addAppRow()">+ Add application</button>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;">You can also add applications later, in the Applications tab — there you'll set the repository and deployment path for each one.</p>
+          <button class="mini-btn" onclick="addAppRow()" data-i18n="np.addApp">+ Add application</button>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="np.appsNote">You can also add applications later, in the Applications tab — there you will set the repository and deployment path for each one.</p>
         </div>
 
         <div class="field">
-          <label>Default schedule parameters</label>
+          <label data-i18n="np.defaults">Default schedule parameters</label>
           <div class="grid-2">
             <div>
-              <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">Standard number of working days</label>
+              <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px;" data-i18n="np.days">Standard number of working days</label>
               <input type="number" id="np-default-days" min="1" value="5" class="mono" style="width:100%;">
-              <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;">Default schedule split for multi-target deployments.</p>
+              <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;" data-i18n="np.daysNote">Default schedule split for multi-target deployments.</p>
             </div>
             <div>
-              <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">Default start time</label>
+              <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px;" data-i18n="np.startTime">Default start time</label>
               <input type="time" id="np-default-time" value="20:00" class="mono" style="width:100%;">
-              <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;">The time at which a deployment usually begins.</p>
+              <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;" data-i18n="np.startTimeNote">The time at which a deployment usually begins.</p>
             </div>
           </div>
         </div>
 
         <div class="field">
-          <label>Client visibility</label>
-          <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:400;"><input type="checkbox" id="np-client-visible" checked style="width:auto;"> The client sees the deployment schedule</label>
+          <label data-i18n="np.clientVisibility">Client visibility</label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:400;"><input type="checkbox" id="np-client-visible" checked style="width:auto;"> <span data-i18n="np.clientVisibleLabel">The client sees the deployment schedule</span></label>
         </div>
 
-        <button class="btn" onclick="createProject()">Create project</button>
+        <button class="btn" onclick="createProject()" data-i18n="np.create">Create project</button>
       </div>
 
       <div class="card">
-        <label style="margin-bottom:10px;">Resulting schedule mode</label>
+        <label style="margin-bottom:10px;" data-i18n="np.modeLabel">Resulting schedule mode</label>
         <div id="np-mode-box" style="background:var(--cyan-soft); border:1px solid #BEE7EB; border-radius:10px; padding:16px; margin-bottom:14px;">
-          <div class="mono" style="font-size:12px; color:#0A6E7A; margin-bottom:4px;">MODE SELECTED AUTOMATICALLY</div>
-          <div id="np-mode-text" style="font-size:15px; font-weight:600; color:#0A6E7A;">One date for everything</div>
-          <div id="np-mode-sub" style="font-size:12.5px; color:#0A6E7A; margin-top:4px;">1 location — this is the standard case. The whole project deploys on a single day.</div>
+          <div class="mono" style="font-size:12px; color:#0A6E7A; margin-bottom:4px;" data-i18n="np.modeAuto">MODE SELECTED AUTOMATICALLY</div>
+          <div id="np-mode-text" style="font-size:15px; font-weight:600; color:#0A6E7A;" data-i18n="np.modeOne">One date for everything</div>
+          <div id="np-mode-sub" style="font-size:12.5px; color:#0A6E7A; margin-top:4px;" data-i18n="np.modeOneSub">1 location — this is the standard case. The whole project deploys on a single day.</div>
         </div>
-        <p style="font-size:12.5px; color:var(--text-muted); line-height:1.5;">
+        <p style="font-size:12.5px; color:var(--text-muted); line-height:1.5;" data-i18n-html="np.rule">
           Rule: <strong>1 location</strong> (default) → one shared deployment date.<br>
           <strong>Multiple locations</strong> (special case) → the deployment is spread proportionally across working days once the release manager plans a specific release.
         </p>
@@ -763,90 +763,88 @@
 
   <!-- ============ VIEW: SCHEDULE GENERATOR ============ -->
   <div class="view" id="view-schedule">
-    <a href="#" onclick="goToView('deployments'); return false;" style="font-size:12.5px; color:var(--text-muted); text-decoration:none; display:inline-block; margin-bottom:10px;">← Back to deployments</a>
+    <a href="#" onclick="goToView('deployments'); return false;" style="font-size:12.5px; color:var(--text-muted); text-decoration:none; display:inline-block; margin-bottom:10px;" data-i18n="sch.back">← Back to deployments</a>
     <h2 class="section-title" data-i18n="title.schedule">New deployment</h2>
     <p class="section-desc" data-i18n="desc.schedule">Choose a version and how it's spread over time. The system will calculate the split into working days automatically.</p>
 
     <div class="grid-2" style="align-items:start;">
       <div class="card">
         <div class="field">
-          <label>Project</label>
+          <label data-i18n="sch.project">Project</label>
           <select id="schedule-project-select" class="mono" onchange="switchProject(this.value)"></select>
         </div>
         <div class="field">
-          <label>Applications and versions included in this deployment</label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;">A single deployment can cover several applications. Select the applications and provide a version for each one (the version is required).</p>
+          <label data-i18n="sch.appsVersions">Applications and versions included in this deployment</label>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;" data-i18n="sch.appsVersionsNote">A single deployment can cover several applications. Select the applications and provide a version for each one (the version is required).</p>
           <div id="schedule-apps-list" style="display:flex; flex-direction:column; gap:8px;"></div>
         </div>
         <div class="field">
-          <label>Changelog <span style="color:#A81E1E;">*</span></label>
-          <textarea id="schedule-changelog" placeholder="Describe the changes in this release (required)...">- Fix for monthly report generation
-- Update to the SEPA payments module
-- Minor UI fixes in the client panel</textarea>
+          <label><span data-i18n="sch.changelog">Changelog</span> <span style="color:#A81E1E;">*</span></label>
+          <textarea id="schedule-changelog" data-i18n-ph="sch.changelogPh" placeholder="Describe the changes in this release (required)..."></textarea>
         </div>
         <div class="field">
-          <label>Changelog attachment (optional)</label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">You can attach a file (e.g. full release notes, an instruction). The file name will be included in the notification to the client.</p>
+          <label data-i18n="sch.changelogAttach">Changelog attachment (optional)</label>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;" data-i18n="sch.changelogAttachNote">You can attach a file (e.g. full release notes, an instruction). The file name will be included in the notification to the client.</p>
           <input type="file" id="schedule-changelog-file" onchange="onChangelogFileChange()">
           <div id="schedule-changelog-file-name" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
         </div>
         <div class="field">
-          <label>Instructions for deployers (optional)</label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">Actions to perform during the deployment — e.g. „stop the service before installation", „after installation run the migration.sql script". They will be shown in the deployer panel for this deployment.</p>
+          <label data-i18n="sch.installerNotes">Instructions for deployers (optional)</label>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;" data-i18n="sch.installerNotesNote">Actions to perform during the deployment — e.g. „stop the service before installation", „after installation run the migration.sql script". They will be shown in the deployer panel for this deployment.</p>
           <textarea id="schedule-installer-notes" placeholder="e.g.&#10;1. Stop the ServiceA service&#10;2. Make a database backup&#10;3. After installation run migrations.sql"></textarea>
         </div>
         <div class="field">
-          <label>Dependencies — must be deployed earlier (optional)</label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">If this deployment requires another one to be completed first (e.g. application A only after application B), select it here. The deployer will get a warning until the dependency is completed.</p>
+          <label data-i18n="sch.deps">Dependencies — must be deployed earlier (optional)</label>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;" data-i18n="sch.depsNote">If this deployment requires another one to be completed first (e.g. application A only after application B), select it here. The deployer will get a warning until the dependency is completed.</p>
           <div id="schedule-deps-list" style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto;"></div>
         </div>
         <div class="field">
-          <label>Deployment path — set for this specific deployment</label>
+          <label data-i18n="sch.path">Deployment path — set for this specific deployment</label>
           <div class="radio-row">
-            <label class="radio-pill"><input type="radio" name="schedule-path" value="test-only" onchange="onSchedulePathChange()"> Test environment only</label>
-            <label class="radio-pill selected"><input type="radio" name="schedule-path" value="test-prod" checked onchange="onSchedulePathChange()"> Test environment + production</label>
-            <label class="radio-pill"><input type="radio" name="schedule-path" value="prod-only" onchange="onSchedulePathChange()"> Production only</label>
+            <label class="radio-pill"><input type="radio" name="schedule-path" value="test-only" onchange="onSchedulePathChange()"> <span data-i18n="sch.pathTestOnly">Test environment only</span></label>
+            <label class="radio-pill selected"><input type="radio" name="schedule-path" value="test-prod" checked onchange="onSchedulePathChange()"> <span data-i18n="sch.pathTestProd">Test environment + production</span></label>
+            <label class="radio-pill"><input type="radio" name="schedule-path" value="prod-only" onchange="onSchedulePathChange()"> <span data-i18n="sch.pathProdOnly">Production only</span></label>
           </div>
         </div>
         <div class="field" id="schedule-envs-field">
-          <label>Test environments included in this deployment</label>
+          <label data-i18n="sch.envs">Test environments included in this deployment</label>
           <div id="schedule-envs-checks" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
         </div>
         <div class="field">
-          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="schedule-internal" style="width:auto;"> Internal deployment — not visible to the client</label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;">Select this if it's a deployment to an internal environment. It won't appear in the client panel and doesn't require their approval — only the team and the deployer can see it.</p>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="schedule-internal" style="width:auto;"> <span data-i18n="sch.internal">Internal deployment — not visible to the client</span></label>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="sch.internalNote">Select this if it's a deployment to an internal environment. It won't appear in the client panel and doesn't require their approval — only the team and the deployer can see it.</p>
         </div>
         <div class="field" id="schedule-rollout-fields">
-          <label>Schedule mode (defined when the project was created)</label>
+          <label data-i18n="sch.modeField">Schedule mode (defined when the project was created)</label>
           <div id="schedule-mode-badge" style="background:var(--cyan-soft); border:1px solid #BEE7EB; border-radius:8px; padding:10px 12px; font-size:13px; color:#0A6E7A; font-weight:600;">
             Spread across working days — the project has 400 locations
           </div>
         </div>
         <div class="card" id="schedule-test-only-note" style="background:var(--paper); display:none; margin-bottom:14px;">
-          <div style="font-size:12.5px; color:var(--text-muted); line-height:1.5;">
+          <div style="font-size:12.5px; color:var(--text-muted); line-height:1.5;" data-i18n="sch.testOnlyNote">
             ℹ️ A test environment is a single instance — one installation to the selected test environment(s) is enough, with no spreading across multiple locations and days. The split across locations applies to production only.
           </div>
         </div>
         <div class="grid-2" id="schedule-rollout-fields-2">
           <div class="field">
-            <label>Number of locations covered</label>
+            <label data-i18n="sch.locsCovered">Number of locations covered</label>
             <input type="number" id="loc-count" value="400" class="mono" disabled style="background:var(--paper); color:var(--text-muted);">
           </div>
           <div class="field">
-            <label>Number of working days</label>
+            <label data-i18n="sch.workingDays">Number of working days</label>
             <input type="number" id="day-count" value="10" class="mono">
           </div>
         </div>
 
         <div class="field" id="schedule-daybreakdown-field">
           <div class="toolbar" style="margin-bottom:8px;">
-            <label style="margin-bottom:0;">Per-day breakdown and PM guidelines</label>
-            <button class="mini-btn" onclick="buildDayBreakdown()">Spread across days</button>
+            <label style="margin-bottom:0;" data-i18n="sch.perDay">Per-day breakdown and PM guidelines</label>
+            <button class="mini-btn" onclick="buildDayBreakdown()" data-i18n="sch.spreadDays">Spread across days</button>
           </div>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;">Set the number of locations and constraints for each day — "Generate schedule" will take them into account.</p>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;" data-i18n="sch.perDayNote">Set the number of locations and constraints for each day — "Generate schedule" will take them into account.</p>
           <div style="max-height:260px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;">
             <table>
-              <thead><tr><th>Day</th><th>Number of locations</th><th>Restrict type</th><th>Max count (0 = none of this type)</th></tr></thead>
+              <thead><tr><th data-i18n="sch.thDay">Day</th><th data-i18n="sch.thLocs">Number of locations</th><th data-i18n="sch.thRestrict">Restrict type</th><th data-i18n="sch.thMax">Max count (0 = none of this type)</th></tr></thead>
               <tbody id="day-breakdown-table"></tbody>
             </table>
           </div>
@@ -854,64 +852,64 @@
 
         <div class="grid-2" id="schedule-test-date-fields">
           <div class="field">
-            <label>Start (test) — date</label>
+            <label data-i18n="sch.startTestDate">Start (test) — date</label>
             <input type="date" id="date-test" value="2026-07-13">
           </div>
           <div class="field">
-            <label>Time</label>
+            <label data-i18n="sch.time">Time</label>
             <input type="time" id="time-test" value="20:00" class="mono">
           </div>
         </div>
         <div class="grid-2" id="schedule-prod-date-fields">
           <div class="field">
-            <label>Start (production) — date</label>
+            <label data-i18n="sch.startProdDate">Start (production) — date</label>
             <input type="date" id="date-prod" value="2026-07-20">
           </div>
           <div class="field">
-            <label>Time</label>
+            <label data-i18n="sch.time">Time</label>
             <input type="time" id="time-prod" value="22:00" class="mono">
           </div>
         </div>
         <button class="btn" id="schedule-generate-btn" onclick="generateManifest()">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-          Generate schedule
+          <span data-i18n="sch.generate">Generate schedule</span>
         </button>
       </div>
 
       <div>
         <div id="schedule-rollout-preview">
         <div class="card" style="margin-bottom:16px;">
-          <label style="margin-bottom:10px;">Rollout preview — production environment</label>
+          <label style="margin-bottom:10px;" data-i18n="sch.rolloutPreview">Rollout preview — production environment</label>
           <div class="manifest" id="manifest-strip"></div>
-          <p style="font-size:12px; color:var(--text-muted); margin:0;">Weekends are skipped automatically. You can manually move individual locations between days in the table below.</p>
+          <p style="font-size:12px; color:var(--text-muted); margin:0;" data-i18n="sch.weekendsNote">Weekends are skipped automatically. You can manually move individual locations between days in the table below.</p>
         </div>
 
         <div class="card">
           <div class="toolbar">
-            <strong style="font-size:13px;">Location assignment (preview)</strong>
-            <input type="text" id="manifest-search" placeholder="Search locations..." style="width:180px; padding:6px 10px; font-size:12.5px;" oninput="filterManifestTable()">
+            <strong style="font-size:13px;" data-i18n="sch.locAssign">Location assignment (preview)</strong>
+            <input type="text" id="manifest-search" data-i18n-ph="sch.searchLocs" placeholder="Search locations..." style="width:180px; padding:6px 10px; font-size:12.5px;" oninput="filterManifestTable()">
           </div>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;">Move selected branches to the start or end of the queue — e.g. if the client wants a specific location to go first or only at the very end.</p>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;" data-i18n="sch.locAssignNote">Move selected branches to the start or end of the queue — e.g. if the client wants a specific location to go first or only at the very end.</p>
           <div style="max-height:340px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;">
             <table>
-              <thead><tr><th>Location</th><th>Type</th><th>Day</th><th>Date</th><th>Time</th><th>Environment</th><th></th></tr></thead>
+              <thead><tr><th data-i18n="sch.thLocation">Location</th><th data-i18n="sch.thType">Type</th><th data-i18n="sch.thDay">Day</th><th data-i18n="sch.thDate">Date</th><th data-i18n="sch.time">Time</th><th data-i18n="sch.thEnv">Environment</th><th></th></tr></thead>
               <tbody id="manifest-table"></tbody>
             </table>
           </div>
         </div>
         </div>
         <div class="card" id="schedule-test-only-preview-note" style="display:none;">
-          <div style="font-size:12.5px; color:var(--text-muted); line-height:1.5;">
+          <div style="font-size:12.5px; color:var(--text-muted); line-height:1.5;" data-i18n="sch.testOnlyPreviewNote">
             This deployment applies only to the test environment(s) — it's installed once, manually, without a schedule spread across locations.
           </div>
         </div>
         <div class="card" id="schedule-approval-notice" style="background:var(--cyan-soft); border:1px solid #BEE7EB; margin-top:16px; display:none;">
-          <div style="font-size:12.5px; color:#0A6E7A; line-height:1.5;">
+          <div style="font-size:12.5px; color:#0A6E7A; line-height:1.5;" data-i18n-html="sch.approvalNotice">
             📧 Because this path includes <strong>production</strong>, once you approve it the client will automatically receive an e-mail asking them to approve the schedule. In response they can approve it, submit comments, or reject the schedule — in each of these cases a notification is also sent to you and the other interested parties.
           </div>
         </div>
         <div style="display:flex; gap:10px; margin-top:16px; justify-content:flex-end;">
-          <button class="btn" onclick="confirmSchedule()">Approve schedule</button>
+          <button class="btn" onclick="confirmSchedule()" data-i18n="sch.approveSchedule">Approve schedule</button>
         </div>
       </div>
     </div>
@@ -924,7 +922,7 @@
         <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.deployments">Deployments</h2>
         <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.deployments">A list of all deployments and their statuses. Select a client to see deployments aggregated across all of their projects.</p>
       </div>
-      <button class="btn" onclick="goToView('schedule')">+ New deployment</button>
+      <button class="btn" onclick="goToView('schedule')" data-i18n="dep.newBtn">+ New deployment</button>
     </div>
 
     <div class="badge-row" id="deploy-stats"></div>
@@ -933,30 +931,30 @@
       <div class="toolbar">
         <div class="filters">
           <select id="deploy-filter-client" onchange="onDeployClientChange()">
-            <option value="all">All clients</option>
+            <option value="all" data-i18n="dep.fClients">All clients</option>
           </select>
           <select id="deploy-filter-project" onchange="onDeployProjectChange()">
-            <option value="all">All projects</option>
+            <option value="all" data-i18n="dep.fProjects">All projects</option>
           </select>
           <select id="deploy-filter-app" onchange="renderDeploymentsTable()">
-            <option value="all">All applications</option>
+            <option value="all" data-i18n="dep.fApps">All applications</option>
           </select>
           <select id="deploy-filter-env" onchange="renderDeploymentsTable()">
-            <option value="all">All environments</option>
+            <option value="all" data-i18n="dep.fEnvs">All environments</option>
           </select>
           <select id="deploy-filter-status" onchange="renderDeploymentsTable()">
-            <option value="all">All statuses</option>
-            <option value="scheduled">To be installed</option>
-            <option value="installed">Installed</option>
-            <option value="failed">Failed</option>
-            <option value="rolledback">Rolled back</option>
-            <option value="aborted">Aborted</option>
+            <option value="all" data-i18n="dep.fStatuses">All statuses</option>
+            <option value="scheduled" data-i18n="dep.sScheduled">To be installed</option>
+            <option value="installed" data-i18n="dep.sInstalled">Installed</option>
+            <option value="failed" data-i18n="dep.sFailed">Failed</option>
+            <option value="rolledback" data-i18n="dep.sRolledback">Rolled back</option>
+            <option value="aborted" data-i18n="dep.sAborted">Aborted</option>
           </select>
           <select id="deploy-filter-range" onchange="renderDeploymentsTable()">
-            <option value="14" selected>Last 14 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-            <option value="all">Full history</option>
+            <option value="14" selected data-i18n="dep.r14">Last 14 days</option>
+            <option value="30" data-i18n="dep.r30">Last 30 days</option>
+            <option value="90" data-i18n="dep.r90">Last 90 days</option>
+            <option value="all" data-i18n="dep.rAll">Full history</option>
           </select>
         </div>
       </div>
@@ -1521,7 +1519,37 @@
       'np.modeOneSub':'1 lokalizacja — to standardowy przypadek. Cały projekt wdraża się jednego dnia.',
       'np.modeSpread':'Rozłożone na dni robocze','np.modeSpreadSub':'{n} lokalizacji — przypadek szczególny. Harmonogram rozłoży wdrożenia na kolejne dni robocze.',
       'np.rule':'Zasada: <strong>1 lokalizacja</strong> (domyślnie) → jedna wspólna data wdrożenia.<br><strong>Wiele lokalizacji</strong> (przypadek szczególny) → wdrożenie jest rozkładane proporcjonalnie na dni robocze, gdy menedżer wydań zaplanuje konkretne wydanie.',
-      'np.remove':'Usuń'
+      'np.remove':'Usuń',
+      'sch.back':'← Powrót do wdrożeń','sch.project':'Projekt',
+      'sch.appsVersions':'Aplikacje i wersje objęte tym wdrożeniem','sch.appsVersionsNote':'Jedno wdrożenie może obejmować kilka aplikacji. Wybierz aplikacje i podaj wersję dla każdej z nich (wersja jest wymagana).',
+      'sch.changelog':'Lista zmian','sch.changelogPh':'Opisz zmiany w tym wydaniu (wymagane)...',
+      'sch.changelogAttach':'Załącznik listy zmian (opcjonalnie)','sch.changelogAttachNote':'Możesz dołączyć plik (np. pełne release notes, instrukcję). Nazwa pliku zostanie dołączona do powiadomienia dla klienta.',
+      'sch.installerNotes':'Instrukcje dla wdrożeniowców (opcjonalnie)','sch.installerNotesNote':'Czynności do wykonania podczas wdrożenia — np. „zatrzymaj usługę przed instalacją”, „po instalacji uruchom skrypt migration.sql”. Zostaną pokazane w panelu wdrożeniowca dla tego wdrożenia.',
+      'sch.deps':'Zależności — muszą zostać wdrożone wcześniej (opcjonalnie)','sch.depsNote':'Jeśli to wdrożenie wymaga wcześniejszego ukończenia innego (np. aplikacja A dopiero po aplikacji B), wybierz je tutaj. Wdrożeniowiec otrzyma ostrzeżenie, dopóki zależność nie zostanie ukończona.',
+      'sch.path':'Ścieżka wdrożenia — ustawiana dla tego konkretnego wdrożenia','sch.pathTestOnly':'Tylko środowisko testowe','sch.pathTestProd':'Środowisko testowe + produkcja','sch.pathProdOnly':'Tylko produkcja',
+      'sch.envs':'Środowiska testowe objęte tym wdrożeniem',
+      'sch.internal':'Wdrożenie wewnętrzne — niewidoczne dla klienta','sch.internalNote':'Zaznacz, jeśli to wdrożenie na środowisko wewnętrzne. Nie pojawi się w panelu klienta i nie wymaga jego akceptacji — widzą je tylko zespół i wdrożeniowiec.',
+      'sch.modeField':'Tryb harmonogramu (zdefiniowany przy tworzeniu projektu)',
+      'sch.testOnlyNote':'ℹ️ Środowisko testowe to pojedyncza instancja — wystarczy jedna instalacja na wybrane środowiska testowe, bez rozkładania na wiele lokalizacji i dni. Podział na lokalizacje dotyczy tylko produkcji.',
+      'sch.locsCovered':'Liczba objętych lokalizacji','sch.workingDays':'Liczba dni roboczych',
+      'sch.perDay':'Rozbicie na dni i wytyczne PM','sch.spreadDays':'Rozłóż na dni','sch.perDayNote':'Ustaw liczbę lokalizacji i ograniczenia dla każdego dnia — „Generuj harmonogram” je uwzględni.',
+      'sch.thDay':'Dzień','sch.thLocs':'Liczba lokalizacji','sch.thRestrict':'Ogranicz typ','sch.thMax':'Maks. liczba (0 = brak tego typu)',
+      'sch.startTestDate':'Start (test) — data','sch.time':'Godzina','sch.startProdDate':'Start (produkcja) — data','sch.generate':'Generuj harmonogram',
+      'sch.rolloutPreview':'Podgląd rolloutu — środowisko produkcyjne','sch.weekendsNote':'Weekendy są pomijane automatycznie. Poszczególne lokalizacje możesz ręcznie przenosić między dniami w tabeli poniżej.',
+      'sch.locAssign':'Przypisanie lokalizacji (podgląd)','sch.searchLocs':'Szukaj lokalizacji...','sch.locAssignNote':'Przenoś wybrane oddziały na początek lub koniec kolejki — np. gdy klient chce, aby konkretna lokalizacja była pierwsza lub dopiero na końcu.',
+      'sch.thLocation':'Lokalizacja','sch.thType':'Typ','sch.thDate':'Data','sch.thEnv':'Środowisko',
+      'sch.testOnlyPreviewNote':'To wdrożenie dotyczy tylko środowiska testowego (środowisk testowych) — instalowane jest raz, ręcznie, bez harmonogramu rozłożonego na lokalizacje.',
+      'sch.approvalNotice':'📧 Ponieważ ta ścieżka obejmuje <strong>produkcję</strong>, po jej zatwierdzeniu klient automatycznie otrzyma e-mail z prośbą o akceptację harmonogramu. W odpowiedzi może go zatwierdzić, zgłosić uwagi lub odrzucić — w każdym z tych przypadków powiadomienie trafia również do Ciebie i pozostałych zainteresowanych.',
+      'sch.approveSchedule':'Zatwierdź harmonogram',
+      'sch.badgeOne':'Jedna data dla wszystkiego — projekt ma 1 cel produkcyjny','sch.badgeSpread':'Rozłożone na dni robocze — projekt ma {n} celów produkcyjnych',
+      'sch.noApps':'Ten projekt nie ma jeszcze żadnych aplikacji.','sch.noDeps':'W tym projekcie nie ma innych aktywnych wdrożeń, od których to wdrożenie mogłoby zależeć.',
+      'dep.newBtn':'+ Nowe wdrożenie','dep.fClients':'Wszyscy klienci','dep.fProjects':'Wszystkie projekty','dep.fProjectsClient':'Wszystkie projekty klienta','dep.fApps':'Wszystkie aplikacje','dep.fEnvs':'Wszystkie środowiska','dep.fStatuses':'Wszystkie statusy',
+      'dep.sScheduled':'Do zainstalowania','dep.sInstalled':'Zainstalowane','dep.sFailed':'Nieudane','dep.sRolledback':'Wycofane','dep.sAborted':'Przerwane',
+      'dep.r14':'Ostatnie 14 dni','dep.r30':'Ostatnie 30 dni','dep.r90':'Ostatnie 90 dni','dep.rAll':'Pełna historia',
+      'dep.thClient':'Klient','dep.thProject':'Projekt','dep.thAppVer':'Aplikacja / wersja','dep.thLocations':'Lokalizacje','dep.thEnv':'Środowisko','dep.thDate':'Data','dep.thTime':'Godzina','dep.thProgress':'Postęp','dep.thApproval':'Akceptacja klienta',
+      'dep.aPending':'Oczekuje na akceptację','dep.aApproved':'Zatwierdzono','dep.aCommented':'Skomentowano','dep.aRejected':'Odrzucono',
+      'dep.reply':'Odpowiedz','dep.changeReply':'Zmień odpowiedź','dep.yourReply':'Twoja odpowiedź',
+      'app.settings':'Ustawienia','app.noDeployments':'brak wdrożeń'
     },
     en: {
       'grp.rm':'Release manager', 'grp.installer':'Deployer', 'grp.client':'Client', 'grp.admin':'Administrator', 'grp.account':'Account',
@@ -1601,7 +1629,37 @@
       'np.modeOneSub':'1 location — this is the standard case. The whole project deploys on a single day.',
       'np.modeSpread':'Spread across working days','np.modeSpreadSub':'{n} locations — a special case. The schedule will spread the deployments across consecutive working days.',
       'np.rule':'Rule: <strong>1 location</strong> (default) → one shared deployment date.<br><strong>Multiple locations</strong> (special case) → the deployment is spread proportionally across working days once the release manager plans a specific release.',
-      'np.remove':'Remove'
+      'np.remove':'Remove',
+      'sch.back':'← Back to deployments','sch.project':'Project',
+      'sch.appsVersions':'Applications and versions included in this deployment','sch.appsVersionsNote':'A single deployment can cover several applications. Select the applications and provide a version for each one (the version is required).',
+      'sch.changelog':'Changelog','sch.changelogPh':'Describe the changes in this release (required)...',
+      'sch.changelogAttach':'Changelog attachment (optional)','sch.changelogAttachNote':'You can attach a file (e.g. full release notes, an instruction). The file name will be included in the notification to the client.',
+      'sch.installerNotes':'Instructions for deployers (optional)','sch.installerNotesNote':'Actions to perform during the deployment — e.g. „stop the service before installation”, „after installation run the migration.sql script”. They will be shown in the deployer panel for this deployment.',
+      'sch.deps':'Dependencies — must be deployed earlier (optional)','sch.depsNote':'If this deployment requires another one to be completed first (e.g. application A only after application B), select it here. The deployer will get a warning until the dependency is completed.',
+      'sch.path':'Deployment path — set for this specific deployment','sch.pathTestOnly':'Test environment only','sch.pathTestProd':'Test environment + production','sch.pathProdOnly':'Production only',
+      'sch.envs':'Test environments included in this deployment',
+      'sch.internal':'Internal deployment — not visible to the client','sch.internalNote':'Select this if it is a deployment to an internal environment. It will not appear in the client panel and does not require their approval — only the team and the deployer can see it.',
+      'sch.modeField':'Schedule mode (defined when the project was created)',
+      'sch.testOnlyNote':'ℹ️ A test environment is a single instance — one installation to the selected test environment(s) is enough, with no spreading across multiple locations and days. The split across locations applies to production only.',
+      'sch.locsCovered':'Number of locations covered','sch.workingDays':'Number of working days',
+      'sch.perDay':'Per-day breakdown and PM guidelines','sch.spreadDays':'Spread across days','sch.perDayNote':'Set the number of locations and constraints for each day — "Generate schedule" will take them into account.',
+      'sch.thDay':'Day','sch.thLocs':'Number of locations','sch.thRestrict':'Restrict type','sch.thMax':'Max count (0 = none of this type)',
+      'sch.startTestDate':'Start (test) — date','sch.time':'Time','sch.startProdDate':'Start (production) — date','sch.generate':'Generate schedule',
+      'sch.rolloutPreview':'Rollout preview — production environment','sch.weekendsNote':'Weekends are skipped automatically. You can manually move individual locations between days in the table below.',
+      'sch.locAssign':'Location assignment (preview)','sch.searchLocs':'Search locations...','sch.locAssignNote':'Move selected branches to the start or end of the queue — e.g. if the client wants a specific location to go first or only at the very end.',
+      'sch.thLocation':'Location','sch.thType':'Type','sch.thDate':'Date','sch.thEnv':'Environment',
+      'sch.testOnlyPreviewNote':'This deployment applies only to the test environment(s) — it is installed once, manually, without a schedule spread across locations.',
+      'sch.approvalNotice':'📧 Because this path includes <strong>production</strong>, once you approve it the client will automatically receive an e-mail asking them to approve the schedule. In response they can approve it, submit comments, or reject the schedule — in each of these cases a notification is also sent to you and the other interested parties.',
+      'sch.approveSchedule':'Approve schedule',
+      'sch.badgeOne':'One date for everything — the project has 1 production target','sch.badgeSpread':'Spread across working days — the project has {n} production targets',
+      'sch.noApps':'This project has no applications yet.','sch.noDeps':'There are no other active deployments in this project that this deployment could depend on.',
+      'dep.newBtn':'+ New deployment','dep.fClients':'All clients','dep.fProjects':'All projects','dep.fProjectsClient':'All projects for the client','dep.fApps':'All applications','dep.fEnvs':'All environments','dep.fStatuses':'All statuses',
+      'dep.sScheduled':'To be installed','dep.sInstalled':'Installed','dep.sFailed':'Failed','dep.sRolledback':'Rolled back','dep.sAborted':'Aborted',
+      'dep.r14':'Last 14 days','dep.r30':'Last 30 days','dep.r90':'Last 90 days','dep.rAll':'Full history',
+      'dep.thClient':'Client','dep.thProject':'Project','dep.thAppVer':'Application / version','dep.thLocations':'Locations','dep.thEnv':'Environment','dep.thDate':'Date','dep.thTime':'Time','dep.thProgress':'Progress','dep.thApproval':'Client approval',
+      'dep.aPending':'Awaiting approval','dep.aApproved':'Approved','dep.aCommented':'Commented','dep.aRejected':'Rejected',
+      'dep.reply':'Reply','dep.changeReply':'Change reply','dep.yourReply':'Your reply',
+      'app.settings':'Settings','app.noDeployments':'no deployments'
     }
   };
   function t(key){ return (I18N[LANG] && I18N[LANG][key]) || (I18N.pl[key]) || key; }
@@ -1638,6 +1696,24 @@
     if(typeof renderHelp === 'function') renderHelp();
     // Re-render JS-driven views so their dynamic strings pick up the new language.
     try { if(typeof renderClientPortal === 'function') renderClientPortal(currentClientScenario); } catch(e){}
+    try { if(typeof renderProjectsList === 'function') renderProjectsList(); } catch(e){}
+    try { if(typeof switchProject === 'function') switchProject(currentProjectKey); } catch(e){}
+    // Deployments view: filter dropdowns are (re)built in JS, so re-label their
+    // leading "All …" option and re-render the table head/rows in the new language.
+    try {
+      [['deploy-filter-client','dep.fClients'],['deploy-filter-app','dep.fApps'],['deploy-filter-env','dep.fEnvs']].forEach(([id,key])=>{
+        const s = document.getElementById(id); if(s && s.options.length) s.options[0].textContent = t(key);
+      });
+      const projSel = document.getElementById('deploy-filter-project'), clientSel = document.getElementById('deploy-filter-client');
+      if(projSel && projSel.options.length) projSel.options[0].textContent = (clientSel && clientSel.value !== 'all') ? t('dep.fProjectsClient') : t('dep.fProjects');
+      if(typeof renderDeploymentsTable === 'function') renderDeploymentsTable();
+    } catch(e){}
+    // New-project view: mode box + location label depend on toggle state, not just data-i18n.
+    try { if(typeof updateProjectMode === 'function') updateProjectMode(); } catch(e){}
+    try {
+      const mt = document.getElementById('np-multi-toggle'), ll = document.getElementById('np-loc-label');
+      if(mt && ll) ll.textContent = mt.checked ? t('np.locLabelMulti') : t('np.locLabel');
+    } catch(e){}
     showToast(LANG === 'en' ? 'Language changed to English' : 'Language changed to Polish');
   }
 
@@ -1898,16 +1974,30 @@
     try { renderUsersTable(); } catch(e){}
   }
 
-  // Append a row to the (runtime) login history on a successful sign-in.
-  function recordLogin(){
-    const now = new Date();
-    const pad = n => String(n).padStart(2,'0');
-    const date = now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate())+' '+pad(now.getHours())+':'+pad(now.getMinutes());
-    const ua = navigator.userAgent || '';
+  // Derive a short "Browser, OS" label from a user-agent string.
+  function deviceFromUA(ua){
+    ua = ua || '';
     const os = /Windows/.test(ua)?'Windows':(/Mac OS X|Macintosh/.test(ua)?'macOS':(/Android/.test(ua)?'Android':(/iPhone|iPad/.test(ua)?'iOS':(/Linux/.test(ua)?'Linux':''))));
     const br = /Edg\//.test(ua)?'Edge':(/Chrome\//.test(ua)?'Chrome':(/Firefox\//.test(ua)?'Firefox':(/Safari\//.test(ua)?'Safari':'Browser')));
-    LOGIN_HISTORY.unshift({date, ip:'—', device: os ? br+', '+os : br});
-    try { renderLoginHistory(); } catch(e){}
+    return os ? br+', '+os : br;
+  }
+
+  // Load the real, persisted sign-in history for the current user from the API.
+  async function loadLoginHistory(){
+    if(!getToken()) return;
+    try {
+      const res = await apiFetch('/api/auth/login-history');
+      if(!res.ok) return;
+      const rows = await res.json();
+      const pad = n => String(n).padStart(2,'0');
+      LOGIN_HISTORY.length = 0;
+      rows.forEach(r=>{
+        const d = new Date(r.at);
+        const date = d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+        LOGIN_HISTORY.push({date, ip: r.ip || '—', device: deviceFromUA(r.userAgent)});
+      });
+      try { renderLoginHistory(); } catch(e){}
+    } catch(e){}
   }
 
   function logAudit(action, entity, detail, project){
@@ -2315,7 +2405,7 @@
         <td class="mono">${prodCount}</td>
         <td class="mono">${nonProdCount}</td>
         <td class="mono">${(p.apps||[]).length}</td>
-        <td><button class="mini-btn" onclick="event.stopPropagation(); openProjectFromList('${key}')">Open</button></td>
+        <td><button class="mini-btn" onclick="event.stopPropagation(); openProjectFromList('${key}')">${t('proj.open')}</button></td>
       </tr>`;
     }).join('');
   }
@@ -2349,15 +2439,15 @@
       const panel = document.getElementById('project-apps-panel');
       if(panel) panel.style.display = 'none';
       const title = document.getElementById('apps-title');
-      if(title) title.textContent = 'Applications';
+      if(title) title.textContent = t('proj.apps');
       const desc = document.getElementById('apps-desc');
-      if(desc) desc.textContent = 'No project selected. Create a project to get started.';
+      if(desc) desc.textContent = t('proj.appsDescEmpty');
       return;
     }
 
     // Apps view
-    document.getElementById('apps-title').textContent = 'Applications';
-    document.getElementById('apps-desc').textContent = `Structure of the ${p.name} project (${p.clientName}).`;
+    document.getElementById('apps-title').textContent = t('proj.apps');
+    document.getElementById('apps-desc').textContent = tf('proj.appsDescOf', {name: p.name, client: p.clientName});
     rebuildAppsTable(p);
     renderLocationsTable();
 
@@ -2367,15 +2457,21 @@
     if(pdTarget) pdTarget.value = p.postDeployTarget || '';
     if(pdEnabled) pdEnabled.checked = !!p.postDeployEnabled;
 
+    // Deployment defaults (working-day split + start time) — editable per project.
+    const ddDays = document.getElementById('project-default-days');
+    const ddTime = document.getElementById('project-default-time');
+    if(ddDays) ddDays.value = p.defaultDays || 5;
+    if(ddTime) ddTime.value = p.defaultTime || '20:00';
+
     // Schedule view — count only Production targets, matching what confirmSchedule saves.
     const prodTargets = (p.locationsList||[]).filter(t=>t.type === 'Production');
     const prodCount = prodTargets.length;
     const modeBox = document.getElementById('schedule-mode-badge');
     if(prodCount <= 1){
       modeBox.style.background = 'var(--cyan-soft)';
-      modeBox.textContent = `One date for everything — the project has 1 production target${p.locationName ? ' ('+p.locationName+')' : ''}`;
+      modeBox.textContent = t('sch.badgeOne') + (p.locationName ? ' ('+p.locationName+')' : '');
     } else {
-      modeBox.textContent = `Spread across working days — the project has ${prodCount} production targets`;
+      modeBox.textContent = tf('sch.badgeSpread', {n: prodCount});
     }
     document.getElementById('loc-count').value = prodCount;
     document.getElementById('day-count').value = prodCount <= 1 ? 1 : (p.defaultDays || 10);
@@ -2390,6 +2486,18 @@
     updateScheduleTemplateOptions();
 
     clearManifestPreview();
+  }
+
+  function saveProjectDefaults(){
+    const p = PROJECTS[currentProjectKey];
+    if(!p) return;
+    const days = parseInt(document.getElementById('project-default-days').value) || 5;
+    const time = document.getElementById('project-default-time').value || '20:00';
+    p.defaultDays = days < 1 ? 1 : days;
+    p.defaultTime = time;
+    persistProject(currentProjectKey);
+    logAudit('changed', 'Project', 'Changed deployment defaults (' + p.defaultDays + ' working days, start ' + p.defaultTime + ')', p.name + ' (' + p.clientName + ')');
+    showToast(t('proj.defaultsSaved'));
   }
 
   function saveProjectPostDeploy(){
@@ -2423,7 +2531,7 @@
         </div>
         <div class="schedule-version-hint" style="display:none; font-size:11px; color:#8A5A05; margin-top:5px;"></div>
       </div>`;
-    }).join('') || '<div style="color:var(--text-faint); font-size:12.5px;">This project has no applications yet.</div>';
+    }).join('') || `<div style="color:var(--text-faint); font-size:12.5px;">${t('sch.noApps')}</div>`;
   }
 
   function renderScheduleDeps(){
@@ -2437,7 +2545,7 @@
         return !done; // only unfinished ones are meaningful as blockers
       });
     if(!candidates.length){
-      wrap.innerHTML = '<div style="color:var(--text-faint); font-size:12px;">There are no other active deployments in this project that this deployment could depend on.</div>';
+      wrap.innerHTML = `<div style="color:var(--text-faint); font-size:12px;">${t('sch.noDeps')}</div>`;
       return;
     }
     wrap.innerHTML = candidates.map(d=>{
@@ -2882,11 +2990,11 @@
       const last = lastDeploymentForApp(currentProjectKey, a.name);
       const lastCell = last
         ? `<span class="mono" style="font-size:12px;">v${last.version}</span> <span style="font-size:11px; color:var(--text-muted);">· ${last.env} · ${last.date}</span>`
-        : '<span style="color:var(--text-faint); font-size:11.5px;">no deployments</span>';
+        : `<span style="color:var(--text-faint); font-size:11.5px;">${t('app.noDeployments')}</span>`;
       return `<tr class="app-row" data-idx="${i}" onclick="openAppSettings(${i})" style="cursor:pointer;">
         <td><strong>${a.name}</strong></td>
         <td>${lastCell}</td>
-        <td><button class="mini-btn" onclick="event.stopPropagation(); openAppSettings(${i})">Settings</button></td>
+        <td><button class="mini-btn" onclick="event.stopPropagation(); openAppSettings(${i})">${t('app.settings')}</button></td>
       </tr>`;
     }).join('');
   }
@@ -2901,7 +3009,7 @@
     const row = document.createElement('div');
     row.className = 'person-row';
     row.style.cssText = 'display:flex; gap:8px; margin-bottom:8px;';
-    row.innerHTML = `<input type="text" class="np-person-name" placeholder="Full name" style="flex:1;"><input type="text" class="np-person-email mono" placeholder="e-mail" style="flex:1;"><button class="mini-btn" onclick="removePersonRow(this)">Remove</button>`;
+    row.innerHTML = `<input type="text" class="np-person-name" placeholder="${t('np.personNamePh')}" style="flex:1;"><input type="text" class="np-person-email mono" placeholder="${t('np.personEmailPh')}" style="flex:1;"><button class="mini-btn" onclick="removePersonRow(this)">${t('np.remove')}</button>`;
     wrap.appendChild(row);
     document.querySelectorAll('#np-people .mini-btn').forEach(b=> b.style.display = 'inline-block');
   }
@@ -2919,7 +3027,7 @@
     const row = document.createElement('div');
     row.className = 'loc-row';
     row.style.cssText = 'display:flex; gap:8px; margin-bottom:8px;';
-    row.innerHTML = `<input type="text" class="np-app-input" placeholder="e.g. app-name" style="flex:1;"><button class="mini-btn" onclick="removeAppRow(this)">Remove</button>`;
+    row.innerHTML = `<input type="text" class="np-app-input" placeholder="e.g. app-name" style="flex:1;"><button class="mini-btn" onclick="removeAppRow(this)">${t('np.remove')}</button>`;
     wrap.appendChild(row);
   }
   function removeAppRow(btn){
@@ -2933,7 +3041,7 @@
     const row = document.createElement('div');
     row.className = 'loc-row';
     row.style.cssText = 'display:flex; gap:8px; margin-bottom:8px;';
-    row.innerHTML = `<input type="text" class="np-env-input" placeholder="e.g. Test2" style="flex:1;"><button class="mini-btn" onclick="removeEnvRow(this)">Remove</button>`;
+    row.innerHTML = `<input type="text" class="np-env-input" placeholder="e.g. Test2" style="flex:1;"><button class="mini-btn" onclick="removeEnvRow(this)">${t('np.remove')}</button>`;
     wrap.appendChild(row);
     document.querySelectorAll('#np-testenvs .mini-btn').forEach(b=> b.style.display = 'inline-block');
   }
@@ -3242,7 +3350,7 @@
   function toggleMultiLocation(){
     const multi = document.getElementById('np-multi-toggle').checked;
     document.getElementById('np-add-loc-btn').style.display = multi ? 'inline-flex' : 'none';
-    document.getElementById('np-loc-label').textContent = multi ? 'Deployment locations' : 'Deployment location';
+    document.getElementById('np-loc-label').textContent = multi ? t('np.locLabelMulti') : t('np.locLabel');
     document.querySelectorAll('#np-locations .loc-row .mini-btn').forEach(b=>{ b.style.display = multi ? 'inline-block' : 'none'; });
     if(!multi){
       const rows = document.querySelectorAll('#np-locations .loc-row');
@@ -3256,11 +3364,11 @@
     const text = document.getElementById('np-mode-text');
     const sub = document.getElementById('np-mode-sub');
     if(rows <= 1){
-      text.textContent = 'One date for everything';
-      sub.textContent = '1 location — this is the standard case. The whole project deploys on a single day.';
+      text.textContent = t('np.modeOne');
+      sub.textContent = t('np.modeOneSub');
     } else {
-      text.textContent = 'Spread across working days';
-      sub.textContent = rows + ' locations — a special case. The schedule will spread the deployments across consecutive working days.';
+      text.textContent = t('np.modeSpread');
+      sub.textContent = tf('np.modeSpreadSub', {n: rows});
     }
   }
   function addLocRow(){
@@ -3268,7 +3376,7 @@
     const row = document.createElement('div');
     row.className = 'loc-row';
     row.style.cssText = 'display:flex; gap:8px; margin-bottom:8px;';
-    row.innerHTML = `<input type="text" class="np-loc-input" placeholder="Location name" style="flex:1;"><button class="mini-btn" onclick="removeLocRow(this)">Remove</button>`;
+    row.innerHTML = `<input type="text" class="np-loc-input" placeholder="${t('np.locPh')}" style="flex:1;"><button class="mini-btn" onclick="removeLocRow(this)">${t('np.remove')}</button>`;
     wrap.appendChild(row);
     updateProjectMode();
   }
@@ -5402,7 +5510,7 @@ Kind regards.`;
     });
     const appSet = new Set();
     entries.forEach(([k,p])=> (p.apps||[]).forEach(a=>appSet.add(a.name)));
-    appSel.innerHTML = '<option value="all">All applications</option>' +
+    appSel.innerHTML = `<option value="all">${t('dep.fApps')}</option>` +
       Array.from(appSet).sort().map(a=>`<option>${a}</option>`).join('');
     if(Array.from(appSel.options).some(o=>o.value===prev)) appSel.value = prev;
   }
@@ -5418,7 +5526,7 @@ Kind regards.`;
     const sel = document.getElementById('deploy-filter-client');
     if(!sel) return;
     const cur = sel.value || 'all';
-    sel.innerHTML = '<option value="all">All clients</option>' +
+    sel.innerHTML = `<option value="all">${t('dep.fClients')}</option>` +
       CLIENTS.map(c=>`<option value="${c.key}">${c.name}</option>`).join('');
     sel.value = CLIENTS.some(c=>c.key===cur) || cur==='all' ? cur : 'all';
   }
@@ -5427,14 +5535,14 @@ Kind regards.`;
     const clientVal = document.getElementById('deploy-filter-client').value;
     const projSel = document.getElementById('deploy-filter-project');
     const projectEntries = Object.entries(PROJECTS).filter(([k,p])=> clientVal === 'all' || p.client === clientVal);
-    projSel.innerHTML = '<option value="all">All projects' + (clientVal!=='all' ? ' for the client' : '') + '</option>' +
+    projSel.innerHTML = `<option value="all">${clientVal!=='all' ? t('dep.fProjectsClient') : t('dep.fProjects')}</option>` +
       projectEntries.map(([k,p])=>`<option value="${k}">${p.name}</option>`).join('');
 
     const envSel = document.getElementById('deploy-filter-env');
     const envSet = new Set();
     projectEntries.forEach(([k,p])=> (p.testEnvs||[]).forEach(e=>envSet.add(e)));
     envSet.add('Production');
-    envSel.innerHTML = '<option value="all">All environments</option>' +
+    envSel.innerHTML = `<option value="all">${t('dep.fEnvs')}</option>` +
       Array.from(envSet).map(e=>`<option>${e}</option>`).join('');
 
     populateDeployAppFilter();
@@ -5489,19 +5597,19 @@ Kind regards.`;
 
     const head = document.getElementById('deploy-table-head');
     const cols = [];
-    if(showClientCol) cols.push('Client');
-    if(showProjectCol) cols.push('Project');
-    cols.push('Application / version','Locations','Environment','Date','Time','Progress','Client approval','');
+    if(showClientCol) cols.push(t('dep.thClient'));
+    if(showProjectCol) cols.push(t('dep.thProject'));
+    cols.push(t('dep.thAppVer'),t('dep.thLocations'),t('dep.thEnv'),t('dep.thDate'),t('dep.thTime'),t('dep.thProgress'),t('dep.thApproval'),'');
     head.innerHTML = '<tr>' + cols.map(c=>`<th>${c}</th>`).join('') + '</tr>';
     const totalCols = cols.length;
 
     function approvalBadgeHtml(r){
       if(r.env !== 'Production') return '<td style="color:var(--text-faint); font-size:12px;">—</td>';
       const map = {
-        pending:   {label:'Awaiting approval',       bg:'#FDF1E1', color:'#8A5A05'},
-        approved:  {label:'Approved',                bg:'var(--green-soft)', color:'#0F7A38'},
-        commented: {label:'Commented',               bg:'#FDF1E1', color:'#8A5A05'},
-        rejected:  {label:'Rejected',                bg:'var(--red-soft)', color:'#A81E1E'},
+        pending:   {label:t('dep.aPending'),   bg:'#FDF1E1', color:'#8A5A05'},
+        approved:  {label:t('dep.aApproved'),  bg:'var(--green-soft)', color:'#0F7A38'},
+        commented: {label:t('dep.aCommented'), bg:'#FDF1E1', color:'#8A5A05'},
+        rejected:  {label:t('dep.aRejected'),  bg:'var(--red-soft)', color:'#A81E1E'},
       };
       const current = r.clientApproval || 'pending';
       const st = map[current];
@@ -5511,10 +5619,10 @@ Kind regards.`;
         html += `<div style="margin-top:5px; font-size:11px; color:var(--text-muted); font-style:italic;">💬 „${r.clientComment.length>60?r.clientComment.slice(0,60)+'…':r.clientComment}"</div>`;
       }
       if(r.clientReply){
-        html += `<div style="margin-top:3px; font-size:11px; color:#0A6E7A;">↳ Your reply: „${r.clientReply.length>50?r.clientReply.slice(0,50)+'…':r.clientReply}"</div>`;
+        html += `<div style="margin-top:3px; font-size:11px; color:#0A6E7A;">↳ ${t('dep.yourReply')}: „${r.clientReply.length>50?r.clientReply.slice(0,50)+'…':r.clientReply}"</div>`;
       }
       if(r.clientComment){
-        html += `<div style="margin-top:4px;"><button class="mini-btn" style="padding:2px 6px; font-size:10.5px;" onclick="event.stopPropagation(); replyToClientComment(${r.idx})">${r.clientReply ? 'Change reply' : 'Reply'}</button></div>`;
+        html += `<div style="margin-top:4px;"><button class="mini-btn" style="padding:2px 6px; font-size:10.5px;" onclick="event.stopPropagation(); replyToClientComment(${r.idx})">${r.clientReply ? t('dep.changeReply') : t('dep.reply')}</button></div>`;
       }
       return `<td style="min-width:170px;" onclick="event.stopPropagation();">${html}</td>`;
     }
@@ -5800,6 +5908,46 @@ Kind regards.`;
     showToast('Status changed to: ' + labels[newStatus]);
   }
 
+  // When a decision is recorded against a person who isn't in the system yet,
+  // offer to create a client account for them (scoped to this deployment's
+  // project) right here, instead of forcing a detour to the Users tab.
+  function offerCreateClientAccount(name, projectKey){
+    name = (name || '').trim();
+    if(!name || !projectKey) return;
+    const p = PROJECTS[projectKey];
+    if(!p) return;
+    // Already known? (any roster entry with this exact name)
+    if(USERS.some(u => (u.name || '').trim().toLowerCase() === name.toLowerCase())) return;
+    const client = CLIENTS.find(c => c.key === p.client);
+    const clientLabel = p.clientName || (client && client.name) || p.client;
+    showAppConfirm(
+      'Create a client account?',
+      'There is no account for „' + name + '”. Create a client account for this person with access to the „' + p.name + '” project (' + clientLabel + ')?',
+      ()=>{
+        const domainHint = client && client.domain ? ' (domain: ' + client.domain + ')' : '';
+        showAppPrompt('E-mail address for ' + name, '', (email)=>{
+          if(email === null) return;
+          email = (email || '').trim();
+          if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ showToast('Enter a valid e-mail address'); return; }
+          if(client && client.domain && (email.split('@')[1] || '').toLowerCase() !== client.domain.toLowerCase()){
+            showToast('The e-mail must be from the domain „' + client.domain + '”'); return;
+          }
+          const existing = USERS.find(u => (u.email || '').toLowerCase() === email.toLowerCase());
+          if(existing){
+            existing.projects = existing.projects || [];
+            if(!existing.projects.includes(projectKey)) existing.projects.push(projectKey);
+          } else {
+            USERS.push({name, email, role:'client', projects:[projectKey], invitePending:true, twoFactor:false});
+          }
+          logAudit('added', 'User', 'Added client account „' + name + '” from a deployment approval', p.name + ' (' + clientLabel + ')');
+          try { renderUsersTable(); } catch(e){}
+          showToast('Client account created for „' + name + '” — an invitation was sent to ' + email);
+        }, 'They will get an invitation to set a password' + domainHint);
+      },
+      'Create account'
+    );
+  }
+
   function changeClientApproval(idx, newStatus){
     const d = DEPLOYMENTS_DATA[idx];
     let who = d.clientApprovalBy || '';
@@ -5815,6 +5963,7 @@ Kind regards.`;
         persistDeployment(idx);
         renderDeploymentsTable();
         showToast('Saved manually: ' + labels[newStatus] + ' (e.g. the client replied by email outside the system)');
+        offerCreateClientAccount(who, d.projectKey);
       }, 'Full name');
       return;
     }
@@ -5967,6 +6116,7 @@ Kind regards.`;
         if(meRes.ok){
           const me = await meRes.json();
           applyCurrentUser(me);
+          await loadLoginHistory();
           hideLoginScreen();
           await initApiConnection();
           return;
@@ -6084,7 +6234,7 @@ Kind regards.`;
         applyCurrentUser(me);
       }
     } catch(e){}
-    recordLogin();
+    await loadLoginHistory();
     hideLoginScreen();
     showToast('Signed in — welcome to RollDesk');
     await initApiConnection();

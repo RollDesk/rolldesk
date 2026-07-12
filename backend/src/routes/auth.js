@@ -4,6 +4,8 @@
 // steps require the matching short-lived stage token.
 import { Router } from 'express';
 import { query } from '../db.js';
+import { config } from '../config.js';
+import { clientIpFromRequest } from '../ipAllowlist.js';
 import {
   hashPassword,
   verifyPassword,
@@ -19,6 +21,21 @@ import {
 const router = Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Record a successful sign-in for the given user (best-effort — never blocks
+// the login itself if the insert fails).
+async function recordLoginHistory(userId, req) {
+  try {
+    const ip = clientIpFromRequest(req, config.trustProxy) || null;
+    const ua = (req.headers && req.headers['user-agent']) || null;
+    await query(
+      'INSERT INTO login_history (user_id, ip, user_agent) VALUES ($1, $2, $3)',
+      [userId, ip, ua]
+    );
+  } catch (err) {
+    console.warn('[auth] Could not record login history:', err.message);
+  }
+}
 
 async function userCount() {
   const { rows } = await query('SELECT COUNT(*)::int AS n FROM users');
@@ -97,6 +114,7 @@ router.post('/mfa/verify', requireStage('mfa-setup'), async (req, res) => {
   if (!verifyTotp(code, user.mfa_secret)) return res.status(401).json({ error: 'Invalid code' });
 
   await query('UPDATE users SET mfa_enabled = true, last_login_at = now() WHERE id = $1', [user.id]);
+  await recordLoginHistory(user.id, req);
   res.json({ token: signSessionToken(user) });
 });
 
@@ -111,7 +129,21 @@ router.post('/mfa/login', requireStage('mfa-login'), async (req, res) => {
   if (!verifyTotp(code, user.mfa_secret)) return res.status(401).json({ error: 'Invalid code' });
 
   await query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);
+  await recordLoginHistory(user.id, req);
   res.json({ token: signSessionToken(user) });
+});
+
+// GET /api/auth/login-history — recent sign-ins for the current session's user.
+router.get('/login-history', requireStage('session'), async (req, res) => {
+  const { rows } = await query(
+    `SELECT logged_in_at, ip, user_agent
+       FROM login_history
+      WHERE user_id = $1
+      ORDER BY logged_in_at DESC
+      LIMIT 100`,
+    [req.auth.sub]
+  );
+  res.json(rows.map(r => ({ at: r.logged_in_at, ip: r.ip, userAgent: r.user_agent })));
 });
 
 // GET /api/auth/me — the current session's user.
