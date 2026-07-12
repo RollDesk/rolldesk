@@ -326,120 +326,126 @@
   <div id="boot-panel" style="background:var(--paper-alt, #fff); border-radius:16px; padding:32px; width:min(400px, 90%); box-shadow:0 20px 60px rgba(0,0,0,0.35); text-align:center;">
     <div style="display:flex; align-items:center; justify-content:center; gap:8px; font-weight:700; font-size:18px; margin-bottom:12px;"><span style="width:10px; height:10px; border-radius:50%; background:var(--cyan); display:inline-block;"></span> RollDesk</div>
     <p id="boot-message" style="font-size:12.5px; color:var(--text-muted); margin:0;">Connecting…</p>
-    <button class="btn" id="boot-retry" style="display:none; margin-top:16px; justify-content:center;" onclick="checkAuthStatus()">Retry</button>
+    <button class="btn" id="boot-retry" style="display:none; margin-top:16px; justify-content:center;" onclick="checkAuthStatus()" data-i18n="auth.retry">Retry</button>
   </div>
 
   <!-- First-run setup wizard: create the initial admin account. -->
   <div id="setup-panel" style="display:none; background:var(--paper-alt, #fff); border-radius:16px; padding:32px; width:min(420px, 90%); box-shadow:0 20px 60px rgba(0,0,0,0.35);">
     <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:18px; margin-bottom:4px;"><span style="width:10px; height:10px; border-radius:50%; background:var(--cyan); display:inline-block;"></span> RollDesk</div>
-    <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;">Welcome — set up your admin account</p>
-    <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 18px 0;">This is the first run. Create the administrator account used to sign in. There is no default user.</p>
+    <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;" data-i18n="auth.setupTitle">Welcome — set up your admin account</p>
+    <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 18px 0;" data-i18n="auth.setupDesc">This is the first run. Create the administrator account used to sign in. There is no default user.</p>
     <div class="field">
-      <label>Admin e-mail</label>
+      <label data-i18n="auth.adminEmail">Admin e-mail</label>
       <input type="text" id="setup-email" class="mono" autocomplete="username" placeholder="you@example.com">
     </div>
     <div class="field">
-      <label>Password</label>
+      <label data-i18n="auth.password">Password</label>
       <input type="password" id="setup-password" autocomplete="new-password" oninput="updatePasswordStrength('setup-password','setup-strength')" placeholder="••••••••••••">
     </div>
     <div id="setup-strength" style="margin:-4px 0 12px 0;"></div>
     <div class="field">
-      <label>Repeat password</label>
+      <label data-i18n="auth.repeatPassword">Repeat password</label>
       <input type="password" id="setup-password2" autocomplete="new-password" placeholder="••••••••••••">
     </div>
     <div id="setup-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
-    <button class="btn" id="setup-btn" style="width:100%; justify-content:center;" onclick="submitSetup()">Create admin account</button>
+    <button class="btn" id="setup-btn" style="width:100%; justify-content:center;" onclick="submitSetup()" data-i18n="auth.createAdmin">Create admin account</button>
   </div>
 
   <!-- Login: email + password. -->
   <div id="login-panel" style="display:none; background:var(--paper-alt, #fff); border-radius:16px; padding:32px; width:min(400px, 90%); box-shadow:0 20px 60px rgba(0,0,0,0.35);">
     <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:18px; margin-bottom:4px;"><span style="width:10px; height:10px; border-radius:50%; background:var(--cyan); display:inline-block;"></span> RollDesk</div>
-    <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 20px 0;">Sign in to manage your deployments.</p>
+    <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 20px 0;" data-i18n="auth.loginDesc">Sign in to manage your deployments.</p>
     <div class="field">
-      <label>E-mail</label>
+      <label data-i18n="auth.email">E-mail</label>
       <input type="text" id="login-email" class="mono" autocomplete="username" placeholder="you@example.com">
     </div>
     <div class="field">
-      <label>Password</label>
+      <label data-i18n="auth.password">Password</label>
       <input type="password" id="login-password" autocomplete="current-password">
     </div>
     <div id="login-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
-    <button class="btn" id="login-btn" style="width:100%; justify-content:center;" onclick="submitLogin()">Sign in</button>
-    <p style="text-align:center; margin:12px 0 0 0;"><a href="#" onclick="event.preventDefault(); showResetPanel();" style="font-size:12px; color:var(--cyan); text-decoration:none;">Forgot your password?</a></p>
+    <button class="btn" id="login-btn" style="width:100%; justify-content:center;" onclick="submitLogin()" data-i18n="auth.signIn">Sign in</button>
+    <p style="text-align:center; margin:12px 0 0 0;"><a href="#" onclick="event.preventDefault(); showResetPanel();" style="font-size:12px; color:var(--cyan); text-decoration:none;" data-i18n="auth.forgot">Forgot your password?</a></p>
   </div>
 
   <!-- MFA enrollment (first login): scan QR + confirm a code. -->
   <div id="mfa-enroll-panel" style="display:none; background:var(--paper-alt, #fff); border-radius:16px; padding:32px; width:min(420px, 90%); box-shadow:0 20px 60px rgba(0,0,0,0.35);">
     <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:18px; margin-bottom:4px;"><span style="width:10px; height:10px; border-radius:50%; background:var(--cyan); display:inline-block;"></span> RollDesk</div>
-    <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;">Set up two-factor authentication</p>
-    <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 14px 0;">Scan this QR code with an authenticator app (Google Authenticator, 1Password, Authy…), then enter the 6-digit code to finish. MFA is required.</p>
+    <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;" data-i18n="auth.mfaEnrollTitle">Set up two-factor authentication</p>
+    <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 14px 0;" data-i18n="auth.mfaEnrollDesc">Scan this QR code with an authenticator app (Google Authenticator, 1Password, Authy…), then enter the 6-digit code to finish. MFA is required.</p>
     <div style="text-align:center; margin-bottom:12px;">
       <img id="mfa-qr" alt="MFA QR code" style="width:180px; height:180px; border-radius:8px; background:#fff;">
     </div>
-    <p style="font-size:11px; color:var(--text-faint); margin:0 0 12px 0; text-align:center; word-break:break-all;">Can't scan? Enter this key manually: <span class="mono" id="mfa-secret"></span></p>
+    <p style="font-size:11px; color:var(--text-faint); margin:0 0 12px 0; text-align:center; word-break:break-all;" data-i18n-html="auth.mfaManual">Can't scan? Enter this key manually: <span class="mono" id="mfa-secret"></span></p>
     <div class="field">
-      <label>6-digit code</label>
+      <label data-i18n="auth.code6">6-digit code</label>
       <input type="text" id="mfa-enroll-code" class="mono" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder="000000" style="letter-spacing:4px; text-align:center; font-size:18px;">
     </div>
     <div id="mfa-enroll-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
-    <button class="btn" id="mfa-enroll-btn" style="width:100%; justify-content:center;" onclick="submitMfaEnroll()">Verify and finish</button>
-    <p style="text-align:center; margin:12px 0 0 0;"><a href="#" onclick="event.preventDefault(); logout();" style="font-size:12px; color:var(--cyan); text-decoration:none;">← Cancel</a></p>
+    <button class="btn" id="mfa-enroll-btn" style="width:100%; justify-content:center;" onclick="submitMfaEnroll()" data-i18n="auth.verifyFinish">Verify and finish</button>
+    <p style="text-align:center; margin:12px 0 0 0;"><a href="#" onclick="event.preventDefault(); logout();" style="font-size:12px; color:var(--cyan); text-decoration:none;" data-i18n="auth.cancel">← Cancel</a></p>
   </div>
 
   <!-- MFA code (returning user). -->
   <div id="mfa-code-panel" style="display:none; background:var(--paper-alt, #fff); border-radius:16px; padding:32px; width:min(400px, 90%); box-shadow:0 20px 60px rgba(0,0,0,0.35);">
     <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:18px; margin-bottom:4px;"><span style="width:10px; height:10px; border-radius:50%; background:var(--cyan); display:inline-block;"></span> RollDesk</div>
-    <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;">Two-factor authentication</p>
-    <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 16px 0;">Enter the 6-digit code from your authenticator app.</p>
+    <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;" data-i18n="auth.mfaCodeTitle">Two-factor authentication</p>
+    <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 16px 0;" data-i18n="auth.mfaCodeDesc">Enter the 6-digit code from your authenticator app.</p>
     <div class="field">
-      <label>Code</label>
+      <label data-i18n="auth.codeLabel">Code</label>
       <input type="text" id="mfa-login-code" class="mono" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder="000000" style="letter-spacing:4px; text-align:center; font-size:18px;">
     </div>
     <div id="mfa-login-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
-    <button class="btn" id="mfa-login-btn" style="width:100%; justify-content:center;" onclick="submitMfaCode()">Sign in</button>
-    <p style="text-align:center; margin:12px 0 0 0;"><a href="#" onclick="event.preventDefault(); logout();" style="font-size:12px; color:var(--cyan); text-decoration:none;">← Cancel</a></p>
+    <button class="btn" id="mfa-login-btn" style="width:100%; justify-content:center;" onclick="submitMfaCode()" data-i18n="auth.signIn">Sign in</button>
+    <p style="text-align:center; margin:12px 0 0 0;"><a href="#" onclick="event.preventDefault(); logout();" style="font-size:12px; color:var(--cyan); text-decoration:none;" data-i18n="auth.cancel">← Cancel</a></p>
   </div>
 
   <div id="reset-panel" style="display:none; background:var(--paper-alt, #fff); border-radius:16px; padding:32px; width:min(400px, 90%); box-shadow:0 20px 60px rgba(0,0,0,0.35);">
     <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:18px; margin-bottom:4px;"><span style="width:10px; height:10px; border-radius:50%; background:var(--cyan); display:inline-block;"></span> RollDesk</div>
     <div id="reset-step-request">
-      <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;">Reset password</p>
-      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 18px 0;">We'll send a link to set a new password to the e-mail address associated with your account.</p>
+      <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;" data-i18n="auth.resetTitle">Reset password</p>
+      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 18px 0;" data-i18n="auth.resetDesc">We'll send a link to set a new password to the e-mail address associated with your account.</p>
       <div class="field">
-        <label>Account e-mail</label>
+        <label data-i18n="auth.accountEmail">Account e-mail</label>
         <input type="text" id="reset-email" class="mono" readonly style="background:var(--paper); color:var(--text-muted); cursor:not-allowed;">
       </div>
       <div id="reset-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
-      <button class="btn" style="width:100%; justify-content:center;" onclick="sendResetLink()">Send reset link</button>
+      <button class="btn" style="width:100%; justify-content:center;" onclick="sendResetLink()" data-i18n="auth.sendResetLink">Send reset link</button>
     </div>
     <div id="reset-step-sent" style="display:none; text-align:center;">
       <div style="width:48px; height:48px; border-radius:50%; background:var(--green-soft); color:#0F7A38; display:flex; align-items:center; justify-content:center; font-size:26px; margin:16px auto;">✓</div>
-      <p style="font-size:13px; font-weight:600; margin:0 0 6px 0;">Link sent</p>
-      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 14px 0;">If the account <span class="mono" id="reset-sent-email"></span> exists, we've sent it a link to set a new password. Check your inbox (and the spam folder). The link is valid for 60 minutes.</p>
-      <button class="mini-btn" onclick="showResetSetStep()">Open link and set a new password →</button>
+      <p style="font-size:13px; font-weight:600; margin:0 0 6px 0;" data-i18n="auth.linkSent">Link sent</p>
+      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 14px 0;" data-i18n-html="auth.linkSentDesc">If the account <span class="mono" id="reset-sent-email"></span> exists, we've sent it a link to set a new password. Check your inbox (and the spam folder). The link is valid for 60 minutes.</p>
+      <button class="mini-btn" onclick="showResetSetStep()" data-i18n="auth.openLink">Open link and set a new password →</button>
     </div>
     <div id="reset-step-set" style="display:none;">
-      <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;">Set a new password</p>
-      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 16px 0;">The password must be strong — min. 12 characters, an uppercase and lowercase letter, a digit and a special character.</p>
+      <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;" data-i18n="auth.setNewPass">Set a new password</p>
+      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 16px 0;" data-i18n="auth.setNewPassDesc">The password must be strong — min. 12 characters, an uppercase and lowercase letter, a digit and a special character.</p>
       <div class="field">
-        <label>New password</label>
+        <label data-i18n="auth.newPassword">New password</label>
         <input type="password" id="reset-new-pass" oninput="updatePasswordStrength('reset-new-pass','reset-strength')" placeholder="••••••••••••">
       </div>
       <div id="reset-strength" style="margin:-4px 0 12px 0;"></div>
       <div class="field">
-        <label>Repeat new password</label>
+        <label data-i18n="auth.repeatNewPassword">Repeat new password</label>
         <input type="password" id="reset-new-pass2" placeholder="••••••••••••">
       </div>
       <div id="reset-set-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
-      <button class="btn" style="width:100%; justify-content:center;" onclick="submitNewPassword()">Save new password</button>
+      <button class="btn" style="width:100%; justify-content:center;" onclick="submitNewPassword()" data-i18n="auth.saveNewPass">Save new password</button>
     </div>
     <div id="reset-step-done" style="display:none; text-align:center;">
       <div style="width:48px; height:48px; border-radius:50%; background:var(--green-soft); color:#0F7A38; display:flex; align-items:center; justify-content:center; font-size:26px; margin:16px auto;">✓</div>
-      <p style="font-size:13px; font-weight:600; margin:0 0 6px 0;">Password changed</p>
-      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 18px 0;">You can now sign in using your new password.</p>
-      <button class="btn" style="width:100%; justify-content:center;" onclick="showLoginPanel()">Go to sign in</button>
+      <p style="font-size:13px; font-weight:600; margin:0 0 6px 0;" data-i18n="auth.passChanged">Password changed</p>
+      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 18px 0;" data-i18n="auth.passChangedDesc">You can now sign in using your new password.</p>
+      <button class="btn" style="width:100%; justify-content:center;" onclick="showLoginPanel()" data-i18n="auth.goToSignIn">Go to sign in</button>
     </div>
-    <p style="text-align:center; margin:14px 0 0 0;"><a href="#" onclick="event.preventDefault(); showLoginPanel();" style="font-size:12px; color:var(--cyan); text-decoration:none;">← Back to sign in</a></p>
+    <p style="text-align:center; margin:14px 0 0 0;"><a href="#" onclick="event.preventDefault(); showLoginPanel();" style="font-size:12px; color:var(--cyan); text-decoration:none;" data-i18n="auth.backToSignIn">← Back to sign in</a></p>
+  </div>
+
+  <!-- Language switcher for the login screen (persists the choice). -->
+  <div style="position:absolute; bottom:20px; left:0; right:0; display:flex; justify-content:center; gap:8px;">
+    <label class="radio-pill" style="background:rgba(255,255,255,0.08); color:#fff; border-color:rgba(255,255,255,0.25);"><input type="radio" name="auth-lang" value="pl" onchange="setLanguage('pl')"> Polski</label>
+    <label class="radio-pill" style="background:rgba(255,255,255,0.08); color:#fff; border-color:rgba(255,255,255,0.25);"><input type="radio" name="auth-lang" value="en" onchange="setLanguage('en')"> English</label>
   </div>
 </div>
 
@@ -1441,10 +1447,24 @@
   }
 
   // ---- Language / i18n (EN default, PL available) ----
-  let LANG = 'en';
+  const LANG_KEY = 'rolldesk_lang';
+  // Restore the previously chosen language so it survives logout and reloads
+  // (including on the login screen, which renders before any session exists).
+  let LANG = (function(){ try { const s = localStorage.getItem(LANG_KEY); if(s === 'pl' || s === 'en') return s; } catch(e){} return 'en'; })();
   const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
   const I18N = {
     pl: {
+      'auth.connecting':'Łączenie…','auth.backendDown':'Backend niedostępny. RollDesk nie może wystartować, dopóki nie połączy się z serwerem.','auth.retry':'Ponów',
+      'auth.setupTitle':'Witaj — skonfiguruj konto administratora','auth.setupDesc':'To pierwsze uruchomienie. Utwórz konto administratora do logowania. Nie ma domyślnego użytkownika.',
+      'auth.adminEmail':'E-mail administratora','auth.password':'Hasło','auth.repeatPassword':'Powtórz hasło','auth.createAdmin':'Utwórz konto administratora',
+      'auth.loginDesc':'Zaloguj się, aby zarządzać wdrożeniami.','auth.email':'E-mail','auth.signIn':'Zaloguj się','auth.forgot':'Nie pamiętasz hasła?',
+      'auth.mfaEnrollTitle':'Skonfiguruj uwierzytelnianie dwuskładnikowe','auth.mfaEnrollDesc':'Zeskanuj ten kod QR aplikacją uwierzytelniającą (Google Authenticator, 1Password, Authy…), a następnie wpisz 6-cyfrowy kod, aby zakończyć. MFA jest wymagane.',
+      'auth.mfaManual':'Nie możesz zeskanować? Wpisz ten klucz ręcznie: <span class="mono" id="mfa-secret"></span>','auth.code6':'Kod 6-cyfrowy','auth.verifyFinish':'Zweryfikuj i zakończ','auth.cancel':'← Anuluj',
+      'auth.mfaCodeTitle':'Uwierzytelnianie dwuskładnikowe','auth.mfaCodeDesc':'Wpisz 6-cyfrowy kod z aplikacji uwierzytelniającej.','auth.codeLabel':'Kod',
+      'auth.resetTitle':'Zresetuj hasło','auth.resetDesc':'Wyślemy link do ustawienia nowego hasła na adres e-mail powiązany z Twoim kontem.','auth.accountEmail':'E-mail konta','auth.sendResetLink':'Wyślij link resetujący',
+      'auth.linkSent':'Link wysłany','auth.linkSentDesc':'Jeśli konto <span class="mono" id="reset-sent-email"></span> istnieje, wysłaliśmy na nie link do ustawienia nowego hasła. Sprawdź skrzynkę (oraz folder spam). Link jest ważny 60 minut.','auth.openLink':'Otwórz link i ustaw nowe hasło →',
+      'auth.setNewPass':'Ustaw nowe hasło','auth.setNewPassDesc':'Hasło musi być silne — min. 12 znaków, wielka i mała litera, cyfra oraz znak specjalny.','auth.newPassword':'Nowe hasło','auth.repeatNewPassword':'Powtórz nowe hasło','auth.saveNewPass':'Zapisz nowe hasło',
+      'auth.passChanged':'Hasło zmienione','auth.passChangedDesc':'Możesz teraz zalogować się przy użyciu nowego hasła.','auth.goToSignIn':'Przejdź do logowania','auth.backToSignIn':'← Powrót do logowania',
       'grp.rm':'Menedżer wydań', 'grp.installer':'Wdrożeniowiec', 'grp.client':'Klient', 'grp.admin':'Administrator', 'grp.account':'Konto',
       'nav.projects':'Projekty', 'nav.deployments':'Wdrożenia', 'nav.installer':'Panel wdrożeniowca', 'nav.client':'Panel klienta',
       'nav.users':'Użytkownicy', 'nav.clients':'Klienci', 'nav.audit':'Historia zmian', 'nav.notifications':'Powiadomienia',
@@ -1569,6 +1589,17 @@
       'ev.created':'Utworzenie harmonogramu','ev.approval':'Prośba o akceptację','ev.decision':'Decyzja klienta','ev.clientComment':'Komentarze klienta do dystrybucji','ev.started':'Rozpoczęcie wdrożenia produkcyjnego','ev.paused':'Wstrzymanie dystrybucji','ev.failure':'Błąd na lokalizacji','ev.completed':'Zakończenie wdrożenia (ze statusem)'
     },
     en: {
+      'auth.connecting':'Connecting…','auth.backendDown':'Backend unavailable. RollDesk cannot start until it can reach the server.','auth.retry':'Retry',
+      'auth.setupTitle':'Welcome — set up your admin account','auth.setupDesc':'This is the first run. Create the administrator account used to sign in. There is no default user.',
+      'auth.adminEmail':'Admin e-mail','auth.password':'Password','auth.repeatPassword':'Repeat password','auth.createAdmin':'Create admin account',
+      'auth.loginDesc':'Sign in to manage your deployments.','auth.email':'E-mail','auth.signIn':'Sign in','auth.forgot':'Forgot your password?',
+      'auth.mfaEnrollTitle':'Set up two-factor authentication','auth.mfaEnrollDesc':'Scan this QR code with an authenticator app (Google Authenticator, 1Password, Authy…), then enter the 6-digit code to finish. MFA is required.',
+      'auth.mfaManual':'Can\'t scan? Enter this key manually: <span class="mono" id="mfa-secret"></span>','auth.code6':'6-digit code','auth.verifyFinish':'Verify and finish','auth.cancel':'← Cancel',
+      'auth.mfaCodeTitle':'Two-factor authentication','auth.mfaCodeDesc':'Enter the 6-digit code from your authenticator app.','auth.codeLabel':'Code',
+      'auth.resetTitle':'Reset password','auth.resetDesc':'We\'ll send a link to set a new password to the e-mail address associated with your account.','auth.accountEmail':'Account e-mail','auth.sendResetLink':'Send reset link',
+      'auth.linkSent':'Link sent','auth.linkSentDesc':'If the account <span class="mono" id="reset-sent-email"></span> exists, we\'ve sent it a link to set a new password. Check your inbox (and the spam folder). The link is valid for 60 minutes.','auth.openLink':'Open link and set a new password →',
+      'auth.setNewPass':'Set a new password','auth.setNewPassDesc':'The password must be strong — min. 12 characters, an uppercase and lowercase letter, a digit and a special character.','auth.newPassword':'New password','auth.repeatNewPassword':'Repeat new password','auth.saveNewPass':'Save new password',
+      'auth.passChanged':'Password changed','auth.passChangedDesc':'You can now sign in using your new password.','auth.goToSignIn':'Go to sign in','auth.backToSignIn':'← Back to sign in',
       'grp.rm':'Release manager', 'grp.installer':'Deployer', 'grp.client':'Client', 'grp.admin':'Administrator', 'grp.account':'Account',
       'nav.projects':'Projects', 'nav.deployments':'Deployments', 'nav.installer':'Deployer panel', 'nav.client':'Client panel',
       'nav.users':'Users', 'nav.clients':'Clients', 'nav.audit':'Change history', 'nav.notifications':'Notifications',
@@ -1721,8 +1752,19 @@
     const active = document.querySelector('.nav-item.active');
     if(active && active.dataset.view) document.getElementById('topbar-title').textContent = titleFor(active.dataset.view);
   }
+  // Reflect the active language in every language toggle (profile + login screen).
+  function syncLanguageControls(){
+    document.querySelectorAll('input[name="app-lang"], input[name="auth-lang"]').forEach(inp=>{
+      const on = inp.value === LANG;
+      inp.checked = on;
+      const pill = inp.closest('.radio-pill');
+      if(pill) pill.classList.toggle('selected', on);
+    });
+  }
   function setLanguage(lang){
     LANG = (lang === 'en') ? 'en' : 'pl';
+    try { localStorage.setItem(LANG_KEY, LANG); } catch(e){}
+    syncLanguageControls();
     applyLanguage();
     if(typeof renderHelp === 'function') renderHelp();
     // Re-render JS-driven views so their dynamic strings pick up the new language.
@@ -2197,8 +2239,11 @@
         body: JSON.stringify({channel:'teams', url: rec.url.trim()})
       });
       let info = {}; try { info = await res.json(); } catch(e){}
-      if(res.ok){ showToast('✅ Test message sent to „' + (rec.name || 'webhook') + '”'); }
-      else { showToast('⚠ Test failed: ' + (info.error || ('HTTP ' + res.status))); }
+      if(res.ok){ showToast('✅ Delivered to „' + (rec.name || 'webhook') + '” (HTTP ' + (info.status || 200) + ')'); }
+      else {
+        const detail = info.detail ? ' — ' + String(info.detail).slice(0,140) : '';
+        showToast('⚠ Test failed: ' + (info.error || ('HTTP ' + res.status)) + detail);
+      }
     } catch(e){ showToast('⚠ Could not send the test message'); }
   }
   function isLoggedInAsAdmin(){
@@ -2614,8 +2659,11 @@
         method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
       });
       let info = {}; try { info = await res.json(); } catch(e){}
-      if(res.ok){ showToast('✅ Test message sent'); }
-      else { showToast('⚠ Test failed: ' + (info.error || ('HTTP ' + res.status))); }
+      if(res.ok){ showToast('✅ Delivered' + (info.status ? ' (HTTP ' + info.status + ')' : '')); }
+      else {
+        const detail = info.detail ? ' — ' + String(info.detail).slice(0,140) : '';
+        showToast('⚠ Test failed: ' + (info.error || ('HTTP ' + res.status)) + detail);
+      }
     } catch(e){ showToast('⚠ Could not send the test message'); }
   }
 
@@ -6429,7 +6477,7 @@ Kind regards.`;
   async function checkAuthStatus(){
     showAuthPanel('boot-panel');
     document.getElementById('boot-retry').style.display = 'none';
-    document.getElementById('boot-message').textContent = 'Connecting…';
+    document.getElementById('boot-message').textContent = t('auth.connecting');
     let status;
     try {
       const res = await fetch(API_BASE + '/api/auth/status');
@@ -6437,7 +6485,7 @@ Kind regards.`;
       status = await res.json();
     } catch(err){
       // The app must NOT start without a configured user and a reachable backend.
-      document.getElementById('boot-message').textContent = 'Backend unavailable. RollDesk cannot start until it can reach the server.';
+      document.getElementById('boot-message').textContent = t('auth.backendDown');
       document.getElementById('boot-retry').style.display = 'inline-flex';
       return;
     }
@@ -6701,6 +6749,10 @@ Kind regards.`;
   renderInstallerPanel();
   clearManifestPreview();
   renderRollDeskVersion();
+  // Apply the restored language to the whole document (including the login screen)
+  // and reflect it in the language toggles.
+  syncLanguageControls();
+  if(LANG !== 'en') applyLanguage();
   // Check for a newer published version on GitHub (fails quietly if offline).
   checkLatestVersion();
   // Gate the app behind authentication: decide setup vs login, and only load
