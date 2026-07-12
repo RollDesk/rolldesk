@@ -610,6 +610,8 @@
         </div>
         <div style="display:flex; gap:8px;">
           <button class="mini-btn" onclick="addCustomLocationField()" data-i18n="proj.addField">+ Add field</button>
+          <button class="mini-btn" onclick="triggerLocationCsvImport()" data-i18n="proj.importCsv" title="CSV: 1. kolumna = nazwa, 2. kolumna = typ (Production / Non-production)">⬆ Import CSV</button>
+          <input type="file" id="location-csv-input" accept=".csv,text/csv" style="display:none;" onchange="importLocationsCsv(this)">
           <button class="btn" onclick="toggleLocationForm()" data-i18n="proj.addTarget">+ Add target</button>
         </div>
       </div>
@@ -1376,7 +1378,7 @@
       </div>
     </div>
     <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:18px;">
-      <button class="mini-btn" onclick="closeConfirmModal(false)">Cancel</button>
+      <button class="mini-btn" onclick="closeConfirmModal(false)" data-i18n="common.cancel">Cancel</button>
       <button class="btn" id="confirm-modal-ok" style="background:#A81E1E; border-color:#A81E1E;" onclick="closeConfirmModal(true)">Delete</button>
     </div>
   </div>
@@ -2796,7 +2798,7 @@
   function renderLocationsTable(){
     const p = PROJECTS[currentProjectKey];
     if(!p) return;
-    document.getElementById('locations-desc').textContent = `Deployment targets of the ${p.name} project (${p.clientName}) — locations, servers, tenants, regions etc.`;
+    document.getElementById('locations-desc').textContent = tf('proj.targetsDescOf', {name: p.name, client: p.clientName});
     document.getElementById('locations-count').textContent = p.locationsList.length;
 
     const customFields = p.customLocationFields || [];
@@ -2921,6 +2923,77 @@
     renderProjectsList();
     toggleLocationForm();
     showToast('Target „' + name + '” added');
+  }
+
+  // ---- CSV import of deployment targets ----
+  // Expected format: first column = target name, second column = type. The type
+  // is matched loosely (PL/EN synonyms); anything not recognised as production
+  // becomes "Non-production". Comma- and semicolon-separated files are supported.
+  function triggerLocationCsvImport(){
+    const el = document.getElementById('location-csv-input');
+    if(el){ el.value = ''; el.click(); }
+  }
+
+  function parseCsvRows(text){
+    text = String(text || '').replace(/^\uFEFF/, ''); // strip UTF-8 BOM
+    const lines = text.split(/\r\n|\r|\n/).filter(l => l.trim().length);
+    if(!lines.length) return [];
+    const first = lines[0];
+    const delim = (first.split(';').length > first.split(',').length) ? ';' : ',';
+    return lines.map(line=>{
+      const cells = []; let cur = ''; let inQ = false;
+      for(let i=0;i<line.length;i++){
+        const ch = line[i];
+        if(ch === '"'){ if(inQ && line[i+1] === '"'){ cur += '"'; i++; } else inQ = !inQ; }
+        else if(ch === delim && !inQ){ cells.push(cur); cur = ''; }
+        else cur += ch;
+      }
+      cells.push(cur);
+      return cells.map(c => c.trim());
+    });
+  }
+
+  function normalizeTargetType(v){
+    const s = (v || '').toLowerCase();
+    if(/^(prod|production|produkcja|produkcyjne|produkcyjny|prd|p)$/.test(s)) return 'Production';
+    return 'Non-production';
+  }
+
+  function importLocationsCsv(input){
+    const p = PROJECTS[currentProjectKey];
+    if(!p) return;
+    const file = input.files && input.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onerror = ()=> showToast(t('proj.csvError'));
+    reader.onload = ()=>{
+      try {
+        let rows = parseCsvRows(reader.result);
+        if(!rows.length){ showToast(t('proj.csvEmpty')); return; }
+        // Drop a header row if the first line clearly labels the columns.
+        const h0 = (rows[0][0] || '').toLowerCase(), h1 = (rows[0][1] || '').toLowerCase();
+        if(/^(name|nazwa|target|cel)$/.test(h0) || /^(type|typ)$/.test(h1)) rows = rows.slice(1);
+        p.locationsList = Array.isArray(p.locationsList) ? p.locationsList : [];
+        const existing = new Set(p.locationsList.map(l => (l.label || l.code || '').toLowerCase()));
+        let added = 0, skipped = 0;
+        rows.forEach(cells=>{
+          const name = (cells[0] || '').trim();
+          if(!name){ skipped++; return; }
+          if(existing.has(name.toLowerCase())){ skipped++; return; }
+          p.locationsList.push({code: name, label: name, type: normalizeTargetType(cells[1]), custom: {}});
+          existing.add(name.toLowerCase());
+          added++;
+        });
+        p.locations = p.locationsList.length;
+        if(added){
+          logAudit('added', 'Deployment target', 'Imported ' + added + ' targets from CSV', p.name + ' (' + p.clientName + ')');
+          renderLocationsTable();
+          renderProjectsList();
+        }
+        showToast(tf('proj.csvImported', {added, skipped}));
+      } catch(e){ showToast(t('proj.csvError')); }
+    };
+    reader.readAsText(file);
   }
 
   function removeLocation(i){
@@ -4158,7 +4231,7 @@
   function showAppConfirm(title, body, callback, okLabel){
     document.getElementById('confirm-modal-title').textContent = title;
     document.getElementById('confirm-modal-body').textContent = body || '';
-    document.getElementById('confirm-modal-ok').textContent = okLabel || 'Delete';
+    document.getElementById('confirm-modal-ok').textContent = okLabel || t('common.delete');
     confirmModalCallback = callback;
     document.getElementById('confirm-modal-overlay').style.display = 'flex';
   }
@@ -5214,14 +5287,14 @@ Kind regards.`;
 
     // Paused deployments — visible, clearly flagged, not actionable until resumed.
     if(paused.length){
-      html += '<label style="margin-bottom:8px; display:block;">Paused</label>';
+      html += '<label style="margin-bottom:8px; display:block;">' + t('pause.badge') + '</label>';
       html += paused.map(r=>{
         const appsLabel = r.apps.map(a=>`${a.name} v${a.version}`).join(', ');
         return `<div class="card" style="margin-bottom:14px; border-left:3px solid #C99A00;">
-          <div style="display:flex; align-items:center; gap:8px;"><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:#FDF1E1; color:#8A5A05;">⏸ PAUSED</span>
+          <div style="display:flex; align-items:center; gap:8px;"><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:#FDF1E1; color:#8A5A05;">⏸ ${t('pause.badge')}</span>
           <strong style="font-size:13px;">${r.project.name} — ${appsLabel}</strong>${deployIdBadge(r)}</div>
-          <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">Reason: ${r.pauseReason ? '„'+r.pauseReason+'”' : '—'}</div>
-          <div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">The deployment will be resumed by the Release Manager.</div>
+          <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">${t('dcard.reason')}: ${r.pauseReason ? '„'+r.pauseReason+'”' : '—'}</div>
+          <div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">${t('pause.resumedByRM')}</div>
         </div>`;
       }).join('');
     }
@@ -5309,7 +5382,7 @@ Kind regards.`;
                 ${loc} <span class="today-ok-badge mono" style="margin-left:auto; font-size:11px; font-weight:700; color:#0F7A38;">✅ Correct</span>
               </label>`).join('')}
             </div>
-            <textarea id="today-fail-reason-i-${r.idx}" placeholder="Failure reason (for unchecked)"></textarea>
+            <textarea id="today-fail-reason-i-${r.idx}" placeholder="${t('rep.failureReasonUnchecked')}"></textarea>
             <button class="btn" style="margin-top:8px;" onclick="reportBatchDayResult(${r.idx}, 'i')">Save result</button>
             ${installerTimelineHtml(r)}
             <textarea id="new-comment-i-${r.idx}" style="margin-top:12px;" placeholder="${t('dcard.addCommentPh')}"></textarea>
@@ -5503,10 +5576,11 @@ Kind regards.`;
 
   function installerMarkSingle(idx, status){
     const d = DEPLOYMENTS_DATA[idx];
+    if(d.paused){ showToast(t('pause.blockedProgress')); return; }
     const who = actorName();
     if(!d.assignedTo) d.assignedTo = who; // acting on it self-assigns
     if(status === 'failed'){
-      showAppPrompt('Report as failed', '', (reason)=>{
+      showAppPrompt(t('rep.reportFailedTitle'), '', (reason)=>{
         if(reason === null) return;
         d.comments = d.comments || [];
         const _s = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'15:00'};
@@ -5521,7 +5595,7 @@ Kind regards.`;
         const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
         dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + t('ev.failure'),
           (d.id ? d.id + ' — ' : '') + projName + '\n' + reason, false);
-      }, 'Failure reason', true);
+      }, t('rep.failureReason'), true);
       return;
     }
     d.status = status;
@@ -5578,6 +5652,7 @@ Kind regards.`;
   function reportBatchDayResult(idx, scope){
     scope = scope || 'w';
     const d = DEPLOYMENTS_DATA[idx];
+    if(d.paused){ showToast(t('pause.blockedProgress')); return; }
     const queue = getBatchPendingQueue(d);
     const dayNum = dayIndexForPosition(d, d.counts.installed);
     const daySize = Math.min(computeDayCount(d, dayNum), queue.length);
@@ -6051,7 +6126,7 @@ Kind regards.`;
         const isDone = r.counts.scheduled === 0;
         let progressExtra = '';
         if(r.paused){
-          progressExtra = `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ PAUSED${r.pauseReason ? ' — ' + r.pauseReason : ''}</div>`;
+          progressExtra = `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' — ' + r.pauseReason : ''}</div>`;
         } else if(failedN){
           progressExtra = `<div style="font-size:10.5px; color:#A81E1E; margin-top:3px;">⚠ ${failedN} to finish</div>`;
         } else if(isDone){
@@ -6063,7 +6138,7 @@ Kind regards.`;
             <span class="mono" style="font-size:11.5px; color:var(--text-muted);">${r.counts.installed}/${r.totalLocations}</span>
           </div>${progressExtra}`);
         cells.push(approvalBadgeHtml(r));
-        cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();"><button class="mini-btn" ${r.counts.scheduled===0?'disabled':''} onclick="markBatchInstalled(${r.idx})">Mark the rest</button></td>`);
+        cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();"><button class="mini-btn" ${(r.counts.scheduled===0 || r.paused)?'disabled':''} onclick="markBatchInstalled(${r.idx})">Mark the rest</button></td>`);
         html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
         if(expandedBatchIdx === r.idx) html += timelinePanelHtml(r);
       } else if(editingDeployIdx === r.idx){
@@ -6085,7 +6160,7 @@ Kind regards.`;
         cells.push(`<td class="mono">${r.time}</td>`);
         cells.push(`<td onclick="event.stopPropagation();"><select onchange="changeDeploymentStatus(${r.idx}, this.value)" class="mono" style="border:1px solid var(--line); border-radius:20px; padding:3px 8px; font-size:11.5px; font-weight:600; background:${bgs[r.status]}; color:${colors[r.status]};">
           ${statusOptions.map(s=>`<option value="${s}" ${s===r.status?'selected':''}>${statusLabel[s]}</option>`).join('')}
-        </select>${r.paused ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ PAUSED${r.pauseReason ? ' — ' + r.pauseReason : ''}</div>` : ''}</td>`);
+        </select>${r.paused ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' — ' + r.pauseReason : ''}</div>` : ''}</td>`);
         cells.push(approvalBadgeHtml(r));
         cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();"><button class="mini-btn" onclick="toggleEditDeployment(${r.idx})">${t('usr.edit')}</button></td>`);
         html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
@@ -6160,11 +6235,21 @@ Kind regards.`;
   }
 
   function changeDeploymentStatus(idx, newStatus){
-    DEPLOYMENTS_DATA[idx].status = newStatus;
+    const d = DEPLOYMENTS_DATA[idx];
+    const prev = d.status;
+    if(prev === newStatus) return;
+    d.status = newStatus;
+    const labels = {scheduled:t('status.scheduled'), installed:t('status.installed'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
+    // Record the status change on the timeline and in the audit log.
+    const _s = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
+    const who = actorName();
+    d.comments = d.comments || [];
+    d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'🔄', text: tf('dcard.statusChanged', {from: labels[prev]||prev, to: labels[newStatus]||newStatus})});
+    logAudit('changed','Deployment','Changed status of ' + (d.id||'') + ': ' + (labels[prev]||prev) + ' → ' + (labels[newStatus]||newStatus), (PROJECTS[d.projectKey]||{}).name || d.projectKey);
     persistDeployment(idx);
     renderDeploymentsTable();
-    const labels = {scheduled:'scheduled', installed:'installed', failed:'failed', rolledback:'rolled back', aborted:'aborted'};
-    showToast('Status changed to: ' + labels[newStatus]);
+    renderInstallerPanel();
+    showToast(tf('dcard.statusChangedToast', {status: labels[newStatus]||newStatus}));
   }
 
   // When a decision is recorded against a person who isn't in the system yet,
@@ -6254,7 +6339,7 @@ Kind regards.`;
       d.pausedBy = who;
       d.pausedAt = _sp.date + ' ' + _sp.time;
       d.comments = d.comments || [];
-      d.comments.push({date:_sp.date, time:_sp.time, author: who, type:'system', icon:'⏸', text:'Deployment paused: ' + trimmed });
+      d.comments.push({date:_sp.date, time:_sp.time, author: who, type:'system', icon:'⏸', text: tf('pause.systemComment', {reason: trimmed}) });
       logAudit('changed', 'Deployment', 'Paused deployment ' + (d.id||'') + ' — ' + trimmed, (PROJECTS[d.projectKey]||{}).name || d.projectKey);
       // Notify the client and defined recipients about the pause.
       const clientSees = !d.internal && !(PROJECTS[d.projectKey] && PROJECTS[d.projectKey].clientVisible === false);
@@ -6266,25 +6351,25 @@ Kind regards.`;
       persistDeployment(idx);
       renderDeploymentsTable();
       renderInstallerPanel();
-      showToast('Deployment paused — notified: ' + notifySummary('paused', d.projectKey, clientSees));
+      showToast(tf('pause.notifiedToast', {recipients: notifySummary('paused', d.projectKey, clientSees)}));
     }, t('pause.reasonHint'), true, undefined, (v)=> (v||'').trim() ? '' : t('pause.reasonRequired'));
   }
 
   function resumeDeployment(idx){
     const d = DEPLOYMENTS_DATA[idx];
-    showAppConfirm('Resume deployment?', 'Deployment ' + (d.id||'') + ' will return to execution. We will notify the team and the client.', ()=>{
+    showAppConfirm(t('resume.confirmTitle'), tf('resume.confirmBody', {id: d.id||''}), ()=>{
       d.paused = false;
       d.pauseReason = null;
       d.comments = d.comments || [];
       const _sr = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
       const whoR = actorName();
-      d.comments.push({date:_sr.date, time:_sr.time, author: whoR, type:'system', icon:'▶', text:'Deployment resumed'});
+      d.comments.push({date:_sr.date, time:_sr.time, author: whoR, type:'system', icon:'▶', text: t('resume.systemComment')});
       logAudit('changed', 'Deployment', 'Resumed deployment ' + (d.id||''), (PROJECTS[d.projectKey]||{}).name || d.projectKey);
       persistDeployment(idx);
       renderDeploymentsTable();
       renderInstallerPanel();
-      showToast('Deployment resumed — notifications sent');
-    }, 'Resume');
+      showToast(t('resume.toast'));
+    }, t('dcard.resume'));
   }
 
   function replyToClientComment(idx){
@@ -6312,6 +6397,7 @@ Kind regards.`;
 
   function markBatchInstalled(idx){
     const d = DEPLOYMENTS_DATA[idx];
+    if(d.paused){ showToast(t('pause.blockedProgress')); return; }
     const n = d.counts.scheduled;
     d.counts.installed += n;
     d.counts.scheduled = 0;
