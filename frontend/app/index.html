@@ -628,6 +628,10 @@
             <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;" data-i18n="proj.defaultTimeNote">The time at which a deployment usually begins.</p>
           </div>
         </div>
+        <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400; margin:4px 0 12px 0;">
+          <input type="checkbox" id="project-skip-weekends" style="width:auto;" checked> <span data-i18n="proj.skipWeekends">Skip weekends in the schedule</span>
+        </label>
+        <p style="font-size:11px; color:var(--text-faint); margin:0 0 12px 0;" data-i18n="proj.skipWeekendsNote">When enabled, the auto-generated schedule skips Saturdays and Sundays.</p>
         <button class="btn" onclick="saveProjectDefaults()" data-i18n="proj.saveDefaults">Save defaults</button>
       </div>
 
@@ -881,7 +885,7 @@
         <div class="card" style="margin-bottom:16px;">
           <label style="margin-bottom:10px;" data-i18n="sch.rolloutPreview">Rollout preview — production environment</label>
           <div class="manifest" id="manifest-strip"></div>
-          <p style="font-size:12px; color:var(--text-muted); margin:0;" data-i18n="sch.weekendsNote">Weekends are skipped automatically. You can manually move individual locations between days in the table below.</p>
+          <p id="sch-weekends-note" style="font-size:12px; color:var(--text-muted); margin:0;" data-i18n="sch.weekendsNote">Weekends are skipped automatically. You can manually move individual locations between days in the table below.</p>
         </div>
 
         <div class="card">
@@ -1502,6 +1506,7 @@
       'proj.defaults':'Domyślne parametry wdrożenia','proj.defaultsDesc':'Domyślne ustawienia harmonogramu używane, gdy menedżer wydań planuje wdrożenie tego projektu.',
       'proj.defaultDays':'Standardowa liczba dni roboczych','proj.defaultDaysNote':'Jak domyślnie rozkładane są wdrożenia wielocelowe na dni robocze.',
       'proj.defaultTime':'Godzina rozpoczęcia wdrożenia','proj.defaultTimeNote':'Godzina, o której zwykle rozpoczyna się wdrożenie.',
+      'proj.skipWeekends':'Pomijaj weekendy w harmonogramie','proj.skipWeekendsNote':'Gdy włączone, automatycznie generowany harmonogram omija soboty i niedziele.',
       'proj.saveDefaults':'Zapisz ustawienia domyślne','proj.defaultsSaved':'Zapisano domyślne parametry wdrożenia',
       'np.name':'Nazwa projektu','np.namePh':'np. LogiHub','np.client':'Klient','np.clientNewPh':'Nazwa nowego klienta',
       'np.people':'Osoby po stronie klienta z dostępem do tego projektu','np.personNamePh':'Imię i nazwisko','np.personEmailPh':'e-mail','np.addPerson':'+ Dodaj osobę',
@@ -1536,6 +1541,8 @@
       'sch.thDay':'Dzień','sch.thLocs':'Liczba lokalizacji','sch.thRestrict':'Ogranicz typ','sch.thMax':'Maks. liczba (0 = brak tego typu)',
       'sch.startTestDate':'Start (test) — data','sch.time':'Godzina','sch.startProdDate':'Start (produkcja) — data','sch.generate':'Generuj harmonogram',
       'sch.rolloutPreview':'Podgląd rolloutu — środowisko produkcyjne','sch.weekendsNote':'Weekendy są pomijane automatycznie. Poszczególne lokalizacje możesz ręcznie przenosić między dniami w tabeli poniżej.',
+      'sch.weekendsNoteIncluded':'Weekendy są wliczane do harmonogramu (zgodnie z ustawieniem projektu). Poszczególne lokalizacje możesz ręcznie przenosić między dniami w tabeli poniżej.',
+      'sch.versionExample':'wersja, np.',
       'sch.locAssign':'Przypisanie lokalizacji (podgląd)','sch.searchLocs':'Szukaj lokalizacji...','sch.locAssignNote':'Przenoś wybrane oddziały na początek lub koniec kolejki — np. gdy klient chce, aby konkretna lokalizacja była pierwsza lub dopiero na końcu.',
       'sch.thLocation':'Lokalizacja','sch.thType':'Typ','sch.thDate':'Data','sch.thEnv':'Środowisko',
       'sch.testOnlyPreviewNote':'To wdrożenie dotyczy tylko środowiska testowego (środowisk testowych) — instalowane jest raz, ręcznie, bez harmonogramu rozłożonego na lokalizacje.',
@@ -1615,6 +1622,7 @@
       'proj.defaults':'Deployment defaults','proj.defaultsDesc':'Default schedule used when the release manager plans a deployment for this project.',
       'proj.defaultDays':'Standard number of working days','proj.defaultDaysNote':'How multi-target deployments are split across working days by default.',
       'proj.defaultTime':'Deployment start time','proj.defaultTimeNote':'The time at which a deployment usually begins.',
+      'proj.skipWeekends':'Skip weekends in the schedule','proj.skipWeekendsNote':'When enabled, the auto-generated schedule skips Saturdays and Sundays.',
       'proj.saveDefaults':'Save defaults','proj.defaultsSaved':'Deployment defaults saved',
       'np.name':'Project name','np.namePh':'e.g. LogiHub','np.client':'Client','np.clientNewPh':'New client name',
       'np.people':'Client-side people with access to this project','np.personNamePh':'Full name','np.personEmailPh':'e-mail','np.addPerson':'+ Add person',
@@ -1649,6 +1657,8 @@
       'sch.thDay':'Day','sch.thLocs':'Number of locations','sch.thRestrict':'Restrict type','sch.thMax':'Max count (0 = none of this type)',
       'sch.startTestDate':'Start (test) — date','sch.time':'Time','sch.startProdDate':'Start (production) — date','sch.generate':'Generate schedule',
       'sch.rolloutPreview':'Rollout preview — production environment','sch.weekendsNote':'Weekends are skipped automatically. You can manually move individual locations between days in the table below.',
+      'sch.weekendsNoteIncluded':'Weekends are included in the schedule (per the project setting). You can manually move individual locations between days in the table below.',
+      'sch.versionExample':'version, e.g.',
       'sch.locAssign':'Location assignment (preview)','sch.searchLocs':'Search locations...','sch.locAssignNote':'Move selected branches to the start or end of the queue — e.g. if the client wants a specific location to go first or only at the very end.',
       'sch.thLocation':'Location','sch.thType':'Type','sch.thDate':'Date','sch.thEnv':'Environment',
       'sch.testOnlyPreviewNote':'This deployment applies only to the test environment(s) — it is installed once, manually, without a schedule spread across locations.',
@@ -2499,6 +2509,11 @@
     const ddTime = document.getElementById('project-default-time');
     if(ddDays) ddDays.value = p.defaultDays || 5;
     if(ddTime) ddTime.value = p.defaultTime || '20:00';
+    const skipWkndEl = document.getElementById('project-skip-weekends');
+    if(skipWkndEl) skipWkndEl.checked = (p.skipWeekends !== false);
+    // The rollout-preview note depends on the per-project weekend setting.
+    const weekendNoteEl = document.getElementById('sch-weekends-note');
+    if(weekendNoteEl) weekendNoteEl.textContent = t(p.skipWeekends !== false ? 'sch.weekendsNote' : 'sch.weekendsNoteIncluded');
 
     // Schedule view — count only Production targets, matching what confirmSchedule saves.
     const prodTargets = (p.locationsList||[]).filter(t=>t.type === 'Production');
@@ -2530,11 +2545,16 @@
     if(!p) return;
     const days = parseInt(document.getElementById('project-default-days').value) || 5;
     const time = document.getElementById('project-default-time').value || '20:00';
+    const skipWkndEl = document.getElementById('project-skip-weekends');
     p.defaultDays = days < 1 ? 1 : days;
     p.defaultTime = time;
+    p.skipWeekends = skipWkndEl ? skipWkndEl.checked : true;
     persistProject(currentProjectKey);
-    logAudit('changed', 'Project', 'Changed deployment defaults (' + p.defaultDays + ' working days, start ' + p.defaultTime + ')', p.name + ' (' + p.clientName + ')');
+    logAudit('changed', 'Project', 'Changed deployment defaults (' + p.defaultDays + ' working days, start ' + p.defaultTime + ', weekends ' + (p.skipWeekends ? 'skipped' : 'included') + ')', p.name + ' (' + p.clientName + ')');
     showToast(t('proj.defaultsSaved'));
+    // Refresh the schedule preview note for the current setting.
+    const weekendNoteEl = document.getElementById('sch-weekends-note');
+    if(weekendNoteEl) weekendNoteEl.textContent = t(p.skipWeekends ? 'sch.weekendsNote' : 'sch.weekendsNoteIncluded');
   }
 
   function saveProjectPostDeploy(){
@@ -2564,7 +2584,7 @@
           <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; flex:1; cursor:pointer;">
             <input type="checkbox" class="schedule-app-check" value="${a.name}" ${checked?'checked':''} style="width:auto;" onchange="onScheduleAppToggle(this)"> ${a.name}
           </label>
-          <input type="text" class="schedule-app-version mono" data-app="${a.name}" data-current="${suggested}" placeholder="version, e.g. ${suggested||'1.0.0'}" value="${suggested}" ${checked?'':'disabled'} style="width:160px; font-size:12.5px; ${checked?'':'background:var(--paper); color:var(--text-faint);'}" oninput="onScheduleVersionInput(this)">
+          <input type="text" class="schedule-app-version mono" data-app="${a.name}" data-current="${suggested}" placeholder="${t('sch.versionExample')} ${suggested||'1.0.0'}" value="${suggested}" ${checked?'':'disabled'} style="width:160px; font-size:12.5px; ${checked?'':'background:var(--paper); color:var(--text-faint);'}" oninput="onScheduleVersionInput(this)">
         </div>
         <div class="schedule-version-hint" style="display:none; font-size:11px; color:#8A5A05; margin-top:5px;"></div>
       </div>`;
@@ -3356,10 +3376,11 @@
     const prodDateVal = document.getElementById('date-prod').value || '2026-07-20';
     const startDate = new Date(prodDateVal);
     let dateCursor = new Date(startDate);
+    const skipWknd = (p.skipWeekends !== false);
     const dayLabels = [];
     for(let i=0; i<days; i++){
-      while(dateCursor.getDay()===0 || dateCursor.getDay()===6) dateCursor.setDate(dateCursor.getDate()+1);
-      dayLabels.push({dow: dowNames[dateCursor.getDay()-1] || 'Mon', date: dateCursor.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'})});
+      if(skipWknd) while(dateCursor.getDay()===0 || dateCursor.getDay()===6) dateCursor.setDate(dateCursor.getDate()+1);
+      dayLabels.push({dow: WEEKDAY_PL[dateCursor.getDay()] || 'Mon', date: dateCursor.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'})});
       dateCursor.setDate(dateCursor.getDate()+1);
     }
     renderManifestPreview(dayAssignments, dayLabels, testEnvs);
@@ -3847,7 +3868,8 @@
       customLocationFields: [],
       clientVisible,
       defaultDays,
-      defaultTime
+      defaultTime,
+      skipWeekends: true
     };
 
     // Add client people as client users scoped to this project.
@@ -4908,12 +4930,20 @@ Kind regards.`;
     return base + ((dayNum - 1) < remainder ? 1 : 0);
   }
 
+  // Whether a project's auto-generated schedule should skip weekends. Defaults
+  // to true (legacy behaviour) when the project has no explicit setting.
+  function projectSkipsWeekends(projectKey){
+    const p = PROJECTS[projectKey];
+    return !p || p.skipWeekends !== false;
+  }
+
   function getDateForDay(d, dayNum){
     // Explicit per-day override (set when the RM shifts the schedule mid-rollout).
     if(d.dayDates && d.dayDates[dayNum]) return d.dayDates[dayNum];
+    const skipWknd = projectSkipsWeekends(d.projectKey);
     let cursor = new Date(d.historyStart);
     for(let day = 1; day <= dayNum; day++){
-      while(cursor.getDay() === 0 || cursor.getDay() === 6){
+      if(skipWknd) while(cursor.getDay() === 0 || cursor.getDay() === 6){
         cursor.setDate(cursor.getDate() + 1);
       }
       if(day < dayNum) cursor.setDate(cursor.getDate() + 1);
@@ -4921,12 +4951,14 @@ Kind regards.`;
     return cursor.toISOString().slice(0, 10);
   }
 
-  // Add N calendar days to an ISO date, skipping weekends, returning ISO.
-  function addWorkingDays(iso, n){
+  // Add N days to an ISO date, returning ISO. When skipWknd is true (default)
+  // only working days are counted; otherwise plain calendar days are added.
+  function addWorkingDays(iso, n, skipWknd){
+    if(skipWknd === undefined) skipWknd = true;
     const c = new Date(iso);
-    let added = 0;
     const dir = n >= 0 ? 1 : -1;
     let steps = Math.abs(n);
+    if(!skipWknd){ c.setDate(c.getDate() + n); return c.toISOString().slice(0,10); }
     while(steps > 0){
       c.setDate(c.getDate() + dir);
       if(c.getDay() !== 0 && c.getDay() !== 6) steps--;
@@ -4950,7 +4982,7 @@ Kind regards.`;
     d._pendingDayDates = d._pendingDayDates || {};
     for(let day = currentDay; day <= d.days; day++){
       const base = d._pendingDayDates[day] ? d._pendingDayDates[day] : getDateForDay(d, day);
-      d._pendingDayDates[day] = addWorkingDays(base, n);
+      d._pendingDayDates[day] = addWorkingDays(base, n, projectSkipsWeekends(d.projectKey));
     }
     renderDeploymentsTable();
   }
@@ -5686,8 +5718,9 @@ Kind regards.`;
         const remainder = n % days;
         let dateCursor = new Date(d.historyStart);
         let locIdx = 0;
+        const skipWknd = projectSkipsWeekends(d.projectKey);
         for(let day = 0; day < days && rows.length < n; day++){
-          while(dateCursor.getDay() === 0 || dateCursor.getDay() === 6){
+          if(skipWknd) while(dateCursor.getDay() === 0 || dateCursor.getDay() === 6){
             dateCursor.setDate(dateCursor.getDate() + 1);
           }
           const count = base + (day < remainder ? 1 : 0);
