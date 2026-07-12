@@ -240,6 +240,42 @@ docker compose exec backend npm run seed
 
 The dev `docker-compose.yml` mounts `backend/src/seeds` into the backend container so the git-ignored file is available at runtime.
 
+### Using an external / managed database
+
+By default the stack runs its own PostgreSQL container (`db`) and the backend connects to it. To point RollDesk at an **external database** instead (e.g. Amazon RDS, Cloud SQL, Azure Database, or an existing on-prem PostgreSQL), override `DATABASE_URL` and don't start the bundled `db` service:
+
+1. **Set `DATABASE_URL`** to your server's connection string. It takes precedence over the per-part `POSTGRES_*` values:
+
+```bash
+# .env
+DATABASE_URL=postgres://USER:PASSWORD@db.example.com:5432/rolldesk?sslmode=require
+```
+
+   Include `?sslmode=require` (or stricter) for managed providers that enforce TLS. The database/user must already exist; the backend creates the tables itself by running the migrations on startup.
+
+2. **Start only the services you need** (skip the local `db`):
+
+```bash
+# dev compose (build local images)
+docker compose up -d --build backend frontend clamav
+# or production compose (pre-built images)
+docker compose -f docker-compose.prod.yml up -d backend frontend clamav
+```
+
+Because migrations run automatically on backend start, the external database is provisioned on first launch — no manual step required (you can still run `npm run migrate` manually against `DATABASE_URL` if you prefer). The bundled `db` service and its `db-data` volume are simply left unused; you can delete the `db` block from your compose file if you never want it.
+
+### Using an external ClamAV
+
+The same idea applies to virus scanning: the `clamav` container is a convenience, not a requirement. To use a **shared/managed ClamAV (clamd)** instead, point the backend at it and skip the bundled container:
+
+```bash
+# .env
+CLAMAV_HOST=clamav.internal.example.com
+CLAMAV_PORT=3310
+```
+
+Then start the stack without the `clamav` service (e.g. `docker compose up -d backend frontend`, plus `db` if you use the bundled database). Set `CLAMAV_HOST=` (empty) to disable scanning altogether. See [Virus scanning of uploads](#virus-scanning-of-uploads) for the fail-open/fail-closed behaviour (`CLAMAV_FAIL_MODE`).
+
 ---
 
 ## HTTP API
@@ -270,6 +306,7 @@ All endpoints are under `/api` (IP-filtered). `/health` is unfiltered for monito
 | POST | `/api/audit` | session | Append one change-history entry. |
 | GET | `/api/state/:key` | session | Read a shared collection (`roster`, `clients`, `notifications`). |
 | PUT | `/api/state/:key` | session | Replace a shared collection (last-write-wins). |
+| POST | `/api/notifications/test` | session | Send a test message to a Teams webhook (`{channel:'teams', url}`) or e-mail (`{channel:'email', address}`). |
 | GET | `/health` | — | Liveness + DB reachability. |
 
 Deployment statuses: `scheduled`, `installed`, `failed`, `rolledback`, `aborted`, `paused`.

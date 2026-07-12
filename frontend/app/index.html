@@ -2127,6 +2127,7 @@
           <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" ${rec.enabled?'checked':''} onchange="NOTIF_TEAMS[${i}].enabled=this.checked; renderNotifTeams();" style="width:auto;"></label>
           <input type="text" value="${(rec.name||'').replace(/"/g,'&quot;')}" placeholder="Name (e.g. Deployments — Teams)" onchange="NOTIF_TEAMS[${i}].name=this.value.trim()" style="width:200px; font-size:12.5px;">
           <input type="text" class="mono" value="${(rec.url||'').replace(/"/g,'&quot;')}" placeholder="https://... (webhook address)" onchange="NOTIF_TEAMS[${i}].url=this.value.trim()" style="flex:1; font-size:12.5px;">
+          <button class="mini-btn" onclick="testNotifWebhook(${i})" title="Send a test message to this webhook">Send test</button>
           <button class="mini-btn" onclick="removeNotifTeams(${i})">Remove</button>
         </div>
         <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">Notify about events:</div>
@@ -2135,6 +2136,24 @@
   }
   function addNotifTeams(){ NOTIF_TEAMS.push({name:'', url:'', enabled:true, events:defaultEventMap()}); renderNotifTeams(); }
   function removeNotifTeams(i){ NOTIF_TEAMS.splice(i,1); renderNotifTeams(); }
+
+  // Send a one-off test message to a configured webhook (server-side, so there
+  // are no browser CORS restrictions on the Teams endpoint).
+  async function testNotifWebhook(i){
+    const rec = NOTIF_TEAMS[i];
+    if(!rec || !(rec.url || '').trim()){ showToast('Enter the webhook URL first'); return; }
+    if(typeof API_CONNECTED === 'undefined' || !API_CONNECTED){ showToast('Not connected to the backend — cannot send a test'); return; }
+    showToast('Sending a test message…');
+    try {
+      const res = await apiFetch('/api/notifications/test', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({channel:'teams', url: rec.url.trim()})
+      });
+      let info = {}; try { info = await res.json(); } catch(e){}
+      if(res.ok){ showToast('✅ Test message sent to „' + (rec.name || 'webhook') + '”'); }
+      else { showToast('⚠ Test failed: ' + (info.error || ('HTTP ' + res.status))); }
+    } catch(e){ showToast('⚠ Could not send the test message'); }
+  }
 
   function renderNotificationsView(){
     renderNotifEmails();

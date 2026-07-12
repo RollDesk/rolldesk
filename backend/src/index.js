@@ -10,6 +10,7 @@ import deployments from './routes/deployments.js';
 import projects from './routes/projects.js';
 import attachments from './routes/attachments.js';
 import state from './routes/state.js';
+import notifications from './routes/notifications.js';
 
 const app = express();
 if (config.trustProxy) app.set('trust proxy', true);
@@ -29,6 +30,7 @@ app.use('/api/auth', authRouter);
 // are matched before the generic deployments router below.
 app.use('/api', requireAuth, attachments);
 app.use('/api', requireAuth, state);
+app.use('/api/notifications', requireAuth, notifications);
 app.use('/api/deployments', requireAuth, deployments);
 app.use('/api/projects', requireAuth, projects);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown endpoint' }));

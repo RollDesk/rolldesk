@@ -66,3 +66,45 @@ CREATE TABLE IF NOT EXISTS login_history (
 
 CREATE INDEX IF NOT EXISTS idx_login_history_user
   ON login_history (user_id, logged_in_at DESC);
+
+-- File attachments stored directly in the database. The changelog file attached
+-- when scheduling a deployment (and any future per-deployment file) is kept here
+-- as raw bytes (BYTEA) alongside its filename and MIME type. Attachments belong
+-- to a deployment and are removed automatically when that deployment is deleted.
+CREATE TABLE IF NOT EXISTS attachments (
+  id            BIGSERIAL PRIMARY KEY,
+  deployment_id TEXT NOT NULL REFERENCES deployments(id) ON DELETE CASCADE,
+  filename      TEXT NOT NULL,
+  mime          TEXT NOT NULL DEFAULT 'application/octet-stream',
+  byte_size     INTEGER NOT NULL,
+  content       BYTEA NOT NULL,
+  uploaded_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  uploaded_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_attachments_deployment
+  ON attachments (deployment_id, uploaded_at);
+
+-- Persistence for application state the single-page UI used to keep only in
+-- browser memory: the append-only change history (audit log) and a few
+-- whole-collection settings (user roster, client list, notification recipients)
+-- stored last-write-wins in a generic key/value table.
+CREATE TABLE IF NOT EXISTS audit_log (
+  id         BIGSERIAL PRIMARY KEY,
+  ts         TEXT,           -- human-readable timestamp captured on the client
+  actor      TEXT,
+  role       TEXT,
+  action     TEXT,
+  entity     TEXT,
+  detail     TEXT,
+  project    TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log (created_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS app_state (
+  key        TEXT PRIMARY KEY,
+  data       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
