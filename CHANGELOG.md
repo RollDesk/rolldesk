@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-07-12
+
+### Added
+- Enriched `/health` endpoint reporting overall status, app version, uptime, timestamp, and a database connectivity check with latency (returns `503` when the database is unreachable).
+
+### Fixed
+- Backend no longer crashes when the database connection drops; idle pool errors are handled so the service stays up and reports a degraded `/health` instead.
+
 ## [0.2.0] - 2026-07-12
 
 First fully functional release: real authentication, database-backed state, and file security.
@@ -26,4 +34,5 @@ First fully functional release: real authentication, database-backed state, and 
 ### Removed
 - Demo mode: mock login, seeded demo data, and the database-connection badge.
 
+[0.2.1]: https://github.com/RollDesk/rolldesk/releases/tag/v0.2.1
 [0.2.0]: https://github.com/RollDesk/rolldesk/releases/tag/v0.2.0
