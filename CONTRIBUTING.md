@@ -60,6 +60,8 @@ docker compose up --build
 
 - UI: http://localhost:8080 · API: http://localhost:8080/api/deployments · Health: http://localhost:8080/health
 
+On first open you'll hit the **setup wizard** (there is no default user): create an admin, then complete the forced **TOTP MFA enrollment** with any authenticator app. The dev compose file sets a throwaway `JWT_SECRET`; set a real one for anything non-local (`openssl rand -hex 32`).
+
 Load sample data (optional):
 
 ```bash
@@ -134,7 +136,7 @@ The frontend is a single static file. For pure UI work, open `frontend/app/index
 ## Database changes
 
 - **Never edit an existing migration** that may have run somewhere. Add a new file instead.
-- Create it in `backend/src/migrations/` using the zero-padded prefix convention, e.g. `002_add_deployment_owner.sql`.
+- Create it in `backend/src/migrations/` using the zero-padded prefix convention, e.g. `003_add_deployment_owner.sql` (`001_init.sql` and `002_auth.sql` already exist).
 - Keep statements **idempotent** where practical (`CREATE TABLE IF NOT EXISTS`, `ON CONFLICT DO NOTHING`, `ADD COLUMN IF NOT EXISTS`).
 - Migrations run automatically on backend start and via `npm run migrate`; each runs once, in its own transaction, tracked in `schema_migrations`.
 - Migrations are **schema only** — no client/project/sample data. Sample data goes in the git-ignored local seed (below).
@@ -223,7 +225,8 @@ For features, describe the problem you're trying to solve and the proposed behav
 
 Nice entry points into the codebase:
 
-- Real authentication (the login/2FA is currently a mockup that accepts any 6-digit code).
+- Multi-user management (the auth backend supports one bootstrapped admin; the in-app Users screen is still demo data).
+- A real "forgot password" / reset flow (the panel exists but isn't wired to the backend).
 - Project editing via the existing `PUT /api/projects` API.
 - More API-level tests (e.g. route behaviour with a test database).
 - Breaking the single-file UI (`frontend/app/index.html`) into maintainable pieces.
