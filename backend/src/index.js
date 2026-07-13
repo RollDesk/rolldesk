@@ -14,6 +14,7 @@ import state from './routes/state.js';
 import notifications from './routes/notifications.js';
 import tokens from './routes/tokens.js';
 import users from './routes/users.js';
+import sso from './routes/sso.js';
 
 const app = express();
 if (config.trustProxy) app.set('trust proxy', true);
@@ -33,6 +34,9 @@ app.use('/api/auth', authRouter);
 app.use('/api/tokens', requireAuth, tokens);
 // User management requires an interactive session (admin-only, enforced inside).
 app.use('/api/users', requireAuth, users);
+// SSO provider configuration (admin-only, enforced inside). Requires an
+// interactive session — never an API token.
+app.use('/api/sso', requireAuth, sso);
 // The data API accepts either a session JWT or a personal access token, so
 // scripts/CI can call it with `Authorization: Bearer rd_live_…`.
 // Attachments are mounted at /api so both `/api/deployments/:id/attachments`

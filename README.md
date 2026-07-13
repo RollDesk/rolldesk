@@ -185,7 +185,8 @@ All configuration comes from environment variables (see `.env.example`). Key one
 |----------|---------|---------|
 | `HTTP_PORT` | `8080` | Host port the frontend (nginx) listens on. |
 | `ALLOWED_IPS` | *(empty)* | Comma/space-separated IPs and CIDR ranges allowed to reach the UI + API. Empty = no restriction (**dev only**). |
-| `APP_BASE_URL` | *(empty)* | Public URL where the app is reachable (e.g. `https://rolldesk.example.com`). When set, outgoing notifications (webhooks / e-mail) include a clickable link back to RollDesk. |
+| `APP_BASE_URL` | *(empty)* | Public URL where the app is reachable (e.g. `https://rolldesk.example.com`). When set, outgoing notifications (webhooks / e-mail) include a clickable link back to RollDesk. **Required for SSO** (used to build the OIDC redirect URI). |
+| `SSO_ENC_KEY` | *(derived from `JWT_SECRET`)* | Key used to encrypt stored SSO/OIDC client secrets at rest (AES-256-GCM). Set a dedicated random value in production (`openssl rand -hex 32`). See [Single sign-on (SSO)](#single-sign-on-sso). |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `rolldesk` | Database credentials. |
 | `DATABASE_URL` | *(built from the above)* | Backend connection string. |
 | `JWT_SECRET` | *(dev: ephemeral)* | Secret used to sign session tokens. **Required in production** — the backend refuses to start without it. Generate with `openssl rand -hex 32`. In dev, if unset, an ephemeral secret is used (sessions reset on restart). |
@@ -325,6 +326,36 @@ RollDesk ships with **no default account** and stays locked until one is created
 
 TOTP MFA uses [`otplib`](https://www.npmjs.com/package/otplib); QR codes are rendered with [`qrcode`](https://www.npmjs.com/package/qrcode); tokens use [`jsonwebtoken`](https://www.npmjs.com/package/jsonwebtoken).
 
+### Single sign-on (SSO)
+
+An administrator can enable **OpenID Connect single sign-on per e-mail domain** (Administrator → Single sign-on). When a domain has an enabled provider, its users sign in through their identity provider instead of a password. SSO is provider-agnostic and built on [`openid-client`](https://www.npmjs.com/package/openid-client):
+
+- **Microsoft Entra ID / Azure AD** — enter the *Tenant (Directory) ID*; the issuer is derived automatically.
+- **Google** — no extra fields; the Google issuer is used.
+- **Other (generic OIDC)** — paste the provider's issuer / discovery URL.
+
+Key behaviour:
+
+- **No just-in-time provisioning.** The signing-in e-mail must already match an account created by an admin (Users screen); unknown or archived accounts are rejected. MFA is handled by the identity provider, so RollDesk does not additionally enforce its own TOTP for SSO logins.
+- **Enforced per domain, with an admin fallback.** For a domain with SSO enabled, password login is disabled for everyone except local `admin` users — a break-glass fallback so a misconfigured IdP can't lock the whole domain out.
+- **Setup.** Set `APP_BASE_URL` (used to build the redirect URI) and, in production, a dedicated `SSO_ENC_KEY`. In the identity provider, register a **Web** application and add the redirect URI shown in the SSO form: `<APP_BASE_URL>/api/auth/sso/callback`. Then add the domain in RollDesk with the client ID and client secret (the secret is stored encrypted and never returned to the browser). Use **Test** to validate the issuer via OIDC discovery.
+
+The OIDC flow is Authorization Code + PKCE. The client secret is encrypted at rest (AES-256-GCM). The short-lived authorization state and the one-time session-handoff code are kept in memory, so — like the auth rate limiter — SSO expects a single backend instance (or sticky sessions).
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant API as RollDesk backend
+    participant IdP as Identity provider
+    B->>API: GET /api/auth/sso/start?email=user@domain
+    API-->>B: 302 to IdP (PKCE + state + nonce)
+    B->>IdP: authenticate (+ IdP MFA)
+    IdP-->>B: 302 to /api/auth/sso/callback?code
+    B->>API: callback -> exchange code, match user, mint session
+    API-->>B: 302 to /#/sso/<one-time-code>
+    B->>API: POST /api/auth/sso/exchange -> session JWT
+```
+
 ---
 
 ## Tests
@@ -397,11 +428,11 @@ Key rules: **no secrets or real client data in commits** (real data goes in the 
 
 ## Project status
 
-**Ready:** Docker infrastructure, durable PostgreSQL with an automatic migration runner (schema-only migrations; sample data in local, uncommitted seeds), a persisting API, real authentication (first-run setup wizard, bcrypt password login, mandatory TOTP MFA, JWT sessions guarding the API), multi-user management (admin-invited accounts with a real set-password flow, roles, per-project access, archive/restore), personal access tokens for the automation API (`Authorization: Bearer rd_live_…`), IP restriction (nginx + backend), CI that tests/builds/deploys, and the served UI.
+**Ready:** Docker infrastructure, durable PostgreSQL with an automatic migration runner (schema-only migrations; sample data in local, uncommitted seeds), a persisting API, real authentication (first-run setup wizard, bcrypt password login, mandatory TOTP MFA, JWT sessions guarding the API, self-service password reset, and optional per-domain OpenID Connect SSO for Azure/Entra ID, Google or any OIDC provider), multi-user management (admin-invited accounts with a real set-password flow, roles, per-project access, archive/restore), personal access tokens for the automation API (`Authorization: Bearer rd_live_…`), IP restriction (nginx + backend), CI that tests/builds/deploys, and the served UI.
 
 **Known limitations / next steps:**
 
-- **Self-service password reset is not wired.** The login screen's "Forgot your password?" panel is still a placeholder. Admins can, however, issue a reset link for any user from the Users screen, and admin-issued invitations use the same real set-password flow.
+- **SSO state is in-memory.** Single sign-on keeps its authorization state and one-time handoff codes in the backend process, so it expects a single instance (or sticky sessions) — the same constraint as the auth rate limiter.
 - **Writes are "last write wins"** (no concurrency locks) — fine for a small team, to be hardened under load.
 - **Project/app definitions** currently originate in the UI; moving them fully behind the `GET/PUT /api/projects` API is a natural next step.
 - The **UI is one large `index.html`** — great for zero-build iteration, a candidate for componentisation as it grows.
@@ -410,4 +441,4 @@ Key rules: **no secrets or real client data in commits** (real data goes in the 
 
 ## License
 
-No license file is included yet. Add one before distributing or open-sourcing this project.
+Released under the **[MIT License](LICENSE)** — see the [`LICENSE`](LICENSE) file for the full text.

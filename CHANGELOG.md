@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-07-12
+
+### Added
+- **Single sign-on (OIDC) per e-mail domain**, configured by an admin (Administrator → Single sign-on). Provider-agnostic via [`openid-client`](https://www.npmjs.com/package/openid-client): Microsoft Entra ID / Azure AD (enter the Tenant ID), Google, or any generic OIDC issuer. When a domain has an enabled provider, its users sign in through the identity provider (Authorization Code + PKCE) instead of a password; the login screen detects the domain and offers the provider button. There is no just-in-time provisioning — the account must already exist (created by an admin). New endpoints: `GET/POST/PUT/DELETE /api/sso` (+ `/:id/test`) for admin config, and `/api/auth/sso/lookup|start|callback|exchange` for the login flow. IdP client secrets are stored encrypted at rest (AES-256-GCM, `SSO_ENC_KEY`); a `sso_providers` table is added by a new migration.
+
+### Changed
+- For a domain with SSO enabled, **password login is disabled for non-admins** (local `admin` accounts keep password login as a break-glass fallback so a misconfigured IdP can't lock the domain out).
+- `APP_BASE_URL` is now also required for SSO (used to build the redirect URI `<APP_BASE_URL>/api/auth/sso/callback`). New `SSO_ENC_KEY` environment variable (falls back to a value derived from `JWT_SECRET`).
+
+## [0.4.1] - 2026-07-12
+
+### Added
+- Discreet language switcher in the top bar (next to the profile) and inside the login/setup/invite cards, rendered as understated, icon-less text toggles.
+
+### Fixed
+- **Self-service password reset is now real.** The "Forgot your password?" flow calls a new public `POST /api/auth/forgot` endpoint, which issues a single-use reset link (valid 3 days) and e-mails it; the new password is set via the existing `#/invite/<token>` flow. The account e-mail field is editable, and the previous mock "set password" step was removed. (Requires SMTP for delivery; admins can still issue reset links from the Users screen.)
+
 ## [0.4.0] - 2026-07-12
 
 ### Added

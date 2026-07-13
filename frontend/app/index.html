@@ -394,14 +394,18 @@
     <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 20px 0;" data-i18n="auth.loginDesc">Sign in to manage your deployments.</p>
     <div class="field">
       <label data-i18n="auth.email">E-mail</label>
-      <input type="text" id="login-email" class="mono" autocomplete="username" placeholder="you@example.com">
+      <input type="text" id="login-email" class="mono" autocomplete="username" placeholder="you@example.com" oninput="onLoginEmailInput()">
     </div>
-    <div class="field">
+    <div class="field" id="login-password-field">
       <label data-i18n="auth.password">Password</label>
       <input type="password" id="login-password" autocomplete="current-password">
     </div>
     <div id="login-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
     <button class="btn" id="login-btn" style="width:100%; justify-content:center;" onclick="submitLogin()" data-i18n="auth.signIn">Sign in</button>
+    <div id="login-sso-area" style="display:none;">
+      <button class="btn" id="login-sso-btn" style="width:100%; justify-content:center;" onclick="startSsoLogin()"><span id="login-sso-label" data-i18n="auth.ssoSignIn">Sign in with single sign-on</span></button>
+      <p style="text-align:center; margin:10px 0 0 0;"><a href="#" onclick="event.preventDefault(); showPasswordLogin(true);" style="font-size:12px; color:var(--text-muted); text-decoration:none;" data-i18n="auth.usePassword">Sign in with a password instead</a></p>
+    </div>
     <p style="text-align:center; margin:12px 0 0 0;"><a href="#" onclick="event.preventDefault(); showResetPanel();" style="font-size:12px; color:var(--cyan); text-decoration:none;" data-i18n="auth.forgot">Forgot your password?</a></p>
     <div class="auth-lang-row">
       <label class="lang-txt" title="Polski"><input type="radio" name="auth-lang" value="pl" onchange="setLanguage('pl')">Polski</label>
@@ -526,6 +530,10 @@
   <div class="nav-item" data-view="clients">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>
     <span data-i18n="nav.clients">Clients</span>
+  </div>
+  <div class="nav-item" data-view="sso">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg>
+    <span data-i18n="nav.sso">Single sign-on</span>
   </div>
   <div class="nav-item" data-view="audit">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>
@@ -1153,6 +1161,80 @@
     </div>
   </div>
 
+  <!-- ============ VIEW: SINGLE SIGN-ON (SSO) ============ -->
+  <div class="view" id="view-sso">
+    <div class="toolbar">
+      <div>
+        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.sso">Single sign-on (SSO)</h2>
+        <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.sso">Let users of a given e-mail domain sign in through their company identity provider (Microsoft Entra ID / Azure AD, Google, or any OpenID Connect provider) instead of a password. Accounts must already exist — users are added by an Administrator. Only an Administrator can configure SSO.</p>
+      </div>
+      <button class="btn" id="add-sso-btn" onclick="toggleSsoForm()" data-i18n="sso.add">+ Add domain</button>
+    </div>
+
+    <div class="card" id="sso-form" style="display:none; margin-bottom:18px;">
+      <div class="toolbar" style="margin-bottom:14px;">
+        <strong id="sso-form-title" style="font-size:13px;" data-i18n="sso.newTitle">New SSO domain</strong>
+        <button class="mini-btn" onclick="toggleSsoForm()" data-i18n="sso.cancel">Cancel</button>
+      </div>
+      <input type="hidden" id="sso-id">
+      <div class="grid-2">
+        <div class="field">
+          <label data-i18n="sso.domain">E-mail domain</label>
+          <input type="text" id="sso-domain" class="mono" data-i18n-ph="sso.domainPh" placeholder="e.g. dxc.com">
+        </div>
+        <div class="field">
+          <label data-i18n="sso.provider">Provider</label>
+          <select id="sso-provider" onchange="onSsoProviderChange()">
+            <option value="azure" data-i18n="sso.provAzure">Microsoft Entra ID / Azure AD</option>
+            <option value="google" data-i18n="sso.provGoogle">Google</option>
+            <option value="oidc" data-i18n="sso.provOidc">Other (OpenID Connect)</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" id="sso-tenant-field">
+        <label data-i18n="sso.tenant">Azure Tenant ID (Directory ID)</label>
+        <input type="text" id="sso-tenant" class="mono" placeholder="00000000-0000-0000-0000-000000000000">
+      </div>
+      <div class="field" id="sso-issuer-field" style="display:none;">
+        <label data-i18n="sso.issuer">Issuer / discovery URL</label>
+        <input type="text" id="sso-issuer" class="mono" placeholder="https://issuer.example.com">
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label data-i18n="sso.clientId">Client ID (Application ID)</label>
+          <input type="text" id="sso-client-id" class="mono">
+        </div>
+        <div class="field">
+          <label data-i18n="sso.clientSecret">Client secret</label>
+          <input type="password" id="sso-client-secret" class="mono" autocomplete="new-password" placeholder="••••••••••••">
+          <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;" id="sso-secret-hint" data-i18n="sso.secretHintNew">Stored encrypted; never shown again.</p>
+        </div>
+      </div>
+      <div class="field">
+        <label data-i18n="sso.redirect">Redirect URI (register this in the identity provider)</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input type="text" id="sso-redirect" class="mono" readonly style="background:var(--paper); color:var(--text-muted); flex:1;">
+          <button type="button" class="mini-btn" onclick="copySsoRedirect()" data-i18n="sso.copy">Copy</button>
+        </div>
+      </div>
+      <label class="radio-pill" style="margin:4px 0 14px 0;"><input type="checkbox" id="sso-enabled" checked> <span data-i18n="sso.enabled">Enabled</span></label>
+      <div id="sso-form-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
+      <button class="btn" id="sso-form-submit" onclick="saveSsoProvider()" data-i18n="sso.save">Save</button>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead><tr>
+          <th data-i18n="sso.thDomain">Domain</th>
+          <th data-i18n="sso.thProvider">Provider</th>
+          <th data-i18n="sso.thStatus">Status</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="sso-table"></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- ============ VIEW: INSTALLER PANEL ============ -->
   <div class="view" id="view-installer">
     <h2 class="section-title" data-i18n="title.installer">Deployer panel</h2>
@@ -1443,11 +1525,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.4.1"></script>
-<script src="i18n/en.js?v=0.4.1"></script>
+<script src="i18n/pl.js?v=0.5.0"></script>
+<script src="i18n/en.js?v=0.5.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.4.1';
+  const ROLLDESK_VERSION = '0.5.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -1510,6 +1592,11 @@
     let s = t(key);
     if(params){ for(const k in params){ s = s.split('{'+k+'}').join(params[k]); } }
     return s;
+  }
+  function escapeHtml(v){
+    return String(v == null ? '' : v)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
   function titleFor(view){ return t('topbar.' + view); }
   function applyLanguage(){
@@ -2084,6 +2171,165 @@
     return (currentUser && currentUser.role === 'admin') || currentLoggedInRole === 'admin';
   }
 
+  // ---- Single sign-on (SSO) administration --------------------------------
+  let SSO_PROVIDERS_CACHE = [];
+  let SSO_REDIRECT_URI = '';
+  const SSO_PROVIDER_LABELS = { azure: 'Microsoft Entra ID / Azure AD', google: 'Google', oidc: 'OpenID Connect' };
+
+  async function loadSsoProviders(){
+    if(!isLoggedInAsAdmin()) return;
+    try {
+      const res = await apiFetch('/api/sso');
+      if(!res.ok) return;
+      const data = await res.json();
+      SSO_PROVIDERS_CACHE = Array.isArray(data.providers) ? data.providers : [];
+      SSO_REDIRECT_URI = data.redirectUri || '';
+      renderSsoTable();
+    } catch(e){ /* backend unavailable — leave the table empty */ }
+  }
+
+  function renderSsoTable(){
+    const tbody = document.getElementById('sso-table');
+    if(!tbody) return;
+    if(!SSO_PROVIDERS_CACHE.length){
+      tbody.innerHTML = `<tr><td colspan="4" style="color:var(--text-muted); padding:18px 12px;">${t('sso.empty')}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = SSO_PROVIDERS_CACHE.map(p=>{
+      const label = t('sso.prov'+({azure:'Azure',google:'Google',oidc:'Oidc'}[p.provider]||'Oidc'));
+      const status = p.enabled
+        ? `<span class="badge" style="background:var(--green-soft); color:#0F7A38;">${t('sso.stEnabled')}</span>`
+        : `<span class="badge" style="background:var(--paper-alt2,#eef1f4); color:var(--text-muted);">${t('sso.stDisabled')}</span>`;
+      return `<tr>
+        <td class="mono">${escapeHtml(p.domain)}</td>
+        <td>${escapeHtml(label)}</td>
+        <td>${status}</td>
+        <td style="text-align:right; white-space:nowrap;">
+          <button class="mini-btn" onclick="testSsoProvider(${p.id})" data-i18n="sso.test">Test</button>
+          <button class="mini-btn" onclick="editSsoProvider(${p.id})" data-i18n="sso.edit">Edit</button>
+          <button class="mini-btn" onclick="deleteSsoProvider(${p.id})" data-i18n="sso.delete">Delete</button>
+        </td>
+      </tr>`;
+    }).join('');
+    try { applyLanguage(); } catch(e){}
+  }
+
+  function onSsoProviderChange(){
+    const prov = document.getElementById('sso-provider').value;
+    document.getElementById('sso-tenant-field').style.display = prov === 'azure' ? '' : 'none';
+    document.getElementById('sso-issuer-field').style.display = prov === 'oidc' ? '' : 'none';
+  }
+
+  function resetSsoForm(){
+    document.getElementById('sso-id').value = '';
+    document.getElementById('sso-domain').value = '';
+    document.getElementById('sso-provider').value = 'azure';
+    document.getElementById('sso-tenant').value = '';
+    document.getElementById('sso-issuer').value = '';
+    document.getElementById('sso-client-id').value = '';
+    document.getElementById('sso-client-secret').value = '';
+    document.getElementById('sso-enabled').checked = true;
+    document.getElementById('sso-form-error').style.display = 'none';
+    document.getElementById('sso-redirect').value = SSO_REDIRECT_URI;
+    document.getElementById('sso-secret-hint').textContent = t('sso.secretHintNew');
+    onSsoProviderChange();
+  }
+
+  function toggleSsoForm(){
+    if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can configure SSO'); return; }
+    const f = document.getElementById('sso-form');
+    const opening = f.style.display === 'none';
+    f.style.display = opening ? 'block' : 'none';
+    if(opening){
+      resetSsoForm();
+      document.getElementById('sso-form-title').textContent = t('sso.newTitle');
+    }
+  }
+
+  function editSsoProvider(id){
+    const p = SSO_PROVIDERS_CACHE.find(x=>x.id === id);
+    if(!p) return;
+    document.getElementById('sso-form').style.display = 'block';
+    document.getElementById('sso-form-title').textContent = t('sso.editTitle');
+    document.getElementById('sso-id').value = p.id;
+    document.getElementById('sso-domain').value = p.domain;
+    document.getElementById('sso-provider').value = p.provider;
+    document.getElementById('sso-tenant').value = '';
+    document.getElementById('sso-issuer').value = p.provider === 'oidc' ? (p.issuer || '') : '';
+    document.getElementById('sso-client-id').value = p.clientId || '';
+    document.getElementById('sso-client-secret').value = '';
+    document.getElementById('sso-enabled').checked = !!p.enabled;
+    document.getElementById('sso-form-error').style.display = 'none';
+    document.getElementById('sso-redirect').value = SSO_REDIRECT_URI;
+    document.getElementById('sso-secret-hint').textContent = p.hasSecret ? t('sso.secretHintKeep') : t('sso.secretHintNew');
+    onSsoProviderChange();
+    document.getElementById('sso-form').scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  async function saveSsoProvider(){
+    if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can configure SSO'); return; }
+    const err = document.getElementById('sso-form-error');
+    const id = document.getElementById('sso-id').value;
+    const provider = document.getElementById('sso-provider').value;
+    const body = {
+      domain: document.getElementById('sso-domain').value.trim().toLowerCase().replace(/^@/, ''),
+      provider,
+      tenant: document.getElementById('sso-tenant').value.trim(),
+      issuer: document.getElementById('sso-issuer').value.trim(),
+      clientId: document.getElementById('sso-client-id').value.trim(),
+      clientSecret: document.getElementById('sso-client-secret').value,
+      enabled: document.getElementById('sso-enabled').checked
+    };
+    if(!body.domain){ err.textContent = t('sso.errDomain'); err.style.display='block'; return; }
+    if(!body.clientId){ err.textContent = t('sso.errClientId'); err.style.display='block'; return; }
+    if(!id && !body.clientSecret){ err.textContent = t('sso.errSecret'); err.style.display='block'; return; }
+    const btn = document.getElementById('sso-form-submit'); btn.disabled = true;
+    try {
+      const res = await apiFetch(id ? '/api/sso/'+id : '/api/sso', {
+        method: id ? 'PUT' : 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok){ err.textContent = data.error || t('sso.errSave'); err.style.display='block'; return; }
+      err.style.display = 'none';
+      document.getElementById('sso-form').style.display = 'none';
+      showToast(t('sso.saved'));
+      await loadSsoProviders();
+    } catch(e){
+      err.textContent = t('sso.errSave'); err.style.display='block';
+    } finally { btn.disabled = false; }
+  }
+
+  async function deleteSsoProvider(id){
+    if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can configure SSO'); return; }
+    const p = SSO_PROVIDERS_CACHE.find(x=>x.id === id);
+    showAppConfirm(t('sso.confirmDeleteTitle'), tf('sso.confirmDeleteBody', {domain: p ? p.domain : ''}), async ()=>{
+      try {
+        const res = await apiFetch('/api/sso/'+id, {method:'DELETE'});
+        if(!res.ok) throw new Error('delete failed');
+        showToast(t('sso.deleted'));
+        await loadSsoProviders();
+      } catch(e){ showToast(t('sso.errSave')); }
+    });
+  }
+
+  async function testSsoProvider(id){
+    showToast(t('sso.testing'));
+    try {
+      const res = await apiFetch('/api/sso/'+id+'/test', {method:'POST'});
+      const data = await res.json().catch(()=>({}));
+      if(res.ok && data.ok) showToast(t('sso.testOk'));
+      else showToast('⚠ ' + (data.error || t('sso.testFailed')));
+    } catch(e){ showToast('⚠ ' + t('sso.testFailed')); }
+  }
+
+  function copySsoRedirect(){
+    const v = document.getElementById('sso-redirect').value || '';
+    if(!v) return;
+    try { navigator.clipboard.writeText(v); showToast(t('sso.copied')); } catch(e){}
+  }
+
   function toggleUserForm(){
     if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can manage users'); return; }
     const f = document.getElementById('user-form');
@@ -2336,6 +2582,7 @@
     const projectScopedViews = ['projects', 'schedule', 'apps'];
     const slugEl = document.getElementById('topbar-project-slug');
     if(slugEl) slugEl.style.display = projectScopedViews.includes(viewName) ? '' : 'none';
+    if(viewName === 'sso') loadSsoProviders();
     if(viewName === 'audit') renderAuditLog();
     if(viewName === 'account') renderRollDeskVersion();
     if(viewName === 'help') renderApiDocsIfNeeded();
@@ -6468,7 +6715,11 @@ Kind regards.`;
     const target = document.getElementById(id);
     if(target) target.style.display = 'block';
   }
-  function showLoginPanel(){ showAuthPanel('login-panel'); }
+  function showLoginPanel(){
+    showAuthPanel('login-panel');
+    // Reset to the default (password) state; the e-mail handler re-detects SSO.
+    try { ssoForcedPassword = false; showPasswordLogin(false); } catch(e){}
+  }
 
   // ---- Invitation / password-reset acceptance (#/invite/<token>) ----
   let inviteToken = null;
@@ -6498,6 +6749,53 @@ Kind regards.`;
       });
     return true;
   }
+  // ---- SSO handoff (#/sso/<one-time-code>) --------------------------------
+  // The backend SSO callback redirects here after a successful sign-in. Swap the
+  // one-time code for the real session token, then enter the app.
+  function handleSsoRoute(){
+    const m = /^#\/sso\/([A-Za-z0-9]+)$/.exec(location.hash || '');
+    if(!m) return false;
+    const code = m[1];
+    showLoginScreen();
+    showAuthPanel('boot-panel');
+    document.getElementById('boot-retry').style.display = 'none';
+    document.getElementById('boot-message').textContent = t('auth.connecting');
+    (async ()=>{
+      try {
+        const r = await authPost('/api/auth/sso/exchange', { code });
+        // Drop the code from the URL so a refresh can't replay it.
+        try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
+        if(!r.ok || !r.data.token){
+          showLoginPanel();
+          authError('login-error', r.data.error || t('auth.ssoFailed'));
+          return;
+        }
+        await onAuthenticated(r.data.token);
+      } catch(e){
+        showLoginPanel();
+        authError('login-error', t('auth.ssoFailed'));
+      }
+    })();
+    return true;
+  }
+
+  // Backend SSO failures redirect to /?sso_error=<reason>. Show it on the login
+  // screen and clean the URL.
+  function handleSsoErrorParam(){
+    const m = /[?&]sso_error=([^&]+)/.exec(location.search || '');
+    if(!m) return;
+    const reason = decodeURIComponent(m[1]);
+    const key = 'auth.ssoErr_' + reason.replace(/-/g,'');
+    const msg = (I18N[LANG] && I18N[LANG][key]) ? t(key) : t('auth.ssoFailed');
+    try {
+      const url = location.pathname + location.hash;
+      history.replaceState(null, '', url);
+    } catch(e){}
+    showLoginScreen();
+    showLoginPanel();
+    authError('login-error', msg);
+  }
+
   async function submitInvitePassword(){
     clearAuthError('invite-error');
     const p1 = document.getElementById('invite-pass').value;
@@ -6608,6 +6906,56 @@ Kind regards.`;
     } finally { btn.disabled = false; }
   }
 
+  // ---- SSO on the login screen -------------------------------------------
+  let ssoLookupTimer = null;
+  let ssoForcedPassword = false; // admin chose "sign in with a password instead"
+
+  const SSO_LABEL_KEYS = { azure: 'auth.ssoAzure', google: 'auth.ssoGoogle', oidc: 'auth.ssoGeneric' };
+
+  function showPasswordLogin(force){
+    if(force) ssoForcedPassword = true;
+    document.getElementById('login-password-field').style.display = '';
+    document.getElementById('login-btn').style.display = '';
+    document.getElementById('login-sso-area').style.display = 'none';
+    if(force){ const p = document.getElementById('login-password'); if(p) p.focus(); }
+  }
+
+  function showSsoLogin(provider, email){
+    ssoForcedPassword = false;
+    document.getElementById('login-password-field').style.display = 'none';
+    document.getElementById('login-btn').style.display = 'none';
+    document.getElementById('login-sso-area').style.display = 'block';
+    const label = document.getElementById('login-sso-label');
+    if(label) label.textContent = t(SSO_LABEL_KEYS[provider] || 'auth.ssoSignIn');
+  }
+
+  function startSsoLogin(){
+    const email = document.getElementById('login-email').value.trim();
+    if(!email) return;
+    window.location.href = API_BASE + '/api/auth/sso/start?email=' + encodeURIComponent(email);
+  }
+
+  // As the user types their e-mail, ask the backend whether the domain uses SSO
+  // and morph the panel accordingly (unless an admin forced password login).
+  function onLoginEmailInput(){
+    if(ssoLookupTimer) clearTimeout(ssoLookupTimer);
+    const email = document.getElementById('login-email').value.trim();
+    clearAuthError('login-error');
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){
+      if(!ssoForcedPassword) showPasswordLogin(false);
+      return;
+    }
+    ssoLookupTimer = setTimeout(async ()=>{
+      try {
+        const res = await fetch(API_BASE + '/api/auth/sso/lookup?email=' + encodeURIComponent(email));
+        if(!res.ok) return;
+        const info = await res.json();
+        if(info.sso && !ssoForcedPassword) showSsoLogin(info.provider, email);
+        else if(!info.sso) showPasswordLogin(false);
+      } catch(e){ /* offline — leave the password form */ }
+    }, 350);
+  }
+
   async function submitLogin(){
     clearAuthError('login-error');
     const email = document.getElementById('login-email').value.trim();
@@ -6616,6 +6964,12 @@ Kind regards.`;
     const btn = document.getElementById('login-btn'); btn.disabled = true;
     try {
       const r = await authPost('/api/auth/login', { email, password: pass });
+      // The domain enforces SSO (and this isn't a local admin) — offer SSO.
+      if(r.status === 403 && r.data && r.data.sso){
+        showSsoLogin(r.data.provider, email);
+        authError('login-error', r.data.error || t('auth.useSso'));
+        return;
+      }
       if(!r.ok){ authError('login-error', r.data.error || 'Invalid email or password.'); return; }
       authStageToken = r.data.token;
       if(r.data.stage === 'mfa-setup'){
@@ -6816,9 +7170,11 @@ Kind regards.`;
   if(LANG !== 'en') applyLanguage();
   // Check for a newer published version on GitHub (fails quietly if offline).
   checkLatestVersion();
-  // An invitation link takes over the boot (show the set-password panel);
+  // Surface an SSO error passed back by the backend (e.g. no account, expired).
+  handleSsoErrorParam();
+  // An SSO handoff (#/sso/<code>) or invitation link takes over the boot;
   // otherwise restore the view from the hash and run the normal auth gate.
-  if(!handleInviteRoute()){
+  if(!handleSsoRoute() && !handleInviteRoute()){
     // Restore the view from the URL hash (deep-link / refresh) and set the tab title.
     routeFromHash();
     // Gate the app behind authentication: decide setup vs login, and only load

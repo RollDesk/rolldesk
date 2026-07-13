@@ -46,6 +46,14 @@ export const config = {
     // Issuer/label shown in the user's authenticator app.
     mfaIssuer: process.env.MFA_ISSUER || 'RollDesk',
   },
+  // Single sign-on (OIDC) — per-domain providers are configured at runtime by an
+  // admin and stored in the database. `encKey` protects the IdP client secrets at
+  // rest (AES-256-GCM). If unset, it is derived from JWT_SECRET so development
+  // works out of the box; set a dedicated random value in production. SSO also
+  // requires APP_BASE_URL (used to build the redirect URI).
+  sso: {
+    encKey: (process.env.SSO_ENC_KEY || '').trim(),
+  },
   // ClamAV virus scanning for uploaded attachments. When CLAMAV_HOST is set the
   // backend streams each upload to clamd (INSTREAM) before storing it. If a scan
   // can't be completed, failMode decides whether to reject ('reject', default —
