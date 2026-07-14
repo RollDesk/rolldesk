@@ -14,6 +14,7 @@ import state from './routes/state.js';
 import notifications from './routes/notifications.js';
 import tokens from './routes/tokens.js';
 import users from './routes/users.js';
+import sso from './routes/sso.js';
 
 const app = express();
 if (config.trustProxy) app.set('trust proxy', true);
@@ -33,6 +34,9 @@ app.use('/api/auth', authRouter);
 app.use('/api/tokens', requireAuth, tokens);
 // User management requires an interactive session (admin-only, enforced inside).
 app.use('/api/users', requireAuth, users);
+// SSO provider configuration (admin-only, enforced inside). Requires an
+// interactive session — never an API token.
+app.use('/api/sso', requireAuth, sso);
 // The data API accepts either a session JWT or a personal access token, so
 // scripts/CI can call it with `Authorization: Bearer rd_live_…`.
 // Attachments are mounted at /api so both `/api/deployments/:id/attachments`
@@ -67,7 +71,17 @@ async function start() {
   app.listen(config.port, () => {
     console.log(`[rolldesk-backend] port ${config.port} (${config.env})` +
       (config.allowedIps.length ? ` · IP allowlist: ${config.allowedIps.join(', ')}` : ' · IP allowlist: disabled'));
-    if (!config.smtp.host) console.warn('[config] SMTP_HOST not set — email sending disabled.');
+    // Log the effective SMTP configuration the process actually sees, so a
+    // missing/blank value (e.g. a container not recreated after editing .env)
+    // is obvious from the logs rather than silently disabling e-mail.
+    if (config.smtp.host) {
+      console.log(
+        `[config] SMTP: ${config.smtp.host}:${config.smtp.port} ` +
+        `secure=${config.smtp.secure} auth=${config.smtp.user ? 'on' : 'off'} from="${config.smtp.from}"`
+      );
+    } else {
+      console.warn('[config] SMTP_HOST not set — email sending disabled.');
+    }
   });
 }
 

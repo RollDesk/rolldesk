@@ -53,8 +53,12 @@ services:
       # Empty = no restriction at the backend layer (nginx filters anyway).
       ALLOWED_IPS: ${ALLOWED_IPS:-}
       TRUST_PROXY: "1"
-      # Public base URL of the app — used to link back to RollDesk in notifications.
+      # Public base URL of the app — used to link back to RollDesk in
+      # notifications and to build the SSO redirect URI (required for SSO).
       APP_BASE_URL: ${APP_BASE_URL:-}
+      # Encryption key for stored SSO/OIDC client secrets (AES-256-GCM). If empty,
+      # derived from JWT_SECRET; set a dedicated value in production.
+      SSO_ENC_KEY: ${SSO_ENC_KEY:-}
       # ClamAV virus scanning for uploaded attachments (separate container).
       CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
       CLAMAV_PORT: ${CLAMAV_PORT:-3310}

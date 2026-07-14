@@ -20,6 +20,8 @@
 --   app_state      — key/value store for a few whole-collection UI settings
 --                    (client list, notification recipients).
 --   api_tokens     — personal access tokens (hashed) for the automation API.
+--   sso_providers  — per-domain OIDC single sign-on configuration (Azure/Google
+--                    /generic), managed by an admin; IdP secret encrypted.
 
 -- A project belongs to a client and defines what/where it deploys. The columns
 -- are just for listing/filtering; the full editable object (apps, test
@@ -169,3 +171,24 @@ CREATE TABLE IF NOT EXISTS api_tokens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_api_tokens_user ON api_tokens (user_id, created_at DESC);
+
+-- Single sign-on (OIDC) providers, configurable per e-mail domain by an admin.
+-- Maps a domain (e.g. 'dxc.com') to an OpenID Connect provider (Microsoft Entra
+-- ID / Azure AD, Google, or a generic issuer). When enabled, users of that
+-- domain sign in through the IdP instead of a password (the account must already
+-- exist — no just-in-time provisioning); local admins keep password login as a
+-- fallback. The IdP client secret is stored ENCRYPTED (AES-256-GCM, see
+-- backend/src/sso.js) and is never returned to the frontend.
+CREATE TABLE IF NOT EXISTS sso_providers (
+  id                 SERIAL PRIMARY KEY,
+  domain             TEXT NOT NULL UNIQUE,          -- lowercased e-mail domain
+  provider           TEXT NOT NULL DEFAULT 'azure', -- 'azure' | 'google' | 'oidc'
+  issuer             TEXT NOT NULL,                 -- OIDC issuer / discovery base URL
+  client_id          TEXT NOT NULL,
+  client_secret_enc  TEXT,                          -- AES-256-GCM ciphertext (base64)
+  enabled            BOOLEAN NOT NULL DEFAULT true,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sso_providers_domain ON sso_providers (lower(domain));

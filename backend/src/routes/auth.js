@@ -9,6 +9,16 @@ import { clientIpFromRequest } from '../ipAllowlist.js';
 import { credentialLimiter, mfaCodeLimiter } from '../rateLimit.js';
 import { sendMail } from '../mailer.js';
 import {
+  emailDomain,
+  getEnabledProviderByDomain,
+  getProviderById,
+  buildLoginRedirect,
+  completeLogin,
+  takeState,
+  saveHandoff,
+  takeHandoff,
+} from '../sso.js';
+import {
   hashPassword,
   verifyPassword,
   signSessionToken,
@@ -88,6 +98,21 @@ router.post('/login', credentialLimiter, async (req, res) => {
   const email = String((req.body && req.body.email) || '').trim();
   const password = String((req.body && req.body.password) || '');
   const user = await findUserByEmail(email);
+
+  // SSO enforcement: for a domain with an enabled provider, password login is
+  // disabled for everyone except local admins (a break-glass fallback so a
+  // misconfigured IdP cannot lock the whole domain out). The same response is
+  // returned whether or not the account exists, so it never reveals existence.
+  const dom = emailDomain(email);
+  const ssoRow = dom ? await getEnabledProviderByDomain(dom) : null;
+  if (ssoRow && (!user || user.role !== 'admin')) {
+    return res.status(403).json({
+      error: 'This domain uses single sign-on. Please sign in with SSO.',
+      sso: true,
+      provider: ssoRow.provider,
+    });
+  }
+
   const ok = user && (await verifyPassword(password, user.password_hash));
   if (!ok) return res.status(401).json({ error: 'Invalid email or password' });
   // Archived accounts keep their history but can no longer sign in.
@@ -137,6 +162,75 @@ router.post('/forgot', credentialLimiter, async (req, res) => {
     console.warn('[auth] forgot-password error:', err.message);
   }
   res.json({ ok: true });
+});
+
+// --- Single sign-on (OIDC) -----------------------------------------------
+// These endpoints are open. `lookup` tells the login screen whether to offer
+// SSO; `start` redirects to the IdP; `callback` is the IdP's redirect target;
+// `exchange` swaps the one-time handoff code for the session JWT.
+
+function ssoErrorRedirect(res, reason) {
+  const base = config.appBaseUrl || '';
+  res.redirect(`${base}/?sso_error=${encodeURIComponent(reason)}`);
+}
+
+// GET /api/auth/sso/lookup?email= — does this e-mail's domain use SSO?
+router.get('/sso/lookup', async (req, res) => {
+  const dom = emailDomain(req.query.email);
+  const row = dom ? await getEnabledProviderByDomain(dom) : null;
+  res.json({ sso: !!row, provider: row ? row.provider : null, domain: dom });
+});
+
+// GET /api/auth/sso/start?domain=|email= — begin OIDC login (redirect to IdP).
+router.get('/sso/start', async (req, res) => {
+  try {
+    if (!config.appBaseUrl) return ssoErrorRedirect(res, 'not-configured');
+    const dom = String(req.query.domain || '').trim().toLowerCase() || emailDomain(req.query.email);
+    const row = dom ? await getEnabledProviderByDomain(dom) : null;
+    if (!row) return ssoErrorRedirect(res, 'no-provider');
+    res.redirect(await buildLoginRedirect(row));
+  } catch (err) {
+    console.warn('[sso] start failed:', err.message);
+    ssoErrorRedirect(res, 'start-failed');
+  }
+});
+
+// GET /api/auth/sso/callback — IdP redirect target; exchange code -> session.
+router.get('/sso/callback', async (req, res) => {
+  try {
+    if (req.query.error) return ssoErrorRedirect(res, 'idp-error');
+    const state = String(req.query.state || '');
+    const saved = state ? takeState(state) : null;
+    if (!saved) return ssoErrorRedirect(res, 'expired');
+    const row = await getProviderById(saved.providerId);
+    if (!row || !row.enabled) return ssoErrorRedirect(res, 'no-provider');
+
+    const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+    const currentUrl = new URL(`${config.appBaseUrl}/api/auth/sso/callback${qs}`);
+    const { email } = await completeLogin(row, currentUrl, saved);
+    // The authenticated e-mail must belong to the domain we started SSO for.
+    if (!email || emailDomain(email) !== saved.domain) return ssoErrorRedirect(res, 'denied');
+
+    // No JIT provisioning: the account must already exist and be active.
+    const user = await findUserByEmail(email);
+    if (!user || user.archived) return ssoErrorRedirect(res, 'no-account');
+
+    await query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);
+    await recordLoginHistory(user.id, req);
+    const code = saveHandoff(signSessionToken(user));
+    res.redirect(`${config.appBaseUrl}/#/sso/${code}`);
+  } catch (err) {
+    console.warn('[sso] callback failed:', err.message);
+    ssoErrorRedirect(res, 'callback-failed');
+  }
+});
+
+// POST /api/auth/sso/exchange — swap the one-time handoff code for a session JWT.
+router.post('/sso/exchange', async (req, res) => {
+  const code = String((req.body && req.body.code) || '');
+  const token = takeHandoff(code);
+  if (!token) return res.status(401).json({ error: 'Invalid or expired sign-in code' });
+  res.json({ token });
 });
 
 // POST /api/auth/mfa/setup — (stage=mfa-setup) generate + store a pending
