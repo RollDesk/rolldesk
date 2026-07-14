@@ -71,7 +71,17 @@ async function start() {
   app.listen(config.port, () => {
     console.log(`[rolldesk-backend] port ${config.port} (${config.env})` +
       (config.allowedIps.length ? ` · IP allowlist: ${config.allowedIps.join(', ')}` : ' · IP allowlist: disabled'));
-    if (!config.smtp.host) console.warn('[config] SMTP_HOST not set — email sending disabled.');
+    // Log the effective SMTP configuration the process actually sees, so a
+    // missing/blank value (e.g. a container not recreated after editing .env)
+    // is obvious from the logs rather than silently disabling e-mail.
+    if (config.smtp.host) {
+      console.log(
+        `[config] SMTP: ${config.smtp.host}:${config.smtp.port} ` +
+        `secure=${config.smtp.secure} auth=${config.smtp.user ? 'on' : 'off'} from="${config.smtp.from}"`
+      );
+    } else {
+      console.warn('[config] SMTP_HOST not set — email sending disabled.');
+    }
   });
 }
 
