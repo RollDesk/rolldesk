@@ -7,8 +7,12 @@
 import { Router } from 'express';
 import { sendMail } from '../mailer.js';
 import { config } from '../config.js';
+import { forbidClient } from '../rbac.js';
 
 const router = Router();
+
+// Sending notifications is a team action — never available to client accounts.
+router.use(forbidClient);
 
 const TEST_TEXT =
   'This is a test message from RollDesk. If you can see it, the notification target is configured correctly.';

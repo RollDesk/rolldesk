@@ -1,6 +1,6 @@
 {
   "name": "rolldesk-backend",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "RollDesk backend — Express + PostgreSQL + IP allowlist",
   "type": "module",
   "main": "src/index.js",

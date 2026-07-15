@@ -1,6 +1,7 @@
 // Deployment endpoints — the full object is stored as JSONB (data).
 import { Router } from 'express';
 import { query } from '../db.js';
+import { forbidClient, isClient, clientScope } from '../rbac.js';
 
 const router = Router();
 
@@ -10,12 +11,23 @@ function rowToObj(r) {
 }
 
 // GET /api/deployments — list of full objects, with filters.
+// Client accounts only ever see non-internal deployments of the projects they
+// belong to (never internal ones, never other projects/clients).
 router.get('/', async (req, res) => {
   const { project, env, status } = req.query;
   const clauses = [], params = [];
   if (project) { params.push(project); clauses.push(`project_key = $${params.length}`); }
   if (env)     { params.push(env);     clauses.push(`env = $${params.length}`); }
   if (status)  { params.push(status);  clauses.push(`status = $${params.length}`); }
+
+  if (isClient(req)) {
+    const { projects } = await clientScope(req);
+    if (!projects.length) return res.json([]); // no project access → nothing to show
+    params.push(projects);
+    clauses.push(`project_key = ANY($${params.length}::text[])`);
+    clauses.push('internal = false');
+  }
+
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   const { rows } = await query(`SELECT * FROM deployments ${where} ORDER BY created_at ASC`, params);
   res.json(rows.map(rowToObj));
@@ -24,7 +36,15 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   const { rows } = await query('SELECT * FROM deployments WHERE id = $1', [req.params.id]);
   if (!rows.length) return res.status(404).json({ error: 'Not found' });
-  res.json(rowToObj(rows[0]));
+  const row = rows[0];
+  // A client may only fetch a non-internal deployment of one of their projects.
+  if (isClient(req)) {
+    const { projects } = await clientScope(req);
+    if (row.internal || !projects.includes(row.project_key)) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+  }
+  res.json(rowToObj(row));
 });
 
 // Upsert of the full deployment object (PUT by id) — used by the frontend.
@@ -52,7 +72,7 @@ async function upsert(id, body) {
 }
 
 // PUT /api/deployments/:id — create or update (the frontend uses this to save).
-router.put('/:id', async (req, res) => {
+router.put('/:id', forbidClient, async (req, res) => {
   const body = req.body || {};
   if (!body.projectKey && !body.project_key) {
     return res.status(422).json({ error: 'Required field: projectKey' });
@@ -62,7 +82,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // POST /api/deployments — create (id from the body or generated).
-router.post('/', async (req, res) => {
+router.post('/', forbidClient, async (req, res) => {
   const body = req.body || {};
   const id = body.id || ('DEP-' + new Date().getFullYear() + '-' + Date.now().toString().slice(-4));
   const obj = await upsert(id, body);
@@ -70,7 +90,7 @@ router.post('/', async (req, res) => {
 });
 
 // DELETE /api/deployments/:id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', forbidClient, async (req, res) => {
   await query('DELETE FROM deployments WHERE id = $1', [req.params.id]);
   res.json({ deleted: true, id: req.params.id });
 });

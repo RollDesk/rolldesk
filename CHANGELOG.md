@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-07-15
+
+### Added
+- **Role-based access control.** The signed-in role now drives both the navigation and the API. A **client** account only sees the Client panel (plus profile/help) and is redirected away from team screens; the backend independently rejects client access to create/update/delete of deployments and projects, to the change history and shared settings, and to notifications, and scopes deployment/project reads to the client's own, non-internal projects. Roles: admin (everything), release manager (projects/deployments/history), deployer (deployer panel), client (client panel).
+- **Delete actions for admins**: delete a client (blocked while it still owns projects), delete a project (with its deployments), and delete a deployment — with confirmation. New `DELETE /api/projects/:key` endpoint.
+- **Bulk target management**: select multiple deployment targets and delete them at once; CSV target import now maps extra columns to custom target fields (using the header row for names).
+- **CSV location import in the New Project form** (name + optional type), which switches the project into multi-location mode automatically.
+- Editable **user role** when editing a user (the last administrator still can't be demoted).
+
+### Changed
+- Deployment-target edits (add/remove/rename/retype, custom fields, CSV import, bulk delete) now save to the database immediately, instead of only when saving default settings.
+- Switching tabs re-fetches that view's data from the server, so changes made by other users appear without a full page reload.
+- New projects no longer fabricate a placeholder repository URL for each application; the repository is set later in the Applications tab.
+
+### Fixed
+- The manual per-day location breakdown set when planning a rollout is now honoured after saving (targets/day counts and dates), instead of being re-spread evenly.
+- A deployment can no longer be scheduled with a start date in the past (the date pickers are constrained to today and the date is validated on save).
+
 ## [0.5.0] - 2026-07-12
 
 ### Added
