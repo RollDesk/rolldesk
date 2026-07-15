@@ -3,8 +3,14 @@
 // Mounted at /api behind requireAuth.
 import { Router } from 'express';
 import { query } from '../db.js';
+import { forbidClient } from '../rbac.js';
 
 const router = Router();
+
+// The change history and shared settings are team-only — client accounts must
+// not read or write them.
+router.use('/audit', forbidClient);
+router.use('/state', forbidClient);
 
 // --- Audit log (append-only) ---------------------------------------------
 

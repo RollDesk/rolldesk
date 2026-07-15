@@ -1,6 +1,7 @@
 // Project endpoints (with apps stored in the JSONB data column).
 import { Router } from 'express';
 import { query } from '../db.js';
+import { forbidClient, isClient, clientScope } from '../rbac.js';
 
 const router = Router();
 
@@ -13,12 +14,19 @@ function rowToObj(r) {
   );
 }
 
-router.get('/', async (_req, res) => {
+// GET /api/projects — client accounts only see the client-visible projects they
+// were granted; the team sees everything.
+router.get('/', async (req, res) => {
   const { rows } = await query('SELECT * FROM projects ORDER BY client_name, name');
-  res.json(rows.map(rowToObj));
+  let list = rows.map(rowToObj);
+  if (isClient(req)) {
+    const { projects } = await clientScope(req);
+    list = list.filter(p => p.clientVisible !== false && projects.includes(p.key));
+  }
+  res.json(list);
 });
 
-router.put('/:key', async (req, res) => {
+router.put('/:key', forbidClient, async (req, res) => {
   const b = req.body || {};
   const data = Object.assign({}, b);
   ['key','clientName','name','defaultDays','defaultTime','clientVisible'].forEach(k=>delete data[k]);
@@ -35,6 +43,14 @@ router.put('/:key', async (req, res) => {
      b.clientVisible !== false, data]
   );
   res.json(rowToObj(rows[0]));
+});
+
+// DELETE /api/projects/:key — remove a project and its deployments. Team only.
+router.delete('/:key', forbidClient, async (req, res) => {
+  const key = req.params.key;
+  await query('DELETE FROM deployments WHERE project_key = $1', [key]);
+  const { rowCount } = await query('DELETE FROM projects WHERE key = $1', [key]);
+  res.json({ deleted: rowCount > 0, key });
 });
 
 export default router;

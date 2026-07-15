@@ -290,6 +290,8 @@
   }
   .mini-btn:hover{border-color:var(--ink);}
   .mini-btn:disabled{opacity:0.35; cursor:default;}
+  .mini-btn.mini-btn-danger{color:#A81E1E; border-color:#F0C4C4;}
+  .mini-btn.mini-btn-danger:hover{border-color:#A81E1E; background:var(--red-soft);}
   /* Semantic, softly-tinted variants for the primary per-deployment actions so
      they stand out from the plain export buttons. */
   .mini-btn.icon-btn{display:inline-flex; align-items:center; gap:6px; padding:6px 12px;}
@@ -668,7 +670,10 @@
       <div class="card">
         <div class="toolbar">
           <strong style="font-size:13px;"><span data-i18n="proj.targetList">Target list</span> (<span id="locations-count">0</span>)</strong>
-          <input type="text" id="locations-search" data-i18n-ph="proj.searchTargets" placeholder="Search targets..." style="width:180px; padding:6px 10px; font-size:12.5px;" oninput="renderLocationsTable()">
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button class="mini-btn mini-btn-danger" id="locations-delete-selected" style="display:none;" onclick="deleteSelectedLocations()"><span data-i18n="proj.deleteSelected">Delete selected</span> (<span id="locations-selected-count">0</span>)</button>
+            <input type="text" id="locations-search" data-i18n-ph="proj.searchTargets" placeholder="Search targets..." style="width:180px; padding:6px 10px; font-size:12.5px;" oninput="renderLocationsTable()">
+          </div>
         </div>
         <div style="max-height:340px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; margin-top:10px;">
           <table>
@@ -777,7 +782,11 @@
               <button class="mini-btn" onclick="removeLocRow(this)" style="display:none;" data-i18n="np.remove">Remove</button>
             </div>
           </div>
-          <button class="mini-btn" id="np-add-loc-btn" onclick="addLocRow()" style="display:none;" data-i18n="np.addLocation">+ Add location</button>
+          <div style="display:flex; gap:8px;">
+            <button class="mini-btn" id="np-add-loc-btn" onclick="addLocRow()" style="display:none;" data-i18n="np.addLocation">+ Add location</button>
+            <button class="mini-btn" id="np-import-loc-btn" onclick="triggerNpLocationCsvImport()" data-i18n="proj.importCsv" title="CSV: 1. kolumna = nazwa, 2. kolumna = typ (Production / Non-production)">⬆ Import CSV</button>
+            <input type="file" id="np-location-csv-input" accept=".csv,text/csv" style="display:none;" onchange="importNpLocationsCsv(this)">
+          </div>
         </div>
 
         <div class="field">
@@ -1525,11 +1534,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.5.0"></script>
-<script src="i18n/en.js?v=0.5.0"></script>
+<script src="i18n/pl.js?v=0.6.0"></script>
+<script src="i18n/en.js?v=0.6.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.5.0';
+  const ROLLDESK_VERSION = '0.6.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -1758,9 +1767,9 @@
     tbody.innerHTML = CLIENTS.map(c=>{
       const count = Object.values(PROJECTS).filter(p=>p.client === c.key).length;
       const actions = isLoggedInAsAdmin()
-        ? `<button class="mini-btn" onclick="openClientEdit('${c.key}')">${t('usr.edit')}</button>`
+        ? `<button class="mini-btn" onclick="openClientEdit('${c.key}')">${t('usr.edit')}</button> <button class="mini-btn mini-btn-danger" onclick="deleteClient('${c.key}')">${t('cli.delete')}</button>`
         : `<span style="color:var(--text-faint); font-size:11.5px;">${t('usr.noPerms')}</span>`;
-      return `<tr><td>${c.name}</td><td class="mono">${c.domain || '—'}</td><td class="mono">${count}</td><td>${actions}</td></tr>`;
+      return `<tr><td>${c.name}</td><td class="mono">${c.domain || '—'}</td><td class="mono">${count}</td><td style="white-space:nowrap;">${actions}</td></tr>`;
     }).join('');
   }
 
@@ -1835,6 +1844,26 @@
     renderProjectsList();
     persistClients();
     toggleClientForm();
+  }
+
+  function deleteClient(key){
+    if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can manage clients'); return; }
+    const c = CLIENTS.find(c=>c.key===key);
+    if(!c) return;
+    // A client that still owns projects can't be removed — the projects (and
+    // their deployments) would be orphaned. Ask the admin to delete those first.
+    const projCount = Object.values(PROJECTS).filter(p=>p.client === key).length;
+    if(projCount){ showToast(tf('cli.deleteHasProjects', {n: projCount})); return; }
+    showAppConfirm(t('cli.deleteTitle') + ' — ' + c.name, t('cli.deleteBody'), ()=>{
+      const idx = CLIENTS.findIndex(x=>x.key===key);
+      if(idx < 0) return;
+      CLIENTS.splice(idx, 1);
+      logAudit('removed', 'Client', 'Deleted client „' + c.name + '”', '—');
+      renderClientsTable();
+      populateClientSelect();
+      persistClients();
+      showToast(tf('cli.deleted', {name: c.name}));
+    });
   }
 
   function populateClientSelect(){
@@ -1959,6 +1988,14 @@
       USERS.unshift({name, email, role: me.role || 'admin', projects:[], self:true});
     }
     try { renderUsersTable(); } catch(e){}
+    // Reflect the role in the navigation and make sure the current view is
+    // allowed for it (a client landing on a team view is redirected).
+    try {
+      applyRolePermissions();
+      if(currentView && !viewAllowedForRole(currentView, currentLoggedInRole)){
+        goToView(defaultViewForRole(currentLoggedInRole));
+      }
+    } catch(e){}
   }
 
   // Derive a short "Browser, OS" label from a user-agent string.
@@ -2366,16 +2403,15 @@
     document.getElementById('user-email').value = u.email;
     selectRadioPill('user-role', u.role);
 
-    // Guard: a Client user is tied to a client's people; switching them to an internal
-    // role (admin/RM/installer) shouldn't be a casual one-click action, and vice versa.
-    // Lock the role picker on edit so the type can't be flipped by accident.
+    // The role can be changed while editing. Keep the picker enabled and let
+    // onUserRoleChange() reveal the client/projects fields for the chosen role.
     const isClient = u.role === 'client';
     document.querySelectorAll('input[name="user-role"]').forEach(inp=>{
-      inp.disabled = true;
-      inp.closest('.radio-pill').style.opacity = inp.checked ? '1' : '0.45';
-      inp.closest('.radio-pill').style.cursor = 'not-allowed';
+      inp.disabled = false;
+      inp.closest('.radio-pill').style.opacity = '';
+      inp.closest('.radio-pill').style.cursor = '';
     });
-    document.getElementById('user-role-lock-note').style.display = 'block';
+    document.getElementById('user-role-lock-note').style.display = 'none';
 
     onUserRoleChange();
     if(isClient){
@@ -2561,8 +2597,66 @@
     try { document.title = 'RollDesk — ' + titleFor(viewName); } catch(e){ document.title = 'RollDesk'; }
   }
 
+  // ---- Role-based access to views/navigation ----
+  // Which roles may open each top-level view. The signed-in role (from
+  // /api/auth/me) drives both the visible navigation and a guard in applyView so
+  // a client can't reach team-only screens (even by editing the URL hash). The
+  // backend enforces the same restrictions on the API.
+  const VIEW_ROLES = {
+    projects:    ['admin','rm'],
+    schedule:    ['admin','rm'],
+    apps:        ['admin','rm'],
+    deployments: ['admin','rm'],
+    installer:   ['admin','installer'],
+    client:      ['admin','client'],
+    users:       ['admin'],
+    clients:     ['admin'],
+    sso:         ['admin'],
+    audit:       ['admin','rm'],
+    account:     ['admin','rm','installer','client'],
+    help:        ['admin','rm','installer','client'],
+  };
+  function viewAllowedForRole(view, role){
+    const allowed = VIEW_ROLES[view];
+    return !allowed || allowed.includes(role);
+  }
+  function defaultViewForRole(role){
+    if(role === 'client') return 'client';
+    if(role === 'installer') return 'installer';
+    return 'projects';
+  }
+  // Show/hide navigation entries (and their group labels) for the current role.
+  function applyRolePermissions(){
+    const role = currentLoggedInRole || 'admin';
+    document.querySelectorAll('.rail .nav-item[data-view]').forEach(item=>{
+      const v = item.getAttribute('data-view');
+      item.style.display = viewAllowedForRole(v, role) ? '' : 'none';
+    });
+    // Hide a group label when every item under it (until the next label) is hidden.
+    const rail = document.querySelector('.rail');
+    if(rail){
+      const children = Array.from(rail.children);
+      children.forEach((el, idx)=>{
+        if(!el.classList.contains('nav-group-label')) return;
+        let anyVisible = false;
+        for(let j = idx + 1; j < children.length; j++){
+          const sib = children[j];
+          if(sib.classList.contains('nav-group-label')) break;
+          if(sib.classList.contains('nav-item') && sib.getAttribute('data-view') && sib.style.display !== 'none'){ anyVisible = true; break; }
+        }
+        el.style.display = anyVisible ? '' : 'none';
+      });
+    }
+  }
+
   // Perform the actual view switch + per-view rendering. Does NOT touch the URL.
   function applyView(viewName){
+    // Enforce role access: redirect a disallowed view to the role's default.
+    if(!viewAllowedForRole(viewName, currentLoggedInRole || 'admin')){
+      const fallback = defaultViewForRole(currentLoggedInRole || 'admin');
+      if(fallback !== viewName){ goToView(fallback); }
+      return;
+    }
     const target = document.getElementById('view-'+viewName);
     if(!target){ console.warn('applyView: unknown view', viewName); return; }
     dismissTokenRevealOnLeave();
@@ -2589,6 +2683,17 @@
     if(viewName === 'client') renderClientPortal(currentClientScenario);
     if(viewName === 'installer') renderInstallerPanel();
     if(viewName === 'deployments') renderDeploymentsTable();
+    if(viewName === 'schedule') prepareScheduleDates();
+
+    // Pull the latest server-side data for the view so changes made by other
+    // users appear without a full page reload (best-effort, silent).
+    if(API_CONNECTED){
+      if(viewName === 'deployments' || viewName === 'installer' || viewName === 'client') refreshDeployments();
+      else if(viewName === 'projects') refreshProjectsAndClients();
+      else if(viewName === 'clients') refreshProjectsAndClients();
+      else if(viewName === 'audit') refreshAudit();
+      else if(viewName === 'users') { try { loadUsers(); } catch(e){} }
+    }
   }
 
   // Public navigation entry point: pushes a history entry via the URL hash so the
@@ -2633,9 +2738,39 @@
         <td class="mono">${prodCount}</td>
         <td class="mono">${nonProdCount}</td>
         <td class="mono">${(p.apps||[]).length}</td>
-        <td><button class="mini-btn" onclick="event.stopPropagation(); openProjectFromList('${key}')">${t('proj.open')}</button></td>
+        <td style="white-space:nowrap;"><button class="mini-btn" onclick="event.stopPropagation(); openProjectFromList('${key}')">${t('proj.open')}</button>${isLoggedInAsAdmin() ? ` <button class="mini-btn mini-btn-danger" onclick="event.stopPropagation(); deleteProject('${key}')">${t('cli.delete')}</button>` : ''}</td>
       </tr>`;
     }).join('');
+  }
+
+  function deleteProject(key){
+    if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can delete projects'); return; }
+    const p = PROJECTS[key];
+    if(!p) return;
+    const depCount = DEPLOYMENTS_DATA.filter(d=>d.projectKey === key).length;
+    const body = depCount ? tf('proj.deleteBodyDeploys', {n: depCount}) : t('proj.deleteBody');
+    showAppConfirm(t('proj.deleteTitle') + ' — ' + p.name, body, async ()=>{
+      try {
+        if(API_CONNECTED) await apiDeleteProject(key);
+      } catch(e){ showToast('⚠ ' + (e.message || 'Could not delete the project')); return; }
+      // Drop the project and its deployments from the in-memory state.
+      delete PROJECTS[key];
+      for(let i = DEPLOYMENTS_DATA.length - 1; i >= 0; i--){
+        if(DEPLOYMENTS_DATA[i].projectKey === key) DEPLOYMENTS_DATA.splice(i, 1);
+      }
+      if(currentProjectKey === key){
+        const keys = Object.keys(PROJECTS);
+        currentProjectKey = keys.length ? keys[0] : null;
+      }
+      logAudit('removed', 'Project', 'Deleted project „' + p.name + '”', p.name);
+      const panel = document.getElementById('project-apps-panel');
+      if(panel) panel.style.display = 'none';
+      try { renderProjectsList(); } catch(e){}
+      try { initProjectSelect(); } catch(e){}
+      try { renderDeploymentsTable(); } catch(e){}
+      try { renderClientsTable(); } catch(e){}
+      showToast(tf('proj.deleted', {name: p.name}));
+    });
   }
 
   function initProjectSelect(){
@@ -2916,6 +3051,26 @@
 
   let deploymentSeq = 1000; // monotonic counter so new deployments sort to the top
 
+  // Real "today" as an ISO date (YYYY-MM-DD), used to stop deployments being
+  // scheduled in the past.
+  function todayIso(){
+    const d = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+  }
+
+  // Constrain the schedule date pickers so a past start date can't be chosen,
+  // and bump any default/earlier value up to today.
+  function prepareScheduleDates(){
+    const today = todayIso();
+    ['date-test','date-prod'].forEach(id=>{
+      const el = document.getElementById(id);
+      if(!el) return;
+      el.min = today;
+      if(!el.value || el.value < today) el.value = today;
+    });
+  }
+
   function confirmSchedule(){
     const p = PROJECTS[currentProjectKey];
     const path = document.querySelector('input[name="schedule-path"]:checked').value;
@@ -2952,6 +3107,21 @@
     const testTime = document.getElementById('time-test').value || '20:00';
     const prodDate = document.getElementById('date-prod').value || '2026-07-20';
     const prodTime = document.getElementById('time-prod').value || '22:00';
+
+    // A deployment cannot start in the past. Validate the relevant start date(s)
+    // for the chosen path against today.
+    const todayStr = todayIso();
+    if((path === 'test-only' || path === 'test-prod') && testDate < todayStr){
+      showToast(t('sch.errPastTest'));
+      document.getElementById('date-test').focus();
+      return;
+    }
+    if((path === 'prod-only' || path === 'test-prod') && prodDate < todayStr){
+      showToast(t('sch.errPastProd'));
+      document.getElementById('date-prod').focus();
+      return;
+    }
+
     const days = parseInt(document.getElementById('day-count').value) || 1;
     const today = '2026-07-04';
     // Real wall-clock time the schedule was created, shown on the timeline.
@@ -3088,6 +3258,45 @@
     renderLocationsTable();
   }
 
+  // Bulk-selection state for the target list (by original index in locationsList).
+  let selectedLocations = new Set();
+  function refreshLocationBulkBar(){
+    const btn = document.getElementById('locations-delete-selected');
+    const cnt = document.getElementById('locations-selected-count');
+    if(cnt) cnt.textContent = selectedLocations.size;
+    if(btn) btn.style.display = selectedLocations.size ? '' : 'none';
+  }
+  function toggleLocationSelect(i, checked){
+    if(checked) selectedLocations.add(i); else selectedLocations.delete(i);
+    refreshLocationBulkBar();
+  }
+  function toggleAllLocationsSelect(checked){
+    // Applies to the currently visible (filtered/sorted) rows only.
+    document.querySelectorAll('#locations-table input.loc-select').forEach(cb=>{
+      cb.checked = checked;
+      const i = parseInt(cb.dataset.i, 10);
+      if(checked) selectedLocations.add(i); else selectedLocations.delete(i);
+    });
+    refreshLocationBulkBar();
+  }
+  function deleteSelectedLocations(){
+    const p = PROJECTS[currentProjectKey];
+    if(!p || !selectedLocations.size) return;
+    const n = selectedLocations.size;
+    showAppConfirm(t('proj.deleteSelectedTitle'), tf('proj.deleteSelectedBody', {n}), ()=>{
+      // Remove by descending index so earlier removals don't shift later ones.
+      const idxs = Array.from(selectedLocations).sort((a,b)=>b-a);
+      idxs.forEach(i=>{ if(i>=0 && i<p.locationsList.length) p.locationsList.splice(i,1); });
+      p.locations = p.locationsList.length;
+      selectedLocations = new Set();
+      logAudit('removed', 'Deployment target', 'Removed ' + n + ' targets', p.name + ' (' + p.clientName + ')');
+      renderLocationsTable();
+      renderProjectsList();
+      persistProject(currentProjectKey);
+      showToast(tf('proj.deletedSelected', {n}));
+    });
+  }
+
   function renderLocationsTable(){
     const p = PROJECTS[currentProjectKey];
     if(!p) return;
@@ -3100,7 +3309,7 @@
     const sortTitle = locationsSortType === 'prod-first' ? 'Production first (click: non-production first)'
       : locationsSortType === 'nonprod-first' ? 'Non-production first (click: no sorting)'
       : 'Sort by type';
-    head.innerHTML = '<tr><th>Target</th>' +
+    head.innerHTML = '<tr><th style="width:28px;"><input type="checkbox" title="' + t('proj.selectAll') + '" onclick="toggleAllLocationsSelect(this.checked)"></th><th>Target</th>' +
       `<th style="cursor:pointer; user-select:none;" title="${sortTitle}" onclick="toggleLocationsSort()">Typ<span style="color:var(--text-faint); font-size:11px;">${sortArrow}</span></th>` +
       customFields.map(f=>`<th>${f}</th>`).join('') + '<th></th></tr>';
 
@@ -3115,9 +3324,10 @@
       filtered = filtered.slice().sort((a,b)=> dir * (prodRank(a.loc.type) - prodRank(b.loc.type)));
     }
     const shown = filtered.slice(0, 200);
-    const totalCols = 3 + customFields.length;
+    const totalCols = 4 + customFields.length;
     tbody.innerHTML = shown.map(({loc,i})=>{
       const cells = [
+        `<td style="text-align:center;"><input type="checkbox" class="loc-select" data-i="${i}" ${selectedLocations.has(i)?'checked':''} onclick="toggleLocationSelect(${i}, this.checked)"></td>`,
         `<td><input type="text" value="${(loc.label || loc.code).replace(/"/g,'&quot;')}" style="font-size:12.5px; padding:4px 6px; min-width:200px;" onchange="updateLocationName(${i}, this.value)"></td>`,
         `<td><select onchange="updateLocationField(${i}, 'type', this.value)" style="font-size:11px; padding:3px 6px; color:${typeColor(loc.type)}; font-weight:600;">
           <option value="Production" ${loc.type==='Production'?'selected':''}>Production</option>
@@ -3125,7 +3335,7 @@
         </select></td>`,
       ];
       customFields.forEach(f=>{
-        cells.push(`<td><input type="text" value="${(loc.custom && loc.custom[f]) || ''}" style="font-size:12.5px; padding:4px 6px;" onchange="updateLocationCustomField(${i}, '${f}', this.value)"></td>`);
+        cells.push(`<td><input type="text" value="${((loc.custom && loc.custom[f]) || '').replace(/"/g,'&quot;')}" style="font-size:12.5px; padding:4px 6px;" onchange="updateLocationCustomField(${i}, '${f}', this.value)"></td>`);
       });
       cells.push(`<td><button class="mini-btn" onclick="removeLocation(${i})">Remove</button></td>`);
       return '<tr>' + cells.join('') + '</tr>';
@@ -3133,6 +3343,7 @@
     if(filtered.length > 200){
       tbody.innerHTML += `<tr><td colspan="${totalCols}" style="color:var(--text-faint); font-size:11.5px; text-align:center;">...and ${filtered.length - 200} more — narrow your search</td></tr>`;
     }
+    refreshLocationBulkBar();
   }
 
   function updateLocationField(i, key, val){
@@ -3143,6 +3354,7 @@
     if(key === 'type' && prev !== val){
       logAudit('changed', 'Deployment target', 'Changed the type of target „' + (loc.label||loc.code) + '” from ' + prev + ' to ' + val, p.name + ' (' + p.clientName + ')');
     }
+    persistProject(currentProjectKey);
   }
 
   function updateLocationName(i, val){
@@ -3159,12 +3371,14 @@
     if(prev !== name){
       logAudit('changed', 'Deployment target', 'Changed the target name from „' + prev + '” to „' + name + '”', p.name + ' (' + p.clientName + ')');
     }
+    persistProject(currentProjectKey);
   }
 
   function updateLocationCustomField(i, field, val){
     const p = PROJECTS[currentProjectKey];
     p.locationsList[i].custom = p.locationsList[i].custom || {};
     p.locationsList[i].custom[field] = val;
+    persistProject(currentProjectKey);
   }
 
   function addCustomLocationField(){
@@ -3176,6 +3390,7 @@
       p.customLocationFields.push(name);
       p.locationsList.forEach(loc=>{ loc.custom = loc.custom || {}; if(!(name in loc.custom)) loc.custom[name] = ''; });
       renderLocationsTable();
+      persistProject(currentProjectKey);
       showToast('Added the field „' + name + '” to all locations');
     }, 'e.g. "Number of stations", "Region"');
   }
@@ -3214,6 +3429,7 @@
     logAudit('added', 'Deployment target', 'Added target „' + name + '” (' + type + ')', p.name + ' (' + p.clientName + ')');
     renderLocationsTable();
     renderProjectsList();
+    persistProject(currentProjectKey);
     toggleLocationForm();
     showToast('Target „' + name + '” added');
   }
@@ -3263,17 +3479,45 @@
       try {
         let rows = parseCsvRows(reader.result);
         if(!rows.length){ showToast(t('proj.csvEmpty')); return; }
-        // Drop a header row if the first line clearly labels the columns.
-        const h0 = (rows[0][0] || '').toLowerCase(), h1 = (rows[0][1] || '').toLowerCase();
-        if(/^(name|nazwa|target|cel)$/.test(h0) || /^(type|typ)$/.test(h1)) rows = rows.slice(1);
+        // Column 1 = name, column 2 = type. Any further columns are treated as
+        // custom target fields. When the first row is a header, its labels name
+        // those extra columns (and are registered as custom fields on the
+        // project); without a header, extra columns become "Column 3", "Column 4"…
+        const isHeader = /^(name|nazwa|target|cel)$/.test((rows[0][0]||'').toLowerCase())
+          || /^(type|typ)$/.test((rows[0][1]||'').toLowerCase());
+        const header = isHeader ? rows[0] : null;
+        if(isHeader) rows = rows.slice(1);
+
         p.locationsList = Array.isArray(p.locationsList) ? p.locationsList : [];
+        p.customLocationFields = Array.isArray(p.customLocationFields) ? p.customLocationFields : [];
+
+        // Resolve the name of each extra column (index >= 2). Register any new
+        // custom field on the project so it shows as a column and on every row.
+        const maxCols = rows.reduce((m,c)=>Math.max(m, c.length), header ? header.length : 0);
+        const extraFieldNames = [];
+        for(let col=2; col<maxCols; col++){
+          let fname = header && (header[col]||'').trim() ? header[col].trim() : ('Column ' + (col+1));
+          extraFieldNames[col] = fname;
+          if(!p.customLocationFields.includes(fname)){
+            p.customLocationFields.push(fname);
+            p.locationsList.forEach(loc=>{ loc.custom = loc.custom || {}; if(!(fname in loc.custom)) loc.custom[fname] = ''; });
+          }
+        }
+
         const existing = new Set(p.locationsList.map(l => (l.label || l.code || '').toLowerCase()));
         let added = 0, skipped = 0;
         rows.forEach(cells=>{
           const name = (cells[0] || '').trim();
           if(!name){ skipped++; return; }
           if(existing.has(name.toLowerCase())){ skipped++; return; }
-          p.locationsList.push({code: name, label: name, type: normalizeTargetType(cells[1]), custom: {}});
+          const custom = {};
+          for(let col=2; col<cells.length; col++){
+            const fname = extraFieldNames[col];
+            if(fname) custom[fname] = (cells[col] || '').trim();
+          }
+          // Ensure every known custom field exists on the new row.
+          p.customLocationFields.forEach(f=>{ if(!(f in custom)) custom[f] = ''; });
+          p.locationsList.push({code: name, label: name, type: normalizeTargetType(cells[1]), custom});
           existing.add(name.toLowerCase());
           added++;
         });
@@ -3282,6 +3526,7 @@
           logAudit('added', 'Deployment target', 'Imported ' + added + ' targets from CSV', p.name + ' (' + p.clientName + ')');
           renderLocationsTable();
           renderProjectsList();
+          persistProject(currentProjectKey);
         }
         showToast(tf('proj.csvImported', {added, skipped}));
       } catch(e){ showToast(t('proj.csvError')); }
@@ -3299,9 +3544,11 @@
       ()=>{
         p.locationsList.splice(i, 1);
         p.locations = p.locationsList.length;
+        selectedLocations = new Set(); // indices shifted — clear any selection
         logAudit('removed', 'Deployment target', 'Removed target „' + name + '”', p.name + ' (' + p.clientName + ')');
         renderLocationsTable();
         renderProjectsList();
+        persistProject(currentProjectKey);
         showToast('Target „' + name + '” removed');
       }
     );
@@ -3757,6 +4004,57 @@
     btn.closest('.loc-row').remove();
     updateProjectMode();
   }
+
+  // CSV import of deployment locations while creating a project. Same format as
+  // the project targets import (col 1 = name, col 2 = type). The parsed types
+  // are remembered so createProject() can apply them (the new-project rows only
+  // show names).
+  let npImportedLocationTypes = {}; // lowercased name -> 'Production' | 'Non-production'
+  function triggerNpLocationCsvImport(){
+    const el = document.getElementById('np-location-csv-input');
+    if(el){ el.value = ''; el.click(); }
+  }
+  function importNpLocationsCsv(input){
+    const file = input.files && input.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onerror = ()=> showToast(t('proj.csvError'));
+    reader.onload = ()=>{
+      try {
+        let rows = parseCsvRows(reader.result);
+        if(!rows.length){ showToast(t('proj.csvEmpty')); return; }
+        const isHeader = /^(name|nazwa|target|cel)$/.test((rows[0][0]||'').toLowerCase())
+          || /^(type|typ)$/.test((rows[0][1]||'').toLowerCase());
+        if(isHeader) rows = rows.slice(1);
+        const seen = new Set();
+        const names = [];
+        npImportedLocationTypes = {};
+        rows.forEach(cells=>{
+          const nm = (cells[0] || '').trim();
+          if(!nm || seen.has(nm.toLowerCase())) return;
+          seen.add(nm.toLowerCase());
+          names.push(nm);
+          npImportedLocationTypes[nm.toLowerCase()] = normalizeTargetType(cells[1]);
+        });
+        if(!names.length){ showToast(t('proj.csvEmpty')); return; }
+        // More than one location → switch the project into multi-location mode.
+        if(names.length > 1){
+          const toggle = document.getElementById('np-multi-toggle');
+          if(toggle && !toggle.checked){ toggle.checked = true; toggleMultiLocation(); }
+        }
+        // Rebuild the location rows from the imported names.
+        const wrap = document.getElementById('np-locations');
+        wrap.innerHTML = names.map(nm=>`
+          <div class="loc-row" style="display:flex; gap:8px; margin-bottom:8px;">
+            <input type="text" class="np-loc-input" value="${nm.replace(/"/g,'&quot;')}" style="flex:1;">
+            <button class="mini-btn" onclick="removeLocRow(this)" ${names.length>1?'':'style="display:none;"'}>${t('np.remove')}</button>
+          </div>`).join('');
+        updateProjectMode();
+        showToast(tf('proj.csvImported', {added: names.length, skipped: 0}));
+      } catch(e){ showToast(t('proj.csvError')); }
+    };
+    reader.readAsText(file);
+  }
   // Login history is recorded at runtime (a row is added on each successful
   // sign-in); it starts empty rather than with synthetic sample data.
   const LOGIN_HISTORY = [];
@@ -4089,7 +4387,9 @@
     while(PROJECTS[projectKey]){ projectKey = clientKey + ':' + base + '-' + n; n++; }
 
     const locationsList = (locNames.length ? locNames : ['Main office']).map(nm=>({
-      code: nm, label: nm, type: 'Production', custom: {}
+      code: nm, label: nm,
+      type: npImportedLocationTypes[nm.toLowerCase()] || 'Production',
+      custom: {}
     }));
 
     PROJECTS[projectKey] = {
@@ -4098,7 +4398,7 @@
       name,
       locations: locationsList.length,
       testEnvs: testEnvs.length ? testEnvs : ['Test'],
-      apps: appNames.map(an=>({ name: an, repo: 'github.com/' + clientKey + '/' + slugifyClientName(an), locations: locationsList.length, deployedVersions: [] })),
+      apps: appNames.map(an=>({ name: an, repo: '', locations: locationsList.length, deployedVersions: [] })),
       locationsList,
       customLocationFields: [],
       clientVisible,
@@ -4106,6 +4406,8 @@
       defaultTime,
       skipWeekends: true
     };
+
+    npImportedLocationTypes = {}; // consumed — clear for the next project
 
     // Invite the client's people as real client-role accounts (best-effort;
     // each gets an invitation link/e-mail). Runs async and refreshes the list.
@@ -4168,7 +4470,7 @@
     document.getElementById('app-form-title').textContent = 'Application settings — ' + a.name;
     document.getElementById('app-form-submit').textContent = 'Save changes';
     document.getElementById('app-name').value = a.name;
-    document.getElementById('app-repo').value = 'https://' + a.repo;
+    document.getElementById('app-repo').value = (a.repo && a.repo !== '—') ? ('https://' + a.repo) : '';
     f.style.display = 'block';
     tr.scrollIntoView({behavior:'smooth', block:'center'});
   }
@@ -4678,6 +4980,11 @@
     if(!res.ok) throw new Error('PUT /api/projects ' + res.status);
     return res.json();
   }
+  async function apiDeleteProject(key){
+    const res = await apiFetch('/api/projects/' + encodeURIComponent(key), {method:'DELETE'});
+    if(!res.ok && res.status !== 404) throw new Error('DELETE /api/projects ' + res.status);
+    return true;
+  }
 
   // ---- Audit log + shared collections (roster / clients / notifications) ----
   async function apiListAudit(){
@@ -4869,6 +5176,56 @@
     await loadUsers();
   }
 
+  // ---- Per-view refresh (so switching tabs shows other users' latest data) ----
+  // These re-fetch a single collection from the backend and redraw the relevant
+  // views. They are best-effort and silent (no toasts) so navigation stays snappy;
+  // failures leave the last-known data in place.
+  async function refreshDeployments(){
+    if(!API_CONNECTED) return;
+    try {
+      const rows = await apiListDeployments();
+      DEPLOYMENTS_DATA.length = 0;
+      rows.forEach(r => DEPLOYMENTS_DATA.push(r));
+      try { renderDeploymentsTable(); } catch(e){}
+      try { renderInstallerPanel(); } catch(e){}
+      try { renderClientPortal(currentClientScenario); } catch(e){}
+    } catch(e){ console.warn('Refresh deployments failed:', e.message); }
+  }
+  async function refreshProjectsAndClients(){
+    if(!API_CONNECTED) return;
+    // Don't clobber an open project editor mid-edit.
+    const panel = document.getElementById('project-apps-panel');
+    if(panel && panel.style.display !== 'none') return;
+    try {
+      const projectRows = await apiListProjects();
+      Object.keys(PROJECTS).forEach(k => delete PROJECTS[k]);
+      projectRows.forEach(pr => { if(pr && pr.key) PROJECTS[pr.key] = normalizeProject(Object.assign({}, pr)); });
+      try {
+        const savedClients = await apiGetState('clients');
+        if(Array.isArray(savedClients)){ CLIENTS.length = 0; savedClients.forEach(c=>CLIENTS.push(c)); }
+      } catch(e){}
+      const seen = new Set(CLIENTS.map(c=>c.key));
+      Object.values(PROJECTS).forEach(p=>{
+        if(p.client && !seen.has(p.client)){ seen.add(p.client); CLIENTS.push({key:p.client, name:p.clientName || p.client, domain:(p.client)+'.example'}); }
+      });
+      if(!currentProjectKey || !PROJECTS[currentProjectKey]){
+        const keys = Object.keys(PROJECTS);
+        currentProjectKey = keys.length ? keys[0] : null;
+      }
+      try { renderProjectsList(); } catch(e){}
+      try { initProjectSelect(); } catch(e){}
+      try { populateClientSelect(); } catch(e){}
+      try { renderClientsTable(); } catch(e){}
+    } catch(e){ console.warn('Refresh projects failed:', e.message); }
+  }
+  async function refreshAudit(){
+    if(!API_CONNECTED) return;
+    try {
+      const rows = await apiListAudit();
+      if(Array.isArray(rows)){ AUDIT_LOG.length = 0; rows.forEach(a=>AUDIT_LOG.push(a)); try { renderAuditLog(); } catch(e){} }
+    } catch(e){ console.warn('Refresh audit failed:', e.message); }
+  }
+
   // Attempt to connect to the backend and load data from the database on startup.
   async function initApiConnection(){
     try {
@@ -4983,12 +5340,27 @@
   let expandedBatchIdx = null;
   let editingCommentIdx = null;
 
-  function dayIndexForPosition(d, pos){
+  // Number of targets planned for a given day. Honours the RM's manual per-day
+  // breakdown (d.dayPlan) saved at creation; only falls back to an even split
+  // when there is no explicit plan.
+  function plannedDayCounts(d){
+    if(Array.isArray(d.dayPlan) && d.dayPlan.length){
+      const arr = new Array(d.days).fill(0);
+      d.dayPlan.forEach(dp=>{ if(dp && dp.day>=1 && dp.day<=d.days) arr[dp.day-1] = (dp.targets||[]).length; });
+      return arr;
+    }
     const base = Math.floor(d.totalLocations / d.days);
     const remainder = d.totalLocations % d.days;
+    const arr = [];
+    for(let day = 0; day < d.days; day++) arr.push(base + (day < remainder ? 1 : 0));
+    return arr;
+  }
+
+  function dayIndexForPosition(d, pos){
+    const counts = plannedDayCounts(d);
     let cum = 0;
     for(let day = 0; day < d.days; day++){
-      const count = base + (day < remainder ? 1 : 0);
+      const count = counts[day] || 0;
       if(pos < cum + count) return day + 1;
       cum += count;
     }
@@ -5244,9 +5616,8 @@ Kind regards.`;
   }
 
   function computeDayCount(d, dayNum){
-    const base = Math.floor(d.totalLocations / d.days);
-    const remainder = d.totalLocations % d.days;
-    return base + ((dayNum - 1) < remainder ? 1 : 0);
+    const counts = plannedDayCounts(d);
+    return counts[dayNum - 1] || 0;
   }
 
   // Whether a project's auto-generated schedule should skip weekends. Defaults
@@ -6349,6 +6720,7 @@ Kind regards.`;
       if(isBatch) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">⬇ Schedule PDF</button>`);
       if(isActiveDep) barBtns.push(`<button class="mini-btn icon-btn accent" onclick="event.stopPropagation(); generateEndUserMessage(${r.idx})"><span class="mb-ic">✉</span> ${t('dcard.genMessage')}</button>`);
       if(isActiveDep && !r.paused) barBtns.push(`<button class="mini-btn icon-btn warn" onclick="event.stopPropagation(); pauseDeployment(${r.idx})"><span class="mb-ic">⏸</span> ${t('dcard.pause')}</button>`);
+      if(isLoggedInAsAdmin()) barBtns.push(`<button class="mini-btn mini-btn-danger" onclick="event.stopPropagation(); deleteDeployment(${r.idx})">${t('cli.delete')}</button>`);
       const idHtml = `
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; padding:10px 12px; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px;">
           <span style="font-size:11.5px; color:var(--text-muted);">${t('dcard.idLabel')}</span>
@@ -6617,6 +6989,25 @@ Kind regards.`;
     persistDeployment(idx);
     renderDeploymentsTable();
     showToast(tf('dec.savedManually', {status: labels[newStatus]}));
+  }
+
+  function deleteDeployment(idx){
+    if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can delete deployments'); return; }
+    const d = DEPLOYMENTS_DATA[idx];
+    if(!d) return;
+    const label = (d.apps||[]).map(a=>a.name+' v'+a.version).join(', ') || d.id || '';
+    showAppConfirm(t('dcard.deleteTitle') + (d.id ? ' — ' + d.id : ''), t('dcard.deleteBody'), async ()=>{
+      try {
+        if(API_CONNECTED && d.id) await apiDeleteDeployment(d.id);
+      } catch(e){ showToast('⚠ ' + (e.message || 'Could not delete the deployment')); return; }
+      const pos = DEPLOYMENTS_DATA.indexOf(d);
+      if(pos >= 0) DEPLOYMENTS_DATA.splice(pos, 1);
+      if(expandedBatchIdx === idx) expandedBatchIdx = null;
+      logAudit('removed', 'Deployment', 'Deleted deployment ' + (d.id||'') + (label ? ' — ' + label : ''), (PROJECTS[d.projectKey]||{}).name || d.projectKey);
+      renderDeploymentsTable();
+      renderInstallerPanel();
+      showToast(tf('dcard.deleted', {id: d.id || ''}));
+    });
   }
 
   function pauseDeployment(idx){
