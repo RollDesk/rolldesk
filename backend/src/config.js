@@ -36,6 +36,12 @@ export const config = {
   databaseUrl:
     process.env.DATABASE_URL ||
     'postgres://rolldesk:rolldesk@localhost:5432/rolldesk',
+  // How the backend handles pending schema migrations on startup:
+  //   'auto'   (default) — apply any pending migrations before serving traffic.
+  //   'verify'           — do NOT apply; only check the DB is fully migrated and
+  //                        refuse to start if migrations are pending (apply them
+  //                        with a separate `node src/migrate.js` step / CI job).
+  migrateMode: (process.env.DB_MIGRATE || 'auto').toLowerCase() === 'verify' ? 'verify' : 'auto',
   auth: {
     jwtSecret,
     jwtSecretFromEnv: !!jwtSecretFromEnv,

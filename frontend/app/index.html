@@ -1512,21 +1512,21 @@
 
 <div id="message-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(20,24,30,0.45); z-index:1001; align-items:center; justify-content:center;">
   <div class="card" style="max-width:620px; width:94%; background:var(--paper-alt, #fff); max-height:90vh; overflow-y:auto;">
-    <div style="font-weight:600; font-size:14px; margin-bottom:4px;">Message for end users</div>
-    <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:12px;">Edit the template. Tags in curly braces are automatically replaced with the deployment data. Click a tag to insert it at the cursor position.</div>
+    <div style="font-weight:600; font-size:14px; margin-bottom:4px;" data-i18n="msg.title">Message for end users</div>
+    <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:12px;" data-i18n="msg.help">Edit the template. Tags in curly braces are automatically replaced with the deployment data. Click a tag to insert it at the cursor position.</div>
     <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;" id="message-tag-buttons"></div>
-    <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;">Template</label>
+    <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" data-i18n="msg.templateLabel">Template</label>
     <textarea id="message-modal-text" style="width:100%; min-height:180px; box-sizing:border-box; font-size:13px; line-height:1.55;" oninput="updateMessagePreview()"></textarea>
-    <label style="font-size:11px; color:var(--text-muted); margin:12px 0 4px 0; display:block;">Preview (with data substituted)</label>
+    <label style="font-size:11px; color:var(--text-muted); margin:12px 0 4px 0; display:block;" data-i18n="msg.previewLabel">Preview (with data substituted)</label>
     <div id="message-modal-preview" style="white-space:pre-wrap; font-size:12.5px; line-height:1.55; background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:10px 12px; min-height:60px;"></div>
     <div style="display:flex; gap:8px; justify-content:space-between; align-items:center; margin-top:14px; flex-wrap:wrap;">
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button class="mini-btn" onclick="resetMessageTemplate()">Restore template</button>
-        <button class="mini-btn" onclick="saveMessageTemplateForProject()">💾 Save as default for the project</button>
+        <button class="mini-btn" onclick="resetMessageTemplate()" data-i18n="msg.restore">Restore template</button>
+        <button class="mini-btn" onclick="saveMessageTemplateForProject()" data-i18n="msg.saveDefault">💾 Save as default for the project</button>
       </div>
       <div style="display:flex; gap:8px;">
-        <button class="mini-btn" onclick="document.getElementById('message-modal-overlay').style.display='none'">Close</button>
-        <button class="btn" onclick="copyEndUserMessage()">Copy the finished message</button>
+        <button class="mini-btn" onclick="document.getElementById('message-modal-overlay').style.display='none'" data-i18n="common.close">Close</button>
+        <button class="btn" onclick="copyEndUserMessage()" data-i18n="msg.copy">Copy the finished message</button>
       </div>
     </div>
   </div>
@@ -1874,7 +1874,7 @@
       const idx = CLIENTS.findIndex(x=>x.key===key);
       if(idx < 0) return;
       CLIENTS.splice(idx, 1);
-      logAudit('removed', 'Client', 'Deleted client „' + c.name + '”', '—');
+      logAudit('removed', 'Client', 'Deleted client „' + c.name + '”', '—', 'aud.d.clientDeleted', {name: c.name});
       renderClientsTable();
       populateClientSelect();
       persistClients();
@@ -2046,7 +2046,11 @@
     } catch(e){}
   }
 
-  function logAudit(action, entity, detail, project){
+  // logAudit(action, entity, detail, project, detailKey, detailParams)
+  // `detail` is the English fallback (also used for search/older clients);
+  // `detailKey`/`detailParams` (optional) let the change history render the entry
+  // in the current UI language at display time.
+  function logAudit(action, entity, detail, project, detailKey, detailParams){
     const now = new Date();
     const pad = n => String(n).padStart(2,'0');
     const ts = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes());
@@ -2055,7 +2059,9 @@
       actor: actorName(),
       role: currentLoggedInRole,
       action, entity, detail,
-      project: project || '—'
+      project: project || '—',
+      detailKey: detailKey || null,
+      detailParams: detailParams || null
     };
     AUDIT_LOG.unshift(entry);
     if(typeof renderAuditLog === 'function') renderAuditLog();
@@ -2073,16 +2079,30 @@
     const q = ((document.getElementById('audit-filter-search')||{}).value || '').toLowerCase().trim();
 
     const actionMeta = {
-      added:   {label:t('aud.added'),   color:'#0F7A38', bg:'var(--green-soft)'},
-      removed: {label:t('aud.removed'), color:'#A81E1E', bg:'var(--red-soft)'},
-      changed: {label:t('aud.changed'), color:'#8A5A05', bg:'#FDF1E1'},
+      added:    {label:t('aud.added'),    color:'#0F7A38', bg:'var(--green-soft)'},
+      removed:  {label:t('aud.removed'),  color:'#A81E1E', bg:'var(--red-soft)'},
+      changed:  {label:t('aud.changed'),  color:'#8A5A05', bg:'#FDF1E1'},
+      notified: {label:t('aud.notified'), color:'#0A6E7A', bg:'var(--cyan-soft, #E1F0F3)'},
     };
-    const entityLabels = {'Deployment target':t('aud.entityTarget'), 'Application':t('aud.entityApp'), 'User':t('aud.entityUser')};
+    // Localized labels for every entity that appears in the log.
+    const entityLabels = {
+      'Deployment target': t('aud.entityTarget'),
+      'Application':       t('aud.entityApp'),
+      'User':              t('aud.entityUser'),
+      'Project':           t('aud.entityProject'),
+      'Deployment':        t('aud.entityDeployment'),
+      'Client':            t('aud.entityClient'),
+      'Message template':  t('aud.entityMsgTemplate'),
+      'Notification':      t('aud.entityNotification'),
+    };
+    // Render an entry's detail in the current language when a key is present,
+    // falling back to the stored English text for older entries.
+    const detailText = e => e.detailKey ? tf(e.detailKey, e.detailParams || {}) : (e.detail || '');
 
     const rows = AUDIT_LOG.filter(e=>{
       if(actionVal !== 'all' && e.action !== actionVal) return false;
       if(entityVal !== 'all' && e.entity !== entityVal) return false;
-      if(q && !(e.detail.toLowerCase().includes(q) || e.actor.toLowerCase().includes(q))) return false;
+      if(q && !(detailText(e).toLowerCase().includes(q) || (e.detail||'').toLowerCase().includes(q) || (e.actor||'').toLowerCase().includes(q))) return false;
       return true;
     });
 
@@ -2094,7 +2114,7 @@
         <td>${e.actor}<div style="font-size:10.5px; color:var(--text-faint);">${roleLabel}</div></td>
         <td><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:${m.bg}; color:${m.color};">${m.label}</span></td>
         <td style="font-size:12.5px;">${entityLabels[e.entity] || e.entity}</td>
-        <td style="font-size:12.5px;">${e.detail}</td>
+        <td style="font-size:12.5px;">${detailText(e)}</td>
         <td style="font-size:12px; color:var(--text-muted);">${e.project}</td>
       </tr>`;
     }).join('') || `<tr><td colspan="6" style="color:var(--text-faint); font-size:13px;">${t('aud.noEntries')}</td></tr>`;
@@ -2168,7 +2188,7 @@
   }
   // Team notification when the client leaves a comment on a distribution.
   function notifyTeamClientComment(rec, note){
-    logAudit('notified', 'Notification', 'Client comments on ' + (rec.id||'') + ' — recipients: ' + notifySummary('clientComment', rec.projectKey, false), (PROJECTS[rec.projectKey]||{}).name || rec.projectKey);
+    logAudit('notified', 'Notification', 'Client comments on ' + (rec.id||'') + ' — recipients: ' + notifySummary('clientComment', rec.projectKey, false), (PROJECTS[rec.projectKey]||{}).name || rec.projectKey, 'aud.d.notifyClientComment', {id: rec.id||'', recipients: notifySummary('clientComment', rec.projectKey, false)});
     const projName = (PROJECTS[rec.projectKey]||{}).name || rec.projectKey;
     dispatchEventNotification('clientComment', rec.projectKey,
       'RollDesk — ' + t('ev.clientComment'),
@@ -2539,11 +2559,11 @@
       if(editingUserIndex !== null){
         const existing = USERS[editingUserIndex];
         await apiUpdateUser(existing.id, {name, role, group, projects, clientKey});
-        logAudit('changed', 'User', 'Changed user „' + name + '”', '—');
+        logAudit('changed', 'User', 'Changed user „' + name + '”', '—', 'aud.d.userChanged', {name});
         showToast('User „' + name + '” updated');
       } else {
         const created = await apiCreateUser({name, email, role, group, projects, clientKey});
-        logAudit('added', 'User', 'Added user „' + name + '” (' + ROLE_INFO[role].label + ')', '—');
+        logAudit('added', 'User', 'Added user „' + name + '” (' + ROLE_INFO[role].label + ')', '—', 'aud.d.userAdded', {name, role: t('role.'+role)});
         showToast('User „' + name + '” invited');
         showInviteLink(created.invite, email);
       }
@@ -2582,7 +2602,7 @@
       if(reason === null) return;
       try {
         await apiUserAction(u.id, 'archive', {reason: reason.trim()});
-        logAudit('removed', 'User', 'Archived user „' + name + '”' + (reason.trim() ? ' (reason: ' + reason.trim() + ')' : ''), '—');
+        logAudit('removed', 'User', 'Archived user „' + name + '”' + (reason.trim() ? ' (reason: ' + reason.trim() + ')' : ''), '—', reason.trim() ? 'aud.d.userArchivedReason' : 'aud.d.userArchived', {name, reason: reason.trim()});
         await loadUsers();
         showToast('User „' + name + '” archived');
       } catch(e){ showToast('⚠ ' + (e.message || 'Could not archive the user')); }
@@ -2595,7 +2615,7 @@
     const name = u.name;
     try {
       await apiUserAction(u.id, 'restore');
-      logAudit('changed', 'User', 'Restored user „' + name + '”', '—');
+      logAudit('changed', 'User', 'Restored user „' + name + '”', '—', 'aud.d.userRestored', {name});
       await loadUsers();
       showToast('User „' + name + '” restored');
     } catch(e){ showToast('⚠ ' + (e.message || 'Could not restore the user')); }
@@ -2787,7 +2807,7 @@
         const keys = Object.keys(PROJECTS);
         currentProjectKey = keys.length ? keys[0] : null;
       }
-      logAudit('removed', 'Project', 'Deleted project „' + p.name + '”', p.name);
+      logAudit('removed', 'Project', 'Deleted project „' + p.name + '”', p.name, 'aud.d.projectDeleted', {name: p.name});
       const panel = document.getElementById('project-apps-panel');
       if(panel) panel.style.display = 'none';
       try { renderProjectsList(); } catch(e){}
@@ -2900,7 +2920,7 @@
     p.defaultTime = time;
     p.skipWeekends = skipWkndEl ? skipWkndEl.checked : true;
     persistProject(currentProjectKey);
-    logAudit('changed', 'Project', 'Changed deployment defaults (' + p.defaultDays + ' working days, start ' + p.defaultTime + ', weekends ' + (p.skipWeekends ? 'skipped' : 'included') + ')', p.name + ' (' + p.clientName + ')');
+    logAudit('changed', 'Project', 'Changed deployment defaults (' + p.defaultDays + ' working days, start ' + p.defaultTime + ', weekends ' + (p.skipWeekends ? 'skipped' : 'included') + ')', p.name + ' (' + p.clientName + ')', 'aud.d.projDefaults', {days: p.defaultDays, time: p.defaultTime, weekends: t(p.skipWeekends ? 'aud.d.wkSkipped' : 'aud.d.wkIncluded')});
     showToast(t('proj.defaultsSaved'));
     // Refresh the schedule preview note for the current setting.
     const weekendNoteEl = document.getElementById('sch-weekends-note');
@@ -2922,7 +2942,7 @@
     delete p.postDeployTarget; // superseded by the split e-mail/webhook fields
     persistProject(currentProjectKey);
     const summary = [email && ('e-mail: ' + email), webhook && 'webhook'].filter(Boolean).join(', ');
-    logAudit('changed', 'Project', 'Changed the post-deployment notification' + (enabled ? ' (enabled: ' + summary + ')' : ' (disabled)'), p.name + ' (' + p.clientName + ')');
+    logAudit('changed', 'Project', 'Changed the post-deployment notification' + (enabled ? ' (enabled: ' + summary + ')' : ' (disabled)'), p.name + ' (' + p.clientName + ')', enabled ? 'aud.d.notifEnabled' : 'aud.d.notifDisabled', {summary});
     showToast(enabled ? 'Post-deployment notification enabled — ' + summary : 'Post-deployment notification disabled');
   }
 
@@ -3314,7 +3334,7 @@
       idxs.forEach(i=>{ if(i>=0 && i<p.locationsList.length) p.locationsList.splice(i,1); });
       p.locations = p.locationsList.length;
       selectedLocations = new Set();
-      logAudit('removed', 'Deployment target', 'Removed ' + n + ' targets', p.name + ' (' + p.clientName + ')');
+      logAudit('removed', 'Deployment target', 'Removed ' + n + ' targets', p.name + ' (' + p.clientName + ')', 'aud.d.targetsRemoved', {n});
       renderLocationsTable();
       renderProjectsList();
       persistProject(currentProjectKey);
@@ -3377,7 +3397,7 @@
     const prev = loc[key];
     loc[key] = val;
     if(key === 'type' && prev !== val){
-      logAudit('changed', 'Deployment target', 'Changed the type of target „' + (loc.label||loc.code) + '” from ' + prev + ' to ' + val, p.name + ' (' + p.clientName + ')');
+      logAudit('changed', 'Deployment target', 'Changed the type of target „' + (loc.label||loc.code) + '” from ' + prev + ' to ' + val, p.name + ' (' + p.clientName + ')', 'aud.d.targetType', {name: (loc.label||loc.code), prev, val});
     }
     persistProject(currentProjectKey);
   }
@@ -3394,7 +3414,7 @@
     loc.label = name;
     if(!loc.code || loc.code === loc.label) loc.code = name;
     if(prev !== name){
-      logAudit('changed', 'Deployment target', 'Changed the target name from „' + prev + '” to „' + name + '”', p.name + ' (' + p.clientName + ')');
+      logAudit('changed', 'Deployment target', 'Changed the target name from „' + prev + '” to „' + name + '”', p.name + ' (' + p.clientName + ')', 'aud.d.targetRename', {prev, name});
     }
     persistProject(currentProjectKey);
   }
@@ -3451,7 +3471,7 @@
     document.querySelectorAll('.location-custom-input').forEach(inp=>{ custom[inp.dataset.field] = inp.value; });
     p.locationsList.push({code: name, label: name, type, custom});
     p.locations = p.locationsList.length;
-    logAudit('added', 'Deployment target', 'Added target „' + name + '” (' + type + ')', p.name + ' (' + p.clientName + ')');
+    logAudit('added', 'Deployment target', 'Added target „' + name + '” (' + type + ')', p.name + ' (' + p.clientName + ')', 'aud.d.targetAdded', {name, type});
     renderLocationsTable();
     renderProjectsList();
     persistProject(currentProjectKey);
@@ -3548,7 +3568,7 @@
         });
         p.locations = p.locationsList.length;
         if(added){
-          logAudit('added', 'Deployment target', 'Imported ' + added + ' targets from CSV', p.name + ' (' + p.clientName + ')');
+          logAudit('added', 'Deployment target', 'Imported ' + added + ' targets from CSV', p.name + ' (' + p.clientName + ')', 'aud.d.targetsImported', {n: added});
           renderLocationsTable();
           renderProjectsList();
           persistProject(currentProjectKey);
@@ -3570,7 +3590,7 @@
         p.locationsList.splice(i, 1);
         p.locations = p.locationsList.length;
         selectedLocations = new Set(); // indices shifted — clear any selection
-        logAudit('removed', 'Deployment target', 'Removed target „' + name + '”', p.name + ' (' + p.clientName + ')');
+        logAudit('removed', 'Deployment target', 'Removed target „' + name + '”', p.name + ' (' + p.clientName + ')', 'aud.d.targetRemoved', {name});
         renderLocationsTable();
         renderProjectsList();
         persistProject(currentProjectKey);
@@ -4455,7 +4475,7 @@
     // each gets an invitation link/e-mail). Runs async and refreshes the list.
     reconcileClientPeople(people, projectKey, clientKey);
 
-    logAudit('added', 'Project', 'Created project "' + name + '"', name + ' (' + clientName + ')');
+    logAudit('added', 'Project', 'Created project "' + name + '"', name + ' (' + clientName + ')', 'aud.d.projectCreated', {name});
     persistProject(projectKey);
     persistClients();
 
@@ -4542,11 +4562,11 @@
       const a = p.apps[editingAppIndex];
       const prevName = a.name;
       a.name = name; a.repo = repoDisplay;
-      logAudit('changed', 'Application', 'Changed settings of application „' + prevName + '”' + (prevName!==name ? ' (new name: „'+name+'”)' : ''), p.name + ' (' + p.clientName + ')');
+      logAudit('changed', 'Application', 'Changed settings of application „' + prevName + '”' + (prevName!==name ? ' (new name: „'+name+'”)' : ''), p.name + ' (' + p.clientName + ')', prevName!==name ? 'aud.d.appRenamed' : 'aud.d.appChanged', {prev: prevName, name});
       showToast('Application „' + name + '” settings saved');
     } else {
       p.apps.push({ name, repo: repoDisplay, locations: p.locations, deployedVersions: [] });
-      logAudit('added', 'Application', 'Added application „' + name + '”', p.name + ' (' + p.clientName + ')');
+      logAudit('added', 'Application', 'Added application „' + name + '”', p.name + ' (' + p.clientName + ')', 'aud.d.appAdded', {name});
       showToast('Application „' + name + '” added');
     }
     rebuildAppsTable(p);
@@ -4638,7 +4658,7 @@
         const _s = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
         const clientName = (PROJECTS[rec.projectKey]||{}).clientName || 'Client';
         rec.comments.push({date:_s.date, time:_s.time, author: clientName, type:'system', icon:'💬', text:'The client commented on the schedule: „' + note + '”'});
-        logAudit('changed','Deployment','The client commented on ' + (rec.id||'') + ': ' + note, (PROJECTS[rec.projectKey]||{}).name || rec.projectKey);
+        logAudit('changed','Deployment','The client commented on ' + (rec.id||'') + ': ' + note, (PROJECTS[rec.projectKey]||{}).name || rec.projectKey, 'aud.d.depClientComment', {id: rec.id||'', note});
         notifyTeamClientComment(rec, note);
         persistDeployment(rec.id);
         renderClientPortal(currentClientScenario);
@@ -4653,7 +4673,7 @@
         const _s = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
         const clientName = (PROJECTS[rec.projectKey]||{}).clientName || 'Client';
         rec.comments.push({date:_s.date, time:_s.time, author: clientName, type:'system', icon:'💬', text:'The client requests a reschedule: „' + newDate + '”'});
-        logAudit('changed','Deployment','The client requests a reschedule of ' + (rec.id||'') + ': ' + newDate, (PROJECTS[rec.projectKey]||{}).name || rec.projectKey);
+        logAudit('changed','Deployment','The client requests a reschedule of ' + (rec.id||'') + ': ' + newDate, (PROJECTS[rec.projectKey]||{}).name || rec.projectKey, 'aud.d.depReschedule', {id: rec.id||'', date: newDate});
         notifyTeamClientComment(rec, 'Reschedule request: ' + newDate);
         persistDeployment(rec.id);
         renderClientPortal(currentClientScenario);
@@ -5629,48 +5649,43 @@
 
   // Default message template with tags. The user can edit it.
   const MESSAGE_TAGS = [
-    {tag:'{application}',   label:'application name'},
-    {tag:'{version}',       label:'version'},
-    {tag:'{applications}',  label:'applications + versions'},
-    {tag:'{dates}',         label:'deployment dates'},
-    {tag:'{environment}',   label:'environment'},
-    {tag:'{client}',        label:'client'},
-    {tag:'{attachments}',   label:'attachments'},
+    {tag:'{application}',   labelKey:'msg.tagApp'},
+    {tag:'{version}',       labelKey:'msg.tagVersion'},
+    {tag:'{applications}',  labelKey:'msg.tagApps'},
+    {tag:'{dates}',         labelKey:'msg.tagDates'},
+    {tag:'{environment}',   labelKey:'msg.tagEnv'},
+    {tag:'{client}',        labelKey:'msg.tagClient'},
+    {tag:'{attachments}',   labelKey:'msg.tagAtt'},
   ];
-  const DEFAULT_MESSAGE_TEMPLATE =
-`Dear Sir or Madam,
+  // The default message template is language-aware (read from i18n) so the
+  // generated communication is in the currently selected UI language.
+  function defaultMessageTemplate(){ return t('msg.template'); }
 
-we kindly inform you that on {dates} a deployment of the following applications will be carried out: {applications}.
-
-Attached we provide {attachments}.
-
-If you have any questions, please contact the deployment team.
-
-Kind regards.`;
-
-  let messageTemplate = DEFAULT_MESSAGE_TEMPLATE;
+  let messageTemplate = '';
   let messageContextIdx = null;
 
-  // Values substituted for tags for a given deployment.
+  // Values substituted for tags for a given deployment (also localized).
   function messageTagValues(r){
     const p = PROJECTS[r.projectKey] || {};
     const firstApp = (r.apps && r.apps[0]) || {name:'—', version:'—'};
     let dates;
     if(r.mode === 'batch'){
-      dates = `between ${getDateForDay(r,1)} and ${getDateForDay(r, r.days)}`;
+      dates = tf('msg.datesBatch', {from: fmtDate(getDateForDay(r,1)), to: fmtDate(getDateForDay(r, r.days))});
     } else {
-      dates = `on ${r.date}${r.time ? ' at ' + r.time : ''}`;
+      dates = r.time
+        ? tf('msg.datesSingleAt', {date: fmtDate(r.date), time: fmtTime(r.time)})
+        : tf('msg.datesSingle', {date: fmtDate(r.date)});
     }
-    const attachments = ['the deployment schedule'];
-    if(r.changelog || r.attachment) attachments.push('the changelog');
+    const attachments = [t('msg.attSchedule')];
+    if(r.changelog || r.attachment) attachments.push(t('msg.attChangelog'));
     return {
       '{application}': firstApp.name,
       '{version}': firstApp.version,
-      '{applications}': (r.apps||[]).map(a=>`${a.name} (version ${a.version})`).join(', '),
+      '{applications}': (r.apps||[]).map(a=>tf('msg.appVersion', {name: a.name, version: a.version})).join(', '),
       '{dates}': dates,
       '{environment}': r.env || '—',
       '{client}': p.clientName || '—',
-      '{attachments}': attachments.join(' and '),
+      '{attachments}': attachments.join(' ' + t('msg.and') + ' '),
     };
   }
 
@@ -5684,11 +5699,11 @@ Kind regards.`;
     const r = DEPLOYMENTS_DATA[idx];
     const proj = PROJECTS[r.projectKey] || {};
     // Use a project-specific default template if one was saved for this project.
-    messageTemplate = proj.messageTemplate || DEFAULT_MESSAGE_TEMPLATE;
+    messageTemplate = proj.messageTemplate || defaultMessageTemplate();
     document.getElementById('message-modal-text').value = messageTemplate;
     // Tag buttons
     const tb = document.getElementById('message-tag-buttons');
-    tb.innerHTML = MESSAGE_TAGS.map(t=>`<button class="mini-btn" style="font-size:10.5px;" onclick="insertMessageTag('${t.tag}')" title="${t.label}"><span class="mono">${t.tag}</span></button>`).join('');
+    tb.innerHTML = MESSAGE_TAGS.map(mt=>`<button class="mini-btn" style="font-size:10.5px;" onclick="insertMessageTag('${mt.tag}')" title="${t(mt.labelKey)}"><span class="mono">${mt.tag}</span></button>`).join('');
     updateMessagePreview();
     document.getElementById('message-modal-overlay').style.display = 'flex';
   }
@@ -5699,7 +5714,7 @@ Kind regards.`;
     const proj = PROJECTS[r.projectKey];
     if(!proj) return;
     proj.messageTemplate = document.getElementById('message-modal-text').value;
-    logAudit('changed', 'Message template', 'Saved the default message template for the project', proj.name + ' (' + proj.clientName + ')');
+    logAudit('changed', 'Message template', 'Saved the default message template for the project', proj.name + ' (' + proj.clientName + ')', 'aud.d.msgTemplate', {});
     showToast('Template saved as default for the ' + proj.name + ' project');
   }
 
@@ -5723,7 +5738,7 @@ Kind regards.`;
   function resetMessageTemplate(){
     const r = DEPLOYMENTS_DATA[messageContextIdx];
     const proj = r ? PROJECTS[r.projectKey] : null;
-    messageTemplate = (proj && proj.messageTemplate) || DEFAULT_MESSAGE_TEMPLATE;
+    messageTemplate = (proj && proj.messageTemplate) || defaultMessageTemplate();
     document.getElementById('message-modal-text').value = messageTemplate;
     updateMessagePreview();
   }
@@ -5827,7 +5842,7 @@ Kind regards.`;
     d.comments = d.comments || [];
     const summary = changedDays.sort((a,b)=>a-b).map(day=>`day ${day} → ${d.dayDates[day]}`).join(', ');
     d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'📅', text:'Schedule changed (' + summary + ')'});
-    logAudit('changed','Deployment','Changed the schedule ' + (d.id||'') + ' — ' + summary, (PROJECTS[d.projectKey]||{}).name || d.projectKey);
+    logAudit('changed','Deployment','Changed the schedule ' + (d.id||'') + ' — ' + summary, (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.schedChanged', {id: d.id||'', summary});
     persistDeployment(idx);
     renderDeploymentsTable();
     renderInstallerPanel();
@@ -6025,7 +6040,7 @@ Kind regards.`;
   function assignDeployment(idx, name){
     const d = DEPLOYMENTS_DATA[idx];
     d.assignedTo = name || null;
-    logAudit('changed','Deployment','Assigned deployer: ' + (name||'—') + ' to ' + (d.id||''), (PROJECTS[d.projectKey]||{}).name || d.projectKey);
+    logAudit('changed','Deployment','Assigned deployer: ' + (name||'—') + ' to ' + (d.id||''), (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.assigned', {name: name||'—', id: d.id||''});
     persistDeployment(idx);
     renderInstallerPanel();
     showToast(name ? ('Assigned: ' + name) : 'Assignment removed');
@@ -7021,7 +7036,7 @@ Kind regards.`;
       const summary = changes.join(', ');
       d.comments = d.comments || [];
       d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'📅', text:'Deployment changed (' + summary + ')'});
-      logAudit('changed','Deployment','Changed deployment ' + (d.id||'') + ' — ' + summary, (PROJECTS[d.projectKey]||{}).name || d.projectKey);
+      logAudit('changed','Deployment','Changed deployment ' + (d.id||'') + ' — ' + summary, (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.depChanged', {id: d.id||'', summary});
     }
     persistDeployment(idx);
     renderDeploymentsTable();
@@ -7040,7 +7055,7 @@ Kind regards.`;
     const who = actorName();
     d.comments = d.comments || [];
     d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'🔄', text: tf('dcard.statusChanged', {from: labels[prev]||prev, to: labels[newStatus]||newStatus})});
-    logAudit('changed','Deployment','Changed status of ' + (d.id||'') + ': ' + (labels[prev]||prev) + ' → ' + (labels[newStatus]||newStatus), (PROJECTS[d.projectKey]||{}).name || d.projectKey);
+    logAudit('changed','Deployment','Changed status of ' + (d.id||'') + ': ' + (labels[prev]||prev) + ' → ' + (labels[newStatus]||newStatus), (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.statusChanged', {id: d.id||'', from: (labels[prev]||prev), to: (labels[newStatus]||newStatus)});
     persistDeployment(idx);
     renderDeploymentsTable();
     renderInstallerPanel();
@@ -7081,7 +7096,7 @@ Kind regards.`;
               showToast('„' + name + '” already had an account — access to „' + p.name + '” was granted');
             } else {
               const created = await apiCreateUser({name, email, role:'client', projects:[projectKey], clientKey: (client && client.key) || null});
-              logAudit('added', 'User', 'Added client account „' + name + '” from a deployment approval', p.name + ' (' + clientLabel + ')');
+              logAudit('added', 'User', 'Added client account „' + name + '” from a deployment approval', p.name + ' (' + clientLabel + ')', 'aud.d.clientAccountAdded', {name});
               await loadUsers();
               showToast('Client account created for „' + name + '”');
               showInviteLink(created.invite, email);
@@ -7133,7 +7148,7 @@ Kind regards.`;
       const pos = DEPLOYMENTS_DATA.indexOf(d);
       if(pos >= 0) DEPLOYMENTS_DATA.splice(pos, 1);
       if(expandedBatchIdx === idx) expandedBatchIdx = null;
-      logAudit('removed', 'Deployment', 'Deleted deployment ' + (d.id||'') + (label ? ' — ' + label : ''), (PROJECTS[d.projectKey]||{}).name || d.projectKey);
+      logAudit('removed', 'Deployment', 'Deleted deployment ' + (d.id||'') + (label ? ' — ' + label : ''), (PROJECTS[d.projectKey]||{}).name || d.projectKey, label ? 'aud.d.depDeleted' : 'aud.d.depDeletedNoLabel', {id: d.id||'', label});
       renderDeploymentsTable();
       renderInstallerPanel();
       showToast(tf('dcard.deleted', {id: d.id || ''}));
@@ -7154,10 +7169,10 @@ Kind regards.`;
       d.pausedAt = _sp.date + ' ' + _sp.time;
       d.comments = d.comments || [];
       d.comments.push({date:_sp.date, time:_sp.time, author: who, type:'system', icon:'⏸', text: tf('pause.systemComment', {reason: trimmed}) });
-      logAudit('changed', 'Deployment', 'Paused deployment ' + (d.id||'') + ' — ' + trimmed, (PROJECTS[d.projectKey]||{}).name || d.projectKey);
+      logAudit('changed', 'Deployment', 'Paused deployment ' + (d.id||'') + ' — ' + trimmed, (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.depPaused', {id: d.id||'', reason: trimmed});
       // Notify the client and defined recipients about the pause.
       const clientSees = !d.internal && !(PROJECTS[d.projectKey] && PROJECTS[d.projectKey].clientVisible === false);
-      logAudit('notified', 'Notification', 'Pause ' + (d.id||'') + ' — recipients: ' + notifySummary('paused', d.projectKey, clientSees), (PROJECTS[d.projectKey]||{}).name || d.projectKey);
+      logAudit('notified', 'Notification', 'Pause ' + (d.id||'') + ' — recipients: ' + notifySummary('paused', d.projectKey, clientSees), (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.notifyPause', {id: d.id||'', recipients: notifySummary('paused', d.projectKey, clientSees)});
       const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
       dispatchEventNotification('paused', d.projectKey,
         'RollDesk — ' + t('ev.paused'),
@@ -7178,7 +7193,7 @@ Kind regards.`;
       const _sr = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
       const whoR = actorName();
       d.comments.push({date:_sr.date, time:_sr.time, author: whoR, type:'system', icon:'▶', text: t('resume.systemComment')});
-      logAudit('changed', 'Deployment', 'Resumed deployment ' + (d.id||''), (PROJECTS[d.projectKey]||{}).name || d.projectKey);
+      logAudit('changed', 'Deployment', 'Resumed deployment ' + (d.id||''), (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.depResumed', {id: d.id||''});
       persistDeployment(idx);
       renderDeploymentsTable();
       renderInstallerPanel();

@@ -4,7 +4,7 @@ import { config } from './config.js';
 import { ipAllowlist } from './ipAllowlist.js';
 import { requireAuth } from './auth.js';
 import { requireApiAuth } from './apiAuth.js';
-import { runMigrations } from './migrate.js';
+import { runMigrations, verifyMigrations } from './migrate.js';
 import health from './routes/health.js';
 import authRouter from './routes/auth.js';
 import deployments from './routes/deployments.js';
@@ -70,11 +70,18 @@ async function start() {
     console.warn('[config] JWT_SECRET not set — using an ephemeral secret; sessions reset on restart.');
   }
 
-  // Apply pending database migrations before accepting traffic.
+  // Ensure the database schema is current before accepting traffic. In 'auto'
+  // mode we apply any pending migrations; in 'verify' mode we only check and
+  // refuse to start when migrations are pending. Either way a failure aborts
+  // startup so the app never serves traffic against an unmigrated database.
   try {
-    await runMigrations();
+    if (config.migrateMode === 'verify') {
+      await verifyMigrations();
+    } else {
+      await runMigrations();
+    }
   } catch (err) {
-    console.error('[migrate] Startup migrations failed:', err.message);
+    console.error(`[migrate] Startup (${config.migrateMode}) failed:`, err.message);
     process.exit(1);
   }
 

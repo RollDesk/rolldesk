@@ -8,12 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Optional **group** field on user accounts (Users tab), shown in the directory — a purely descriptive label to make managing users easier. New `user_group` column (migration `003_user_group.sql`).
+- **Startup migration verification.** The backend still auto-applies pending migrations by default; setting `DB_MIGRATE=verify` makes it only check the schema and refuse to start when migrations are pending (apply them via a separate `node src/migrate.js` step). `/health` now reports migration status (`applied` count, `pending` list) and is marked `degraded` when the database has drifted behind the code.
 
 ### Changed
 - **Deployer panel is now scoped to the deployer's projects.** A user with the Deployer role only sees deployments of the projects they were granted in the Users tab (enforced on the backend for `GET /api/deployments` too). `GET /api/auth/me` now returns the account's `projects` and `clientKey`.
 - **Client panel works from real accounts.** A Client user's portal is built automatically from the projects an admin granted them (no more demo "scenario" needed); admins/release managers can still preview each client's view.
 - Consistent **date/time formatting** across the Deployments views (ISO `YYYY-MM-DD` dates, 24-hour `HH:MM` times) instead of a mix of `DD/MM/YYYY`, `DD.MM` and locale times.
 - More **Polish translations**: deployment-details Day schedule and Location queue, the deployer-panel cards (today's batch, saved-result and correction views), and the schedule preview.
+- The **end-user message generator** ("Generate a message") is now fully localized — the modal, tag buttons, the default template and the substituted values (dates, versions, attachments) follow the selected UI language. Its greeting changed from "Dear Sir or Madam" to "Hello,".
+- The **change history** now renders localized entries. New entries store a translation key + parameters (migration `005_audit_i18n.sql`) so the Object, Action and Details columns display in the current language; older entries keep their stored English text as a fallback.
 
 ### Fixed
 - The first **"Generate schedule"** after manually spreading targets across days now honours that manual per-day split instead of falling back to an even split.

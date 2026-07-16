@@ -14,7 +14,9 @@ router.use('/state', forbidClient);
 
 // --- Audit log (append-only) ---------------------------------------------
 
-const AUDIT_COLS = 'ts, actor, role, action, entity, detail, project';
+// detail_key / detail_params let the frontend render the entry in the current
+// language; detail stays as an English fallback. Aliased to camelCase for the UI.
+const AUDIT_COLS = 'ts, actor, role, action, entity, detail, project, detail_key AS "detailKey", detail_params AS "detailParams"';
 
 // GET /api/audit — newest first (capped).
 router.get('/audit', async (_req, res) => {
@@ -28,11 +30,12 @@ router.get('/audit', async (_req, res) => {
 router.post('/audit', async (req, res) => {
   const b = req.body || {};
   const { rows } = await query(
-    `INSERT INTO audit_log (ts, actor, role, action, entity, detail, project)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)
+    `INSERT INTO audit_log (ts, actor, role, action, entity, detail, project, detail_key, detail_params)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
      RETURNING ${AUDIT_COLS}`,
     [b.ts || null, b.actor || null, b.role || null, b.action || null,
-     b.entity || null, b.detail || null, b.project || null]
+     b.entity || null, b.detail || null, b.project || null,
+     b.detailKey || null, b.detailParams ? JSON.stringify(b.detailParams) : null]
   );
   res.status(201).json(rows[0]);
 });
