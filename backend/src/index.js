@@ -4,7 +4,7 @@ import { config } from './config.js';
 import { ipAllowlist } from './ipAllowlist.js';
 import { requireAuth } from './auth.js';
 import { requireApiAuth } from './apiAuth.js';
-import { runMigrations } from './migrate.js';
+import { runMigrations, verifyMigrations } from './migrate.js';
 import health from './routes/health.js';
 import authRouter from './routes/auth.js';
 import deployments from './routes/deployments.js';
@@ -49,6 +49,16 @@ app.use('/api/deployments', requireApiAuth, deployments);
 app.use('/api/projects', requireApiAuth, projects);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown endpoint' }));
 
+// Central error handler. Express 5 forwards rejected async handlers here, so a
+// failing DB query (or any thrown error) is logged with its route instead of
+// vanishing into a bare 500. Keeps the client response clean (no stack leak).
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, _next) => {
+  console.error(`[error] ${req.method} ${req.originalUrl} →`, err && err.stack ? err.stack : err);
+  if (res.headersSent) return;
+  res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+});
+
 async function start() {
   // A signing secret is mandatory in production; without it sessions can't be
   // trusted, so refuse to start rather than fall back to an ephemeral secret.
@@ -60,11 +70,18 @@ async function start() {
     console.warn('[config] JWT_SECRET not set — using an ephemeral secret; sessions reset on restart.');
   }
 
-  // Apply pending database migrations before accepting traffic.
+  // Ensure the database schema is current before accepting traffic. In 'auto'
+  // mode we apply any pending migrations; in 'verify' mode we only check and
+  // refuse to start when migrations are pending. Either way a failure aborts
+  // startup so the app never serves traffic against an unmigrated database.
   try {
-    await runMigrations();
+    if (config.migrateMode === 'verify') {
+      await verifyMigrations();
+    } else {
+      await runMigrations();
+    }
   } catch (err) {
-    console.error('[migrate] Startup migrations failed:', err.message);
+    console.error(`[migrate] Startup (${config.migrateMode}) failed:`, err.message);
     process.exit(1);
   }
 

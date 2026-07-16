@@ -32,6 +32,7 @@ function serialize(row) {
     name: row.name || (row.email ? row.email.split('@')[0] : ''),
     email: row.email,
     role: row.role,
+    group: row.user_group || '',
     projects: Array.isArray(row.projects) ? row.projects : [],
     clientKey: row.client_key || null,
     archived: !!row.archived,
@@ -72,7 +73,7 @@ async function issueInvite(user, actorEmail) {
 // GET /api/users — the whole directory.
 router.get('/', async (_req, res) => {
   const { rows } = await query(
-    `SELECT id, email, role, name, projects, client_key, archived, archived_reason,
+    `SELECT id, email, role, name, user_group, projects, client_key, archived, archived_reason,
             password_hash, mfa_enabled
        FROM users ORDER BY archived ASC, created_at ASC`
   );
@@ -85,6 +86,7 @@ router.post('/', async (req, res) => {
   const email = String(b.email || '').trim();
   const name = String(b.name || '').trim() || null;
   const role = String(b.role || '').trim();
+  const group = String(b.group || '').trim() || null;
   const projects = Array.isArray(b.projects) ? b.projects.map(String) : [];
   const clientKey = b.clientKey ? String(b.clientKey) : null;
 
@@ -95,10 +97,10 @@ router.post('/', async (req, res) => {
   if (existing.rows[0]) return res.status(409).json({ error: 'A user with this e-mail already exists' });
 
   const { rows } = await query(
-    `INSERT INTO users (email, role, name, projects, client_key, invited_by)
-     VALUES ($1, $2, $3, $4::jsonb, $5, $6)
-     RETURNING id, email, role, name, projects, client_key, archived, archived_reason, password_hash, mfa_enabled`,
-    [email, role, name, JSON.stringify(projects), clientKey, (req.auth && req.auth.email) || null]
+    `INSERT INTO users (email, role, name, user_group, projects, client_key, invited_by)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
+     RETURNING id, email, role, name, user_group, projects, client_key, archived, archived_reason, password_hash, mfa_enabled`,
+    [email, role, name, group, JSON.stringify(projects), clientKey, (req.auth && req.auth.email) || null]
   );
   const user = rows[0];
   const invite = await issueInvite(user, req.auth && req.auth.email);
@@ -112,6 +114,7 @@ router.put('/:id', async (req, res) => {
   const b = req.body || {};
   const name = String(b.name || '').trim() || null;
   const role = String(b.role || '').trim();
+  const group = String(b.group || '').trim() || null;
   const projects = Array.isArray(b.projects) ? b.projects.map(String) : [];
   const clientKey = b.clientKey ? String(b.clientKey) : null;
   if (!ROLES.has(role)) return res.status(422).json({ error: 'Invalid role' });
@@ -123,10 +126,10 @@ router.put('/:id', async (req, res) => {
   }
 
   const { rows } = await query(
-    `UPDATE users SET name = $1, role = $2, projects = $3::jsonb, client_key = $4
-      WHERE id = $5
-      RETURNING id, email, role, name, projects, client_key, archived, archived_reason, password_hash, mfa_enabled`,
-    [name, role, JSON.stringify(projects), clientKey, id]
+    `UPDATE users SET name = $1, role = $2, projects = $3::jsonb, client_key = $4, user_group = $5
+      WHERE id = $6
+      RETURNING id, email, role, name, user_group, projects, client_key, archived, archived_reason, password_hash, mfa_enabled`,
+    [name, role, JSON.stringify(projects), clientKey, group, id]
   );
   if (!rows[0]) return res.status(404).json({ error: 'User not found' });
   res.json(serialize(rows[0]));
@@ -140,7 +143,7 @@ router.post('/:id/archive', async (req, res) => {
   const reason = String((req.body && req.body.reason) || '').trim() || null;
   const { rows } = await query(
     `UPDATE users SET archived = true, archived_reason = $2 WHERE id = $1
-      RETURNING id, email, role, name, projects, client_key, archived, archived_reason, password_hash, mfa_enabled`,
+      RETURNING id, email, role, name, user_group, projects, client_key, archived, archived_reason, password_hash, mfa_enabled`,
     [id, reason]
   );
   if (!rows[0]) return res.status(404).json({ error: 'User not found' });
@@ -153,7 +156,7 @@ router.post('/:id/restore', async (req, res) => {
   if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid user id' });
   const { rows } = await query(
     `UPDATE users SET archived = false, archived_reason = NULL WHERE id = $1
-      RETURNING id, email, role, name, projects, client_key, archived, archived_reason, password_hash, mfa_enabled`,
+      RETURNING id, email, role, name, user_group, projects, client_key, archived, archived_reason, password_hash, mfa_enabled`,
     [id]
   );
   if (!rows[0]) return res.status(404).json({ error: 'User not found' });

@@ -292,7 +292,16 @@ router.get('/login-history', requireStage('session'), async (req, res) => {
 router.get('/me', requireStage('session'), async (req, res) => {
   const user = await findUserById(req.auth.sub);
   if (!user) return res.status(401).json({ error: 'Authentication required' });
-  res.json({ id: user.id, email: user.email, role: user.role, name: user.name || null });
+  res.json({
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    name: user.name || null,
+    // Project scope + client link so the frontend can limit the deployer panel
+    // and client portal to what this account is actually granted.
+    projects: Array.isArray(user.projects) ? user.projects.map(String) : [],
+    clientKey: user.client_key || null,
+  });
 });
 
 // GET /api/auth/invite/:token — validate an invitation / reset link. Open

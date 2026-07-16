@@ -1,7 +1,7 @@
 // Deployment endpoints — the full object is stored as JSONB (data).
 import { Router } from 'express';
 import { query } from '../db.js';
-import { forbidClient, isClient, clientScope } from '../rbac.js';
+import { forbidClient, isClient, isInstaller, clientScope, userScope } from '../rbac.js';
 
 const router = Router();
 
@@ -26,6 +26,12 @@ router.get('/', async (req, res) => {
     params.push(projects);
     clauses.push(`project_key = ANY($${params.length}::text[])`);
     clauses.push('internal = false');
+  } else if (isInstaller(req)) {
+    // A Deployer only gets deployments of the projects they were granted.
+    const { projects } = await userScope(req);
+    if (!projects.length) return res.json([]);
+    params.push(projects);
+    clauses.push(`project_key = ANY($${params.length}::text[])`);
   }
 
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
@@ -41,6 +47,11 @@ router.get('/:id', async (req, res) => {
   if (isClient(req)) {
     const { projects } = await clientScope(req);
     if (row.internal || !projects.includes(row.project_key)) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+  } else if (isInstaller(req)) {
+    const { projects } = await userScope(req);
+    if (!projects.includes(row.project_key)) {
       return res.status(404).json({ error: 'Not found' });
     }
   }
