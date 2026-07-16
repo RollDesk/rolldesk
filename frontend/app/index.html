@@ -6470,17 +6470,17 @@
                 </div>
                 <div style="font-size:11.5px; color:var(--text-muted); margin-top:3px;"><span class="env-tag ${envClass}">${r.env}</span> · ${r.location}${r.assignedTo ? ' · done by: ' + r.assignedTo : ''}</div>
               </div>
-              <button class="mini-btn" onclick="toggleInstallerCorrection(${r.idx})">Report a correction</button>
+              <button class="mini-btn" onclick="toggleInstallerCorrection(${r.idx})">${t('rep.reportCorrection')}</button>
             </div>
             <div id="correction-form-${r.idx}" style="display:none; margin-top:10px;">
               <div class="field">
-                <label>Correction reason <span style="color:#A81E1E;">*</span></label>
-                <input type="text" id="correction-reason-${r.idx}" placeholder="e.g. it turned out it did not work after all / it worked after a retry">
+                <label>${t('rep.correctionReason')} <span style="color:#A81E1E;">*</span></label>
+                <input type="text" id="correction-reason-${r.idx}" placeholder="${t('rep.correctionReasonPh')}">
               </div>
               ${r.status === 'installed'
-                ? `<button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'failed')">Change to: failed</button>`
-                : `<button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'installed')">Change to: successful</button>
-                   <button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'failed')">Keep failed (change reason)</button>`}
+                ? `<button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'failed')">${t('rep.changeToFailed')}</button>`
+                : `<button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'installed')">${t('rep.changeToSuccessful')}</button>
+                   <button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'failed')">${t('rep.keepFailed')}</button>`}
             </div>
           </div>`;
         }
