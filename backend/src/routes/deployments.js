@@ -82,6 +82,80 @@ async function upsert(id, body) {
   return rowToObj(rows[0]);
 }
 
+// POST /api/deployments/:id/decision — record a client's schedule decision.
+// This is deliberately NOT behind forbidClient: approving/commenting on a
+// schedule is the client's own action. It merges the decision into the stored
+// deployment and appends an audit-log entry server-side (clients can't write the
+// audit log directly), so the change history and timeline are consistent for
+// everyone after a reload.
+router.post('/:id/decision', async (req, res) => {
+  const { rows } = await query('SELECT * FROM deployments WHERE id = $1', [req.params.id]);
+  if (!rows.length) return res.status(404).json({ error: 'Not found' });
+  const row = rows[0];
+  // A client may only act on a non-internal deployment of one of their projects.
+  if (isClient(req)) {
+    const { projects } = await clientScope(req);
+    if (row.internal || !projects.includes(row.project_key)) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+  }
+
+  const b = req.body || {};
+  const decision = String(b.decision || '').trim();
+  if (!['approved', 'commented', 'reschedule'].includes(decision)) {
+    return res.status(422).json({ error: 'Invalid decision (expected approved | commented | reschedule)' });
+  }
+  const by = (String(b.by || '').trim() || null);
+  const commentText = String(b.commentText || '').slice(0, 2000);
+
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const stampDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const stampTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  const data = Object.assign({}, row.data);
+  data.clientApproval = decision === 'approved' ? 'approved' : 'commented';
+  if (by) data.clientApprovalBy = by;
+  data.clientApprovalDate = stampDate;
+  data.clientApprovalTime = stampTime;
+  if (commentText) data.clientComment = commentText;
+  if (commentText) {
+    data.comments = Array.isArray(data.comments) ? data.comments : [];
+    data.comments.push({
+      date: stampDate, time: stampTime, author: by || null, type: 'system',
+      icon: decision === 'reschedule' ? '📅' : (decision === 'approved' ? '✅' : '💬'),
+      text: commentText,
+    });
+  }
+
+  await query(
+    `UPDATE deployments SET data = $2, updated_at = now() WHERE id = $1`,
+    [req.params.id, data]
+  );
+
+  // Append the audit entry server-side. The UI passes the localizable key/params
+  // so the change history renders it in the reader's language.
+  const detail = String(b.auditDetail || '').slice(0, 1000) || null;
+  const auditKey = b.auditKey ? String(b.auditKey).slice(0, 120) : null;
+  const auditParams = b.auditParams && typeof b.auditParams === 'object' ? b.auditParams : null;
+  const project = String(b.projectLabel || row.project_key || '').slice(0, 300) || null;
+  const actor = by || (req.auth && req.auth.email) || 'Client';
+  const role = (req.auth && req.auth.role) || 'client';
+  try {
+    await query(
+      `INSERT INTO audit_log (ts, actor, role, action, entity, detail, project, detail_key, detail_params)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [`${stampDate} ${stampTime}`, actor, role, 'changed', 'Deployment', detail, project,
+       auditKey, auditParams ? JSON.stringify(auditParams) : null]
+    );
+  } catch (err) {
+    // Non-fatal: the decision itself is saved even if the audit insert fails.
+    console.warn('[decision] audit insert failed:', err.message);
+  }
+
+  res.json(rowToObj({ id: row.id, data }));
+});
+
 // PUT /api/deployments/:id — create or update (the frontend uses this to save).
 router.put('/:id', forbidClient, async (req, res) => {
   const body = req.body || {};

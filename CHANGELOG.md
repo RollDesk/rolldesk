@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-07-16
+
+### Added
+- **Editable per-day distribution.** After a schedule is created you can now set the number of targets planned for any not-yet-completed day directly (the surplus/shortfall is moved to/from the other days), in addition to moving individual targets between days.
+- **Custom target fields in the schedule.** Extra target columns (e.g. „nazwa urzędu") are now carried into the in-app schedule table, the PDF and the XLS export.
+- **Edit a planned deployment.** Release managers and administrators get an *Edit* action on unfinished deployments to change application versions, the start time and the changelog; changes are recorded in the timeline and change history.
+- **Draft deployments.** A production schedule can be saved as a *draft* — it stays hidden from the client and sends no notifications until the release manager presses *Notify the client*, which publishes it and sends the schedule/approval notifications to the configured recipients.
+- **App link in notifications.** Teams/Slack notifications for a created schedule / approval request now include the changelog inline and a link back to open the schedule in RollDesk (webhooks cannot carry file attachments).
+
+### Changed
+- **Schedule PDF & XLS are localized.** Titles, subtitles, column headers, the print button and the day-of-week now follow the selected UI language (Polish/English) instead of always being English.
+- Client schedule decisions (approve / comment / propose another date) are now persisted through a dedicated `POST /api/deployments/:id/decision` endpoint that clients are allowed to call and which writes the change-history entry server-side.
+
+### Fixed
+- **The version footer stays in the bottom-left corner** on tall views (Deployer panel, Users, Change history) — the sidebar is now pinned to the viewport instead of scrolling away with long tables.
+- **Moving a target across days works for every day**, not only between day 1 and 2 — the move now actually changes the per-day distribution rather than only reordering the queue.
+- **Client approval is now recorded properly.** Approving a schedule records who approved it (the client's real name / organisation, never the e-mail login like „aaa"), adds a timeline entry and a change-history entry, and persists so the release manager sees it after a reload. Manual approval changes by the release manager are also logged with a real timestamp.
+
 ## [0.6.1] - 2026-07-16
 
 ### Added

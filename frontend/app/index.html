@@ -47,6 +47,14 @@
     display:flex;
     flex-direction:column;
     padding:18px 14px;
+    /* Pin the sidebar to the viewport so the version footer stays in the
+       bottom-left corner even on tall views (deployer panel, users, history)
+       instead of scrolling off the bottom with the page content. */
+    position:sticky;
+    top:0;
+    align-self:flex-start;
+    height:100vh;
+    overflow-y:auto;
   }
   .brand{
     display:flex;
@@ -915,6 +923,10 @@
           <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="schedule-internal" style="width:auto;"> <span data-i18n="sch.internal">Internal deployment — not visible to the client</span></label>
           <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="sch.internalNote">Select this if it's a deployment to an internal environment. It won't appear in the client panel and doesn't require their approval — only the team and the deployer can see it.</p>
         </div>
+        <div class="field">
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="schedule-draft" style="width:auto;"> <span data-i18n="sch.draft">Save as draft — do not notify the client yet</span></label>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="sch.draftNote">Prepare the schedule and attachments first. The client won't see it and no notification is sent until you press „Notify the client" on the deployment.</p>
+        </div>
         <div class="field" id="schedule-rollout-fields">
           <label data-i18n="sch.modeField">Schedule mode (defined when the project was created)</label>
           <div id="schedule-mode-badge" style="background:var(--cyan-soft); border:1px solid #BEE7EB; border-radius:8px; padding:10px 12px; font-size:13px; color:#0A6E7A; font-weight:600;">
@@ -1532,6 +1544,23 @@
   </div>
 </div>
 
+<div id="edit-dep-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(20,24,30,0.45); z-index:1001; align-items:center; justify-content:center;">
+  <div class="card" style="max-width:560px; width:94%; background:var(--paper-alt, #fff); max-height:90vh; overflow-y:auto;">
+    <div style="font-weight:600; font-size:14px; margin-bottom:4px;" data-i18n="editdep.title">Edit the planned deployment</div>
+    <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:14px;" data-i18n="editdep.help">Release managers and administrators can adjust the version, start time and changelog of a deployment that has not finished yet.</div>
+    <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" data-i18n="editdep.versions">Application versions</label>
+    <div id="edit-dep-versions" style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;"></div>
+    <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" data-i18n="editdep.time">Start time</label>
+    <input type="time" id="edit-dep-time" style="margin-bottom:14px; box-sizing:border-box;">
+    <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" data-i18n="sch.changelog">Changelog</label>
+    <textarea id="edit-dep-changelog" style="width:100%; min-height:130px; box-sizing:border-box; font-size:13px; line-height:1.55;"></textarea>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px;">
+      <button class="mini-btn" onclick="document.getElementById('edit-dep-modal-overlay').style.display='none'" data-i18n="common.close">Close</button>
+      <button class="btn" onclick="saveDeploymentEdits()" data-i18n="editdep.save">Save changes</button>
+    </div>
+  </div>
+</div>
+
 <div id="twofa-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(20,24,30,0.45); z-index:999; align-items:center; justify-content:center;">
   <div class="card" style="max-width:420px; width:90%; background:var(--paper-alt, #fff);">
     <div style="font-weight:600; font-size:14px; margin-bottom:4px;">Two-factor authentication setup</div>
@@ -1550,11 +1579,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.6.1"></script>
-<script src="i18n/en.js?v=0.6.1"></script>
+<script src="i18n/pl.js?v=0.7.0"></script>
+<script src="i18n/en.js?v=0.7.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.6.1';
+  const ROLLDESK_VERSION = '0.7.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -2163,6 +2192,12 @@
     if(includeClient) parts.push('client');
     if(webhooks.length) parts.push(webhooks.length + (webhooks.length === 1 ? ' webhook' : ' webhooks'));
     return parts.length ? parts.join(', ') : 'no recipients defined';
+  }
+  // Deep link back into the app (used in Teams/Slack notifications so the client
+  // can jump straight to the schedule). Uses the current origin the team is on.
+  function appLink(hash){
+    try { return location.origin + location.pathname + (hash || '#deployments'); }
+    catch(e){ return ''; }
   }
   // Really deliver an event notification (webhooks + optional post-deploy e-mail)
   // through the backend, and surface the outcome — including partial failures.
@@ -3190,7 +3225,9 @@
     const dependsOn = Array.from(document.querySelectorAll('.schedule-dep-check:checked')).map(cb=>cb.value);
     const installerNotes = (document.getElementById('schedule-installer-notes').value || '').trim();
     const isInternal = document.getElementById('schedule-internal').checked;
-    const commonMeta = {changelog, attachment, createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, installerNotes: installerNotes || undefined, internal: isInternal || undefined};
+    const draftEl = document.getElementById('schedule-draft');
+    const isDraft = !!(draftEl && draftEl.checked) && !isInternal;
+    const commonMeta = {changelog, attachment, createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, installerNotes: installerNotes || undefined, internal: isInternal || undefined, draft: isDraft || undefined};
 
     const created = [];
     const createdIdsStart = DEPLOYMENTS_DATA.length;
@@ -3251,7 +3288,9 @@
     const includesProd = created.includes('prod');
     const needsApproval = includesProd && !isInternal && approvalPolicyFor(p) !== 'none';
     const attachNote = attachment ? ' (with attachment: ' + attachment + ')' : '';
-    if(needsApproval){
+    if(isDraft){
+      showToast(t('sch.draftSaved'));
+    } else if(needsApproval){
       showToast('Schedule added — an e-mail with the changelog' + attachNote + ' and an approval request has been sent to the client');
     } else if(isInternal){
       showToast('Internal deployment added' + attachNote + ' — the client will not see it');
@@ -3260,10 +3299,15 @@
     }
     // Real notifications: schedule created (and, for production paths needing
     // sign-off, an approval request) go to the client's webhooks for those events.
-    if(!isInternal){
+    // Drafts are held back until the RM explicitly notifies the client.
+    if(!isInternal && !isDraft){
       const pk = currentProjectKey;
       const projName = (PROJECTS[pk]||{}).name || pk;
-      const body = projName + (changelog ? '\n' + changelog : '');
+      // Teams/Slack webhooks can't carry file attachments, so include the
+      // changelog inline and a link to open the schedule in the app.
+      const body = projName
+        + (changelog ? '\n\n' + t('notif.changelogLabel') + ':\n' + changelog : '')
+        + '\n\n' + t('notif.openLink') + ': ' + appLink('#deployments');
       dispatchEventNotification('created', pk, 'RollDesk — ' + t('ev.created'), body, false);
       if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk — ' + t('ev.approval'), body, false);
     }
@@ -3280,6 +3324,8 @@
     ids.forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ''; });
     const internal = document.getElementById('schedule-internal');
     if(internal) internal.checked = false;
+    const draftCb = document.getElementById('schedule-draft');
+    if(draftCb) draftCb.checked = false;
     const depsList = document.getElementById('schedule-deps-list');
     if(depsList) depsList.querySelectorAll('input[type="checkbox"]').forEach(cb=> cb.checked = false);
     dayCounts = [];
@@ -4637,48 +4683,99 @@
     renderClientPortal(currentClientScenario);
   }
 
+  // The person to attribute a client-side decision to: the signed-in client's
+  // real name when available, otherwise the client organisation name (never the
+  // e-mail local-part, which produced misleading entries like „aaa").
+  function clientPersonName(rec){
+    if(currentUser && currentUser.name && currentUser.name.trim()) return currentUser.name.trim();
+    const p = PROJECTS[rec.projectKey] || {};
+    return p.clientName || t('dtl.client');
+  }
+
+  // Publish a draft deployment: make it visible to the client and send the
+  // schedule-created / approval-request notifications that were held back.
+  function notifyClientOfDraft(idx){
+    if(!canEditDeployments()){ showToast(t('editdep.forbidden')); return; }
+    const r = DEPLOYMENTS_DATA[idx];
+    if(!r || !r.draft) return;
+    const pk = r.projectKey;
+    const p = PROJECTS[pk] || {};
+    const projName = p.name || pk;
+    const needsApproval = r.env === 'Production' && (typeof approvalPolicyFor === 'function' ? approvalPolicyFor(p) !== 'none' : true);
+    const recipients = notifySummary(needsApproval ? 'approval' : 'created', pk, true);
+    showAppConfirm(t('draft.notifyTitle'), tf('draft.notifyBody', {project: projName, recipients}), ()=>{
+
+      r.draft = false;
+      const body = projName
+        + (r.changelog ? '\n\n' + t('notif.changelogLabel') + ':\n' + r.changelog : '')
+        + '\n\n' + t('notif.openLink') + ': ' + appLink('#deployments');
+      dispatchEventNotification('created', pk, 'RollDesk — ' + t('ev.created'), body, false);
+      if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk — ' + t('ev.approval'), body, false);
+      logAudit('notified', 'Deployment', 'Notified the client about ' + (r.id||'') + ' — recipients: ' + recipients, projName + (p.clientName ? ' (' + p.clientName + ')' : ''), 'aud.d.draftNotified', {id: r.id||'', recipients});
+      persistDeployment(idx);
+      renderDeploymentsTable();
+      renderInstallerPanel();
+      showToast(t('draft.notified'));
+    }, t('draft.notifyBtn'));
+  }
+
   function clientRespondApproval(depId, action){
     const rec = DEPLOYMENTS_DATA.find(d=>d.id === depId);
     if(!rec) return;
+    const projName = (PROJECTS[rec.projectKey]||{}).name || rec.projectKey;
+    const projLabel = projName + ((PROJECTS[rec.projectKey]||{}).clientName ? ' (' + (PROJECTS[rec.projectKey]||{}).clientName + ')' : '');
+    const who = clientPersonName(rec);
+    const stamp = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
     if(action === 'approved'){
       rec.clientApproval = 'approved';
-      persistDeployment(rec.id);
+      rec.clientApprovalBy = who;
+      rec.clientApprovalDate = stamp.date;
+      rec.clientApprovalTime = stamp.time;
+      apiDeploymentDecision(rec.id, {
+        decision: 'approved', by: who, projectLabel: projLabel,
+        auditDetail: 'The client approved the schedule ' + (rec.id||'') + ' — ' + who,
+        auditKey: 'aud.d.clientApproved', auditParams: {id: rec.id||'', by: who}
+      }).catch(err => { console.warn('Decision save failed:', err.message); showToast(t('client.saveFailed')); });
       renderClientPortal(currentClientScenario);
-      showToast('Schedule approved — confirmation sent to the release manager');
-      const projName = (PROJECTS[rec.projectKey]||{}).name || rec.projectKey;
+      showToast(t('client.approvedToast'));
       dispatchEventNotification('decision', rec.projectKey, 'RollDesk — ' + t('ev.decision'),
         (rec.id ? rec.id + ' — ' : '') + projName + '\n' + t('dep.aApproved'), false);
     } else if(action === 'commented'){
-      showAppPrompt('Comment on the schedule', '', (note)=>{
+      showAppPrompt(t('client.commentTitle'), '', (note)=>{
         if(note === null) return;
         rec.clientApproval = 'commented';
         rec.clientComment = note;
-        // Record on the deployment timeline and notify the team about the client's comment.
+        rec.clientApprovalBy = who;
         rec.comments = rec.comments || [];
-        const _s = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
-        const clientName = (PROJECTS[rec.projectKey]||{}).clientName || 'Client';
-        rec.comments.push({date:_s.date, time:_s.time, author: clientName, type:'system', icon:'💬', text:'The client commented on the schedule: „' + note + '”'});
-        logAudit('changed','Deployment','The client commented on ' + (rec.id||'') + ': ' + note, (PROJECTS[rec.projectKey]||{}).name || rec.projectKey, 'aud.d.depClientComment', {id: rec.id||'', note});
+        const text = tf('client.commentedTl', {note});
+        rec.comments.push({date:stamp.date, time:stamp.time, author: who, type:'system', icon:'💬', text});
+        apiDeploymentDecision(rec.id, {
+          decision: 'commented', by: who, commentText: text, projectLabel: projLabel,
+          auditDetail: 'The client commented on ' + (rec.id||'') + ': ' + note,
+          auditKey: 'aud.d.depClientComment', auditParams: {id: rec.id||'', note}
+        }).catch(err => { console.warn('Decision save failed:', err.message); showToast(t('client.saveFailed')); });
         notifyTeamClientComment(rec, note);
-        persistDeployment(rec.id);
         renderClientPortal(currentClientScenario);
-        showToast('Comments sent — notification to the deployment team');
-      }, 'Describe your comments — you can enter a longer text.', true);
+        showToast(t('client.commentSentToast'));
+      }, t('client.commentPh'), true);
     } else if(action === 'reschedule'){
-      showAppPrompt('Propose another date', '', (newDate)=>{
+      showAppPrompt(t('client.rescheduleTitle'), '', (newDate)=>{
         if(!newDate) return;
         rec.clientApproval = 'commented';
-        rec.clientComment = 'Please reschedule to: ' + newDate;
+        rec.clientComment = tf('client.rescheduleComment', {date: newDate});
+        rec.clientApprovalBy = who;
         rec.comments = rec.comments || [];
-        const _s = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
-        const clientName = (PROJECTS[rec.projectKey]||{}).clientName || 'Client';
-        rec.comments.push({date:_s.date, time:_s.time, author: clientName, type:'system', icon:'💬', text:'The client requests a reschedule: „' + newDate + '”'});
-        logAudit('changed','Deployment','The client requests a reschedule of ' + (rec.id||'') + ': ' + newDate, (PROJECTS[rec.projectKey]||{}).name || rec.projectKey, 'aud.d.depReschedule', {id: rec.id||'', date: newDate});
+        const text = tf('client.rescheduleTl', {date: newDate});
+        rec.comments.push({date:stamp.date, time:stamp.time, author: who, type:'system', icon:'📅', text});
+        apiDeploymentDecision(rec.id, {
+          decision: 'reschedule', by: who, commentText: text, projectLabel: projLabel,
+          auditDetail: 'The client requests a reschedule of ' + (rec.id||'') + ': ' + newDate,
+          auditKey: 'aud.d.depReschedule', auditParams: {id: rec.id||'', date: newDate}
+        }).catch(err => { console.warn('Decision save failed:', err.message); showToast(t('client.saveFailed')); });
         notifyTeamClientComment(rec, 'Reschedule request: ' + newDate);
-        persistDeployment(rec.id);
         renderClientPortal(currentClientScenario);
-        showToast('Reschedule proposal sent — notification to the deployment team');
-      }, 'Enter the proposed date and any justification.', true);
+        showToast(t('client.rescheduleSentToast'));
+      }, t('client.reschedulePh'), true);
     }
   }
 
@@ -4759,6 +4856,8 @@
       if(!scenario.projectKeys.includes(d.projectKey)) return;
       // Internal deployments are never visible to the client.
       if(d.internal) return;
+      // Draft deployments are held back until the RM notifies the client.
+      if(d.draft) return;
       // Respect the per-project "client sees the schedule" flag (default: visible).
       if(PROJECTS[d.projectKey] && PROJECTS[d.projectKey].clientVisible === false) return;
       const clientStatus = d.mode === 'batch'
@@ -5030,6 +5129,18 @@
     const res = await apiFetch('/api/deployments/' + encodeURIComponent(id), {method:'DELETE'});
     if(!res.ok && res.status !== 404) throw new Error('DELETE /api/deployments ' + res.status);
     return true;
+  }
+  // Record a client's schedule decision (approve/comment/reschedule). Unlike the
+  // full PUT, this endpoint is allowed for client accounts and writes the audit
+  // entry server-side, so the decision persists and is visible to everyone.
+  async function apiDeploymentDecision(id, payload){
+    const res = await apiFetch('/api/deployments/' + encodeURIComponent(id) + '/decision', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if(!res.ok) throw new Error('POST /api/deployments/decision ' + res.status);
+    return res.json();
   }
 
   // Upload a file as an attachment of a deployment (multipart). Returns the
@@ -5544,20 +5655,41 @@
     const m = String(v).match(/^(\d{1,2}):(\d{2})/);
     return m ? (String(m[1]).padStart(2,'0') + ':' + m[2]) : String(v);
   }
+  // Localized short weekday name (falls back to the English abbreviation).
+  function fmtDow(dateStr){
+    try {
+      return new Date(dateStr).toLocaleDateString(LANG === 'pl' ? 'pl-PL' : 'en-GB', { weekday: 'short' });
+    } catch(e){
+      return WEEKDAY_PL[new Date(dateStr).getDay()] || '';
+    }
+  }
+  // Names of the project's custom target columns (e.g. "nazwa urzędu"), so the
+  // schedule/PDF/XLS can carry them alongside each target.
+  function scheduleCustomFieldNames(r){
+    const p = PROJECTS[r.projectKey] || {};
+    return Array.isArray(p.customLocationFields) ? p.customLocationFields : [];
+  }
+  // Resolve a target's custom field values by its code/label.
+  function locCustomByCode(p, code){
+    if(!p || !Array.isArray(p.locationsList)) return {};
+    const loc = p.locationsList.find(t => (t.label || t.code) === code || t.code === code);
+    return (loc && loc.custom) || {};
+  }
   function buildScheduleRows(r){
     if(r.mode !== 'batch') return [];
     const appsLabel = r.apps.map(a=>a.name).join(' / ');
     const verLabel = r.apps.map(a=>a.version).join(' / ');
+    const p = PROJECTS[r.projectKey] || {};
     const rows = [];
     let pos = 0;
     for(let day=1; day<=r.days; day++){
       const count = computeDayCount(r, day);
       const dateStr = getDateForDay(r, day);
-      const dow = WEEKDAY_PL[new Date(dateStr).getDay()];
+      const dow = fmtDow(dateStr);
       for(let k=0; k<count; k++){
         const code = targetCodeAt(r, pos);
         pos++;
-        rows.push({ app: appsLabel, version: verLabel, code, date: dateStr, dow, day });
+        rows.push({ app: appsLabel, version: verLabel, code, date: dateStr, dow, day, custom: locCustomByCode(p, code) });
       }
     }
     return rows;
@@ -5571,9 +5703,12 @@
     box.style.display = open ? 'block' : 'none';
     if(label) label.textContent = open ? t('rep.hideFullSchedule') : t('rep.showFullSchedule');
     if(open && !box.dataset.rendered){
-      const rows = buildScheduleRows(DEPLOYMENTS_DATA[idx]);
-      box.innerHTML = `<table><thead><tr><th>${t('rep.scheduleAppHdr')}</th><th>${t('rep.scheduleVerHdr')}</th><th>${t('rep.scheduleCodeHdr')}</th><th>${t('rep.scheduleDateHdr')}</th><th>${t('rep.scheduleDayHdr')}</th></tr></thead><tbody>`
-        + rows.map(x=>`<tr><td>${x.app}</td><td class="mono" style="font-size:11.5px;">${x.version}</td><td>${x.code}</td><td class="mono" style="font-size:11.5px;">${x.date}</td><td class="mono" style="font-size:11.5px;">${x.dow}</td></tr>`).join('')
+      const r = DEPLOYMENTS_DATA[idx];
+      const rows = buildScheduleRows(r);
+      const customFields = scheduleCustomFieldNames(r);
+      const customHead = customFields.map(f=>`<th>${escapeHtml(f)}</th>`).join('');
+      box.innerHTML = `<table><thead><tr><th>${t('rep.scheduleAppHdr')}</th><th>${t('rep.scheduleVerHdr')}</th><th>${t('rep.scheduleCodeHdr')}</th>${customHead}<th>${t('rep.scheduleDateHdr')}</th><th>${t('rep.scheduleDayHdr')}</th></tr></thead><tbody>`
+        + rows.map(x=>`<tr><td>${x.app}</td><td class="mono" style="font-size:11.5px;">${x.version}</td><td>${x.code}</td>${customFields.map(f=>`<td>${escapeHtml((x.custom&&x.custom[f])||'')}</td>`).join('')}<td class="mono" style="font-size:11.5px;">${x.date}</td><td class="mono" style="font-size:11.5px;">${x.dow}</td></tr>`).join('')
         + `</tbody></table>`;
       box.dataset.rendered = '1';
     }
@@ -5589,13 +5724,13 @@
       document.body.appendChild(link); link.click(); document.body.removeChild(link);
       URL.revokeObjectURL(url);
       return true;
-    } catch(e){ showToast('Export not available in this environment'); return false; }
+    } catch(e){ showToast(t('sch.exportUnavailable')); return false; }
   }
 
   function scheduleTitle(r){
     const p = PROJECTS[r.projectKey] || {};
     const apps = (r.apps||[]).map(a=>a.name+' '+a.version).join(', ');
-    return `Deployment schedule — ${p.name || r.projectKey} (${p.clientName || ''}) · ${apps} · ${r.env}`;
+    return tf('sch.docTitle', {project: p.name || r.projectKey, client: p.clientName || '', apps, env: r.env});
   }
 
   function scheduleFileBase(r){
@@ -5607,25 +5742,29 @@
   function exportScheduleXls(idx){
     const r = DEPLOYMENTS_DATA[idx];
     const rows = buildScheduleRows(r);
-    if(!rows.length){ showToast('This deployment has no batch schedule'); return; }
-    const head = ['Application','Version','Target code','Date','Day of week'];
-    const body = rows.map(x=>`<tr><td>${x.app}</td><td>${x.version}</td><td>${x.code}</td><td>${x.date}</td><td>${x.dow}</td></tr>`).join('');
+    if(!rows.length){ showToast(t('sch.noBatch')); return; }
+    const customFields = scheduleCustomFieldNames(r);
+    const head = [t('rep.scheduleAppHdr'), t('rep.scheduleVerHdr'), t('rep.scheduleCodeHdr'), ...customFields, t('rep.scheduleDateHdr'), t('rep.scheduleDayHdr')];
+    const body = rows.map(x=>`<tr><td>${x.app}</td><td>${x.version}</td><td>${x.code}</td>${customFields.map(f=>`<td>${escapeHtml((x.custom&&x.custom[f])||'')}</td>`).join('')}<td>${x.date}</td><td>${x.dow}</td></tr>`).join('');
     const htmlDoc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head><meta charset="utf-8"></head><body>
-      <table border="1"><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>
+      <table border="1"><thead><tr>${head.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>
       </body></html>`;
     if(downloadBlob(htmlDoc, scheduleFileBase(r) + '.xls', 'application/vnd.ms-excel'))
-      showToast('Exported schedule to XLS (' + rows.length + ' targets)');
+      showToast(tf('sch.xlsExported', {n: rows.length}));
   }
 
   // PDF: opens a print view (Save as PDF). No external libraries.
   function exportSchedulePdf(idx){
     const r = DEPLOYMENTS_DATA[idx];
     const rows = buildScheduleRows(r);
-    if(!rows.length){ showToast('This deployment has no batch schedule'); return; }
+    if(!rows.length){ showToast(t('sch.noBatch')); return; }
     const title = scheduleTitle(r);
-    const body = rows.map(x=>`<tr><td>${x.app}</td><td>${x.version}</td><td>${x.code}</td><td>${x.date}</td><td>${x.dow}</td></tr>`).join('');
-    const doc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title>
+    const customFields = scheduleCustomFieldNames(r);
+    const customHead = customFields.map(f=>`<th>${escapeHtml(f)}</th>`).join('');
+    const body = rows.map(x=>`<tr><td>${x.app}</td><td>${x.version}</td><td>${x.code}</td>${customFields.map(f=>`<td>${escapeHtml((x.custom&&x.custom[f])||'')}</td>`).join('')}<td>${x.date}</td><td>${x.dow}</td></tr>`).join('');
+    const subtitle = tf('sch.docSubtitle', {id: r.id || '—', n: rows.length});
+    const doc = `<!doctype html><html lang="${LANG}"><head><meta charset="utf-8"><title>${title}</title>
       <style>
         body{font-family:Arial, sans-serif; color:#1a1a1a; padding:24px;}
         h1{font-size:16px; margin:0 0 4px 0;}
@@ -5636,15 +5775,15 @@
         @media print{ .noprint{display:none;} }
       </style></head><body>
       <h1>${title}</h1>
-      <div class="sub">ID: ${r.id || '—'} · Number of targets: ${rows.length} · Generated in RollDesk</div>
-      <button class="noprint" onclick="window.print()" style="margin-bottom:14px; padding:8px 14px;">Print / Save as PDF</button>
-      <table><thead><tr><th>Application</th><th>Version</th><th>Target code</th><th>Date</th><th>Day of week</th></tr></thead><tbody>${body}</tbody></table>
+      <div class="sub">${subtitle}</div>
+      <button class="noprint" onclick="window.print()" style="margin-bottom:14px; padding:8px 14px;">${t('sch.printBtn')}</button>
+      <table><thead><tr><th>${t('rep.scheduleAppHdr')}</th><th>${t('rep.scheduleVerHdr')}</th><th>${t('rep.scheduleCodeHdr')}</th>${customHead}<th>${t('rep.scheduleDateHdr')}</th><th>${t('rep.scheduleDayHdr')}</th></tr></thead><tbody>${body}</tbody></table>
       <script>window.onload=function(){setTimeout(function(){window.print();}, 300);};<\/script>
       </body></html>`;
     const w = window.open('', '_blank');
-    if(!w){ showToast('Allow pop-ups to generate the PDF'); return; }
+    if(!w){ showToast(t('sch.popupBlocked')); return; }
     w.document.open(); w.document.write(doc); w.document.close();
-    showToast('Opened PDF view — use „Save as PDF"');
+    showToast(t('sch.pdfOpened'));
   }
 
   // Default message template with tags. The user can edit it.
@@ -5706,6 +5845,59 @@
     tb.innerHTML = MESSAGE_TAGS.map(mt=>`<button class="mini-btn" style="font-size:10.5px;" onclick="insertMessageTag('${mt.tag}')" title="${t(mt.labelKey)}"><span class="mono">${mt.tag}</span></button>`).join('');
     updateMessagePreview();
     document.getElementById('message-modal-overlay').style.display = 'flex';
+  }
+
+  // Release managers and administrators may edit planned (not-yet-finished)
+  // deployments. Clients/deployers cannot.
+  function canEditDeployments(){
+    const role = (currentUser && currentUser.role) || currentLoggedInRole;
+    return role === 'admin' || role === 'rm';
+  }
+  let editDepIdx = null;
+  function openEditDeployment(idx){
+    if(!canEditDeployments()){ showToast(t('editdep.forbidden')); return; }
+    const r = DEPLOYMENTS_DATA[idx];
+    if(!r) return;
+    editDepIdx = idx;
+    const wrap = document.getElementById('edit-dep-versions');
+    wrap.innerHTML = (r.apps||[]).map((a,i)=>`
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:12.5px; min-width:120px;">${escapeHtml(a.name)}</span>
+        <input type="text" class="mono" data-app-idx="${i}" value="${escapeHtml(a.version||'')}" placeholder="1.0.0" style="flex:1; box-sizing:border-box;">
+      </div>`).join('') || `<div style="font-size:12px; color:var(--text-faint);">—</div>`;
+    document.getElementById('edit-dep-time').value = r.time || '';
+    document.getElementById('edit-dep-changelog').value = r.changelog || '';
+    document.getElementById('edit-dep-modal-overlay').style.display = 'flex';
+  }
+  function saveDeploymentEdits(){
+    if(editDepIdx === null) return;
+    const r = DEPLOYMENTS_DATA[editDepIdx];
+    if(!r){ return; }
+    if(!canEditDeployments()){ showToast(t('editdep.forbidden')); return; }
+    const changes = [];
+    document.querySelectorAll('#edit-dep-versions input[data-app-idx]').forEach(inp=>{
+      const i = parseInt(inp.getAttribute('data-app-idx'), 10);
+      const v = inp.value.trim();
+      if(r.apps[i] && v && v !== r.apps[i].version){
+        changes.push(r.apps[i].name + ': ' + (r.apps[i].version||'—') + ' → ' + v);
+        r.apps[i].version = v;
+      }
+    });
+    const newTime = document.getElementById('edit-dep-time').value;
+    if(newTime && newTime !== r.time){ changes.push(t('editdep.time') + ': ' + fmtTime(r.time) + ' → ' + fmtTime(newTime)); r.time = newTime; }
+    const newChangelog = document.getElementById('edit-dep-changelog').value;
+    if(newChangelog !== (r.changelog||'')){ changes.push(t('sch.changelog')); r.changelog = newChangelog; }
+    document.getElementById('edit-dep-modal-overlay').style.display = 'none';
+    if(!changes.length){ showToast(t('editdep.noChanges')); return; }
+    const projLabel = (PROJECTS[r.projectKey]||{}).name || r.projectKey;
+    const summary = changes.join('; ');
+    logAudit('changed', 'Deployment', 'Edited deployment ' + (r.id||'') + ' — ' + summary, projLabel, 'aud.d.depEdited', {id: r.id||'', summary});
+    r.comments = r.comments || [];
+    const stamp = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
+    r.comments.push({date:stamp.date, time:stamp.time, author: actorName(), type:'system', icon:'✏️', text: tf('editdep.tlEdited', {summary})});
+    persistDeployment(editDepIdx);
+    renderDeploymentsTable();
+    showToast(t('editdep.saved'));
   }
 
   function saveMessageTemplateForProject(){
@@ -5861,7 +6053,7 @@
     if(d.env === 'Production'){
       events.push({date: created, icon:'📧', text: t('tl.reqApprove')});
       if(d.clientApproval === 'approved'){
-        events.push({date: created, icon:'✅', text: t('tl.approved')});
+        events.push({date: d.clientApprovalDate || created, time: d.clientApprovalTime, icon:'✅', text: d.clientApprovalBy ? tf('tl.approvedBy', {who: d.clientApprovalBy}) : t('tl.approved')});
       } else if(d.clientApproval === 'commented'){
         events.push({date: created, icon:'💬', text: tf('tl.commented', {c: d.clientComment||''})});
       } else if(d.clientApproval === 'rejected'){
@@ -6518,6 +6710,86 @@
     if(card) card.scrollIntoView({behavior:'smooth', block:'center'});
   }
 
+  // How many already-installed targets fall on each day (derived from the
+  // cumulative per-day counts). Used so day moves preserve completed days.
+  function installedByDay(d){
+    const counts = plannedDayCounts(d);
+    let inst = d.counts.installed;
+    return counts.map(c => { const x = Math.min(inst, c); inst -= x; return x; });
+  }
+
+  // Split the pending queue into per-day arrays, honouring the already-installed
+  // slots at the front of each day.
+  function pendingQueueByDay(d, q){
+    const counts = plannedDayCounts(d);
+    const inst = installedByDay(d);
+    const perDay = [];
+    let qi = 0;
+    for(let day = 0; day < d.days; day++){
+      const pc = Math.max(0, counts[day] - inst[day]);
+      perDay.push(q.slice(qi, qi + pc));
+      qi += pc;
+    }
+    if(qi < q.length) perDay[d.days - 1] = perDay[d.days - 1].concat(q.slice(qi));
+    return perDay;
+  }
+
+  // Rebuild d.dayPlan (per-day counts) and d.pendingQueue from a per-day split of
+  // the pending targets. dayPlan.targets is only ever read for its length, so the
+  // installed portion is represented by padding.
+  function applyPendingByDay(d, perDay){
+    const inst = installedByDay(d);
+    d.dayPlan = perDay.map((arr, i) => ({
+      day: i + 1,
+      targets: new Array(inst[i]).fill('').concat(arr),
+    }));
+    d.pendingQueue = [].concat(...perDay);
+  }
+
+  // Directly set how many targets a given day should hold. The difference is
+  // pulled from / pushed to other (non-completed) days so the total is preserved.
+  function setDayTargetCount(idx, day, val){
+    const d = DEPLOYMENTS_DATA[idx];
+    const todayDay = dayIndexForPosition(d, d.counts.installed);
+    if(day < todayDay){ showToast(t('dtl.dayCompleted')); renderDeploymentsTable(); return; }
+    const q = getBatchPendingQueue(d);
+    const perDay = pendingQueueByDay(d, q);
+    const di = day - 1;
+    let desired = parseInt(val, 10);
+    if(isNaN(desired) || desired < 0) desired = 0;
+    let diff = desired - perDay[di].length;
+    if(diff === 0){ renderDeploymentsTable(); return; }
+    if(diff > 0){
+      // Pull from later days first, then earlier non-completed days.
+      const donors = [];
+      for(let dd = di + 1; dd < d.days; dd++) donors.push(dd);
+      for(let dd = di - 1; dd >= todayDay - 1 && dd >= 0; dd--) donors.push(dd);
+      for(const dd of donors){
+        while(diff > 0 && perDay[dd].length > 0){
+          const code = dd > di ? perDay[dd].shift() : perDay[dd].pop();
+          perDay[di].push(code);
+          diff--;
+        }
+        if(diff === 0) break;
+      }
+      if(diff > 0) showToast(t('dtl.notEnoughTargets'));
+    } else {
+      // Push surplus to the last day, or to the previous day if this is the last.
+      let recv = di === d.days - 1 ? di - 1 : d.days - 1;
+      if(recv < todayDay - 1 || recv < 0){ showToast(t('dtl.dayCompleted')); renderDeploymentsTable(); return; }
+      let need = -diff;
+      while(need > 0 && perDay[di].length > 0){
+        const code = perDay[di].pop();
+        if(recv > di) perDay[recv].push(code); else perDay[recv].unshift(code);
+        need--;
+      }
+    }
+    applyPendingByDay(d, perDay);
+    persistDeployment(idx);
+    renderDeploymentsTable();
+    showToast(tf('dtl.dayCountSet', {day, n: perDay[di].length}));
+  }
+
   function moveBatchQueueLocation(batchIdx, queueIdx, where){
     const d = DEPLOYMENTS_DATA[batchIdx];
     const q = getBatchPendingQueue(d);
@@ -6526,39 +6798,35 @@
       if(where === 'start') q.unshift(loc); else q.push(loc);
       persistDeployment(batchIdx);
       renderDeploymentsTable();
-      showToast('„' + loc + '” moved ' + (where === 'start' ? 'to the start of the queue' : 'to the end of the queue'));
+      showToast(tf(where === 'start' ? 'dtl.movedStart' : 'dtl.movedEnd', {loc}));
       return;
     }
-    // Move across a day boundary. Days are derived from cumulative per-day counts,
-    // measured from the already-installed offset.
-    const installed = d.counts.installed;
-    const curDay = dayIndexForPosition(d, installed + queueIdx);
-    // Count how many queue items fall in each day so we can find boundaries.
-    const dayOfQ = i => dayIndexForPosition(d, installed + i);
-    if(where === 'nextDay'){
-      if(curDay >= d.days){ showToast('This is already the last day'); return; }
-      // target position = first index whose day is (curDay+1) → i.e. just past current day's block
-      let target = q.length;
-      for(let i=0;i<q.length;i++){ if(dayOfQ(i) > curDay){ target = i; break; } }
-      const [loc] = q.splice(queueIdx, 1);
-      if(queueIdx < target) target -= 1; // account for removal shift
-      q.splice(target, 0, loc);
-      persistDeployment(batchIdx);
-      renderDeploymentsTable();
-      showToast('„' + loc + '” moved to the next day (day ' + (curDay+1) + ')');
-    } else if(where === 'prevDay'){
-      if(curDay <= 1){ showToast('This is already the first day'); return; }
-      // target = last index of previous day block = first index of current day - 1
-      let firstOfCur = 0;
-      for(let i=0;i<q.length;i++){ if(dayOfQ(i) === curDay){ firstOfCur = i; break; } }
-      let target = Math.max(0, firstOfCur - 1);
-      const [loc] = q.splice(queueIdx, 1);
-      if(queueIdx < target) target -= 1;
-      q.splice(target, 0, loc);
-      persistDeployment(batchIdx);
-      renderDeploymentsTable();
-      showToast('„' + loc + '” moved to the previous day (day ' + (curDay-1) + ')');
+    // Move across a day boundary: actually change the per-day distribution
+    // (dayPlan counts), not just the queue order — otherwise the fixed per-day
+    // counts keep the target on the same day.
+    const perDay = pendingQueueByDay(d, q);
+    // Locate the target's current day and its index within that day.
+    let curDay0 = -1, within = 0, acc = 0;
+    for(let day = 0; day < d.days; day++){
+      const pc = perDay[day].length;
+      if(queueIdx < acc + pc){ curDay0 = day; within = queueIdx - acc; break; }
+      acc += pc;
     }
+    if(curDay0 < 0){ return; }
+    const curDay = curDay0 + 1;
+    const newDay = where === 'nextDay' ? curDay + 1 : curDay - 1;
+    if(where === 'nextDay' && curDay >= d.days){ showToast(t('dtl.lastDay')); return; }
+    if(where === 'prevDay' && curDay <= 1){ showToast(t('dtl.firstDay')); return; }
+    const todayDay = dayIndexForPosition(d, d.counts.installed);
+    if(newDay < todayDay){ showToast(t('dtl.dayCompleted')); return; }
+    const [code] = perDay[curDay0].splice(within, 1);
+    // Place at the near edge of the new day so ordering stays intuitive.
+    if(where === 'nextDay') perDay[newDay - 1].unshift(code);
+    else perDay[newDay - 1].push(code);
+    applyPendingByDay(d, perDay);
+    persistDeployment(batchIdx);
+    renderDeploymentsTable();
+    showToast(tf(where === 'nextDay' ? 'dtl.movedNextDay' : 'dtl.movedPrevDay', {loc: code, n: newDay}));
   }
 
   function getBatchHistoryRows(d){
@@ -6803,7 +7071,7 @@
           dayPlanRows += `<tr>
             <td class="mono">${tf('dtl.day', {n: day})}</td>
             <td>${done ? `<span class="mono" style="font-size:12px;">${fmtDate(dateStr)}</span>` : `<input type="date" class="mono" value="${dateStr}" style="font-size:12px; padding:2px 6px; ${changed ? 'border-color:#8A5A05; background:#FDF8EE;' : ''}" onchange="stageDayDate(${r.idx}, ${day}, this.value)">`}${changed ? ` <span style="font-size:10px; color:#8A5A05;">${t('dtl.changed')}</span>` : ''}</td>
-            <td class="mono" style="font-size:11.5px;">${computeDayCount(r, day)} ${t('dtl.locShort')}</td>
+            <td class="mono" style="font-size:11.5px;">${done ? `${computeDayCount(r, day)} ${t('dtl.locShort')}` : `<input type="number" min="0" value="${computeDayCount(r, day)}" style="width:56px; font-size:12px; padding:2px 6px;" title="${t('dtl.editCountTitle')}" onchange="setDayTargetCount(${r.idx}, ${day}, this.value)"> ${t('dtl.locShort')}`}</td>
             <td>${label}</td>
           </tr>`;
         }
@@ -6865,12 +7133,15 @@
       if(isBatch) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">${t('dtl.schedPdf')}</button>`);
       if(isActiveDep) barBtns.push(`<button class="mini-btn icon-btn accent" onclick="event.stopPropagation(); generateEndUserMessage(${r.idx})"><span class="mb-ic">✉</span> ${t('dcard.genMessage')}</button>`);
       if(isActiveDep && !r.paused) barBtns.push(`<button class="mini-btn icon-btn warn" onclick="event.stopPropagation(); pauseDeployment(${r.idx})"><span class="mb-ic">⏸</span> ${t('dcard.pause')}</button>`);
+      if(isActiveDep && canEditDeployments()) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); openEditDeployment(${r.idx})">✏️ ${t('editdep.btn')}</button>`);
+      if(r.draft && canEditDeployments()) barBtns.push(`<button class="mini-btn icon-btn accent" onclick="event.stopPropagation(); notifyClientOfDraft(${r.idx})"><span class="mb-ic">📣</span> ${t('draft.notifyBtn')}</button>`);
       if(isLoggedInAsAdmin()) barBtns.push(`<button class="mini-btn mini-btn-danger" onclick="event.stopPropagation(); deleteDeployment(${r.idx})">${t('cli.delete')}</button>`);
       const idHtml = `
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; padding:10px 12px; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px;">
           <span style="font-size:11.5px; color:var(--text-muted);">${t('dcard.idLabel')}</span>
           <span class="mono" style="font-size:13px; font-weight:700;">${r.id || '—'}</span>
           <button class="mini-btn" title="${t('dcard.copyId')}" style="padding:4px 7px; display:inline-flex; align-items:center;" onclick="event.stopPropagation(); copyDeploymentId('${r.id||''}')">${COPY_ICON}</button>
+          ${r.draft ? `<span class="mono" style="font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; background:#FDF1E1; color:#8A5A05;">📝 ${t('draft.badge')}</span>` : ''}
           ${barBtns.length ? `<div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">${barBtns.join('')}</div>` : ''}
         </div>`;
 
@@ -7119,10 +7390,18 @@
       showAppPrompt(t('dec.whoDecided'), who, (entered)=>{
         if(entered === null) return;
         who = entered.trim();
+        const stamp = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
         d.clientApproval = newStatus;
         d.clientApprovalBy = who;
-        d.clientApprovalDate = '2026-07-03';
-        d.clientApprovalTime = '14:25';
+        d.clientApprovalDate = stamp.date;
+        d.clientApprovalTime = stamp.time;
+        const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
+        const projLabel = projName + ((PROJECTS[d.projectKey]||{}).clientName ? ' (' + (PROJECTS[d.projectKey]||{}).clientName + ')' : '');
+        if(newStatus === 'approved'){
+          logAudit('changed', 'Deployment', 'The client approved the schedule ' + (d.id||'') + ' — ' + who, projLabel, 'aud.d.clientApproved', {id: d.id||'', by: who});
+        } else {
+          logAudit('changed', 'Deployment', 'Client decision on ' + (d.id||'') + ': ' + labels[newStatus] + ' — ' + who, projLabel, 'aud.d.clientDecision', {id: d.id||'', status: labels[newStatus], by: who});
+        }
         persistDeployment(idx);
         renderDeploymentsTable();
         showToast(tf('dec.savedManually', {status: labels[newStatus]}));
