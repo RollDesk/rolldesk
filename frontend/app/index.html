@@ -292,6 +292,12 @@
   .mini-btn:disabled{opacity:0.35; cursor:default;}
   .mini-btn.mini-btn-danger{color:#A81E1E; border-color:#F0C4C4;}
   .mini-btn.mini-btn-danger:hover{border-color:#A81E1E; background:var(--red-soft);}
+  .seg-tabs{display:inline-flex; gap:4px; padding:4px; background:var(--paper, #F1F2F4); border:1px solid var(--line); border-radius:10px;}
+  .seg-tab{display:inline-flex; align-items:center; gap:8px; border:none; background:transparent; color:var(--text-muted); font-size:13px; font-weight:600; padding:7px 14px; border-radius:7px; cursor:pointer; transition:background .12s ease, color .12s ease, box-shadow .12s ease;}
+  .seg-tab:hover{color:var(--ink);}
+  .seg-tab.active{background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.08);}
+  .seg-count{font-size:11px; font-weight:700; min-width:20px; height:18px; padding:0 6px; display:inline-flex; align-items:center; justify-content:center; border-radius:9px; background:var(--line); color:var(--text-muted);}
+  .seg-tab.active .seg-count{background:var(--cyan-soft, #E1F0F3); color:var(--cyan, #0A6E7A);}
   /* Semantic, softly-tinted variants for the primary per-deployment actions so
      they stand out from the plain export buttons. */
   .mini-btn.icon-btn{display:inline-flex; align-items:center; gap:6px; padding:6px 12px;}
@@ -1070,9 +1076,15 @@
       <button class="btn" id="add-user-btn" onclick="toggleUserForm()" data-i18n="usr.addUser">+ Add user</button>
     </div>
 
-    <div class="radio-row" style="margin-bottom:16px;">
-      <label class="radio-pill selected"><input type="radio" name="users-tab" value="active" checked onchange="switchUsersTab('active')"> <span data-i18n="usr.tabActive">Active</span></label>
-      <label class="radio-pill"><input type="radio" name="users-tab" value="archived" onchange="switchUsersTab('archived')"> <span data-i18n="usr.tabArchived">Archived</span> (<span id="archived-users-count">0</span>)</label>
+    <div class="seg-tabs" id="users-seg" style="margin-bottom:16px;">
+      <button type="button" class="seg-tab active" data-tab="active" onclick="switchUsersTab('active')">
+        <span data-i18n="usr.tabActive">Active</span>
+        <span class="seg-count" id="active-users-count">0</span>
+      </button>
+      <button type="button" class="seg-tab" data-tab="archived" onclick="switchUsersTab('archived')">
+        <span data-i18n="usr.tabArchived">Archived</span>
+        <span class="seg-count" id="archived-users-count">0</span>
+      </button>
     </div>
 
     <div class="card" id="user-form" style="display:none; margin-bottom:18px;">
@@ -1913,12 +1925,17 @@
 
   function switchUsersTab(tab){
     usersTab = tab;
+    document.querySelectorAll('#users-seg .seg-tab').forEach(b=>b.classList.toggle('active', b.dataset.tab === tab));
     renderUsersTable();
   }
 
   function renderUsersTable(){
     const tbody = document.getElementById('users-table');
-    document.getElementById('archived-users-count').textContent = USERS.filter(u=>u.archived).length;
+    const activeCount = USERS.filter(u=>!u.archived).length;
+    const archivedCount = USERS.filter(u=>u.archived).length;
+    const setCount = (id, n)=>{ const el = document.getElementById(id); if(el) el.textContent = n; };
+    setCount('active-users-count', activeCount);
+    setCount('archived-users-count', archivedCount);
     const visible = usersTab === 'archived' ? USERS.filter(u => u.archived) : USERS.filter(u => !u.archived);
     tbody.innerHTML = visible.map((u)=>{
       const i = USERS.indexOf(u);
@@ -4396,7 +4413,10 @@
     const defaultTime = document.getElementById('np-default-time').value || '20:00';
     const locNames = Array.from(document.querySelectorAll('#np-locations .np-loc-input')).map(i=>i.value.trim()).filter(Boolean);
     const testEnvs = Array.from(document.querySelectorAll('#np-testenvs .np-env-input')).map(i=>i.value.trim()).filter(Boolean);
-    const appNames = Array.from(document.querySelectorAll('#np-apps .np-app-input')).map(i=>i.value.trim()).filter(Boolean);
+    // De-duplicate application names (case-insensitive) so a project can't be
+    // created with two apps sharing the same name.
+    const appNames = Array.from(document.querySelectorAll('#np-apps .np-app-input')).map(i=>i.value.trim()).filter(Boolean)
+      .filter((an, i, arr) => arr.findIndex(x => x.toLowerCase() === an.toLowerCase()) === i);
     const people = Array.from(document.querySelectorAll('#np-people .person-row')).map(r=>({
       name: r.querySelector('.np-person-name').value.trim(),
       email: r.querySelector('.np-person-email').value.trim()
@@ -4511,6 +4531,12 @@
     if(!name){ showToast('Enter an application name'); return; }
     const repoDisplay = repo === '—' ? '—' : repo.replace(/^https?:\/\//,'');
     const p = PROJECTS[currentProjectKey];
+
+    // Application names must be unique within a project (case-insensitive). When
+    // editing, the app being edited is excluded from the comparison.
+    const dupName = name.trim().toLowerCase();
+    const dupApp = (p.apps || []).some((a, ai) => ai !== editingAppIndex && String(a.name || '').trim().toLowerCase() === dupName);
+    if(dupApp){ showToast(t('proj.dupApp')); return; }
 
     if(editingAppIndex !== null){
       const a = p.apps[editingAppIndex];

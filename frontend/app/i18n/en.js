@@ -405,6 +405,7 @@ window.RD_I18N.en = {
   "proj.deleteBodyDeploys": "The project and its {n} deployment(s) will be permanently removed. This cannot be undone.",
   "proj.deleted": "Project „{name}” deleted",
   "proj.dupName": "A project with this name already exists for this client",
+  "proj.dupApp": "An application with this name already exists in this project",
   "proj.addTarget": "+ Add target",
   "proj.newTarget": "New deployment target",
   "proj.targetName": "Target name",

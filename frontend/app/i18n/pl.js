@@ -405,6 +405,7 @@ window.RD_I18N.pl = {
   "proj.deleteBodyDeploys": "Projekt oraz {n} powiązanych wdrożeń zostaną trwale usunięte. Tej operacji nie można cofnąć.",
   "proj.deleted": "Projekt „{name}” usunięty",
   "proj.dupName": "Projekt o tej nazwie już istnieje dla tego klienta",
+  "proj.dupApp": "Aplikacja o tej nazwie już istnieje w tym projekcie",
   "proj.addTarget": "+ Dodaj cel",
   "proj.newTarget": "Nowy cel wdrożenia",
   "proj.targetName": "Nazwa celu",

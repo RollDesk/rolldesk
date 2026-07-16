@@ -49,6 +49,16 @@ app.use('/api/deployments', requireApiAuth, deployments);
 app.use('/api/projects', requireApiAuth, projects);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown endpoint' }));
 
+// Central error handler. Express 5 forwards rejected async handlers here, so a
+// failing DB query (or any thrown error) is logged with its route instead of
+// vanishing into a bare 500. Keeps the client response clean (no stack leak).
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, _next) => {
+  console.error(`[error] ${req.method} ${req.originalUrl} →`, err && err.stack ? err.stack : err);
+  if (res.headersSent) return;
+  res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+});
+
 async function start() {
   // A signing secret is mandatory in production; without it sessions can't be
   // trusted, so refuse to start rather than fall back to an ephemeral secret.
