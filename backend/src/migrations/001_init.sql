@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT,
   role          TEXT NOT NULL DEFAULT 'admin',  -- 'admin' | 'rm' | 'installer' | 'client'
   name          TEXT,                            -- display name for the directory
+  user_group    TEXT,                            -- optional team/group label for easier user management
   projects      JSONB NOT NULL DEFAULT '[]'::jsonb,  -- project keys an installer/client may access
   client_key    TEXT,                            -- for 'client' users: the client they belong to
   archived         BOOLEAN NOT NULL DEFAULT false, -- soft-delete: keeps history, blocks sign-in

@@ -32,3 +32,14 @@ export async function clientScope(req) {
 export function isClient(req) {
   return !!(req.auth && req.auth.role === 'client');
 }
+
+export function isInstaller(req) {
+  return !!(req.auth && req.auth.role === 'installer');
+}
+
+// Project scope for the signed-in account (from the users table). Works for any
+// role; clients and installers are limited to their granted projects, while
+// admins / release managers see everything. Cached per request.
+export async function userScope(req) {
+  return clientScope(req);
+}

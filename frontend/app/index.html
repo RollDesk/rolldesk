@@ -1091,6 +1091,10 @@
         </div>
       </div>
       <div class="field">
+        <label data-i18n="usr.group">Group (optional)</label>
+        <input type="text" id="user-group" data-i18n-ph="usr.groupPh" placeholder="e.g. Deployment team">
+      </div>
+      <div class="field">
         <label data-i18n="usr.role">Role</label>
         <div class="radio-row">
           <label class="radio-pill selected"><input type="radio" name="user-role" value="rm" checked onchange="onUserRoleChange()"> <span data-i18n="role.rm">Release Manager</span></label>
@@ -1119,7 +1123,7 @@
 
     <div class="card">
       <table>
-        <thead><tr><th data-i18n="usr.thName">Full name</th><th data-i18n="usr.thEmail">E-mail</th><th data-i18n="usr.thRole">Role</th><th data-i18n="usr.thCan">What they can do</th><th data-i18n="usr.thProjects">Projects</th><th></th></tr></thead>
+        <thead><tr><th data-i18n="usr.thName">Full name</th><th data-i18n="usr.thEmail">E-mail</th><th data-i18n="usr.thRole">Role</th><th data-i18n="usr.thCan">What they can do</th><th data-i18n="usr.thGroup">Group</th><th data-i18n="usr.thProjects">Projects</th><th></th></tr></thead>
         <tbody id="users-table"></tbody>
       </table>
     </div>
@@ -1260,8 +1264,8 @@
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:18px;">
-      <label style="margin-bottom:6px;" data-i18n="client.testScenario">Test an access scenario</label>
+    <div class="card" id="client-scenario-card" style="margin-bottom:18px;">
+      <label style="margin-bottom:6px;" data-i18n="client.testScenario">Preview a client's access</label>
       <select id="client-scenario-select" onchange="renderClientPortal(this.value)">
         <option value="" data-i18n="client.noAccessOpt">No client access configured</option>
       </select>
@@ -1534,11 +1538,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.6.0"></script>
-<script src="i18n/en.js?v=0.6.0"></script>
+<script src="i18n/pl.js?v=0.6.1"></script>
+<script src="i18n/en.js?v=0.6.1"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.6.0';
+  const ROLLDESK_VERSION = '0.6.1';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -1942,10 +1946,11 @@
         <td class="mono" style="font-size:12px;">${u.email}</td>
         <td><span class="mono" style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:${info.bg}; color:${info.color};">${t('role.'+u.role)}</span></td>
         <td style="font-size:12px; color:var(--text-muted); max-width:240px;">${t('roleDesc.'+u.role)}</td>
+        <td style="font-size:12.5px;">${u.group ? escapeHtml(u.group) : '<span style="color:var(--text-faint);">—</span>'}</td>
         <td style="font-size:12.5px;">${projLabel}</td>
         <td style="white-space:nowrap;">${actions}</td>
       </tr>`;
-    }).join('') || `<tr><td colspan="6" style="color:var(--text-faint); font-size:13px;">${usersTab === 'archived' ? t('usr.noArchived') : t('usr.noActive')}</td></tr>`;
+    }).join('') || `<tr><td colspan="7" style="color:var(--text-faint); font-size:13px;">${usersTab === 'archived' ? t('usr.noArchived') : t('usr.noActive')}</td></tr>`;
   }
 
   let currentLoggedInRole = 'admin'; // mirrors the real signed-in user's role (set from /api/auth/me)
@@ -2378,6 +2383,7 @@
       document.getElementById('user-form-submit').textContent = t('usr.addAndInvite');
       document.getElementById('user-name').value = '';
       document.getElementById('user-email').value = '';
+      document.getElementById('user-group').value = '';
       document.getElementById('user-invite-note').style.display = 'flex';
       // fresh form → role picker unlocked
       document.querySelectorAll('input[name="user-role"]').forEach(inp=>{
@@ -2401,6 +2407,7 @@
     document.getElementById('user-invite-note').style.display = 'none';
     document.getElementById('user-name').value = u.name;
     document.getElementById('user-email').value = u.email;
+    document.getElementById('user-group').value = u.group || '';
     selectRadioPill('user-role', u.role);
 
     // The role can be changed while editing. Keep the picker enabled and let
@@ -2487,6 +2494,7 @@
     if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can manage users'); return; }
     const name = document.getElementById('user-name').value.trim();
     const email = document.getElementById('user-email').value.trim();
+    const group = document.getElementById('user-group').value.trim();
     if(!name || !email){ showToast('Enter a name and an e-mail'); return; }
     const role = document.querySelector('input[name="user-role"]:checked').value;
     const allAccess = role === 'rm' || role === 'admin';
@@ -2513,11 +2521,11 @@
     try {
       if(editingUserIndex !== null){
         const existing = USERS[editingUserIndex];
-        await apiUpdateUser(existing.id, {name, role, projects, clientKey});
+        await apiUpdateUser(existing.id, {name, role, group, projects, clientKey});
         logAudit('changed', 'User', 'Changed user „' + name + '”', '—');
         showToast('User „' + name + '” updated');
       } else {
-        const created = await apiCreateUser({name, email, role, projects, clientKey});
+        const created = await apiCreateUser({name, email, role, group, projects, clientKey});
         logAudit('added', 'User', 'Added user „' + name + '” (' + ROLE_INFO[role].label + ')', '—');
         showToast('User „' + name + '” invited');
         showInviteLink(created.invite, email);
@@ -2680,7 +2688,7 @@
     if(viewName === 'audit') renderAuditLog();
     if(viewName === 'account') renderRollDeskVersion();
     if(viewName === 'help') renderApiDocsIfNeeded();
-    if(viewName === 'client') renderClientPortal(currentClientScenario);
+    if(viewName === 'client') openClientPortal();
     if(viewName === 'installer') renderInstallerPanel();
     if(viewName === 'deployments') renderDeploymentsTable();
     if(viewName === 'schedule') prepareScheduleDates();
@@ -3710,10 +3718,10 @@
     const types = currentTypes();
     tbody.innerHTML = dayCounts.map((c,i)=>`
       <tr>
-        <td class="mono">Day ${i+1}</td>
+        <td class="mono">${tf('sch.day', {n: i+1})}</td>
         <td style="white-space:nowrap;">
           <input type="number" min="0" class="mono day-count-input" value="${c}" style="width:70px;" onchange="updateDayCount(${i}, this.value)">
-          <button class="mini-btn" title="Put the remaining targets here" style="padding:2px 7px; font-size:10.5px;" onclick="assignRemainderToDay(${i})">= remainder</button>
+          <button class="mini-btn" title="${t('sch.remainderTitle')}" style="padding:2px 7px; font-size:10.5px;" onclick="assignRemainderToDay(${i})">${t('sch.remainder')}</button>
         </td>
         <td>
           <select style="width:90px;" onchange="updateDayConstraint(${i}, 'limitType', this.value)">
@@ -3818,7 +3826,7 @@
 
     if(testEnvs.length){
       const testDateVal = document.getElementById('date-test').value;
-      const testDateStr = testDateVal ? new Date(testDateVal).toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit'}) : '—';
+      const testDateStr = testDateVal ? isoDate(new Date(testDateVal)) : '—';
       testEnvs.forEach(env=>{
         const el = document.createElement('div');
         el.className = 'manifest-day';
@@ -3847,7 +3855,7 @@
 
     if(testEnvs.length){
       const testDateVal = document.getElementById('date-test').value;
-      const testDateStr = testDateVal ? new Date(testDateVal).toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
+      const testDateStr = testDateVal ? isoDate(new Date(testDateVal)) : '—';
       const testTimeVal = document.getElementById('time-test').value || '20:00';
       testEnvs.forEach(env=>{
         html += `<tr class="manifest-row" style="background:var(--cyan-soft);">
@@ -3860,7 +3868,7 @@
         </tr>`;
       });
       if(dayAssignments.length){
-        html += `<tr><td colspan="7" style="text-align:center; padding:10px 0; color:var(--text-muted); font-size:11.5px; border-top:1px dashed var(--line); border-bottom:1px dashed var(--line);">Test environments first — production starts after a decision to continue</td></tr>`;
+        html += `<tr><td colspan="7" style="text-align:center; padding:10px 0; color:var(--text-muted); font-size:11.5px; border-top:1px dashed var(--line); border-bottom:1px dashed var(--line);">${t('sch.testFirstNote')}</td></tr>`;
       }
     }
 
@@ -3870,13 +3878,13 @@
         html += `<tr class="manifest-row">
           <td>${loc.code}${loc.label && loc.label !== loc.code ? ` <span style="color:var(--text-faint); font-size:11px;">${loc.label}</span>` : ''}</td>
           <td><span class="mono" style="font-size:11px; padding:2px 7px; border-radius:10px; border:1px solid var(--line); color:${typeColor(loc.type)};">${loc.type}</span></td>
-          <td class="mono">Day ${dayIdx+1}</td>
+          <td class="mono">${tf('sch.day', {n: dayIdx+1})}</td>
           <td class="mono">${dayLabels[dayIdx].date}</td>
-          <td class="mono">${timeVal}</td>
+          <td class="mono">${fmtTime(timeVal)}</td>
           <td><span class="env-tag prod">Production</span></td>
           <td style="white-space:nowrap;">
-            <button class="mini-btn" onclick="moveManifestLocation(${idx}, 'start')">⇤ To start</button>
-            <button class="mini-btn" onclick="moveManifestLocation(${idx}, 'end')">To end ⇥</button>
+            <button class="mini-btn" onclick="moveManifestLocation(${idx}, 'start')">${t('sch.toStart')}</button>
+            <button class="mini-btn" onclick="moveManifestLocation(${idx}, 'end')">${t('sch.toEnd')}</button>
           </td>
         </tr>`;
         idx++;
@@ -3923,9 +3931,17 @@
     const prodTargets = p.locationsList.filter(loc => loc.type === 'Production');
     if(manifestOrder.length !== prodTargets.length){
       manifestOrder = prodTargets.map(loc => ({code: loc.code, type: loc.type, label: loc.label}));
-      dayCounts = [];
-      dayConstraints = [];
-      const bt = document.getElementById('day-breakdown-table'); if(bt) bt.innerHTML = '';
+      // Only discard a manual day breakdown when it no longer fits the target
+      // count. Previously it was always cleared here, so the very first
+      // "Generate schedule" after spreading targets manually fell back to an
+      // even split (it worked only on the second attempt, once manifestOrder
+      // already matched). Preserving a still-valid breakdown fixes that.
+      const manualSum = dayCounts.reduce((a,b)=>a+(parseInt(b)||0), 0);
+      if(!dayCounts.length || manualSum !== prodTargets.length){
+        dayCounts = [];
+        dayConstraints = [];
+        const bt = document.getElementById('day-breakdown-table'); if(bt) bt.innerHTML = '';
+      }
     }
 
     const dayAssignments = assignLocationsToDays();
@@ -3938,7 +3954,7 @@
     const dayLabels = [];
     for(let i=0; i<days; i++){
       if(skipWknd) while(dateCursor.getDay()===0 || dateCursor.getDay()===6) dateCursor.setDate(dateCursor.getDate()+1);
-      dayLabels.push({dow: WEEKDAY_PL[dateCursor.getDay()] || 'Mon', date: dateCursor.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'})});
+      dayLabels.push({dow: WEEKDAY_PL[dateCursor.getDay()] || 'Mon', date: isoDate(dateCursor)});
       dateCursor.setDate(dateCursor.getDate()+1);
     }
     renderManifestPreview(dayAssignments, dayLabels, testEnvs);
@@ -4366,6 +4382,12 @@
       clientKey = clientSel.value;
       const c = CLIENTS.find(c=>c.key===clientKey);
       clientName = c ? c.name : clientKey.toUpperCase();
+      // Reject a duplicate project name for the same client. (A brand-new client
+      // above cannot yet own any project, so this only matters for an existing
+      // one.) The comparison is case-insensitive and trims surrounding spaces.
+      const dupKey = name.trim().toLowerCase();
+      const dup = Object.values(PROJECTS).some(p => p.client === clientKey && String(p.name || '').trim().toLowerCase() === dupKey);
+      if(dup){ showToast(t('proj.dupName')); return; }
     }
 
     const multi = document.getElementById('np-multi-toggle').checked;
@@ -4509,6 +4531,60 @@
   const CLIENT_SCENARIOS = {};
   let currentClientScenario = null;
   let expandedClientRow = null;
+
+  // Build the client-portal access from real accounts instead of demo scenarios.
+  //
+  // A Client user's access is configured entirely in the Users tab: an admin
+  // gives them the "Client" role, ties them to a client and ticks the client's
+  // projects. Those granted projects are read back here (from /api/auth/me →
+  // currentUser.projects) to build their view. Admins/Release Managers previewing
+  // the portal get one entry per client that has client accounts with projects.
+  function syncClientAccess(){
+    Object.keys(CLIENT_SCENARIOS).forEach(k=>delete CLIENT_SCENARIOS[k]);
+    const sel = document.getElementById('client-scenario-select');
+    const card = document.getElementById('client-scenario-card');
+
+    if(currentLoggedInRole === 'client'){
+      // Clients never pick a scenario — they only see their own projects.
+      if(card) card.style.display = 'none';
+      const pkeys = ((currentUser && currentUser.projects) || []).map(String).filter(pk=>PROJECTS[pk]);
+      if(pkeys.length){
+        const ck = (currentUser && currentUser.clientKey) || (PROJECTS[pkeys[0]]||{}).client;
+        const cName = (CLIENTS.find(c=>c.key===ck)||{}).name || (PROJECTS[pkeys[0]]||{}).clientName || 'Client';
+        CLIENT_SCENARIOS['me'] = { clientName: cName, projectKeys: pkeys };
+        currentClientScenario = 'me';
+      } else {
+        currentClientScenario = null;
+      }
+    } else {
+      // Team preview: group client accounts by their client key.
+      if(card) card.style.display = '';
+      const byClient = {};
+      USERS.filter(u=>u.role==='client' && !u.archived).forEach(u=>{
+        const pkeys = (u.projects||[]).map(String).filter(pk=>PROJECTS[pk]);
+        if(!pkeys.length) return;
+        const ck = u.clientKey || (PROJECTS[pkeys[0]]||{}).client || 'client';
+        if(!byClient[ck]) byClient[ck] = new Set();
+        pkeys.forEach(pk=>byClient[ck].add(pk));
+      });
+      Object.keys(byClient).forEach(ck=>{
+        const cName = (CLIENTS.find(c=>c.key===ck)||{}).name || ck.toUpperCase();
+        CLIENT_SCENARIOS[ck] = { clientName: cName, projectKeys: Array.from(byClient[ck]) };
+      });
+      if(!CLIENT_SCENARIOS[currentClientScenario]) currentClientScenario = Object.keys(CLIENT_SCENARIOS)[0] || null;
+      if(sel){
+        const opts = Object.keys(CLIENT_SCENARIOS).map(k=>`<option value="${k}">${CLIENT_SCENARIOS[k].clientName}</option>`).join('');
+        sel.innerHTML = (opts || `<option value="">${t('client.noAccessOpt')}</option>`);
+        if(currentClientScenario) sel.value = currentClientScenario;
+      }
+    }
+  }
+
+  // Refresh access from current accounts, then render the portal.
+  function openClientPortal(){
+    syncClientAccess();
+    renderClientPortal(currentClientScenario);
+  }
 
   function toggleClientRowDetail(key){
     expandedClientRow = expandedClientRow === key ? null : key;
@@ -5400,6 +5476,28 @@
   // columns = application, version, target code, date, day of week.
   const WEEKDAY_PL = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const WEEKDAY_PL_FULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  // Consistent date/time formatting for the whole UI. Dates are stored as ISO
+  // (YYYY-MM-DD) and times as 24h HH:MM, so render them the same way everywhere.
+  // This removes the earlier mix of DD/MM/YYYY (schedule preview), DD.MM
+  // (deployer panel) and raw ISO (deployment list). Native <input type="date">
+  // and <input type="time"> widgets are still rendered by the browser in the
+  // OS locale, which is outside our control.
+  function isoDate(d){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  function fmtDate(v){
+    if(!v) return '—';
+    const s = String(v).slice(0,10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : s;
+  }
+  function fmtTime(v){
+    if(!v) return '';
+    const m = String(v).match(/^(\d{1,2}):(\d{2})/);
+    return m ? (String(m[1]).padStart(2,'0') + ':' + m[2]) : String(v);
+  }
   function buildScheduleRows(r){
     if(r.mode !== 'batch') return [];
     const appsLabel = r.apps.map(a=>a.name).join(' / ');
@@ -5425,10 +5523,10 @@
     if(!box) return;
     const open = box.style.display === 'none';
     box.style.display = open ? 'block' : 'none';
-    if(label) label.textContent = open ? 'Hide full schedule' : 'Show full schedule';
+    if(label) label.textContent = open ? t('rep.hideFullSchedule') : t('rep.showFullSchedule');
     if(open && !box.dataset.rendered){
       const rows = buildScheduleRows(DEPLOYMENTS_DATA[idx]);
-      box.innerHTML = `<table><thead><tr><th>Application</th><th>Version</th><th>Target code</th><th>Date</th><th>Day</th></tr></thead><tbody>`
+      box.innerHTML = `<table><thead><tr><th>${t('rep.scheduleAppHdr')}</th><th>${t('rep.scheduleVerHdr')}</th><th>${t('rep.scheduleCodeHdr')}</th><th>${t('rep.scheduleDateHdr')}</th><th>${t('rep.scheduleDayHdr')}</th></tr></thead><tbody>`
         + rows.map(x=>`<tr><td>${x.app}</td><td class="mono" style="font-size:11.5px;">${x.version}</td><td>${x.code}</td><td class="mono" style="font-size:11.5px;">${x.date}</td><td class="mono" style="font-size:11.5px;">${x.dow}</td></tr>`).join('')
         + `</tbody></table>`;
       box.dataset.rendered = '1';
@@ -5932,9 +6030,15 @@ Kind regards.`;
   function renderInstallerPanel(){
     const wrap = document.getElementById('installer-list');
     if(!wrap) return;
-    const all = DEPLOYMENTS_DATA.map((d,i)=>Object.assign({idx:i}, d, {
+    let all = DEPLOYMENTS_DATA.map((d,i)=>Object.assign({idx:i}, d, {
       project: PROJECTS[d.projectKey] || {name: d.projectKey || 'Unknown project', clientName:'', testEnvs:[], apps:[], locationsList:[]}
     }));
+    // A Deployer only sees deployments of the projects they were granted in the
+    // Users tab. Admin / Release Manager keep the full cross-project view.
+    if(currentLoggedInRole === 'installer'){
+      const scope = (currentUser && Array.isArray(currentUser.projects)) ? currentUser.projects.map(String) : [];
+      all = all.filter(r => scope.includes(String(r.projectKey)));
+    }
     // A production deployment is only actionable by the installer once the client has
     // approved it. Pending / commented / rejected prod schedules stay hidden here.
     // Paused deployments are shown separately (read-only, with the pause reason).
@@ -5971,7 +6075,7 @@ Kind regards.`;
         const stMap = {pending:t('rep.stPending'), commented:t('rep.stCommented'), rejected:t('rep.stRejected')};
         // Concise "when distribution starts" info (day of week + short date).
         let planHtml = '';
-        const shortDate = iso => { const p = iso.split('-'); return p[2] + '.' + p[1]; };
+        const shortDate = iso => fmtDate(iso);
         if(r.mode === 'batch'){
           const startIso = getDateForDay(r, 1);
           const endIso = getDateForDay(r, r.days);
@@ -6013,41 +6117,41 @@ Kind regards.`;
               <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
                 <div style="width:32px; height:32px; border-radius:50%; background:var(--green); color:#fff; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;">✓</div>
                 <div>
-                  <strong style="font-size:14px;">Result saved — Day ${lr.day} closed</strong>
+                  <strong style="font-size:14px;">${tf('rep.resultSavedDay', {day: lr.day})}</strong>
                   <div style="font-size:12px; color:var(--text-muted);">${r.project.name} — ${appsLabel}${deployIdBadge(r)}</div>
                 </div>
               </div>
               <div style="display:flex; gap:20px; padding:12px; background:var(--paper); border-radius:8px; margin-bottom:12px;">
-                <div><div style="font-size:22px; font-weight:700; color:#0F7A38;">${lr.success}</div><div style="font-size:11.5px; color:var(--text-muted);">installed</div></div>
-                ${lr.failed ? `<div><div style="font-size:22px; font-weight:700; color:#A81E1E;">${lr.failed}</div><div style="font-size:11.5px; color:var(--text-muted);">failed (carried over)</div></div>` : ''}
-                <div><div style="font-size:22px; font-weight:700;">${r.counts.installed}/${r.totalLocations}</div><div style="font-size:11.5px; color:var(--text-muted);">deployed in total</div></div>
+                <div><div style="font-size:22px; font-weight:700; color:#0F7A38;">${lr.success}</div><div style="font-size:11.5px; color:var(--text-muted);">${t('rep.installedLc')}</div></div>
+                ${lr.failed ? `<div><div style="font-size:22px; font-weight:700; color:#A81E1E;">${lr.failed}</div><div style="font-size:11.5px; color:var(--text-muted);">${t('rep.failedCarried')}</div></div>` : ''}
+                <div><div style="font-size:22px; font-weight:700;">${r.counts.installed}/${r.totalLocations}</div><div style="font-size:11.5px; color:var(--text-muted);">${t('rep.deployedTotal')}</div></div>
               </div>
-              <button class="btn" onclick="dismissReportConfirmation(${r.idx})">Next — Day ${todayDay} (${todayBatch.length} locations) →</button>
+              <button class="btn" onclick="dismissReportConfirmation(${r.idx})">${tf('rep.nextDay', {day: todayDay, n: todayBatch.length})}</button>
             </div>`;
           }
 
           return `<div class="card" id="installer-card-${r.idx}" style="margin-bottom:14px;">
             <strong style="font-size:13px;">${r.project.name} — ${appsLabel}${deployIdBadge(r)}${internalBadge(r)}</strong>
-            <div style="font-size:11.5px; color:var(--text-muted); margin:4px 0 12px 0;"><span class="env-tag ${envClass}">${r.env}</span> · Day ${todayDay} · ${r.counts.installed}/${r.totalLocations} installed so far</div>
+            <div style="font-size:11.5px; color:var(--text-muted); margin:4px 0 12px 0;"><span class="env-tag ${envClass}">${r.env}</span> · ${tf('rep.dayProgress', {day: todayDay, done: r.counts.installed, total: r.totalLocations})}</div>
             ${depWarningHtml(r)}
             ${installerNotesHtml(r)}
             ${assigneeControlHtml(r)}
             <div style="margin-bottom:12px;">
-              <button class="mini-btn" onclick="toggleFullSchedule(${r.idx})"><span id="full-sched-label-${r.idx}">Show full schedule</span></button>
+              <button class="mini-btn" onclick="toggleFullSchedule(${r.idx})"><span id="full-sched-label-${r.idx}">${t('rep.showFullSchedule')}</span></button>
               <button class="mini-btn" onclick="exportScheduleXls(${r.idx})">⬇ XLS</button>
               <button class="mini-btn" onclick="exportSchedulePdf(${r.idx})">⬇ PDF</button>
               <div id="full-sched-${r.idx}" style="display:none; margin-top:10px; max-height:240px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;"></div>
             </div>
-            <label style="margin-bottom:6px;">Today's batch (${todayBatch.length} locations) — by default all are correct and installed; uncheck the ones that failed</label>
-            <input type="text" class="today-batch-search" placeholder="Search locations..." style="width:100%; margin-bottom:8px; padding:6px 10px; font-size:12.5px;" oninput="filterTodayBatch(this)">
+            <label style="margin-bottom:6px;">${tf('rep.todaysBatch', {n: todayBatch.length})}</label>
+            <input type="text" class="today-batch-search" placeholder="${t('rep.searchLocations')}" style="width:100%; margin-bottom:8px; padding:6px 10px; font-size:12.5px;" oninput="filterTodayBatch(this)">
             <div style="max-height:180px; overflow-y:auto; border:1px solid var(--line); border-radius:6px; padding:8px; margin-bottom:10px;">
               ${todayBatch.map(loc=>`<label class="today-ok-row" data-loc="${loc.toLowerCase()}" style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; padding:6px 8px; border-radius:6px; background:var(--green-soft); cursor:pointer;">
                 <input type="checkbox" class="today-fail-check" data-batch="${r.idx}" data-scope="i" value="${loc}" checked style="width:auto;" onchange="onTodayOkToggle(this)">
-                ${loc} <span class="today-ok-badge mono" style="margin-left:auto; font-size:11px; font-weight:700; color:#0F7A38;">✅ Correct</span>
+                ${loc} <span class="today-ok-badge mono" style="margin-left:auto; font-size:11px; font-weight:700; color:#0F7A38;">${t('rep.correct')}</span>
               </label>`).join('')}
             </div>
             <textarea id="today-fail-reason-i-${r.idx}" placeholder="${t('rep.failureReasonUnchecked')}"></textarea>
-            <button class="btn" style="margin-top:8px;" onclick="reportBatchDayResult(${r.idx}, 'i')">Save result</button>
+            <button class="btn" style="margin-top:8px;" onclick="reportBatchDayResult(${r.idx}, 'i')">${t('rep.saveResult')}</button>
             ${installerTimelineHtml(r)}
             <textarea id="new-comment-i-${r.idx}" style="margin-top:12px;" placeholder="${t('dcard.addCommentPh')}"></textarea>
             <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'i'); renderInstallerPanel();">${t('dcard.saveComment')}</button>
@@ -6055,7 +6159,7 @@ Kind regards.`;
         } else {
           return `<div class="card" id="installer-card-${r.idx}" style="margin-bottom:14px;">
             <strong style="font-size:13px;">${r.project.name} — ${appsLabel}${deployIdBadge(r)}${internalBadge(r)}</strong>
-            <div style="font-size:11.5px; color:var(--text-muted); margin:4px 0 12px 0;"><span class="env-tag ${envClass}">${r.env}</span> · ${r.location} · ${r.date} ${r.time}</div>
+            <div style="font-size:11.5px; color:var(--text-muted); margin:4px 0 12px 0;"><span class="env-tag ${envClass}">${r.env}</span> · ${r.location} · ${fmtDate(r.date)} ${fmtTime(r.time)}</div>
             ${depWarningHtml(r)}
             ${installerNotesHtml(r)}
             ${assigneeControlHtml(r)}
@@ -6089,8 +6193,8 @@ Kind regards.`;
         if(r.mode === 'batch'){
           const doneBanner = reportedResults[r.idx] ? `
             <div style="background:var(--green-soft); border:1px solid #BEE7C4; border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:12.5px;">
-              <strong style="color:#0F7A38;">✅ Result saved — deployment completed.</strong>
-              <div style="color:var(--text-muted); margin-top:2px;">All locations accounted for. The deployment was moved to completed.</div>
+              <strong style="color:#0F7A38;">${t('rep.resultSavedComplete')}</strong>
+              <div style="color:var(--text-muted); margin-top:2px;">${t('rep.allAccounted')}</div>
             </div>` : '';
           const failedCount = (r.failedLocations || []).length;
           return `<div class="card" id="installer-card-${r.idx}" style="margin-bottom:10px; background:var(--paper); border-left:3px solid ${outcome.color};">
@@ -6101,26 +6205,26 @@ Kind regards.`;
                   <strong style="font-size:13px;">${r.project.name} — ${appsLabel}${deployIdBadge(r)}${internalBadge(r)}</strong>
                   <span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:${outcome.bg}; color:${outcome.color};">${outcome.icon} ${outcome.label}</span>
                 </div>
-                <div style="font-size:11.5px; color:var(--text-muted); margin-top:3px;"><span class="env-tag ${envClass}">${r.env}</span> · ${r.counts.installed}/${r.totalLocations} deployed${failedCount ? ` · ${failedCount} failed` : ''}${r.assignedTo ? ' · done by: ' + r.assignedTo : ''}</div>
+                <div style="font-size:11.5px; color:var(--text-muted); margin-top:3px;"><span class="env-tag ${envClass}">${r.env}</span> · ${tf('rep.deployedCount', {done: r.counts.installed, total: r.totalLocations})}${failedCount ? ` · ${tf('rep.failedCount', {n: failedCount})}` : ''}${r.assignedTo ? ' · ' + tf('rep.doneBy', {who: r.assignedTo}) : ''}</div>
               </div>
-              <button class="mini-btn" onclick="toggleInstallerCorrection(${r.idx})">Report a correction</button>
+              <button class="mini-btn" onclick="toggleInstallerCorrection(${r.idx})">${t('rep.reportCorrection')}</button>
             </div>
-            ${failedCount ? `<div style="margin-top:8px; font-size:11.5px; color:#A81E1E;">⚠ To finish: ${(r.failedLocations||[]).map(f=>f.location).join(', ')}</div>` : ''}
+            ${failedCount ? `<div style="margin-top:8px; font-size:11.5px; color:#A81E1E;">⚠ ${tf('rep.toFinish', {list: (r.failedLocations||[]).map(f=>f.location).join(', ')})}</div>` : ''}
             <div id="correction-form-${r.idx}" style="display:none; margin-top:10px;">
-              <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">Enter the target code. If it was marked as failed — the correction marks it as successful; if as successful — it marks it as failed.</p>
+              <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">${t('rep.correctionHint')}</p>
               <div class="grid-2">
                 <div class="field">
-                  <label>Target code / name</label>
-                  <input type="text" id="correction-loc-${r.idx}" class="mono" list="correction-targets-${r.idx}" placeholder="e.g. Site 02">
+                  <label>${t('rep.targetCode')}</label>
+                  <input type="text" id="correction-loc-${r.idx}" class="mono" list="correction-targets-${r.idx}" placeholder="${t('rep.targetCodePh')}">
                   <datalist id="correction-targets-${r.idx}">${(PROJECTS[r.projectKey] && PROJECTS[r.projectKey].locationsList ? PROJECTS[r.projectKey].locationsList.filter(t=>t.type==='Production').map(t=>`<option value="${(t.label||t.code).replace(/"/g,'&quot;')}"></option>`).join('') : '')}</datalist>
                 </div>
                 <div class="field">
-                  <label>Correction reason <span style="color:#A81E1E;">*</span></label>
-                  <input type="text" id="correction-reason-${r.idx}" placeholder="e.g. does not ping / it worked after all">
+                  <label>${t('rep.correctionReason')} <span style="color:#A81E1E;">*</span></label>
+                  <input type="text" id="correction-reason-${r.idx}" placeholder="${t('rep.correctionReasonPh')}">
                 </div>
               </div>
-              ${failedCount ? `<div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">Currently failed targets (click to insert): ${(r.failedLocations||[]).map(f=>`<a href="#" onclick="event.preventDefault(); document.getElementById('correction-loc-${r.idx}').value='${(f.location||'').replace(/'/g,'')}';" style="color:var(--cyan); text-decoration:none; margin-right:8px;">${f.location}</a>`).join('')}</div>` : ''}
-              <button class="btn ghost" onclick="submitBatchCorrection(${r.idx})">Save correction</button>
+              ${failedCount ? `<div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">${t('rep.currentlyFailed')}${(r.failedLocations||[]).map(f=>`<a href="#" onclick="event.preventDefault(); document.getElementById('correction-loc-${r.idx}').value='${(f.location||'').replace(/'/g,'')}';" style="color:var(--cyan); text-decoration:none; margin-right:8px;">${f.location}</a>`).join('')}</div>` : ''}
+              <button class="btn ghost" onclick="submitBatchCorrection(${r.idx})">${t('rep.saveCorrection')}</button>
             </div>
           </div>`;
         } else {
@@ -6654,49 +6758,49 @@ Kind regards.`;
           const done = day < todayDay;
           const isToday = day === todayDay;
           const changed = staged && staged[day] && staged[day] !== getDateForDay(r, day);
-          const label = done ? '<span style="color:#0F7A38; font-size:10.5px;">✓ completed</span>' : isToday ? '<span style="color:#0A6E7A; font-size:10.5px;">in progress</span>' : '<span style="color:var(--text-faint); font-size:10.5px;">scheduled</span>';
+          const label = done ? `<span style="color:#0F7A38; font-size:10.5px;">${t('dtl.stDone')}</span>` : isToday ? `<span style="color:#0A6E7A; font-size:10.5px;">${t('dtl.stInProgress')}</span>` : `<span style="color:var(--text-faint); font-size:10.5px;">${t('dtl.stScheduled')}</span>`;
           dayPlanRows += `<tr>
-            <td class="mono">Day ${day}</td>
-            <td>${done ? `<span class="mono" style="font-size:12px;">${dateStr}</span>` : `<input type="date" class="mono" value="${dateStr}" style="font-size:12px; padding:2px 6px; ${changed ? 'border-color:#8A5A05; background:#FDF8EE;' : ''}" onchange="stageDayDate(${r.idx}, ${day}, this.value)">`}${changed ? ' <span style="font-size:10px; color:#8A5A05;">changed</span>' : ''}</td>
-            <td class="mono" style="font-size:11.5px;">${computeDayCount(r, day)} loc.</td>
+            <td class="mono">${tf('dtl.day', {n: day})}</td>
+            <td>${done ? `<span class="mono" style="font-size:12px;">${fmtDate(dateStr)}</span>` : `<input type="date" class="mono" value="${dateStr}" style="font-size:12px; padding:2px 6px; ${changed ? 'border-color:#8A5A05; background:#FDF8EE;' : ''}" onchange="stageDayDate(${r.idx}, ${day}, this.value)">`}${changed ? ` <span style="font-size:10px; color:#8A5A05;">${t('dtl.changed')}</span>` : ''}</td>
+            <td class="mono" style="font-size:11.5px;">${computeDayCount(r, day)} ${t('dtl.locShort')}</td>
             <td>${label}</td>
           </tr>`;
         }
         const hasStaged = staged && Object.keys(staged).length;
         actionHtml = `
-          <label style="margin-bottom:8px;">Day schedule — change the dates of days not yet completed, then save</label>
+          <label style="margin-bottom:8px;">${t('dtl.dayScheduleLabel')}</label>
           <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
-            <button class="mini-btn" onclick="stageShiftDays(${r.idx}, 1)">Shift the rest +1 day</button>
-            <button class="mini-btn" onclick="stageShiftDays(${r.idx}, 2)">+2 days</button>
-            <button class="mini-btn" onclick="stageShiftDays(${r.idx}, 5)">+1 week</button>
+            <button class="mini-btn" onclick="stageShiftDays(${r.idx}, 1)">${t('dtl.shift1')}</button>
+            <button class="mini-btn" onclick="stageShiftDays(${r.idx}, 2)">${t('dtl.shift2')}</button>
+            <button class="mini-btn" onclick="stageShiftDays(${r.idx}, 5)">${t('dtl.shift5')}</button>
           </div>
           <div style="max-height:180px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; margin-bottom:${hasStaged ? '8px' : '16px'};">
-            <table><thead><tr><th>Day</th><th>Date</th><th>Targets</th><th>Status</th></tr></thead><tbody>${dayPlanRows}</tbody></table>
+            <table><thead><tr><th>${t('dtl.thDay')}</th><th>${t('dtl.thDate')}</th><th>${t('dtl.thTargets')}</th><th>${t('dtl.thStatus')}</th></tr></thead><tbody>${dayPlanRows}</tbody></table>
           </div>
           ${hasStaged ? `<div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; padding:10px 12px; background:#FDF8EE; border:1px solid #F0D9A8; border-radius:8px; flex-wrap:wrap;">
-            <span style="font-size:12px; color:#8A5A05; font-weight:600;">You have unsaved schedule changes.</span>
+            <span style="font-size:12px; color:#8A5A05; font-weight:600;">${t('dtl.unsaved')}</span>
             <div style="display:flex; gap:8px; margin-left:auto;">
-              <button class="mini-btn" onclick="discardScheduleChanges(${r.idx})">Cancel changes</button>
-              <button class="btn" onclick="saveScheduleChanges(${r.idx})">Save and notify everyone</button>
+              <button class="mini-btn" onclick="discardScheduleChanges(${r.idx})">${t('dtl.cancelChanges')}</button>
+              <button class="btn" onclick="saveScheduleChanges(${r.idx})">${t('dtl.saveNotifyAll')}</button>
             </div>
           </div>` : ''}
-          <label style="margin-bottom:8px;">Queue of remaining locations (${queue.length}) — change the deployment order</label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">Reporting installation results (what succeeded / failed) is done in the deployer panel.</p>
+          <label style="margin-bottom:8px;">${tf('dtl.queueLabel', {n: queue.length})}</label>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">${t('dtl.queueNote')}</p>
           <div style="max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; margin-bottom:10px;">
             <table>
-              <thead><tr><th>Location</th><th>Day</th><th></th></tr></thead>
+              <thead><tr><th>${t('dtl.thLocation')}</th><th>${t('dtl.thDay')}</th><th></th></tr></thead>
               <tbody>
                 ${queue.map((loc,qi)=>{
                   const dn = dayIndexForPosition(r, r.counts.installed + qi);
                   const isToday = dn === todayDay;
                   return `<tr ${isToday ? 'style="background:var(--cyan-soft);"' : ''}>
                     <td>${loc}</td>
-                    <td class="mono">Day ${dn}${isToday ? ' <span style="color:#0A6E7A; font-size:10.5px;">(today)</span>' : ''}</td>
+                    <td class="mono">${tf('dtl.day', {n: dn})}${isToday ? ` <span style="color:#0A6E7A; font-size:10.5px;">${t('dtl.today')}</span>` : ''}</td>
                     <td style="white-space:nowrap;">
-                      <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'prevDay')" title="To the previous day">◀ day</button>
-                      <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'nextDay')" title="To the next day">day ▶</button>
-                      <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'start')">⇤ start</button>
-                      <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'end')">end ⇥</button>
+                      <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'prevDay')" title="${t('dtl.toPrevDay')}">${t('dtl.moveDayBack')}</button>
+                      <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'nextDay')" title="${t('dtl.toNextDay')}">${t('dtl.moveDayFwd')}</button>
+                      <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'start')">${t('dtl.moveStart')}</button>
+                      <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'end')">${t('dtl.moveEnd')}</button>
                     </td>
                   </tr>`;
                 }).join('')}
@@ -6716,8 +6820,8 @@ Kind regards.`;
       const isActiveDep = (r.mode === 'batch' && r.counts.scheduled > 0) || (r.mode === 'single' && r.status === 'scheduled');
       const isBatch = r.mode === 'batch';
       const barBtns = [];
-      if(isBatch) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportScheduleXls(${r.idx})">⬇ Schedule XLS</button>`);
-      if(isBatch) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">⬇ Schedule PDF</button>`);
+      if(isBatch) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportScheduleXls(${r.idx})">${t('dtl.schedXls')}</button>`);
+      if(isBatch) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">${t('dtl.schedPdf')}</button>`);
       if(isActiveDep) barBtns.push(`<button class="mini-btn icon-btn accent" onclick="event.stopPropagation(); generateEndUserMessage(${r.idx})"><span class="mb-ic">✉</span> ${t('dcard.genMessage')}</button>`);
       if(isActiveDep && !r.paused) barBtns.push(`<button class="mini-btn icon-btn warn" onclick="event.stopPropagation(); pauseDeployment(${r.idx})"><span class="mb-ic">⏸</span> ${t('dcard.pause')}</button>`);
       if(isLoggedInAsAdmin()) barBtns.push(`<button class="mini-btn mini-btn-danger" onclick="event.stopPropagation(); deleteDeployment(${r.idx})">${t('cli.delete')}</button>`);
@@ -6785,7 +6889,7 @@ Kind regards.`;
         cells.push(`<td>${r.totalLocations} locations <span style="color:var(--text-faint);">· ${r.days} working days</span></td>`);
         cells.push(`<td><span class="env-tag ${envClass}">${r.env}</span></td>`);
         cells.push(`<td class="mono">${r.dateRange}</td>`);
-        cells.push(`<td class="mono">${r.time}</td>`);
+        cells.push(`<td class="mono">${fmtTime(r.time)}</td>`);
         const pct = Math.round((r.counts.installed / r.totalLocations) * 100);
         const failedN = (r.failedLocations || []).length;
         const isDone = r.counts.scheduled === 0;
@@ -6821,8 +6925,8 @@ Kind regards.`;
         const bgs = {scheduled:'#EEF0F3', installed:'var(--green-soft)', failed:'var(--red-soft)', rolledback:'#F1E9FB', aborted:'#EEF0F3'};
         cells.push(`<td>${r.location}</td>`);
         cells.push(`<td><span class="env-tag ${envClass}">${r.env}</span></td>`);
-        cells.push(`<td class="mono">${r.date}</td>`);
-        cells.push(`<td class="mono">${r.time}</td>`);
+        cells.push(`<td class="mono">${fmtDate(r.date)}</td>`);
+        cells.push(`<td class="mono">${fmtTime(r.time)}</td>`);
         cells.push(`<td onclick="event.stopPropagation();"><select onchange="changeDeploymentStatus(${r.idx}, this.value)" class="mono" style="border:1px solid var(--line); border-radius:20px; padding:3px 8px; font-size:11.5px; font-weight:600; background:${bgs[r.status]}; color:${colors[r.status]};">
           ${statusOptions.map(s=>`<option value="${s}" ${s===r.status?'selected':''}>${statusLabel[s]}</option>`).join('')}
         </select>${r.paused ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' — ' + r.pauseReason : ''}</div>` : ''}</td>`);

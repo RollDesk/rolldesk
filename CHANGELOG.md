@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-07-16
+
+### Added
+- Optional **group** field on user accounts (Users tab), shown in the directory — a purely descriptive label to make managing users easier. New `user_group` column (migration `003_user_group.sql`).
+
+### Changed
+- **Deployer panel is now scoped to the deployer's projects.** A user with the Deployer role only sees deployments of the projects they were granted in the Users tab (enforced on the backend for `GET /api/deployments` too). `GET /api/auth/me` now returns the account's `projects` and `clientKey`.
+- **Client panel works from real accounts.** A Client user's portal is built automatically from the projects an admin granted them (no more demo "scenario" needed); admins/release managers can still preview each client's view.
+- Consistent **date/time formatting** across the Deployments views (ISO `YYYY-MM-DD` dates, 24-hour `HH:MM` times) instead of a mix of `DD/MM/YYYY`, `DD.MM` and locale times.
+- More **Polish translations**: deployment-details Day schedule and Location queue, the deployer-panel cards (today's batch, saved-result and correction views), and the schedule preview.
+
+### Fixed
+- The first **"Generate schedule"** after manually spreading targets across days now honours that manual per-day split instead of falling back to an even split.
+- **Duplicate project names** are rejected for the same client.
+
 ## [0.6.0] - 2026-07-15
 
 ### Added
