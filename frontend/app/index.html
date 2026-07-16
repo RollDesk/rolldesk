@@ -5655,12 +5655,13 @@
     const m = String(v).match(/^(\d{1,2}):(\d{2})/);
     return m ? (String(m[1]).padStart(2,'0') + ':' + m[2]) : String(v);
   }
-  // Localized short weekday name (falls back to the English abbreviation).
+  // Localized full weekday name (e.g. "poniedziałek" / "Monday"), falling back
+  // to the English full name.
   function fmtDow(dateStr){
     try {
-      return new Date(dateStr).toLocaleDateString(LANG === 'pl' ? 'pl-PL' : 'en-GB', { weekday: 'short' });
+      return new Date(dateStr).toLocaleDateString(LANG === 'pl' ? 'pl-PL' : 'en-GB', { weekday: 'long' });
     } catch(e){
-      return WEEKDAY_PL[new Date(dateStr).getDay()] || '';
+      return WEEKDAY_PL_FULL[new Date(dateStr).getDay()] || '';
     }
   }
   // Names of the project's custom target columns (e.g. "nazwa urzędu"), so the
