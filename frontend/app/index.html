@@ -5676,11 +5676,17 @@
     return (loc && loc.custom) || {};
   }
   function buildScheduleRows(r){
-    if(r.mode !== 'batch') return [];
-    const appsLabel = r.apps.map(a=>a.name).join(' / ');
-    const verLabel = r.apps.map(a=>a.version).join(' / ');
+    const appsLabel = (r.apps||[]).map(a=>a.name).join(' / ');
+    const verLabel = (r.apps||[]).map(a=>a.version).join(' / ');
     const p = PROJECTS[r.projectKey] || {};
     const rows = [];
+    // Single deployment: a one-row schedule (one target/location).
+    if(r.mode !== 'batch'){
+      const dateStr = r.date || r.createdDate || '';
+      const code = r.location || '—';
+      rows.push({ app: appsLabel, version: verLabel, code, date: dateStr, dow: dateStr ? fmtDow(dateStr) : '', day: 1, custom: locCustomByCode(p, code) });
+      return rows;
+    }
     let pos = 0;
     for(let day=1; day<=r.days; day++){
       const count = computeDayCount(r, day);
@@ -6396,6 +6402,12 @@
             ${depWarningHtml(r)}
             ${installerNotesHtml(r)}
             ${assigneeControlHtml(r)}
+            <div style="margin-bottom:12px;">
+              <button class="mini-btn" onclick="toggleFullSchedule(${r.idx})"><span id="full-sched-label-${r.idx}">${t('rep.showFullSchedule')}</span></button>
+              <button class="mini-btn" onclick="exportScheduleXls(${r.idx})">⬇ XLS</button>
+              <button class="mini-btn" onclick="exportSchedulePdf(${r.idx})">⬇ PDF</button>
+              <div id="full-sched-${r.idx}" style="display:none; margin-top:10px; max-height:240px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;"></div>
+            </div>
             <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px 0;">${t('rep.assumeSuccess')}</p>
             <div style="display:flex; gap:8px; margin-bottom:10px;">
               <button class="btn ghost" onclick="installerMarkSingle(${r.idx}, 'installed')">${t('rep.confirmInstalled')}</button>
@@ -7129,8 +7141,9 @@
       const isActiveDep = (r.mode === 'batch' && r.counts.scheduled > 0) || (r.mode === 'single' && r.status === 'scheduled');
       const isBatch = r.mode === 'batch';
       const barBtns = [];
-      if(isBatch) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportScheduleXls(${r.idx})">${t('dtl.schedXls')}</button>`);
-      if(isBatch) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">${t('dtl.schedPdf')}</button>`);
+      const canExportSchedule = !!(r.apps && r.apps.length);
+      if(canExportSchedule) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportScheduleXls(${r.idx})">${t('dtl.schedXls')}</button>`);
+      if(canExportSchedule) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">${t('dtl.schedPdf')}</button>`);
       if(isActiveDep) barBtns.push(`<button class="mini-btn icon-btn accent" onclick="event.stopPropagation(); generateEndUserMessage(${r.idx})"><span class="mb-ic">✉</span> ${t('dcard.genMessage')}</button>`);
       if(isActiveDep && !r.paused) barBtns.push(`<button class="mini-btn icon-btn warn" onclick="event.stopPropagation(); pauseDeployment(${r.idx})"><span class="mb-ic">⏸</span> ${t('dcard.pause')}</button>`);
       if(isActiveDep && canEditDeployments()) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); openEditDeployment(${r.idx})">✏️ ${t('editdep.btn')}</button>`);
