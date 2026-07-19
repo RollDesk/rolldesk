@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.8.0] - 2026-07-19
 
 ### Added
-- **Per-day limit by a custom target column.** When building a schedule you can now choose whether the per-day *Restrict … / Max count* limit applies to the target *type* (default) or to any custom target column (e.g. „wielkość Urzędu"), so you can cap how many targets of a given attribute value go out on a day.
+- **Per-day limit by a custom target column.** When building a schedule you can now choose whether the per-day *Restrict … / Max count* limit applies to the target *type* (default) or to any custom target column (e.g. a "size" or "region" column), so you can cap how many targets of a given attribute value go out on a day.
 - **Pin locations to a specific day.** Each day in the per-day breakdown has a *Pin locations* field — type target codes/labels separated by `;` (or commas/spaces) to force those targets onto that day (e.g. pilot locations on day 1). Pinned targets count against that day's total.
 - **Location search in the deployment queue.** The remaining-locations queue in the deployment details now has a search box to quickly find a target before moving it between days.
 
