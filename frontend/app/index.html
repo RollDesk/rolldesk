@@ -2203,6 +2203,39 @@
   // Really deliver an event notification (webhooks + optional post-deploy e-mail)
   // through the backend, and surface the outcome — including partial failures.
   // Never rejects: notification delivery must not block the user's action.
+  // Build a detailed notification body for a created/approval schedule so Teams,
+  // Slack and e-mail recipients see who did it and the key facts, not just the
+  // project name. Works for both batch and single deployments.
+  function buildScheduleNotifBody(r, projName){
+    r = r || {};
+    const lines = [projName];
+    if(r.id) lines.push(t('notif.deployment') + ': ' + r.id);
+    const appsLabel = (r.apps||[]).map(a=>a.name + (a.version ? ' v' + a.version : '')).join(', ');
+    if(appsLabel) lines.push(t('notif.applications') + ': ' + appsLabel);
+    if(r.mode === 'batch'){
+      lines.push(t('notif.environment') + ': ' + (r.env || 'Production')
+        + ' · ' + tf('notif.locationsN', {n: r.totalLocations || 0})
+        + ' · ' + tf('notif.daysN', {n: r.days || 1}));
+      let startIso = r.historyStart;
+      try { if(typeof getDateForDay === 'function') startIso = getDateForDay(r, 1); } catch(e){}
+      if(startIso){
+        const dow = WEEKDAY_PL_FULL[new Date(startIso).getDay()] || '';
+        lines.push(t('notif.start') + ': ' + (dow ? dow + ', ' : '') + fmtDate(startIso)
+          + (r.time ? ' ' + tf('notif.atTime', {time: fmtTime(r.time)}) : ''));
+      }
+    } else {
+      lines.push(t('notif.environment') + ': ' + (r.env || '') + (r.location ? ' · ' + r.location : ''));
+      if(r.date) lines.push(t('notif.start') + ': ' + fmtDate(r.date)
+        + (r.time ? ' ' + tf('notif.atTime', {time: fmtTime(r.time)}) : ''));
+    }
+    if(r.createdBy) lines.push(t('notif.createdBy') + ': ' + r.createdBy);
+    let body = lines.join('\n');
+    if(r.changelog) body += '\n\n' + t('notif.changelogLabel') + ':\n' + r.changelog;
+    if(r.attachment) body += '\n' + t('notif.attachment') + ': ' + r.attachment;
+    body += '\n\n' + t('notif.openLink') + ': ' + appLink('#deployments');
+    return body;
+  }
+
   async function dispatchEventNotification(eventKey, projectKey, subject, text, includeEmail){
     const {targets, email} = notifyRecipientsFor(eventKey, projectKey);
     const webhooks = targets.map(w=>({url:w.url, name:w.name}));
@@ -3305,10 +3338,11 @@
       const pk = currentProjectKey;
       const projName = (PROJECTS[pk]||{}).name || pk;
       // Teams/Slack webhooks can't carry file attachments, so include the
-      // changelog inline and a link to open the schedule in the app.
-      const body = projName
-        + (changelog ? '\n\n' + t('notif.changelogLabel') + ':\n' + changelog : '')
-        + '\n\n' + t('notif.openLink') + ': ' + appLink('#deployments');
+      // changelog inline, the key schedule facts, who created it, and a link
+      // to open the schedule in the app.
+      const createdRecs = DEPLOYMENTS_DATA.slice(createdIdsStart);
+      const rec = createdRecs.find(x=>x.env === 'Production') || createdRecs[0] || {};
+      const body = buildScheduleNotifBody(rec, projName);
       dispatchEventNotification('created', pk, 'RollDesk — ' + t('ev.created'), body, false);
       if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk — ' + t('ev.approval'), body, false);
     }
@@ -4776,9 +4810,7 @@
     showAppConfirm(t('draft.notifyTitle'), tf('draft.notifyBody', {project: projName, recipients}), ()=>{
 
       r.draft = false;
-      const body = projName
-        + (r.changelog ? '\n\n' + t('notif.changelogLabel') + ':\n' + r.changelog : '')
-        + '\n\n' + t('notif.openLink') + ': ' + appLink('#deployments');
+      const body = buildScheduleNotifBody(r, projName);
       dispatchEventNotification('created', pk, 'RollDesk — ' + t('ev.created'), body, false);
       if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk — ' + t('ev.approval'), body, false);
       logAudit('notified', 'Deployment', 'Notified the client about ' + (r.id||'') + ' — recipients: ' + recipients, projName + (p.clientName ? ' (' + p.clientName + ')' : ''), 'aud.d.draftNotified', {id: r.id||'', recipients});
