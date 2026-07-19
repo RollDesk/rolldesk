@@ -955,9 +955,10 @@
             <button class="mini-btn" onclick="buildDayBreakdown()" data-i18n="sch.spreadDays">Spread across days</button>
           </div>
           <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;" data-i18n="sch.perDayNote">Set the number of locations and constraints for each day — "Generate schedule" will take them into account.</p>
+          <div id="constraint-field-wrap" style="margin:0 0 10px 0;"></div>
           <div style="max-height:260px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;">
             <table>
-              <thead><tr><th data-i18n="sch.thDay">Day</th><th data-i18n="sch.thLocs">Number of locations</th><th data-i18n="sch.thRestrict">Restrict type</th><th data-i18n="sch.thMax">Max count (0 = none of this type)</th></tr></thead>
+              <thead><tr><th data-i18n="sch.thDay">Day</th><th data-i18n="sch.thLocs">Number of locations</th><th data-i18n="sch.thRestrict">Restrict type</th><th data-i18n="sch.thMax">Max count (0 = none of this type)</th><th data-i18n="sch.thPin">Pin locations (codes ; separated)</th></tr></thead>
               <tbody id="day-breakdown-table"></tbody>
             </table>
           </div>
@@ -1579,11 +1580,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.7.0"></script>
-<script src="i18n/en.js?v=0.7.0"></script>
+<script src="i18n/pl.js?v=0.8.0"></script>
+<script src="i18n/en.js?v=0.8.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.7.0';
+  const ROLLDESK_VERSION = '0.8.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -3330,6 +3331,8 @@
     if(depsList) depsList.querySelectorAll('input[type="checkbox"]').forEach(cb=> cb.checked = false);
     dayCounts = [];
     dayConstraints = [];
+    constraintField = '';
+    const cfw = document.getElementById('constraint-field-wrap'); if(cfw) cfw.innerHTML = '';
     const bt = document.getElementById('day-breakdown-table'); if(bt) bt.innerHTML = '';
     const sum = document.getElementById('day-breakdown-summary'); if(sum) sum.remove();
   }
@@ -3595,31 +3598,44 @@
           }
         }
 
-        const existing = new Set(p.locationsList.map(l => (l.label || l.code || '').toLowerCase()));
-        let added = 0, skipped = 0;
+        const byName = new Map(p.locationsList.map(l => [(l.label || l.code || '').toLowerCase(), l]));
+        let added = 0, updated = 0, skipped = 0;
         rows.forEach(cells=>{
           const name = (cells[0] || '').trim();
           if(!name){ skipped++; return; }
-          if(existing.has(name.toLowerCase())){ skipped++; return; }
+          // Read the row's custom values, keyed by the (possibly new) column names.
           const custom = {};
           for(let col=2; col<cells.length; col++){
             const fname = extraFieldNames[col];
             if(fname) custom[fname] = (cells[col] || '').trim();
           }
+          const hit = byName.get(name.toLowerCase());
+          if(hit){
+            // Re-import: refresh the existing target's type and custom columns so a
+            // new file with new/updated columns is reflected instead of ignored.
+            hit.custom = hit.custom || {};
+            let changed = false;
+            if(cells[1] != null && cells[1] !== ''){ const nt = normalizeTargetType(cells[1]); if(hit.type !== nt){ hit.type = nt; changed = true; } }
+            Object.keys(custom).forEach(f=>{ if(hit.custom[f] !== custom[f]){ hit.custom[f] = custom[f]; changed = true; } });
+            p.customLocationFields.forEach(f=>{ if(!(f in hit.custom)) hit.custom[f] = ''; });
+            if(changed) updated++; else skipped++;
+            return;
+          }
           // Ensure every known custom field exists on the new row.
           p.customLocationFields.forEach(f=>{ if(!(f in custom)) custom[f] = ''; });
-          p.locationsList.push({code: name, label: name, type: normalizeTargetType(cells[1]), custom});
-          existing.add(name.toLowerCase());
+          const loc = {code: name, label: name, type: normalizeTargetType(cells[1]), custom};
+          p.locationsList.push(loc);
+          byName.set(name.toLowerCase(), loc);
           added++;
         });
         p.locations = p.locationsList.length;
-        if(added){
-          logAudit('added', 'Deployment target', 'Imported ' + added + ' targets from CSV', p.name + ' (' + p.clientName + ')', 'aud.d.targetsImported', {n: added});
+        if(added || updated){
+          logAudit('added', 'Deployment target', 'Imported ' + added + ' / updated ' + updated + ' targets from CSV', p.name + ' (' + p.clientName + ')', 'aud.d.targetsImported', {n: added + updated});
           renderLocationsTable();
           renderProjectsList();
           persistProject(currentProjectKey);
         }
-        showToast(tf('proj.csvImported', {added, skipped}));
+        showToast(tf('proj.csvImported', {added: added + updated, skipped}));
       } catch(e){ showToast(t('proj.csvError')); }
     };
     reader.readAsText(file);
@@ -3774,6 +3790,10 @@
   let manifestOrder = [];
   let dayCounts = [];
   let dayConstraints = [];
+  // Which attribute the per-day "Restrict … / Max count" limit applies to.
+  // '' = target type (default). Otherwise the name of a project custom column,
+  // so a PM can e.g. cap "office size = large" per day. (P1)
+  let constraintField = '';
 
   function buildDayBreakdown(){
     const total = parseInt(document.getElementById('loc-count').value) || 0;
@@ -3784,19 +3804,50 @@
     dayConstraints = [];
     for(let d=0; d<days; d++){
       dayCounts.push(base + (d < remainder ? 1 : 0));
-      dayConstraints.push({limitType:'', limitMax:null});
+      dayConstraints.push({limitType:'', limitMax:null, pin:''});
     }
     renderDayBreakdownTable();
     showToast('Spread across ' + days + ' days — you can now adjust the counts and constraints');
   }
 
+  // Distinct values of the attribute the day-limit applies to. For the default
+  // (type) this is the set of target types; for a custom column it is the set of
+  // non-empty values found on the production targets.
+  function constraintFieldOptions(){
+    const p = PROJECTS[currentProjectKey];
+    return (p && Array.isArray(p.customLocationFields)) ? p.customLocationFields.slice() : [];
+  }
+  function attrValueOf(loc){
+    if(!constraintField) return loc.type;
+    return String((loc.custom && loc.custom[constraintField] != null) ? loc.custom[constraintField] : '') ;
+  }
   function currentTypes(){
+    if(constraintField){
+      const vals = new Set(manifestOrder.map(l=>attrValueOf(l)).filter(v=>v !== ''));
+      return Array.from(vals);
+    }
     const types = new Set(manifestOrder.map(l=>l.type));
     if(!types.size){ types.add('SP'); types.add('UM'); types.add('UD'); }
     return Array.from(types);
   }
+  function onConstraintFieldChange(v){
+    constraintField = v || '';
+    // The available limit values change with the attribute, so clear stale picks.
+    dayConstraints.forEach(c=>{ c.limitType = ''; });
+    renderDayBreakdownTable();
+  }
+  function renderConstraintFieldSelector(){
+    const wrap = document.getElementById('constraint-field-wrap');
+    if(!wrap) return;
+    const opts = constraintFieldOptions();
+    const optHtml = ['<option value=""' + (constraintField==='' ? ' selected':'') + '>' + t('sch.limitByType') + '</option>']
+      .concat(opts.map(f=>`<option value="${f}"${constraintField===f?' selected':''}>${f}</option>`)).join('');
+    wrap.innerHTML = `<label style="display:block; margin-bottom:4px;">${t('sch.limitBy')}</label>
+      <select style="min-width:220px;" onchange="onConstraintFieldChange(this.value)">${optHtml}</select>`;
+  }
 
   function renderDayBreakdownTable(){
+    renderConstraintFieldSelector();
     const tbody = document.getElementById('day-breakdown-table');
     const types = currentTypes();
     tbody.innerHTML = dayCounts.map((c,i)=>`
@@ -3807,12 +3858,13 @@
           <button class="mini-btn" title="${t('sch.remainderTitle')}" style="padding:2px 7px; font-size:10.5px;" onclick="assignRemainderToDay(${i})">${t('sch.remainder')}</button>
         </td>
         <td>
-          <select style="width:90px;" onchange="updateDayConstraint(${i}, 'limitType', this.value)">
+          <select style="width:120px;" onchange="updateDayConstraint(${i}, 'limitType', this.value)">
             <option value="">— none —</option>
-            ${types.map(t=>`<option value="${t}"${(dayConstraints[i]&&dayConstraints[i].limitType===t)?' selected':''}>${t}</option>`).join('')}
+            ${types.map(tv=>`<option value="${tv}"${(dayConstraints[i]&&dayConstraints[i].limitType===tv)?' selected':''}>${tv}</option>`).join('')}
           </select>
         </td>
         <td><input type="number" class="mono" placeholder="—" value="${(dayConstraints[i]&&dayConstraints[i].limitMax!=null)?dayConstraints[i].limitMax:''}" style="width:60px;" onchange="updateDayConstraint(${i}, 'limitMax', this.value !== '' ? parseInt(this.value) : null)"></td>
+        <td><input type="text" placeholder="${t('sch.pinPh')}" value="${(dayConstraints[i]&&dayConstraints[i].pin)?String(dayConstraints[i].pin).replace(/"/g,'&quot;'):''}" style="width:180px;" onchange="updateDayConstraint(${i}, 'pin', this.value)"></td>
       </tr>`).join('');
     renderDayBreakdownSummary();
   }
@@ -3869,11 +3921,27 @@
       for(let d=0; d<autoDays; d++) arr.push(base + (d < remainder ? 1 : 0));
       return arr;
     })();
-    const constraints = dayConstraints.length ? dayConstraints : counts.map(()=>({limitType:'', limitMax:null}));
+    const constraints = dayConstraints.length ? dayConstraints : counts.map(()=>({limitType:'', limitMax:null, pin:''}));
     const days = counts.length;
 
     const dayAssignments = counts.map(()=>[]);
     const typeUsedPerDay = counts.map(()=>({}));
+
+    // (P2) Pin explicit locations to a day. The PM types target codes/labels,
+    // separated by ";", "," or whitespace, into the "Pin locations" field. Those
+    // targets are placed on that day up front (e.g. pilot locations on day 1).
+    const pinnedCodes = new Set();
+    function parsePins(s){
+      return String(s || '').split(/[;,\s]+/).map(x=>x.trim().toLowerCase()).filter(Boolean);
+    }
+    for(let d=0; d<days; d++){
+      const wanted = parsePins((constraints[d] || {}).pin);
+      if(!wanted.length) continue;
+      wanted.forEach(w=>{
+        const hit = manifestOrder.find(l => !pinnedCodes.has(l) && ((l.code||'').toLowerCase() === w || (l.label||'').toLowerCase() === w));
+        if(hit){ dayAssignments[d].push(hit); pinnedCodes.add(hit); }
+      });
+    }
 
     function tryFillDay(dayIdx, pool){
       const cap = counts[dayIdx];
@@ -3882,7 +3950,8 @@
       for(let k=0; k<pool.length; k++){
         const loc = pool[k];
         if(dayAssignments[dayIdx].length >= cap){ leftover.push(...pool.slice(k)); break; }
-        const matchesLimit = c.limitType && loc.type === c.limitType;
+        const av = attrValueOf(loc);
+        const matchesLimit = c.limitType && av === c.limitType;
         if(matchesLimit){
           const used = typeUsedPerDay[dayIdx][c.limitType] || 0;
           const cap2 = c.limitMax == null ? Infinity : c.limitMax;
@@ -3894,7 +3963,8 @@
       return leftover;
     }
 
-    let remaining = manifestOrder.slice();
+    // Pinned targets already sit on their day and count against that day's cap.
+    let remaining = manifestOrder.filter(l => !pinnedCodes.has(l));
     for(let d=0; d<days; d++) remaining = tryFillDay(d, remaining);
     for(let d=0; d<days; d++){ if(dayAssignments[d].length < counts[d]) remaining = tryFillDay(d, remaining); }
     if(remaining.length) dayAssignments[days-1] = dayAssignments[days-1].concat(remaining);
@@ -4013,7 +4083,7 @@
     // Only Production targets go into the production rollout (matches confirmSchedule).
     const prodTargets = p.locationsList.filter(loc => loc.type === 'Production');
     if(manifestOrder.length !== prodTargets.length){
-      manifestOrder = prodTargets.map(loc => ({code: loc.code, type: loc.type, label: loc.label}));
+      manifestOrder = prodTargets.map(loc => ({code: loc.code, type: loc.type, label: loc.label, custom: loc.custom || {}}));
       // Only discard a manual day breakdown when it no longer fits the target
       // count. Previously it was always cleared here, so the very first
       // "Generate schedule" after spreading targets manually fell back to an
@@ -6279,6 +6349,8 @@
       const scope = (currentUser && Array.isArray(currentUser.projects)) ? currentUser.projects.map(String) : [];
       all = all.filter(r => scope.includes(String(r.projectKey)));
     }
+    // Drafts are not published yet — they must not appear in the deployer panel.
+    all = all.filter(r => !r.draft);
     // A production deployment is only actionable by the installer once the client has
     // approved it. Pending / commented / rejected prod schedules stay hidden here.
     // Paused deployments are shown separately (read-only, with the pause reason).
@@ -6803,6 +6875,15 @@
     showToast(tf('dtl.dayCountSet', {day, n: perDay[di].length}));
   }
 
+  function filterQueueRows(idx, q){
+    const box = document.getElementById('queue-tbl-' + idx);
+    if(!box) return;
+    q = String(q || '').toLowerCase().trim();
+    box.querySelectorAll('tr.queue-row').forEach(row=>{
+      row.style.display = (!q || (row.dataset.loc || '').includes(q)) ? '' : 'none';
+    });
+  }
+
   function moveBatchQueueLocation(batchIdx, queueIdx, where){
     const d = DEPLOYMENTS_DATA[batchIdx];
     const q = getBatchPendingQueue(d);
@@ -6889,9 +6970,11 @@
 
   let commentClock = 0; // ensures each new comment gets a strictly increasing timestamp
   function nowStamp(){
-    // Base "now" for the mockup, advanced by a few seconds per comment so ordering is stable.
-    const base = new Date('2026-07-04T14:20:00');
-    base.setSeconds(base.getSeconds() + (commentClock++) * 7);
+    // Real wall-clock timestamp for timeline entries (status changes, comments,
+    // approvals). commentClock is kept only as a tiny tie-breaker so several
+    // entries created within the same second still keep a stable order.
+    const base = new Date();
+    base.setSeconds(base.getSeconds() + (commentClock++));
     const pad = n => String(n).padStart(2,'0');
     return {
       date: base.getFullYear() + '-' + pad(base.getMonth()+1) + '-' + pad(base.getDate()),
@@ -7108,14 +7191,15 @@
           </div>` : ''}
           <label style="margin-bottom:8px;">${tf('dtl.queueLabel', {n: queue.length})}</label>
           <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">${t('dtl.queueNote')}</p>
-          <div style="max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; margin-bottom:10px;">
+          <input type="text" placeholder="${t('dtl.queueSearch')}" oninput="filterQueueRows(${r.idx}, this.value)" style="width:100%; margin-bottom:8px; padding:6px 10px; font-size:12px;">
+          <div id="queue-tbl-${r.idx}" style="max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; margin-bottom:10px;">
             <table>
               <thead><tr><th>${t('dtl.thLocation')}</th><th>${t('dtl.thDay')}</th><th></th></tr></thead>
               <tbody>
                 ${queue.map((loc,qi)=>{
                   const dn = dayIndexForPosition(r, r.counts.installed + qi);
                   const isToday = dn === todayDay;
-                  return `<tr ${isToday ? 'style="background:var(--cyan-soft);"' : ''}>
+                  return `<tr class="queue-row" data-loc="${String(loc).toLowerCase()}" ${isToday ? 'style="background:var(--cyan-soft);"' : ''}>
                     <td>${loc}</td>
                     <td class="mono">${tf('dtl.day', {n: dn})}${isToday ? ` <span style="color:#0A6E7A; font-size:10.5px;">${t('dtl.today')}</span>` : ''}</td>
                     <td style="white-space:nowrap;">
