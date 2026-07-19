@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Per-day limit by a custom target column.** When building a schedule you can now choose whether the per-day *Restrict … / Max count* limit applies to the target *type* (default) or to any custom target column (e.g. a "size" or "region" column), so you can cap how many targets of a given attribute value go out on a day.
 - **Pin locations to a specific day.** Each day in the per-day breakdown has a *Pin locations* field — type target codes/labels separated by `;` (or commas/spaces) to force those targets onto that day (e.g. pilot locations on day 1). Pinned targets count against that day's total.
 - **Location search in the deployment queue.** The remaining-locations queue in the deployment details now has a search box to quickly find a target before moving it between days.
+- **Richer, localized schedule notifications.** "Schedule created" / "Approval request" notifications (Teams, Slack, e-mail) now include the deployment ID, applications/versions, environment, number of locations and working days, the start date/time and who created the schedule — fully translated to the selected UI language. Teams cards keep the line breaks so the details stay readable.
 
 ### Changed
 - **Re-importing a CSV updates existing targets.** Importing a targets CSV again now refreshes the type and custom-column values of targets that already exist (matched by name) and picks up new columns, instead of silently skipping known names.
