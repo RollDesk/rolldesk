@@ -522,6 +522,8 @@ window.RD_I18N.en = {
   "proj.defaultTimeNote": "The time at which a deployment usually begins.",
   "proj.skipWeekends": "Skip weekends in the schedule",
   "proj.skipWeekendsNote": "When enabled, the auto-generated schedule skips Saturdays and Sundays.",
+  "proj.testApproval": "Test environment also requires client approval",
+  "proj.testApprovalNote": "When enabled, deployments to test environments (e.g. ŚT) also wait for the client's approval, just like production.",
   "proj.saveDefaults": "Save defaults",
   "proj.defaultsSaved": "Deployment defaults saved",
   "np.name": "Project name",
