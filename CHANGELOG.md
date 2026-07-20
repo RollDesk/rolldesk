@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-07-20
+
+### Added
+- **Per-day limit by a custom column now sources real values.** The "Restrict type" dropdown in *Spread across days* lists the actual values of the chosen attribute (target type, or a custom column such as "Rodzaj Urzędu") read from the project's targets — no more stale `SP/UM/UD` placeholder.
+- **Assign a deployer to a deployment.** In the deployer panel each deployment has an assignee selector scoped to the deployers granted access to that project (plus "assign to me"); changing it no longer resets any unsaved "failed" ticks or reason text.
+- **Daily installation-status notifications.** A new subscribable *Daily installation status* event sends the per-day summary (installed / failed counts, failed list and reason) to the client's webhooks / project e-mail after each day is reported — not only on completion. This also covers notifying on a failed location.
+- **Client-approval badge in the deployer panel.** Production cards now show "✓ approved by client" (or the pending/commented/rejected state) directly, instead of only on the timeline.
+- **Deployer panel grouped by project.** Active deployments are grouped under a per-project subheader.
+- **Reports & history (read-only).** A collapsible panel in the deployer view lists completed installations filtered by "completed from" date and status (all / successful / with failures), with CSV export.
+
+### Fixed
+- **Real timestamps everywhere.** Removed leftover mockup dates (`2026-07-04`) that were still overriding the schedule-creation date, the global "today" used for day logic, and correction/reply comments — the timeline and change history now show the real date/time of each action.
+- **`failed` carries over to the next day on the first save.** Reporting a day with failures now completes that day and moves the failed targets to the next available day immediately, instead of requiring several attempts.
+- **Timeline shows when a day was reported.** "Deployed to N / Failed for N" entries use the moment the deployer saved the result, not the planned day date.
+- **XLS schedule keeps the app version as text.** Exported `.xls` no longer lets Excel (Polish locale) turn a version like `1.2.3` into a date (`01.02.2003`); the version and target-code cells are forced to text.
+
 ## [0.8.0] - 2026-07-19
 
 ### Added

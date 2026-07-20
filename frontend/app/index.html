@@ -1580,11 +1580,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.8.0"></script>
-<script src="i18n/en.js?v=0.8.0"></script>
+<script src="i18n/pl.js?v=0.9.0"></script>
+<script src="i18n/en.js?v=0.9.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.8.0';
+  const ROLLDESK_VERSION = '0.9.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -2160,6 +2160,7 @@
     {key:'started',   label:'Production deployment started'},
     {key:'paused',    label:'Distribution paused'},
     {key:'failure',   label:'Failure on a target'},
+    {key:'dayReport', label:'Daily installation status'},
     {key:'completed', label:'Deployment completed (with status)'},
   ];
   function defaultEventMap(){
@@ -3237,7 +3238,7 @@
     }
 
     const days = parseInt(document.getElementById('day-count').value) || 1;
-    const today = '2026-07-04';
+    const today = todayIso();
     // Real wall-clock time the schedule was created, shown on the timeline.
     const createdTime = (function(){ const d = new Date(); const p = n => String(n).padStart(2,'0'); return p(d.getHours()) + ':' + p(d.getMinutes()); })();
     const prodTargetCount = p.locationsList.filter(t=>t.type === 'Production').length;
@@ -3855,13 +3856,21 @@
     if(!constraintField) return loc.type;
     return String((loc.custom && loc.custom[constraintField] != null) ? loc.custom[constraintField] : '') ;
   }
+  // Targets to derive constraint values from. Before "Generate schedule" the
+  // manifest is empty, so fall back to the project's production targets — that's
+  // why the dropdown used to show a stale SP/UM/UD placeholder.
+  function scheduleTargetsPool(){
+    if(manifestOrder && manifestOrder.length) return manifestOrder;
+    const p = PROJECTS[currentProjectKey];
+    return (p && Array.isArray(p.locationsList)) ? p.locationsList.filter(l=>l.type === 'Production') : [];
+  }
   function currentTypes(){
+    const pool = scheduleTargetsPool();
     if(constraintField){
-      const vals = new Set(manifestOrder.map(l=>attrValueOf(l)).filter(v=>v !== ''));
-      return Array.from(vals);
+      const vals = new Set(pool.map(l=>attrValueOf(l)).filter(v=>v !== ''));
+      return Array.from(vals).sort();
     }
-    const types = new Set(manifestOrder.map(l=>l.type));
-    if(!types.size){ types.add('SP'); types.add('UM'); types.add('UD'); }
+    const types = new Set(pool.map(l=>l.type).filter(Boolean));
     return Array.from(types);
   }
   function onConstraintFieldChange(v){
@@ -5854,7 +5863,10 @@
     if(!rows.length){ showToast(t('sch.noBatch')); return; }
     const customFields = scheduleCustomFieldNames(r);
     const head = [t('rep.scheduleAppHdr'), t('rep.scheduleVerHdr'), t('rep.scheduleCodeHdr'), ...customFields, t('rep.scheduleDateHdr'), t('rep.scheduleDayHdr')];
-    const body = rows.map(x=>`<tr><td>${x.app}</td><td>${x.version}</td><td>${x.code}</td>${customFields.map(f=>`<td>${escapeHtml((x.custom&&x.custom[f])||'')}</td>`).join('')}<td>${x.date}</td><td>${x.dow}</td></tr>`).join('');
+    // Force text format on the version and code cells, otherwise Excel (esp. the
+    // Polish locale) turns "1.2.3" into a date like 01.02.2003.
+    const txt = "mso-number-format:'\\@';";
+    const body = rows.map(x=>`<tr><td>${escapeHtml(x.app)}</td><td style="${txt}">${escapeHtml(String(x.version))}</td><td style="${txt}">${escapeHtml(String(x.code))}</td>${customFields.map(f=>`<td>${escapeHtml((x.custom&&x.custom[f])||'')}</td>`).join('')}<td>${escapeHtml(x.date)}</td><td>${escapeHtml(x.dow)}</td></tr>`).join('');
     const htmlDoc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head><meta charset="utf-8"></head><body>
       <table border="1"><thead><tr>${head.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>
@@ -6060,6 +6072,16 @@
     return counts[dayNum - 1] || 0;
   }
 
+  // The current working day of a batch (1-based) and the pending targets that
+  // belong to it. Used by both the deployer card and the day-report handler so
+  // the shown batch and the saved batch always match.
+  function currentDayNum(d){ return dayIndexForPosition(d, d.counts.installed); }
+  function todaysPendingBatch(d){
+    const q = getBatchPendingQueue(d);
+    const perDay = pendingQueueByDay(d, q);
+    return (perDay[currentDayNum(d) - 1] || []).slice();
+  }
+
   // Whether a project's auto-generated schedule should skip weekends. Defaults
   // to true (legacy behaviour) when the project has no explicit setting.
   function projectSkipsWeekends(projectKey){
@@ -6216,17 +6238,28 @@
 
     if(r.mode === 'batch'){
       const hist = getBatchHistoryRows(r);
-      const byDate = {};
-      hist.forEach(h=>{ (byDate[h.date] = byDate[h.date] || []).push(h.location); });
-      Object.keys(byDate).sort().forEach(date=>{
-        events.push({date, time: r.time, icon:'✅', text: tf('dtl.deployedTo', {n: byDate[date].length}), locations: byDate[date]});
+      // Group by the moment the deployer reported the result (real timestamp)
+      // when available, falling back to the planned day date for legacy rows.
+      const byKey = {};
+      hist.forEach(h=>{
+        const dk = h.reportedDate || h.date;
+        const tk = h.reportedTime || r.time;
+        const key = dk + '|' + tk;
+        (byKey[key] = byKey[key] || {date: dk, time: tk, locs: []}).locs.push(h.location);
+      });
+      Object.values(byKey).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).forEach(g=>{
+        events.push({date: g.date, time: g.time, icon:'✅', text: tf('dtl.deployedTo', {n: g.locs.length}), locations: g.locs});
       });
       if(r.failedLocations && r.failedLocations.length){
-        const byDateF = {};
-        r.failedLocations.forEach(f=>{ (byDateF[f.date] = byDateF[f.date] || []).push(f); });
-        Object.keys(byDateF).sort().forEach(date=>{
-          const items = byDateF[date];
-          events.push({date, time: r.time, icon:'⚠️', text: tf('dtl.failedFor', {n: items.length, reason: items[0].reason}), locations: items.map(i=>i.location)});
+        const byKeyF = {};
+        r.failedLocations.forEach(f=>{
+          const dk = f.reportedDate || f.date;
+          const tk = f.reportedTime || r.time;
+          const key = dk + '|' + tk;
+          (byKeyF[key] = byKeyF[key] || {date: dk, time: tk, items: []}).items.push(f);
+        });
+        Object.values(byKeyF).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).forEach(g=>{
+          events.push({date: g.date, time: g.time, icon:'⚠️', text: tf('dtl.failedFor', {n: g.items.length, reason: g.items[0].reason}), locations: g.items.map(i=>i.location)});
         });
       }
     } else {
@@ -6333,9 +6366,13 @@
 
   // Installers who can be assigned to a deployment (scoped to the project when possible).
   function installersForProject(projectKey){
-    const all = USERS.filter(u=>u.role === 'installer' && !u.archived);
-    const scoped = all.filter(u=>(u.projects||[]).includes(projectKey));
-    return (scoped.length ? scoped : all).map(u=>u.name);
+    // Only deployers who were granted access to this project (per the user's
+    // choice). The signed-in deployer can always pick themselves.
+    const scoped = USERS.filter(u=>u.role === 'installer' && !u.archived && (u.projects||[]).map(String).includes(String(projectKey)));
+    const names = scoped.map(u=>u.name);
+    const me = actorName();
+    if(currentLoggedInRole === 'installer' && me && !names.includes(me)) names.push(me);
+    return Array.from(new Set(names)).sort();
   }
 
   function assignDeployment(idx, name){
@@ -6343,8 +6380,10 @@
     d.assignedTo = name || null;
     logAudit('changed','Deployment','Assigned deployer: ' + (name||'—') + ' to ' + (d.id||''), (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.assigned', {name: name||'—', id: d.id||''});
     persistDeployment(idx);
-    renderInstallerPanel();
-    showToast(name ? ('Assigned: ' + name) : 'Assignment removed');
+    // Update just the assignee select(s) — a full re-render here would wipe any
+    // unsaved "failed" ticks / reason text in the day-report form.
+    document.querySelectorAll(`select[data-assignee="${idx}"]`).forEach(sel=>{ sel.value = name || ''; });
+    showToast(name ? tf('rep.assignedTo', {who: name}) : t('rep.assignRemoved'));
   }
 
   function assignToMe(idx){
@@ -6355,34 +6394,128 @@
     return r.internal ? ' <span class="mono" style="font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; background:#EDE7F6; color:#5B3EA6; vertical-align:middle;">🔒 INTERNAL</span>' : '';
   }
 
+  // Small badge making the client's approval state explicit in the deployer
+  // panel (previously only visible on the timeline).
+  function clientApprovedBadge(r){
+    if(r.env !== 'Production' || !r.clientApproval) return '';
+    if(r.clientApproval === 'approved') return ' <span class="mono" style="font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; background:var(--green-soft); color:#0F7A38; vertical-align:middle;">✓ ' + t('rep.clientApproved') + '</span>';
+    const map = {pending: t('rep.stPending'), commented: t('rep.stCommented'), rejected: t('rep.stRejected')};
+    return ' <span class="mono" style="font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; background:#FDF1E1; color:#8A5A05; vertical-align:middle;">⏳ ' + (map[r.clientApproval]||r.clientApproval) + '</span>';
+  }
+
   // Assignment control (select of installers + "assign to me"). Not shown to the client.
   function assigneeControlHtml(r){
     const options = installersForProject(r.projectKey);
     const cur = r.assignedTo || '';
     return `<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:2px 0 10px 0;">
-      <span style="font-size:11.5px; color:var(--text-muted);">Wykonuje:</span>
-      <select onchange="assignDeployment(${r.idx}, this.value)" style="font-size:11.5px; padding:3px 8px; border:1px solid var(--line); border-radius:6px;">
-        <option value="">— nieprzypisane —</option>
+      <span style="font-size:11.5px; color:var(--text-muted);">${t('rep.assignee')}</span>
+      <select data-assignee="${r.idx}" onchange="assignDeployment(${r.idx}, this.value)" style="font-size:11.5px; padding:3px 8px; border:1px solid var(--line); border-radius:6px;">
+        <option value="">${t('rep.unassigned')}</option>
         ${options.map(n=>`<option value="${n}" ${n===cur?'selected':''}>${n}</option>`).join('')}
       </select>
-      <button class="mini-btn" style="font-size:10.5px;" onclick="assignToMe(${r.idx})">Assign to me</button>
+      <button class="mini-btn" style="font-size:10.5px;" onclick="assignToMe(${r.idx})">${t('rep.assignToMe')}</button>
     </div>`;
+  }
+
+  // ---- Deployer reports & history (read-only) ----
+  let installerReportOpen = false;
+  let lastInstallerReport = [];
+  function toggleInstallerReport(){
+    installerReportOpen = !installerReportOpen;
+    renderInstallerPanel();
+  }
+  function completedDeploymentDate(r){
+    return r.mode === 'batch' ? (getDateForDay(r, r.days) || r.historyStart || r.createdDate) : (r.date || r.createdDate);
+  }
+  function installerReportPanelHtml(){
+    return `<div class="card" style="margin-bottom:20px; border-left:3px solid var(--cyan);">
+      <div class="toolbar" style="margin-bottom:${installerReportOpen ? '12px' : '0'};">
+        <strong style="font-size:13px;">📊 ${t('rep.reportTitle')}</strong>
+        <button class="mini-btn" onclick="toggleInstallerReport()">${installerReportOpen ? t('rep.reportHide') : t('rep.reportShow')}</button>
+      </div>
+      <div style="display:${installerReportOpen ? 'block' : 'none'};">
+        <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;">${t('rep.reportNote')}</p>
+        <div class="grid-2" style="gap:10px;">
+          <div class="field"><label>${t('rep.reportFrom')}</label><input type="date" id="report-from"></div>
+          <div class="field"><label>${t('rep.reportStatus')}</label>
+            <select id="report-status">
+              <option value="all">${t('rep.reportStAll')}</option>
+              <option value="ok">${t('rep.reportStOk')}</option>
+              <option value="failed">${t('rep.reportStFailed')}</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn" onclick="generateInstallerReport()">${t('rep.reportGenerate')}</button>
+          <button class="mini-btn" onclick="downloadInstallerReportCsv()">${t('rep.reportCsv')}</button>
+        </div>
+        <div id="installer-report-results" style="margin-top:12px;"></div>
+      </div>
+    </div>`;
+  }
+  function generateInstallerReport(){
+    const fromVal = (document.getElementById('report-from')||{}).value || '';
+    const statusVal = (document.getElementById('report-status')||{}).value || 'all';
+    const completed = installerScopedDeployments().filter(r => (r.mode==='batch' && r.counts.scheduled===0) || (r.mode==='single' && r.status!=='scheduled'));
+    let rows = completed.map(r=>{
+      const failed = (r.failedLocations||[]).length;
+      const total = r.mode==='batch' ? r.totalLocations : 1;
+      const installed = r.mode==='batch' ? r.counts.installed : (r.status==='installed' ? 1 : 0);
+      return {
+        project: r.project.name || r.projectKey, client: r.project.clientName || '',
+        apps: (r.apps||[]).map(a=>a.name + (a.version ? ' v'+a.version : '')).join(', '),
+        env: r.env, date: completedDeploymentDate(r) || '', installed, total, failed,
+        outcome: (typeof deploymentOutcome==='function' ? deploymentOutcome(r).label : '')
+      };
+    });
+    if(fromVal) rows = rows.filter(x => x.date && x.date >= fromVal);
+    if(statusVal === 'ok') rows = rows.filter(x => x.failed === 0);
+    else if(statusVal === 'failed') rows = rows.filter(x => x.failed > 0);
+    rows.sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+    lastInstallerReport = rows;
+    const box = document.getElementById('installer-report-results');
+    if(!box) return;
+    if(!rows.length){ box.innerHTML = `<div style="color:var(--text-muted); font-size:12.5px;">${t('rep.reportEmpty')}</div>`; return; }
+    const head = [t('proj.thProject'), t('proj.thClient'), t('rep.scheduleAppHdr'), t('rep.reportEnv'), t('rep.reportDate'), t('rep.reportInstalled'), t('rep.reportFailedCol'), t('rep.reportOutcome')];
+    box.innerHTML = `<div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">${tf('rep.reportCount', {n: rows.length})}</div>
+      <div style="max-height:320px; overflow:auto; border:1px solid var(--line); border-radius:8px;">
+        <table><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map(x=>`<tr>
+          <td>${escapeHtml(x.project)}</td><td>${escapeHtml(x.client)}</td><td>${escapeHtml(x.apps)}</td>
+          <td>${escapeHtml(x.env)}</td><td class="mono">${escapeHtml(fmtDate(x.date))}</td>
+          <td class="mono">${x.installed}/${x.total}</td><td class="mono" style="color:${x.failed?'#A81E1E':'inherit'};">${x.failed}</td>
+          <td>${escapeHtml(x.outcome)}</td></tr>`).join('')}</tbody></table>
+      </div>`;
+  }
+  function downloadInstallerReportCsv(){
+    if(!lastInstallerReport.length){ generateInstallerReport(); }
+    if(!lastInstallerReport.length){ showToast(t('rep.reportEmpty')); return; }
+    const head = ['Project','Client','Applications','Environment','Date','Installed','Total','Failed','Outcome'];
+    const esc = v => { v = String(v==null?'':v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v; };
+    const lines = [head.join(';')].concat(lastInstallerReport.map(x=>[x.project,x.client,x.apps,x.env,x.date,x.installed,x.total,x.failed,x.outcome].map(esc).join(';')));
+    const csv = '\uFEFF' + lines.join('\r\n');
+    if(downloadBlob(csv, 'rolldesk-report.csv', 'text/csv;charset=utf-8'))
+      showToast(tf('rep.reportCount', {n: lastInstallerReport.length}));
+  }
+
+  // Deployments visible in the deployer panel: scoped to the deployer's granted
+  // projects (admin/RM see all) and never drafts. Shared by the panel and the
+  // report generator so both use exactly the same set.
+  function installerScopedDeployments(){
+    let all = DEPLOYMENTS_DATA.map((d,i)=>Object.assign({idx:i}, d, {
+      project: PROJECTS[d.projectKey] || {name: d.projectKey || 'Unknown project', clientName:'', testEnvs:[], apps:[], locationsList:[]}
+    }));
+    if(currentLoggedInRole === 'installer'){
+      const scope = (currentUser && Array.isArray(currentUser.projects)) ? currentUser.projects.map(String) : [];
+      all = all.filter(r => scope.includes(String(r.projectKey)));
+    }
+    return all.filter(r => !r.draft);
   }
 
   function renderInstallerPanel(){
     const wrap = document.getElementById('installer-list');
     if(!wrap) return;
-    let all = DEPLOYMENTS_DATA.map((d,i)=>Object.assign({idx:i}, d, {
-      project: PROJECTS[d.projectKey] || {name: d.projectKey || 'Unknown project', clientName:'', testEnvs:[], apps:[], locationsList:[]}
-    }));
-    // A Deployer only sees deployments of the projects they were granted in the
-    // Users tab. Admin / Release Manager keep the full cross-project view.
-    if(currentLoggedInRole === 'installer'){
-      const scope = (currentUser && Array.isArray(currentUser.projects)) ? currentUser.projects.map(String) : [];
-      all = all.filter(r => scope.includes(String(r.projectKey)));
-    }
-    // Drafts are not published yet — they must not appear in the deployer panel.
-    all = all.filter(r => !r.draft);
+    let all = installerScopedDeployments();
     // A production deployment is only actionable by the installer once the client has
     // approved it. Pending / commented / rejected prod schedules stay hidden here.
     // Paused deployments are shown separately (read-only, with the pause reason).
@@ -6396,6 +6529,10 @@
     const completed = all.filter(r => (r.mode==='batch' && r.counts.scheduled===0) || (r.mode==='single' && r.status!=='scheduled'));
 
     let html = '';
+
+    // Reports & history (collapsible): completed installations filtered by date
+    // and status, with CSV export. Read-only — no corrections here.
+    html += installerReportPanelHtml();
 
     // Paused deployments — visible, clearly flagged, not actionable until resumed.
     if(paused.length){
@@ -6443,14 +6580,12 @@
     if(!active.length){
       html += '<div class="card" style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">'+t('rep.noActive')+'</div>';
     } else {
-      html += active.map(r=>{
+      const renderActiveCard = (r)=>{
         const appsLabel = r.apps.map(a=>`${a.name} v${a.version}`).join(', ');
         const envClass = r.env === 'Production' ? 'prod' : 'test';
         if(r.mode === 'batch'){
-          const queue = getBatchPendingQueue(r);
           const todayDay = dayIndexForPosition(r, r.counts.installed);
-          const daySize = Math.min(computeDayCount(r, todayDay), queue.length);
-          const todayBatch = queue.slice(0, daySize);
+          const todayBatch = todaysPendingBatch(r);
 
           // After saving, show a confirmation state instead of the batch form —
           // the deployer must click "Next" to move to the next day. Nothing
@@ -6475,7 +6610,7 @@
           }
 
           return `<div class="card" id="installer-card-${r.idx}" style="margin-bottom:14px;">
-            <strong style="font-size:13px;">${r.project.name} — ${appsLabel}${deployIdBadge(r)}${internalBadge(r)}</strong>
+            <strong style="font-size:13px;">${r.project.name} — ${appsLabel}${deployIdBadge(r)}${internalBadge(r)}${clientApprovedBadge(r)}</strong>
             <div style="font-size:11.5px; color:var(--text-muted); margin:4px 0 12px 0;"><span class="env-tag ${envClass}">${r.env}</span> · ${tf('rep.dayProgress', {day: todayDay, done: r.counts.installed, total: r.totalLocations})}</div>
             ${depWarningHtml(r)}
             ${installerNotesHtml(r)}
@@ -6502,7 +6637,7 @@
           </div>`;
         } else {
           return `<div class="card" id="installer-card-${r.idx}" style="margin-bottom:14px;">
-            <strong style="font-size:13px;">${r.project.name} — ${appsLabel}${deployIdBadge(r)}${internalBadge(r)}</strong>
+            <strong style="font-size:13px;">${r.project.name} — ${appsLabel}${deployIdBadge(r)}${internalBadge(r)}${clientApprovedBadge(r)}</strong>
             <div style="font-size:11.5px; color:var(--text-muted); margin:4px 0 12px 0;"><span class="env-tag ${envClass}">${r.env}</span> · ${r.location} · ${fmtDate(r.date)} ${fmtTime(r.time)}</div>
             ${depWarningHtml(r)}
             ${installerNotesHtml(r)}
@@ -6523,11 +6658,22 @@
             <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'i'); renderInstallerPanel();">${t('dcard.saveComment')}</button>
           </div>`;
         }
-      }).join('');
+      };
+      // Group the active cards by project with a subheader, so a deployer with
+      // several projects sees them clearly separated.
+      let _curProj = null;
+      html += active.slice()
+        .sort((a,b)=> (a.project.name||'').localeCompare(b.project.name||'') || (a.idx - b.idx))
+        .map(r=>{
+          let prefix = '';
+          const pn = r.project.name || '';
+          if(pn !== _curProj){ _curProj = pn; prefix = `<div style="font-size:12px; font-weight:700; color:var(--text-muted); margin:6px 0 8px 0; padding-bottom:4px; border-bottom:1px solid var(--line);">📁 ${pn}</div>`; }
+          return prefix + renderActiveCard(r);
+        }).join('');
     }
 
     // Split completed into recent (last 14 days) and archive (older).
-    const NOW = new Date('2026-07-04');
+    const NOW = new Date();
     const completedDate = r => {
       const iso = r.mode === 'batch' ? (getDateForDay(r, r.days) || r.historyStart || r.createdDate) : (r.date || r.createdDate);
       return iso ? new Date(iso) : NOW;
@@ -6655,7 +6801,8 @@
       d.history = d.history || [];
       d.history.push({location: loc, date: d.historyStart, time: d.time});
       d.comments = d.comments || [];
-      d.comments.push({date:'2026-07-04', time:'15:30', author:'Deployer', text:'Correction (→ successful): „' + loc + '” — ' + reason});
+      const _cs = nowStamp();
+      d.comments.push({date:_cs.date, time:_cs.time, author: actorName(), text:'Correction (→ successful): „' + loc + '” — ' + reason});
       renderInstallerPanel();
       renderDeploymentsTable();
       showToast('Correction saved — „' + loc + '” marked as successful');
@@ -6672,7 +6819,8 @@
     d.pendingQueue.unshift(loc); // now queue length matches the incremented count
     d.failedLocations.push({location: loc, date: entry.date, time: entry.time, reason});
     d.comments = d.comments || [];
-    d.comments.push({date:'2026-07-04', time:'15:30', author:'Deployer', text:'Correction (→ failed): „' + loc + '” — ' + reason});
+    const _cf = nowStamp();
+    d.comments.push({date:_cf.date, time:_cf.time, author: actorName(), text:'Correction (→ failed): „' + loc + '” — ' + reason});
     renderInstallerPanel();
     renderDeploymentsTable();
     showToast('Correction saved — „' + loc + '” returns to the queue as failed');
@@ -6686,7 +6834,8 @@
     d.status = targetStatus;
     d.comments = d.comments || [];
     const label = targetStatus === 'installed' ? 'successful' : 'failed';
-    d.comments.push({date:'2026-07-04', time:'15:30', author:'Deployer', text: 'Correction (→ ' + label + '): ' + reason});
+    const _sc = nowStamp();
+    d.comments.push({date:_sc.date, time:_sc.time, author: actorName(), text: 'Correction (→ ' + label + '): ' + reason});
     renderInstallerPanel();
     renderDeploymentsTable();
     showToast('Correction saved — marked as ' + label);
@@ -6771,10 +6920,11 @@
     scope = scope || 'w';
     const d = DEPLOYMENTS_DATA[idx];
     if(d.paused){ showToast(t('pause.blockedProgress')); return; }
-    const queue = getBatchPendingQueue(d);
-    const dayNum = dayIndexForPosition(d, d.counts.installed);
-    const daySize = Math.min(computeDayCount(d, dayNum), queue.length);
-    const todayBatch = queue.splice(0, daySize);
+    const dayNum = currentDayNum(d);
+    // Per-day split of everything still pending; the current day's bucket is
+    // exactly what the card shows, so the saved set matches the UI.
+    const perDay = pendingQueueByDay(d, getBatchPendingQueue(d)).map(a=>a.slice());
+    const todayBatch = (perDay[dayNum - 1] || []).slice();
 
     const allChecks = document.querySelectorAll(`.today-fail-check[data-batch="${idx}"][data-scope="${scope}"]`);
     const failedSet = new Set(Array.from(allChecks).filter(c=>!c.checked).map(c=>c.value));
@@ -6787,8 +6937,9 @@
     getBatchHistoryRows(d); // ensure d.history is initialized before we append to it
     const who = actorName();
     if(!d.assignedTo) d.assignedTo = who;
+    const rep = nowStamp(); // real time the deployer reported this day's result
     const dateStr = getDateForDay(d, dayNum);
-    successList.forEach(loc=> d.history.push({location: loc, date: dateStr, time: d.time}));
+    successList.forEach(loc=> d.history.push({location: loc, date: dateStr, time: d.time, reportedDate: rep.date, reportedTime: rep.time}));
     d.counts.installed += successList.length;
     d.counts.scheduled -= successList.length;
 
@@ -6796,21 +6947,40 @@
     d.dayReports = d.dayReports || {};
     d.dayReports[dayNum] = {by: who, success: successList.length, failed: failedList.length};
     d.comments = d.comments || [];
-    const _s = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'15:00'};
-    d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'🧑‍🔧', text:`Day ${dayNum} completed: ${successList.length} OK${failedList.length ? ', ' + failedList.length + ' failed' : ''}`});
+    d.comments.push({date: rep.date, time: rep.time, author: who, type:'system', icon:'🧑‍🔧', text:`Day ${dayNum} completed: ${successList.length} OK${failedList.length ? ', ' + failedList.length + ' failed' : ''}`});
 
     if(failedList.length){
       d.failedLocations = d.failedLocations || [];
-      failedList.forEach(loc=> d.failedLocations.push({location: loc, date: dateStr, time: d.time, reason: reason || '—'}));
-      d.pendingQueue = failedList.concat(queue); // retry first thing next available day
-    } else {
-      d.pendingQueue = queue;
+      failedList.forEach(loc=> d.failedLocations.push({location: loc, date: dateStr, time: d.time, reportedDate: rep.date, reportedTime: rep.time, reason: reason || '—'}));
     }
+    // Complete the reported day (its pending bucket is now empty) and carry any
+    // failures over to the next available day — so the panel advances to the
+    // next day on the first save instead of retrying the same day.
+    perDay[dayNum - 1] = [];
+    if(failedList.length){
+      if(dayNum < d.days) perDay[dayNum] = failedList.concat(perDay[dayNum] || []);
+      else perDay[d.days - 1] = (perDay[d.days - 1] || []).concat(failedList);
+    }
+    applyPendingByDay(d, perDay);
 
     persistDeployment(idx);
     renderDeploymentsTable();
     if(scope === 'i'){
       reportedResults[idx] = {day: dayNum, success: successList.length, failed: failedList.length};
+    }
+    // Per-day installation status to the client's webhooks / project e-mail:
+    // installed + failed counts (and failure reason/list), so status is visible
+    // per day in Teams/Slack, not only on completion. Opt-in per client/event.
+    if(successList.length || failedList.length){
+      const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
+      const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
+      let body = (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '')
+        + '\n' + tf('notif.dayReportBody', {day: dayNum, ok: successList.length, failed: failedList.length});
+      if(failedList.length){
+        body += '\n' + tf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
+        if(reason) body += '\n' + t('rep.correctionReason') + ': ' + reason;
+      }
+      dispatchEventNotification('dayReport', d.projectKey, 'RollDesk — ' + t('ev.dayReport'), body, true);
     }
     renderInstallerPanel();
     showToast(successList.length + ' installed' + (failedList.length ? `, ${failedList.length} reported as failed — carried over to the next day` : ''));
@@ -7099,7 +7269,7 @@
     // relevant. Older records remain reachable via the "All history" option.
     let hiddenByRange = 0;
     if(rangeVal !== 'all'){
-      const NOW = new Date('2026-07-04');
+      const NOW = new Date();
       const cutoff = new Date(NOW);
       cutoff.setDate(cutoff.getDate() - parseInt(rangeVal));
       const relevantDate = r => {
@@ -7617,7 +7787,8 @@
       if(reply === null) return;
       d.clientReply = reply.trim();
       d.comments = d.comments || [];
-      d.comments.push({date:'2026-07-04', time:'12:00', author:'Release Manager', text:'Reply to the client comment: ' + d.clientReply});
+      const _rr = nowStamp();
+      d.comments.push({date:_rr.date, time:_rr.time, author: actorName(), text:'Reply to the client comment: ' + d.clientReply});
       persistDeployment(idx);
       renderDeploymentsTable();
       showToast('Reply saved — notification sent to the client');
