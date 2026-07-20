@@ -522,6 +522,8 @@ window.RD_I18N.pl = {
   "proj.defaultTimeNote": "Godzina, o której zwykle rozpoczyna się wdrożenie.",
   "proj.skipWeekends": "Pomijaj weekendy w harmonogramie",
   "proj.skipWeekendsNote": "Gdy włączone, automatycznie generowany harmonogram omija soboty i niedziele.",
+  "proj.testApproval": "Środowisko testowe też wymaga akceptacji klienta",
+  "proj.testApprovalNote": "Gdy włączone, wdrożenia na środowiska testowe (np. ŚT) także czekają na akceptację klienta — tak jak produkcja.",
   "proj.saveDefaults": "Zapisz ustawienia domyślne",
   "proj.defaultsSaved": "Zapisano domyślne parametry wdrożenia",
   "np.name": "Nazwa projektu",

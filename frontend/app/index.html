@@ -716,6 +716,10 @@
           <input type="checkbox" id="project-skip-weekends" style="width:auto;" checked> <span data-i18n="proj.skipWeekends">Skip weekends in the schedule</span>
         </label>
         <p style="font-size:11px; color:var(--text-faint); margin:0 0 12px 0;" data-i18n="proj.skipWeekendsNote">When enabled, the auto-generated schedule skips Saturdays and Sundays.</p>
+        <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400; margin:4px 0 12px 0;">
+          <input type="checkbox" id="project-test-approval" style="width:auto;"> <span data-i18n="proj.testApproval">Test environment also requires client approval</span>
+        </label>
+        <p style="font-size:11px; color:var(--text-faint); margin:0 0 12px 0;" data-i18n="proj.testApprovalNote">When enabled, deployments to test environments (e.g. ŚT) also wait for the client's approval, just like production.</p>
         <button class="btn" onclick="saveProjectDefaults()" data-i18n="proj.saveDefaults">Save defaults</button>
       </div>
 
@@ -1580,11 +1584,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.9.0"></script>
-<script src="i18n/en.js?v=0.9.0"></script>
+<script src="i18n/pl.js?v=0.9.1"></script>
+<script src="i18n/en.js?v=0.9.1"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.9.0';
+  const ROLLDESK_VERSION = '0.9.1';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -2951,6 +2955,8 @@
     if(ddTime) ddTime.value = p.defaultTime || '20:00';
     const skipWkndEl = document.getElementById('project-skip-weekends');
     if(skipWkndEl) skipWkndEl.checked = (p.skipWeekends !== false);
+    const testApprEl = document.getElementById('project-test-approval');
+    if(testApprEl) testApprEl.checked = !!p.testNeedsApproval;
     // The rollout-preview note depends on the per-project weekend setting.
     const weekendNoteEl = document.getElementById('sch-weekends-note');
     if(weekendNoteEl) weekendNoteEl.textContent = t(p.skipWeekends !== false ? 'sch.weekendsNote' : 'sch.weekendsNoteIncluded');
@@ -2986,9 +2992,11 @@
     const days = parseInt(document.getElementById('project-default-days').value) || 5;
     const time = document.getElementById('project-default-time').value || '20:00';
     const skipWkndEl = document.getElementById('project-skip-weekends');
+    const testApprEl = document.getElementById('project-test-approval');
     p.defaultDays = days < 1 ? 1 : days;
     p.defaultTime = time;
     p.skipWeekends = skipWkndEl ? skipWkndEl.checked : true;
+    p.testNeedsApproval = testApprEl ? testApprEl.checked : false;
     persistProject(currentProjectKey);
     logAudit('changed', 'Project', 'Changed deployment defaults (' + p.defaultDays + ' working days, start ' + p.defaultTime + ', weekends ' + (p.skipWeekends ? 'skipped' : 'included') + ')', p.name + ' (' + p.clientName + ')', 'aud.d.projDefaults', {days: p.defaultDays, time: p.defaultTime, weekends: t(p.skipWeekends ? 'aud.d.wkSkipped' : 'aud.d.wkIncluded')});
     showToast(t('proj.defaultsSaved'));
@@ -3267,14 +3275,18 @@
     const created = [];
     const createdIdsStart = DEPLOYMENTS_DATA.length;
 
-    // Test-environment deployments (one single-install record per selected env)
+    // Test-environment deployments (one single-install record per selected env).
+    // When the project opts in, test deployments also wait for client approval.
+    const testNeedsApproval = !isInternal && !!p.testNeedsApproval && approvalPolicyFor(p) !== 'none';
     if(path === 'test-only' || path === 'test-prod'){
       const envs = testEnvs.length ? testEnvs : (p.testEnvs.length ? [p.testEnvs[0]] : ['Test']);
       envs.forEach(env=>{
         DEPLOYMENTS_DATA.push(Object.assign({
           projectKey: currentProjectKey, apps, env, mode:'single',
           location:'Environment ' + env, date: testDate, time: testTime,
-          createdDate: today, createdTime, status:'scheduled', comments:[], id: nextDeploymentId(), _seq: ++deploymentSeq
+          createdDate: today, createdTime, status:'scheduled', comments:[],
+          clientApproval: testNeedsApproval ? 'pending' : undefined,
+          id: nextDeploymentId(), _seq: ++deploymentSeq
         }, commonMeta));
         created.push('test');
       });
@@ -3321,7 +3333,9 @@
     renderInstallerPanel();
 
     const includesProd = created.includes('prod');
-    const needsApproval = includesProd && !isInternal && approvalPolicyFor(p) !== 'none';
+    const includesTest = created.includes('test');
+    const needsApproval = !isInternal && approvalPolicyFor(p) !== 'none'
+      && (includesProd || (includesTest && !!p.testNeedsApproval));
     const attachNote = attachment ? ' (with attachment: ' + attachment + ')' : '';
     if(isDraft){
       showToast(t('sch.draftSaved'));
@@ -4814,7 +4828,7 @@
     const pk = r.projectKey;
     const p = PROJECTS[pk] || {};
     const projName = p.name || pk;
-    const needsApproval = r.env === 'Production' && (typeof approvalPolicyFor === 'function' ? approvalPolicyFor(p) !== 'none' : true);
+    const needsApproval = !!r.clientApproval && r.clientApproval !== 'approved';
     const recipients = notifySummary(needsApproval ? 'approval' : 'created', pk, true);
     showAppConfirm(t('draft.notifyTitle'), tf('draft.notifyBody', {project: projName, recipients}), ()=>{
 
@@ -5013,9 +5027,7 @@
       cells.push(`<td class="mono">${d.time}</td>`);
       cells.push(`<td><span class="pill ${d.status}">${statusLabel[d.status]}</span></td>`);
 
-      if(d.env !== 'Production'){
-        cells.push(`<td style="color:var(--text-faint); font-size:12px;">—</td>`);
-      } else if(d.clientApproval === 'pending'){
+      if(d.clientApproval === 'pending'){
         cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();">
           <button class="mini-btn" onclick="clientRespondApproval('${d.depId}', 'approved')">${t('client.approve')}</button>
           <button class="mini-btn" onclick="clientRespondApproval('${d.depId}', 'reschedule')">${t('client.proposeDate')}</button>
@@ -6181,7 +6193,7 @@
     const created = d.date; // schedule date as a stand-in for "created"
     events.push({date: created, icon:'📝', text: tf('tl.created', {app: d.app, version: d.version, env: d.env})});
 
-    if(d.env === 'Production'){
+    if(d.env === 'Production' || d.clientApproval){
       events.push({date: created, icon:'📧', text: t('tl.reqApprove')});
       if(d.clientApproval === 'approved'){
         events.push({date: d.clientApprovalDate || created, time: d.clientApprovalTime, icon:'✅', text: d.clientApprovalBy ? tf('tl.approvedBy', {who: d.clientApprovalBy}) : t('tl.approved')});
@@ -6222,7 +6234,7 @@
       : ` (${locLabel})`;
     events.push({date: r.createdDate, time: r.createdTime, icon:'📝', text: tf('dtl.created', {by: `<strong>${createdBy}</strong>`, apps: appsLabel}) + createdSuffix});
 
-    if(r.env === 'Production'){
+    if(r.env === 'Production' || r.clientApproval){
       events.push({date: r.createdDate, time: r.createdTime, icon:'📧', text: t('dtl.approvalSent')});
       const who = r.clientApprovalBy ? `<strong>${r.clientApprovalBy}</strong>` : t('dtl.client');
       if(r.clientApproval === 'approved'){
@@ -6397,7 +6409,7 @@
   // Small badge making the client's approval state explicit in the deployer
   // panel (previously only visible on the timeline).
   function clientApprovedBadge(r){
-    if(r.env !== 'Production' || !r.clientApproval) return '';
+    if(!r.clientApproval) return '';
     if(r.clientApproval === 'approved') return ' <span class="mono" style="font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; background:var(--green-soft); color:#0F7A38; vertical-align:middle;">✓ ' + t('rep.clientApproved') + '</span>';
     const map = {pending: t('rep.stPending'), commented: t('rep.stCommented'), rejected: t('rep.stRejected')};
     return ' <span class="mono" style="font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; background:#FDF1E1; color:#8A5A05; vertical-align:middle;">⏳ ' + (map[r.clientApproval]||r.clientApproval) + '</span>';
@@ -6520,7 +6532,9 @@
     // approved it. Pending / commented / rejected prod schedules stay hidden here.
     // Paused deployments are shown separately (read-only, with the pause reason).
     function needsApprovalGate(r){
-      return r.env === 'Production' && r.clientApproval && r.clientApproval !== 'approved';
+      // Any deployment carrying an unresolved client approval (production, or a
+      // test env when the project opted in) stays gated until approved.
+      return r.clientApproval && r.clientApproval !== 'approved';
     }
     const isActive = r => (r.mode==='batch' && r.counts.scheduled>0) || (r.mode==='single' && r.status==='scheduled');
     const active = all.filter(r => isActive(r) && !r.paused && !needsApprovalGate(r));
@@ -7307,7 +7321,7 @@
     const totalCols = cols.length;
 
     function approvalBadgeHtml(r){
-      if(r.env !== 'Production') return '<td style="color:var(--text-faint); font-size:12px;">—</td>';
+      if(r.env !== 'Production' && !r.clientApproval) return '<td style="color:var(--text-faint); font-size:12px;">—</td>';
       const map = {
         pending:   {label:t('dep.aPending'),   bg:'#FDF1E1', color:'#8A5A05'},
         approved:  {label:t('dep.aApproved'),  bg:'var(--green-soft)', color:'#0F7A38'},
