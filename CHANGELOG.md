@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Per-project option: test environments also require client approval.** A new toggle in *Project → Deployment defaults* ("Test environment also requires client approval") makes test-env deployments (e.g. ŚT) wait for the client's sign-off, appear in the client portal to approve, and stay in the deployer's "Awaiting client approval" group — exactly like production. Off by default, so existing behaviour is unchanged.
 
+### Fixed
+- **Polish translations** for several leftover English strings: "Mark the rest", "X locations / working days", "Distribution start / Start / at", "Instructions for the deployer", the schedule-generated toast, and the "to finish / complete" progress labels. Weekday names (e.g. "Monday") in the deployer's waiting list and in notifications now follow the selected language.
+
 ## [0.9.0] - 2026-07-20
 
 ### Added

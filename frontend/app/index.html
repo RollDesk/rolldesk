@@ -2224,7 +2224,7 @@
       let startIso = r.historyStart;
       try { if(typeof getDateForDay === 'function') startIso = getDateForDay(r, 1); } catch(e){}
       if(startIso){
-        const dow = WEEKDAY_PL_FULL[new Date(startIso).getDay()] || '';
+        const dow = fmtDow(startIso);
         lines.push(t('notif.start') + ': ' + (dow ? dow + ', ' : '') + fmtDate(startIso)
           + (r.time ? ' ' + tf('notif.atTime', {time: fmtTime(r.time)}) : ''));
       }
@@ -4169,7 +4169,7 @@
     }
     renderManifestPreview(dayAssignments, dayLabels, testEnvs);
     if(!silent){
-      showToast('Schedule generated — ' + total + ' locations across ' + days + ' working days');
+      showToast(tf('sch.generatedToast', {total, days}));
       const previewEl = document.getElementById('schedule-rollout-preview');
       if(previewEl) previewEl.scrollIntoView({behavior:'smooth', block:'start'});
     }
@@ -6324,7 +6324,7 @@
   function installerNotesHtml(r){
     if(!r.installerNotes) return '';
     return `<div style="margin:8px 0 12px 0; padding:10px 12px; background:#EAF4FB; border:1px solid #BEE0F5; border-radius:8px;">
-      <div style="font-size:11.5px; font-weight:700; color:#0A6E7A; margin-bottom:4px;">📋 Instructions for the deployer</div>
+      <div style="font-size:11.5px; font-weight:700; color:#0A6E7A; margin-bottom:4px;">📋 ${t('rep.deployerInstr')}</div>
       <div style="font-size:12.5px; color:var(--ink); white-space:pre-line; line-height:1.5;">${r.installerNotes}</div>
     </div>`;
   }
@@ -6574,11 +6574,11 @@
         if(r.mode === 'batch'){
           const startIso = getDateForDay(r, 1);
           const endIso = getDateForDay(r, r.days);
-          const dow = WEEKDAY_PL_FULL[new Date(startIso).getDay()];
-          planHtml = `<div style="font-size:12.5px; color:var(--ink); margin-top:6px;">Distribution start: <strong>${dow}, ${shortDate(startIso)}</strong> <span style="color:var(--text-muted);">· ${r.days} working days, until ${shortDate(endIso)} · ${r.totalLocations} loc.</span></div>`;
+          const dow = fmtDow(startIso);
+          planHtml = `<div style="font-size:12.5px; color:var(--ink); margin-top:6px;">${t('rep.distStart')}: <strong>${dow}, ${shortDate(startIso)}</strong> <span style="color:var(--text-muted);">· ${tf('rep.planMeta', {days: r.days, end: shortDate(endIso), n: r.totalLocations})}</span></div>`;
         } else {
-          const dow = r.date ? WEEKDAY_PL_FULL[new Date(r.date).getDay()] : '';
-          planHtml = `<div style="font-size:12.5px; color:var(--ink); margin-top:6px;">Start: <strong>${dow}, ${r.date ? shortDate(r.date) : '—'}</strong>${r.time ? ' at ' + r.time : ''}</div>`;
+          const dow = r.date ? fmtDow(r.date) : '';
+          planHtml = `<div style="font-size:12.5px; color:var(--ink); margin-top:6px;">${t('rep.startLabel')}: <strong>${dow}, ${r.date ? shortDate(r.date) : '—'}</strong>${r.time ? ' ' + tf('rep.atTime', {t: r.time}) : ''}</div>`;
         }
         return `<div class="card" style="margin-bottom:14px; border-left:3px solid var(--line);">
           <div style="display:flex; align-items:center; gap:8px;"><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--paper); color:var(--text-muted);">⧗ ${stMap[r.clientApproval]||r.clientApproval}</span>
@@ -7512,7 +7512,7 @@
       cells.push(`<td style="max-width:150px;">${r.apps.map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${a.name}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${a.version}</div></div>`).join('')}${r.internal ? '<div>'+internalBadge(r)+'</div>' : ''}</td>`);
 
       if(r.mode === 'batch'){
-        cells.push(`<td>${r.totalLocations} locations <span style="color:var(--text-faint);">· ${r.days} working days</span></td>`);
+        cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})} <span style="color:var(--text-faint);">· ${tf('notif.daysN', {n: r.days})}</span></td>`);
         cells.push(`<td><span class="env-tag ${envClass}">${r.env}</span></td>`);
         cells.push(`<td class="mono">${r.dateRange}</td>`);
         cells.push(`<td class="mono">${fmtTime(r.time)}</td>`);
@@ -7523,9 +7523,9 @@
         if(r.paused){
           progressExtra = `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' — ' + r.pauseReason : ''}</div>`;
         } else if(failedN){
-          progressExtra = `<div style="font-size:10.5px; color:#A81E1E; margin-top:3px;">⚠ ${failedN} to finish</div>`;
+          progressExtra = `<div style="font-size:10.5px; color:#A81E1E; margin-top:3px;">⚠ ${tf('dep.toFinishN', {n: failedN})}</div>`;
         } else if(isDone){
-          progressExtra = `<div style="font-size:10.5px; color:#0F7A38; margin-top:3px;">✓ complete</div>`;
+          progressExtra = `<div style="font-size:10.5px; color:#0F7A38; margin-top:3px;">✓ ${t('dep.complete')}</div>`;
         }
         cells.push(`<td>
           <div style="display:flex; align-items:center; gap:8px;">
@@ -7533,7 +7533,7 @@
             <span class="mono" style="font-size:11.5px; color:var(--text-muted);">${r.counts.installed}/${r.totalLocations}</span>
           </div>${progressExtra}`);
         cells.push(approvalBadgeHtml(r));
-        cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();"><button class="mini-btn" ${(r.counts.scheduled===0 || r.paused)?'disabled':''} onclick="markBatchInstalled(${r.idx})">Mark the rest</button></td>`);
+        cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();"><button class="mini-btn" ${(r.counts.scheduled===0 || r.paused)?'disabled':''} onclick="markBatchInstalled(${r.idx})">${t('rep.markRest')}</button></td>`);
         html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
         if(expandedBatchIdx === r.idx) html += timelinePanelHtml(r);
       } else if(editingDeployIdx === r.idx){
