@@ -6,12 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.10.1] - 2026-07-22
 
+### Added
+- **Remove individual attachments.** Files added to the changelog or deployer-instructions attachment fields now appear as chips with a "✕" so you can drop a single file before confirming the schedule (re-selecting appends instead of replacing).
+- **Download attachments from the deployments list.** A deployment's changelog files and deployer-instruction files are now shown as download links in the expanded row on the deployments list — even when the deployment has no typed changelog.
+- **Edit attachments and deployer instructions after creation.** The "Edit deployment" dialog now also edits the deployer instructions and lets you add/remove both changelog and deployer-instruction files (each file has a "✕"), alongside the version, start time and changelog it already handled.
+
 ### Changed
 - **Deleting a project is always recoverable.** Delete now archives the project (even one with no deployments) instead of erasing it, so an accidental one-click delete can be undone with "Restore". Permanent deletion is a separate, explicit action on an already-archived project.
 - **Compact forms via info (ℹ) icons.** Long helper paragraphs in *New deployment* and *Projects* were moved into small info icons — hover to read the full text. Covers: applications & versions, changelog/instructions attachments, dependencies, internal/draft flags, per-day breakdown, location assignment, the production-approval notice, start time, skip-weekends and the test-approval option.
-
-### Added
-- **Remove individual attachments.** Files added to the changelog or deployer-instructions attachment fields now appear as chips with a "✕" so you can drop a single file before confirming the schedule (re-selecting appends instead of replacing).
+- **Changelog is optional when a file is attached.** In *New deployment* you no longer have to type the release notes if you attach a changelog file (the file carries them). One of the two is still required.
 
 ### Fixed
 - **No more confusing startup pop-up.** The untranslated "Loaded N deployment(s) from the database" toast that appeared on every screen at startup was removed — data hydration is now silent.
