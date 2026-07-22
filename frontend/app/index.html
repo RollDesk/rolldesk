@@ -899,7 +899,7 @@
           <div id="schedule-apps-list" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;"></div>
         </div>
         <div class="field">
-          <label><span data-i18n="sch.changelog">Changelog</span> <span style="color:#A81E1E;">*</span></label>
+          <label><span data-i18n="sch.changelog">Changelog</span> <span style="color:#A81E1E;">*</span> <span style="color:var(--text-faint); font-weight:400; font-size:11px;" data-i18n="sch.changelogOrFile">(or attach a file below)</span></label>
           <textarea id="schedule-changelog" data-i18n-ph="sch.changelogPh" placeholder="Describe the changes in this release (required)..."></textarea>
         </div>
         <div class="field">
@@ -1561,7 +1561,15 @@
     <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" data-i18n="editdep.time">Start time</label>
     <input type="time" id="edit-dep-time" style="margin-bottom:14px; box-sizing:border-box;">
     <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" data-i18n="sch.changelog">Changelog</label>
-    <textarea id="edit-dep-changelog" style="width:100%; min-height:130px; box-sizing:border-box; font-size:13px; line-height:1.55;"></textarea>
+    <textarea id="edit-dep-changelog" style="width:100%; min-height:120px; box-sizing:border-box; font-size:13px; line-height:1.55;"></textarea>
+    <label style="font-size:11px; color:var(--text-muted); margin:12px 0 4px 0; display:block;" data-i18n="sch.changelogAttach">Changelog attachment (optional)</label>
+    <div id="edit-dep-changelog-atts" style="margin-bottom:6px;"></div>
+    <input type="file" id="edit-dep-changelog-file" multiple onchange="onEditDepFileChange('changelog')" style="font-size:12px;">
+    <label style="font-size:11px; color:var(--text-muted); margin:14px 0 4px 0; display:block;" data-i18n="sch.installerNotes">Instructions for deployers (optional)</label>
+    <textarea id="edit-dep-installer-notes" style="width:100%; min-height:90px; box-sizing:border-box; font-size:13px; line-height:1.55;"></textarea>
+    <label style="font-size:11px; color:var(--text-muted); margin:12px 0 4px 0; display:block;" data-i18n="sch.installerAttach">Attachments for deployers (optional)</label>
+    <div id="edit-dep-installer-atts" style="margin-bottom:6px;"></div>
+    <input type="file" id="edit-dep-installer-file" multiple onchange="onEditDepFileChange('installer')" style="font-size:12px;">
     <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px;">
       <button class="mini-btn" onclick="document.getElementById('edit-dep-modal-overlay').style.display='none'" data-i18n="common.close">Close</button>
       <button class="btn" onclick="saveDeploymentEdits()" data-i18n="editdep.save">Save changes</button>
@@ -3307,14 +3315,15 @@
       apps.push({name: cb.value, version});
     }
 
-    // Changelog is required
+    // Changelog is required unless a changelog file is attached (the file then
+    // carries the release notes, so there's no need to also type them in).
     const changelog = (document.getElementById('schedule-changelog').value || '').trim();
-    if(!changelog){
-      showToast(t('sch.fillChangelog'));
+    const changelogFiles = scheduleChangelogFiles.slice();
+    if(!changelog && !changelogFiles.length){
+      showToast(t('sch.fillChangelogOrAttach'));
       document.getElementById('schedule-changelog').focus();
       return;
     }
-    const changelogFiles = scheduleChangelogFiles.slice();
     const fileToUpload = changelogFiles[0] || null;
     // Legacy single fields kept for back-compat; the full set is uploaded below.
     const attachment = fileToUpload ? fileToUpload.name : null;
@@ -5459,6 +5468,26 @@
     }
   }
 
+  async function apiDeleteAttachment(attId){
+    if(!attId) return;
+    try { await apiFetch('/api/attachments/' + encodeURIComponent(attId), {method:'DELETE'}); }
+    catch(e){ console.warn('attachment delete failed', e.message); }
+  }
+
+  // Upload one file to a deployment, returning its stored {id, filename} meta or
+  // null (and a toast) on failure. Shared by schedule creation and the edit modal.
+  async function uploadDeploymentFile(d, f){
+    try {
+      const meta = await apiUploadAttachment(d.id, f);
+      return {id: meta.id, filename: meta.filename};
+    } catch(upErr){
+      if(upErr.virus){ showToast(tf('sch.attachVirus', {name: f.name, virus: upErr.virus})); }
+      else if(upErr.status === 503){ showToast(t('sch.attachAvDown')); }
+      else { showToast(tf('sch.attachFailed', {name: f.name})); }
+      return null;
+    }
+  }
+
   // Renders the attachment line: a real download link when the file is stored
   // in the DB (attachmentId present), otherwise a plain label (e.g. offline or
   // legacy records where only the filename was kept).
@@ -5574,23 +5603,7 @@
       // Offline: nothing to upload; keep the filenames for display only.
       return;
     }
-    // Upload one file to a deployment, returning its stored {id, filename} meta
-    // or null (and a toast) on failure. Shared by both attachment categories.
-    const uploadOne = async (d, f)=>{
-      try {
-        const meta = await apiUploadAttachment(d.id, f);
-        return {id: meta.id, filename: meta.filename};
-      } catch(upErr){
-        if(upErr.virus){
-          showToast(tf('sch.attachVirus', {name: f.name, virus: upErr.virus}));
-        } else if(upErr.status === 503){
-          showToast(t('sch.attachAvDown'));
-        } else {
-          showToast(tf('sch.attachFailed', {name: f.name}));
-        }
-        return null;
-      }
-    };
+    const uploadOne = uploadDeploymentFile;
     for(let i = startIdx; i < DEPLOYMENTS_DATA.length; i++){
       const d = DEPLOYMENTS_DATA[i];
       try {
@@ -6164,6 +6177,44 @@
     return role === 'admin' || role === 'rm';
   }
   let editDepIdx = null;
+  // Edit-modal attachment working state: existing files (editable copies, so a
+  // removal isn't committed until Save) and newly picked files to upload.
+  let editDepChangelogExisting = [], editDepInstallerExisting = [];
+  let editDepChangelogNew = [], editDepInstallerNew = [];
+  let editDepRemovedAttIds = [];
+  const editDepAttState = {
+    changelog: { existing: ()=>editDepChangelogExisting, added: ()=>editDepChangelogNew, box: 'edit-dep-changelog-atts', input: 'edit-dep-changelog-file' },
+    installer: { existing: ()=>editDepInstallerExisting, added: ()=>editDepInstallerNew, box: 'edit-dep-installer-atts', input: 'edit-dep-installer-file' },
+  };
+  function renderEditDepAtts(kind){
+    const st = editDepAttState[kind];
+    const box = document.getElementById(st.box);
+    if(!box) return;
+    const chip = (name, onRemove)=>`<span style="display:inline-flex; align-items:center; gap:6px; background:var(--line-soft); border:1px solid var(--line); border-radius:14px; padding:2px 6px 2px 10px; margin:0 6px 6px 0; font-size:12px;">📎 ${escapeHtml(name)} <button type="button" title="${t('sch.removeFile')}" onclick="${onRemove}" style="border:none; background:none; cursor:pointer; color:var(--text-muted); font-size:14px; line-height:1; padding:0 2px;">✕</button></span>`;
+    const existingHtml = st.existing().map((a,i)=>chip(a.filename, `removeEditDepExisting('${kind}', ${i})`)).join('');
+    const addedHtml = st.added().map((f,i)=>chip(f.name, `removeEditDepAdded('${kind}', ${i})`)).join('');
+    box.innerHTML = existingHtml + addedHtml;
+  }
+  function onEditDepFileChange(kind){
+    const st = editDepAttState[kind];
+    const input = document.getElementById(st.input);
+    const arr = st.added();
+    const picked = input && input.files ? Array.from(input.files) : [];
+    picked.forEach(f=>{ if(!arr.some(x=>x.name===f.name && x.size===f.size)) arr.push(f); });
+    if(input) input.value = '';
+    renderEditDepAtts(kind);
+  }
+  function removeEditDepExisting(kind, i){
+    const arr = editDepAttState[kind].existing();
+    const removed = arr.splice(i, 1)[0];
+    if(removed && removed.id) editDepRemovedAttIds.push(removed.id);
+    renderEditDepAtts(kind);
+  }
+  function removeEditDepAdded(kind, i){
+    editDepAttState[kind].added().splice(i, 1);
+    renderEditDepAtts(kind);
+  }
+
   function openEditDeployment(idx){
     if(!canEditDeployments()){ showToast(t('editdep.forbidden')); return; }
     const r = DEPLOYMENTS_DATA[idx];
@@ -6177,9 +6228,17 @@
       </div>`).join('') || `<div style="font-size:12px; color:var(--text-faint);">—</div>`;
     document.getElementById('edit-dep-time').value = r.time || '';
     document.getElementById('edit-dep-changelog').value = r.changelog || '';
+    document.getElementById('edit-dep-installer-notes').value = r.installerNotes || '';
+    // Seed the attachment editor from the current record (copies, not references).
+    editDepChangelogExisting = (Array.isArray(r.attachments) ? r.attachments : []).map(a=>({id:a.id, filename:a.filename}));
+    editDepInstallerExisting = (Array.isArray(r.instructionAttachments) ? r.instructionAttachments : []).map(a=>({id:a.id, filename:a.filename}));
+    editDepChangelogNew = []; editDepInstallerNew = []; editDepRemovedAttIds = [];
+    ['edit-dep-changelog-file','edit-dep-installer-file'].forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ''; });
+    renderEditDepAtts('changelog');
+    renderEditDepAtts('installer');
     document.getElementById('edit-dep-modal-overlay').style.display = 'flex';
   }
-  function saveDeploymentEdits(){
+  async function saveDeploymentEdits(){
     if(editDepIdx === null) return;
     const r = DEPLOYMENTS_DATA[editDepIdx];
     if(!r){ return; }
@@ -6197,6 +6256,28 @@
     if(newTime && newTime !== r.time){ changes.push(t('editdep.time') + ': ' + fmtTime(r.time) + ' → ' + fmtTime(newTime)); r.time = newTime; }
     const newChangelog = document.getElementById('edit-dep-changelog').value;
     if(newChangelog !== (r.changelog||'')){ changes.push(t('sch.changelog')); r.changelog = newChangelog; }
+    const newInstallerNotes = document.getElementById('edit-dep-installer-notes').value;
+    if(newInstallerNotes !== (r.installerNotes||'')){ changes.push(t('sch.installerNotes')); r.installerNotes = newInstallerNotes || undefined; }
+
+    // Attachments: delete the ones removed, upload the newly added ones.
+    let attsChanged = false;
+    for(const id of editDepRemovedAttIds){ await apiDeleteAttachment(id); attsChanged = true; }
+    const uploadedCl = [];
+    for(const f of editDepChangelogNew){ const m = await uploadDeploymentFile(r, f); if(m) uploadedCl.push(m); }
+    const uploadedInstr = [];
+    for(const f of editDepInstallerNew){ const m = await uploadDeploymentFile(r, f); if(m) uploadedInstr.push(m); }
+    if(uploadedCl.length || editDepChangelogExisting.length !== (Array.isArray(r.attachments)?r.attachments.length:0)){
+      r.attachments = editDepChangelogExisting.concat(uploadedCl);
+      r.attachmentId = r.attachments.length ? r.attachments[0].id : null;
+      r.attachment = r.attachments.length ? r.attachments[0].filename : null;
+      attsChanged = true;
+    }
+    if(uploadedInstr.length || editDepInstallerExisting.length !== (Array.isArray(r.instructionAttachments)?r.instructionAttachments.length:0)){
+      r.instructionAttachments = editDepInstallerExisting.concat(uploadedInstr);
+      attsChanged = true;
+    }
+    if(attsChanged) changes.push(t('editdep.attachments'));
+
     document.getElementById('edit-dep-modal-overlay').style.display = 'none';
     if(!changes.length){ showToast(t('editdep.noChanges')); return; }
     const projLabel = (PROJECTS[r.projectKey]||{}).name || r.projectKey;
@@ -6207,6 +6288,7 @@
     r.comments.push({date:stamp.date, time:stamp.time, author: actorName(), type:'system', icon:'✏️', text: tf('editdep.tlEdited', {summary})});
     persistDeployment(editDepIdx);
     renderDeploymentsTable();
+    renderInstallerPanel();
     showToast(t('editdep.saved'));
   }
 
@@ -7705,11 +7787,18 @@
           </div>`;
       }
 
-      const changelogHtml = r.changelog ? `
+      // Changelog text (if any) plus downloadable attachments. Attachments are
+      // shown even when there is no changelog text (the file may carry the notes),
+      // and the deployer-instruction files are downloadable here too.
+      const clAttsHtml = attachmentsHtml(r.attachments, r.attachment, r.attachmentId);
+      const instrAtts = Array.isArray(r.instructionAttachments) ? r.instructionAttachments : [];
+      const instrAttsHtml = instrAtts.length ? instrAtts.map(a=>attachmentLinkHtml(a.filename, a.id)).join('<br>') : '';
+      const changelogHtml = (r.changelog || clAttsHtml || instrAttsHtml) ? `
         <div class="field" style="margin-bottom:16px;">
           <label style="margin-bottom:4px;">${t('sch.changelog')}${r.apps && r.apps.length ? ' — ' + r.apps.map(a=>a.name+' v'+a.version).join(', ') : ''}</label>
-          <div style="white-space:pre-line; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px; padding:10px 12px; line-height:1.6; font-size:12.5px;">${r.changelog}</div>
-          ${attachmentsHtml(r.attachments, r.attachment, r.attachmentId)}
+          ${r.changelog ? `<div style="white-space:pre-line; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px; padding:10px 12px; line-height:1.6; font-size:12.5px;">${r.changelog}</div>` : ''}
+          ${clAttsHtml}
+          ${instrAttsHtml ? `<div style="margin-top:${r.changelog || clAttsHtml ? '10px' : '0'};"><span style="font-size:11px; color:var(--text-muted);">${t('sch.installerAttach')}</span><br>${instrAttsHtml}</div>` : ''}
         </div>` : '';
 
       // Action buttons live in the same bar as the deployment ID, pushed to the right.
