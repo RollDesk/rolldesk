@@ -16,8 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Richer notifications.** Teams/webhook and e-mail notifications now include the environment (ŚT/PROD) in the subject and body and note who reported/approved (manual), for day reports, completions, failures and client approvals.
 - **Multiple changelog attachments.** The "Changelog attachment" field in *New deployment* now accepts several files; all of them are uploaded, virus-scanned and shown as download links in the client portal and the deployments list.
 - **Attachment for deployer instructions.** *Instructions for deployers* now has its own file field (e.g. an additional script); attached files are available in the deployer panel next to the instructions.
+- **Deleting a project keeps its deployment history.** A project that has deployments is now *archived* (hidden from active lists and from creating new deployments) instead of being erased, and its deployments stay in the deployments list as read-only history. Archived projects can be restored or deleted permanently by an administrator. A project with no deployments is still removed outright.
+
+### Changed
+- **Users list is simpler.** The "What they can do" column was removed; the role's capabilities now appear as a tooltip when you hover the role badge.
+- **Consistent list hover.** Rows in the deployments list, client portal and users table (and cards in the deployer panel) now share the same grey hover highlight as the projects list, making lists easier to scan.
 
 ### Fixed
+- **More Polish translations.** Remaining English leaks are localized: the edit-row Save/Cancel buttons in the deployments list, and the "Schedule changed (…)" timeline entry. Weekday names now always follow the selected language (deterministic, no longer depending on the browser locale).
 - **Locations that succeed on a later day no longer show as "to finish".** When a target that failed earlier is later marked successful (on any subsequent day), it is removed from the failed list, so a finished distribution correctly shows nothing left to complete. "Mark the rest as installed" also clears any remaining failures.
 - **Failure notifications are actually sent.** Reporting a failed location now also dispatches the standard *Failure* event (which clients subscribe to by default), so a webhook/e-mail is delivered even if the newer per-day event is not enabled.
 - **Client approval is announced.** Approving a schedule from the client portal now sends a webhook/e-mail (with environment and who approved), not only a timeline entry.

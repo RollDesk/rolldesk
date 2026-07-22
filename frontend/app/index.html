@@ -365,6 +365,12 @@
   .project-row-active{background:var(--cyan-soft);}
   .project-row:hover td{background:var(--line-soft);}
   .app-row:hover td{background:var(--line-soft);}
+  /* Shared "hover a list row" standard across the app: deployments list, client
+     portal rows (.deploy-row), the users table, and the deployer-panel cards. */
+  .deploy-row:hover td{background:var(--line-soft);}
+  #users-table tr:hover td{background:var(--line-soft);}
+  .queue-row:hover td{background:var(--line-soft);}
+  #installer-list .card:hover{background:var(--line-soft);}
 </style>
 </head>
 <body>
@@ -1155,7 +1161,7 @@
 
     <div class="card">
       <table>
-        <thead><tr><th data-i18n="usr.thName">Full name</th><th data-i18n="usr.thEmail">E-mail</th><th data-i18n="usr.thRole">Role</th><th data-i18n="usr.thCan">What they can do</th><th data-i18n="usr.thGroup">Group</th><th data-i18n="usr.thProjects">Projects</th><th></th></tr></thead>
+        <thead><tr><th data-i18n="usr.thName">Full name</th><th data-i18n="usr.thEmail">E-mail</th><th data-i18n="usr.thRole">Role</th><th data-i18n="usr.thGroup">Group</th><th data-i18n="usr.thProjects">Projects</th><th></th></tr></thead>
         <tbody id="users-table"></tbody>
       </table>
     </div>
@@ -1998,13 +2004,12 @@
       return `<tr ${u.archived ? 'style="opacity:0.65;"' : ''}>
         <td>${nameCell}</td>
         <td class="mono" style="font-size:12px;">${u.email}</td>
-        <td><span class="mono" style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:${info.bg}; color:${info.color};">${t('role.'+u.role)}</span></td>
-        <td style="font-size:12px; color:var(--text-muted); max-width:240px;">${t('roleDesc.'+u.role)}</td>
+        <td><span class="mono" title="${t('roleDesc.'+u.role)}" style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:${info.bg}; color:${info.color}; cursor:help;">${t('role.'+u.role)}</span></td>
         <td style="font-size:12.5px;">${u.group ? escapeHtml(u.group) : '<span style="color:var(--text-faint);">—</span>'}</td>
         <td style="font-size:12.5px;">${projLabel}</td>
         <td style="white-space:nowrap;">${actions}</td>
       </tr>`;
-    }).join('') || `<tr><td colspan="7" style="color:var(--text-faint); font-size:13px;">${usersTab === 'archived' ? t('usr.noArchived') : t('usr.noActive')}</td></tr>`;
+    }).join('') || `<tr><td colspan="6" style="color:var(--text-faint); font-size:13px;">${usersTab === 'archived' ? t('usr.noArchived') : t('usr.noActive')}</td></tr>`;
   }
 
   let currentLoggedInRole = 'admin'; // mirrors the real signed-in user's role (set from /api/auth/me)
@@ -2849,7 +2854,10 @@
 
   function renderProjectsList(){
     const tbody = document.getElementById('projects-table');
-    tbody.innerHTML = Object.entries(PROJECTS).map(([key,p])=>{
+    const entries = Object.entries(PROJECTS);
+    const active = entries.filter(([,p])=>!p.archived);
+    const archived = entries.filter(([,p])=>p.archived);
+    const row = (key,p)=>{
       const locs = p.locationsList || [];
       const prodCount = locs.filter(t=>t.type === 'Production').length;
       const nonProdCount = locs.filter(t=>t.type === 'Non-production').length;
@@ -2862,43 +2870,101 @@
         <td class="mono">${(p.apps||[]).length}</td>
         <td style="white-space:nowrap;"><button class="mini-btn" onclick="event.stopPropagation(); openProjectFromList('${key}')">${t('proj.open')}</button>${isLoggedInAsAdmin() ? ` <button class="mini-btn mini-btn-danger" onclick="event.stopPropagation(); deleteProject('${key}')">${t('cli.delete')}</button>` : ''}</td>
       </tr>`;
-    }).join('');
+    };
+    // Archived projects keep their deployment history; they are shown greyed at
+    // the bottom with restore / permanent-delete actions (admins only).
+    const archivedRow = (key,p)=>{
+      const depCount = DEPLOYMENTS_DATA.filter(d=>d.projectKey === key).length;
+      return `
+      <tr class="project-row" data-key="${key}" style="opacity:0.6;">
+        <td>${p.clientName}</td>
+        <td>${p.name} <span class="mono" style="font-size:10px; border:1px solid var(--line); border-radius:10px; padding:1px 7px; margin-left:4px;">${t('proj.archivedBadge')}</span></td>
+        <td class="mono" colspan="3" style="font-size:11.5px; color:var(--text-muted);">${tf('proj.archivedDeploys', {n: depCount})}</td>
+        <td style="white-space:nowrap;">${isLoggedInAsAdmin() ? `<button class="mini-btn" onclick="event.stopPropagation(); restoreProject('${key}')">${t('proj.restore')}</button> <button class="mini-btn mini-btn-danger" onclick="event.stopPropagation(); deleteProjectPermanent('${key}')">${t('proj.deletePermanent')}</button>` : '—'}</td>
+      </tr>`;
+    };
+    let html = active.map(([k,p])=>row(k,p)).join('');
+    if(archived.length){
+      html += `<tr><td colspan="6" style="padding-top:14px; font-size:11.5px; font-weight:700; color:var(--text-muted); border-bottom:none;">${t('proj.archivedSection')}</td></tr>`;
+      html += archived.map(([k,p])=>archivedRow(k,p)).join('');
+    }
+    tbody.innerHTML = html;
   }
 
+  // Deleting a project that has deployment history does NOT erase that history —
+  // it archives the project instead (hidden from active lists and pickers, its
+  // deployments stay in the Deployments list as read-only history). A project
+  // with no deployments is removed outright.
   function deleteProject(key){
-    if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can delete projects'); return; }
+    if(!isLoggedInAsAdmin()){ showToast(t('proj.onlyAdminDelete')); return; }
     const p = PROJECTS[key];
     if(!p) return;
     const depCount = DEPLOYMENTS_DATA.filter(d=>d.projectKey === key).length;
-    const body = depCount ? tf('proj.deleteBodyDeploys', {n: depCount}) : t('proj.deleteBody');
-    showAppConfirm(t('proj.deleteTitle') + ' — ' + p.name, body, async ()=>{
-      try {
-        if(API_CONNECTED) await apiDeleteProject(key);
-      } catch(e){ showToast('⚠ ' + (e.message || 'Could not delete the project')); return; }
-      // Drop the project and its deployments from the in-memory state.
-      delete PROJECTS[key];
-      for(let i = DEPLOYMENTS_DATA.length - 1; i >= 0; i--){
-        if(DEPLOYMENTS_DATA[i].projectKey === key) DEPLOYMENTS_DATA.splice(i, 1);
-      }
-      if(currentProjectKey === key){
-        const keys = Object.keys(PROJECTS);
-        currentProjectKey = keys.length ? keys[0] : null;
-      }
-      logAudit('removed', 'Project', 'Deleted project „' + p.name + '”', p.name, 'aud.d.projectDeleted', {name: p.name});
-      const panel = document.getElementById('project-apps-panel');
-      if(panel) panel.style.display = 'none';
-      try { renderProjectsList(); } catch(e){}
-      try { initProjectSelect(); } catch(e){}
-      try { renderDeploymentsTable(); } catch(e){}
-      try { renderClientsTable(); } catch(e){}
-      showToast(tf('proj.deleted', {name: p.name}));
-    });
+    if(depCount > 0){
+      showAppConfirm(t('proj.archiveTitle') + ' — ' + p.name, tf('proj.archiveBody', {n: depCount}), ()=>{
+        p.archived = true;
+        persistProject(key); // persists when connected; surfaces its own error toast
+        if(currentProjectKey === key){
+          const keys = Object.keys(PROJECTS).filter(k=>!PROJECTS[k].archived);
+          currentProjectKey = keys.length ? keys[0] : null;
+        }
+        logAudit('changed', 'Project', 'Archived project „' + p.name + '” (history kept)', p.name, 'aud.d.projectArchived', {name: p.name});
+        const panel = document.getElementById('project-apps-panel');
+        if(panel) panel.style.display = 'none';
+        try { renderProjectsList(); initProjectSelect(); renderDeploymentsTable(); renderClientsTable(); } catch(e){}
+        showToast(tf('proj.archivedToast', {name: p.name}));
+      });
+      return;
+    }
+    // No deployments — safe to remove entirely.
+    showAppConfirm(t('proj.deleteTitle') + ' — ' + p.name, t('proj.deleteBody'), ()=> hardDeleteProject(key));
+  }
+
+  function restoreProject(key){
+    if(!isLoggedInAsAdmin()){ showToast(t('proj.onlyAdminDelete')); return; }
+    const p = PROJECTS[key];
+    if(!p) return;
+    p.archived = false;
+    persistProject(key);
+    logAudit('changed', 'Project', 'Restored project „' + p.name + '”', p.name, 'aud.d.projectRestored', {name: p.name});
+    try { renderProjectsList(); initProjectSelect(); renderDeploymentsTable(); } catch(e){}
+    showToast(tf('proj.restoredToast', {name: p.name}));
+  }
+
+  function deleteProjectPermanent(key){
+    if(!isLoggedInAsAdmin()){ showToast(t('proj.onlyAdminDelete')); return; }
+    const p = PROJECTS[key];
+    if(!p) return;
+    const depCount = DEPLOYMENTS_DATA.filter(d=>d.projectKey === key).length;
+    showAppConfirm(t('proj.deletePermTitle') + ' — ' + p.name, tf('proj.deletePermBody', {n: depCount}), ()=> hardDeleteProject(key));
+  }
+
+  async function hardDeleteProject(key){
+    const p = PROJECTS[key];
+    if(!p) return;
+    try {
+      if(API_CONNECTED) await apiDeleteProject(key);
+    } catch(e){ showToast('⚠ ' + (e.message || 'Could not delete the project')); return; }
+    delete PROJECTS[key];
+    for(let i = DEPLOYMENTS_DATA.length - 1; i >= 0; i--){
+      if(DEPLOYMENTS_DATA[i].projectKey === key) DEPLOYMENTS_DATA.splice(i, 1);
+    }
+    if(currentProjectKey === key){
+      const keys = Object.keys(PROJECTS).filter(k=>!PROJECTS[k].archived);
+      currentProjectKey = keys.length ? keys[0] : null;
+    }
+    logAudit('removed', 'Project', 'Deleted project „' + p.name + '”', p.name, 'aud.d.projectDeleted', {name: p.name});
+    const panel = document.getElementById('project-apps-panel');
+    if(panel) panel.style.display = 'none';
+    try { renderProjectsList(); initProjectSelect(); renderDeploymentsTable(); renderClientsTable(); } catch(e){}
+    showToast(tf('proj.deleted', {name: p.name}));
   }
 
   function initProjectSelect(){
     const sel = document.getElementById('schedule-project-select');
     const byClient = {};
     Object.entries(PROJECTS).forEach(([key,p])=>{
+      if(p.archived) return; // archived projects can't receive new deployments
       byClient[p.clientName] = byClient[p.clientName] || [];
       byClient[p.clientName].push({key, name:p.name});
     });
@@ -5840,7 +5906,12 @@
   // Build a per-target schedule for a batch deployment:
   // columns = application, version, target code, date, day of week.
   const WEEKDAY_PL = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const WEEKDAY_PL_FULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  // Full weekday names per language. Kept explicit (not toLocaleDateString) so a
+  // Polish UI always shows Polish names regardless of the browser's Intl data.
+  const WEEKDAY_FULL = {
+    pl: ['niedziela','poniedziałek','wtorek','środa','czwartek','piątek','sobota'],
+    en: ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
+  };
   // Consistent date/time formatting for the whole UI. Dates are stored as ISO
   // (YYYY-MM-DD) and times as 24h HH:MM, so render them the same way everywhere.
   // This removes the earlier mix of DD/MM/YYYY (schedule preview), DD.MM
@@ -5867,10 +5938,9 @@
   // to the English full name.
   function fmtDow(dateStr){
     try {
-      return new Date(dateStr).toLocaleDateString(LANG === 'pl' ? 'pl-PL' : 'en-GB', { weekday: 'long' });
-    } catch(e){
-      return WEEKDAY_PL_FULL[new Date(dateStr).getDay()] || '';
-    }
+      const arr = WEEKDAY_FULL[LANG === 'pl' ? 'pl' : 'en'];
+      return arr[new Date(dateStr).getDay()] || '';
+    } catch(e){ return ''; }
   }
   // Names of the project's custom target columns (e.g. "nazwa urzędu"), so the
   // schedule/PDF/XLS can carry them alongside each target.
@@ -6260,8 +6330,8 @@
     const _s = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
     const who = actorName();
     d.comments = d.comments || [];
-    const summary = changedDays.sort((a,b)=>a-b).map(day=>`day ${day} → ${d.dayDates[day]}`).join(', ');
-    d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'📅', text:'Schedule changed (' + summary + ')'});
+    const summary = changedDays.sort((a,b)=>a-b).map(day=>`${tf('dtl.day', {n: day})} → ${fmtDate(d.dayDates[day])}`).join(', ');
+    d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'📅', text: tf('dtl.scheduleChanged', {summary})});
     logAudit('changed','Deployment','Changed the schedule ' + (d.id||'') + ' — ' + summary, (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.schedChanged', {id: d.id||'', summary});
     persistDeployment(idx);
     renderDeploymentsTable();
@@ -7726,7 +7796,7 @@
         cells.push(`<td onclick="event.stopPropagation();"><input type="time" class="edit-time mono" value="${r.time}"></td>`);
         cells.push(`<td><span class="pill ${r.status}">${statusLabel[r.status]}</span></td>`);
         cells.push(approvalBadgeHtml(r));
-        cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();"><button class="mini-btn" onclick="saveDeploymentEdit(${r.idx})">Save</button> <button class="mini-btn" onclick="toggleEditDeployment(${r.idx})">Cancel</button></td>`);
+        cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();"><button class="mini-btn" onclick="saveDeploymentEdit(${r.idx})">${t('common.save')}</button> <button class="mini-btn" onclick="toggleEditDeployment(${r.idx})">${t('common.cancel')}</button></td>`);
         html += `<tr data-idx="${r.idx}">` + cells.join('') + '</tr>';
       } else {
         const colors = {scheduled:'#5B6472', installed:'#0F7A38', failed:'#A81E1E', rolledback:'#6B21A8', aborted:'#5B6472'};
