@@ -1584,11 +1584,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.9.1"></script>
-<script src="i18n/en.js?v=0.9.1"></script>
+<script src="i18n/pl.js?v=0.10.0"></script>
+<script src="i18n/en.js?v=0.10.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.9.1';
+  const ROLLDESK_VERSION = '0.10.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -2224,7 +2224,7 @@
       let startIso = r.historyStart;
       try { if(typeof getDateForDay === 'function') startIso = getDateForDay(r, 1); } catch(e){}
       if(startIso){
-        const dow = WEEKDAY_PL_FULL[new Date(startIso).getDay()] || '';
+        const dow = fmtDow(startIso);
         lines.push(t('notif.start') + ': ' + (dow ? dow + ', ' : '') + fmtDate(startIso)
           + (r.time ? ' ' + tf('notif.atTime', {time: fmtTime(r.time)}) : ''));
       }
@@ -3454,7 +3454,7 @@
       : 'Sort by type';
     head.innerHTML = '<tr><th style="width:28px;"><input type="checkbox" title="' + t('proj.selectAll') + '" onclick="toggleAllLocationsSelect(this.checked)"></th><th>Target</th>' +
       `<th style="cursor:pointer; user-select:none;" title="${sortTitle}" onclick="toggleLocationsSort()">Typ<span style="color:var(--text-faint); font-size:11px;">${sortArrow}</span></th>` +
-      customFields.map(f=>`<th>${f}</th>`).join('') + '<th></th></tr>';
+      customFields.map((f,ci)=>`<th>${f} <button class="mini-btn" title="${t('proj.removeColTitle')}" onclick="removeCustomLocationField(${ci})" style="padding:0 5px; font-size:10px; line-height:1.6;">✕</button></th>`).join('') + '<th></th></tr>';
 
     const q = (document.getElementById('locations-search').value || '').toLowerCase().trim();
     const tbody = document.getElementById('locations-table');
@@ -3536,6 +3536,24 @@
       persistProject(currentProjectKey);
       showToast('Added the field „' + name + '” to all locations');
     }, 'e.g. "Number of stations", "Region"');
+  }
+
+  // Remove a custom target column (e.g. a stale "Miejscowość" left over after a
+  // re-import with a different column set). Drops it from the project and from
+  // every target's custom data.
+  function removeCustomLocationField(ci){
+    const p = PROJECTS[currentProjectKey];
+    const fields = (p && p.customLocationFields) || [];
+    const name = fields[ci];
+    if(name == null) return;
+    showAppConfirm(t('proj.removeColTitle'), tf('proj.removeColBody', {name}), ()=>{
+      p.customLocationFields.splice(ci, 1);
+      p.locationsList.forEach(loc=>{ if(loc.custom) delete loc.custom[name]; });
+      logAudit('removed', 'Deployment target', 'Removed target column „' + name + '”', p.name + ' (' + p.clientName + ')', 'aud.d.targetColRemoved', {name});
+      renderLocationsTable();
+      persistProject(currentProjectKey);
+      showToast(tf('proj.removeColDone', {name}));
+    });
   }
 
   function renderLocationCustomFieldInputs(){
@@ -3941,11 +3959,43 @@
       if(field) field.appendChild(footer);
     }
     let msg, color;
-    if(diff === 0){ msg = `All ${total} targets have been spread out.`; color = '#0F7A38'; }
-    else if(diff > 0){ msg = `Spread ${sum} of ${total} — ${diff} left to assign.`; color = '#8A5A05'; }
-    else { msg = `Warning: assigned ${sum}, ${-diff} too many (there are only ${total} targets).`; color = '#A81E1E'; }
+    if(diff === 0){ msg = tf('sch.spreadAll', {total}); color = '#0F7A38'; }
+    else if(diff > 0){ msg = tf('sch.spreadSome', {sum, total, diff}); color = '#8A5A05'; }
+    else { msg = tf('sch.spreadOver', {sum, over: -diff, total}); color = '#A81E1E'; }
     footer.innerHTML = `<span style="color:${color}; font-weight:600;">${msg}</span>`
-      + (diff !== 0 ? `<button class="mini-btn" onclick="distributeRemainderEvenly()" style="font-size:10.5px;">Spread evenly</button>` : '');
+      + (diff !== 0 ? `<button class="mini-btn" onclick="distributeRemainderEvenly()" style="font-size:10.5px;">${t('sch.spreadEvenly')}</button>` : '');
+
+    // Soft validation: a day whose exact-count limit is exceeded by the pinned
+    // locations of that type is flagged (non-blocking) so the PM can react.
+    let warnBox = document.getElementById('day-breakdown-warnings');
+    const warns = [];
+    dayCounts.forEach((_, i)=>{
+      const r = pinnedLimitCheck(i);
+      if(r && r.match > r.max) warns.push(tf('sch.pinExceedsLimit', {day: i+1, type: r.type, max: r.max, n: r.match}));
+    });
+    if(!warnBox){
+      const field = document.getElementById('schedule-daybreakdown-field');
+      if(field){ warnBox = document.createElement('div'); warnBox.id = 'day-breakdown-warnings'; warnBox.style.cssText = 'margin-top:6px; font-size:11.5px;'; field.appendChild(warnBox); }
+    }
+    if(warnBox){
+      warnBox.innerHTML = warns.map(w=>`<div style="color:#8A5A05; padding:2px 0;">⚠ ${w}</div>`).join('');
+    }
+  }
+
+  // How many pinned locations on a given day match that day's limited type — used
+  // for the soft warning when the pins exceed the "exact count" for that type.
+  function pinnedLimitCheck(dayIdx){
+    const c = (dayConstraints && dayConstraints[dayIdx]) || {};
+    if(!c.limitType || c.limitMax == null) return null;
+    const pins = String(c.pin || '').split(/[;,\s]+/).map(x=>x.trim().toLowerCase()).filter(Boolean);
+    if(!pins.length) return null;
+    const pool = scheduleTargetsPool();
+    let match = 0;
+    pins.forEach(w=>{
+      const hit = pool.find(l => (l.code||'').toLowerCase() === w || (l.label||'').toLowerCase() === w);
+      if(hit && attrValueOf(hit) === c.limitType) match++;
+    });
+    return {match, max: c.limitMax, type: c.limitType};
   }
 
   // Put whatever is not yet assigned into a chosen day (the "remainder" button).
@@ -4169,7 +4219,7 @@
     }
     renderManifestPreview(dayAssignments, dayLabels, testEnvs);
     if(!silent){
-      showToast('Schedule generated — ' + total + ' locations across ' + days + ' working days');
+      showToast(tf('sch.generatedToast', {total, days}));
       const previewEl = document.getElementById('schedule-rollout-preview');
       if(previewEl) previewEl.scrollIntoView({behavior:'smooth', block:'start'});
     }
@@ -4863,8 +4913,10 @@
       }).catch(err => { console.warn('Decision save failed:', err.message); showToast(t('client.saveFailed')); });
       renderClientPortal(currentClientScenario);
       showToast(t('client.approvedToast'));
-      dispatchEventNotification('decision', rec.projectKey, 'RollDesk — ' + t('ev.decision'),
-        (rec.id ? rec.id + ' — ' : '') + projName + '\n' + t('dep.aApproved'), false);
+      dispatchEventNotification('decision', rec.projectKey, 'RollDesk — ' + t('ev.decision') + ' (' + (rec.env||'') + ')',
+        (rec.id ? rec.id + ' — ' : '') + projName
+        + '\n' + t('notif.environment') + ': ' + (rec.env||'')
+        + '\n' + t('dep.aApproved') + '\n' + tf('notif.approvedBy', {who}), true);
     } else if(action === 'commented'){
       showAppPrompt(t('client.commentTitle'), '', (note)=>{
         if(note === null) return;
@@ -6324,7 +6376,7 @@
   function installerNotesHtml(r){
     if(!r.installerNotes) return '';
     return `<div style="margin:8px 0 12px 0; padding:10px 12px; background:#EAF4FB; border:1px solid #BEE0F5; border-radius:8px;">
-      <div style="font-size:11.5px; font-weight:700; color:#0A6E7A; margin-bottom:4px;">📋 Instructions for the deployer</div>
+      <div style="font-size:11.5px; font-weight:700; color:#0A6E7A; margin-bottom:4px;">📋 ${t('rep.deployerInstr')}</div>
       <div style="font-size:12.5px; color:var(--ink); white-space:pre-line; line-height:1.5;">${r.installerNotes}</div>
     </div>`;
   }
@@ -6349,6 +6401,25 @@
           </div>`).join('')}
       </div>
     </div>`;
+  }
+
+  // Collapsible timeline for a completed distribution card in the deployer
+  // panel, so the deployer can review what happened without leaving the panel.
+  function completedTimelineHtml(r){
+    const events = getDeploymentTimeline(r);
+    if(!events.length) return '';
+    return `<div style="margin-top:10px;">
+      <button class="mini-btn" onclick="toggleCompletedTimeline(${r.idx})">🕓 <span id="ctl-label-${r.idx}">${t('rep.showTimeline')}</span></button>
+      <div id="ctl-${r.idx}" style="display:none;">${installerTimelineHtml(r)}</div>
+    </div>`;
+  }
+  function toggleCompletedTimeline(idx){
+    const box = document.getElementById('ctl-' + idx);
+    const lbl = document.getElementById('ctl-label-' + idx);
+    if(!box) return;
+    const open = box.style.display === 'none';
+    box.style.display = open ? 'block' : 'none';
+    if(lbl) lbl.textContent = open ? t('rep.hideTimeline') : t('rep.showTimeline');
   }
 
   function depWarningHtml(r){
@@ -6378,19 +6449,30 @@
 
   // Installers who can be assigned to a deployment (scoped to the project when possible).
   function installersForProject(projectKey){
-    // Only deployers who were granted access to this project (per the user's
-    // choice). The signed-in deployer can always pick themselves.
-    const scoped = USERS.filter(u=>u.role === 'installer' && !u.archived && (u.projects||[]).map(String).includes(String(projectKey)));
-    const names = scoped.map(u=>u.name);
+    // Deployers scoped to this project come first (they were granted access),
+    // then any other active deployer so a lead can hand a distribution to a
+    // colleague who is not project-scoped. The signed-in deployer is always here.
+    const active = USERS.filter(u=>u.role === 'installer' && !u.archived);
+    const scoped = active.filter(u=>(u.projects||[]).map(String).includes(String(projectKey))).map(u=>u.name);
+    const others = active.filter(u=>!(u.projects||[]).map(String).includes(String(projectKey))).map(u=>u.name);
     const me = actorName();
+    const names = scoped.sort().concat(others.sort());
     if(currentLoggedInRole === 'installer' && me && !names.includes(me)) names.push(me);
-    return Array.from(new Set(names)).sort();
+    return Array.from(new Set(names));
   }
 
   function assignDeployment(idx, name){
     const d = DEPLOYMENTS_DATA[idx];
+    const prev = d.assignedTo || null;
     d.assignedTo = name || null;
-    logAudit('changed','Deployment','Assigned deployer: ' + (name||'—') + ' to ' + (d.id||''), (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.assigned', {name: name||'—', id: d.id||''});
+    if((prev || '') !== (d.assignedTo || '')){
+      logAudit('changed','Deployment','Assigned deployer: ' + (name||'—') + ' to ' + (d.id||''), (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.assigned', {name: name||'—', id: d.id||''});
+      // Also record it on the deployment timeline so the assignment is visible
+      // there (not only in the global audit log).
+      const _s = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'};
+      d.comments = d.comments || [];
+      d.comments.push({date:_s.date, time:_s.time, author: actorName(), type:'system', icon:'🧑‍🔧', text: name ? tf('rep.assignedTl', {who: name}) : t('rep.unassignedTl')});
+    }
     persistDeployment(idx);
     // Update just the assignee select(s) — a full re-render here would wipe any
     // unsaved "failed" ticks / reason text in the day-report form.
@@ -6524,6 +6606,15 @@
     return all.filter(r => !r.draft);
   }
 
+  // Left-side style filter for the deployer panel: instead of one long page with
+  // several headed sections, the deployer picks a single group to view.
+  let installerPanelFilter = 'all';
+  function setInstallerFilter(f){
+    installerPanelFilter = f;
+    if(f === 'reports') installerReportOpen = true;
+    renderInstallerPanel();
+  }
+
   function renderInstallerPanel(){
     const wrap = document.getElementById('installer-list');
     if(!wrap) return;
@@ -6542,14 +6633,31 @@
     const paused = all.filter(r => isActive(r) && r.paused);
     const completed = all.filter(r => (r.mode==='batch' && r.counts.scheduled===0) || (r.mode==='single' && r.status!=='scheduled'));
 
+    const f = installerPanelFilter;
+    const showReports = f === 'all' || f === 'reports';
+    const showWaiting = f === 'all' || f === 'waiting';
+    const showActive = f === 'all' || f === 'active';
+    const showCompleted = f === 'all' || f === 'completed';
+
     let html = '';
+
+    // Filter tabs (tree-style groups) — keep the panel readable when there are
+    // many distributions by showing one group at a time.
+    const pill = (key, label, count)=>`<button class="mini-btn${f===key?' accent':''}" onclick="setInstallerFilter('${key}')" style="font-size:11.5px;">${label}${count!=null?` <span class="mono">(${count})</span>`:''}</button>`;
+    html += `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--line);">
+      ${pill('all', t('rep.filterAll'), null)}
+      ${pill('waiting', t('rep.filterWaiting'), waiting.length)}
+      ${pill('active', t('rep.filterActive'), active.length)}
+      ${pill('completed', t('rep.filterCompleted'), completed.length)}
+      ${pill('reports', t('rep.filterReports'), null)}
+    </div>`;
 
     // Reports & history (collapsible): completed installations filtered by date
     // and status, with CSV export. Read-only — no corrections here.
-    html += installerReportPanelHtml();
+    if(showReports) html += installerReportPanelHtml();
 
     // Paused deployments — visible, clearly flagged, not actionable until resumed.
-    if(paused.length){
+    if(paused.length && showActive){
       html += '<label style="margin-bottom:8px; display:block;">' + t('pause.badge') + '</label>';
       html += paused.map(r=>{
         const appsLabel = r.apps.map(a=>`${a.name} v${a.version}`).join(', ');
@@ -6563,7 +6671,7 @@
     }
 
     // Waiting for client approval — informational, not actionable.
-    if(waiting.length){
+    if(waiting.length && showWaiting){
       html += '<label style="margin-bottom:8px; display:block;">' + t('dtl.awaiting') + '</label>';
       html += waiting.map(r=>{
         const appsLabel = r.apps.map(a=>`${a.name} v${a.version}`).join(', ');
@@ -6574,11 +6682,11 @@
         if(r.mode === 'batch'){
           const startIso = getDateForDay(r, 1);
           const endIso = getDateForDay(r, r.days);
-          const dow = WEEKDAY_PL_FULL[new Date(startIso).getDay()];
-          planHtml = `<div style="font-size:12.5px; color:var(--ink); margin-top:6px;">Distribution start: <strong>${dow}, ${shortDate(startIso)}</strong> <span style="color:var(--text-muted);">· ${r.days} working days, until ${shortDate(endIso)} · ${r.totalLocations} loc.</span></div>`;
+          const dow = fmtDow(startIso);
+          planHtml = `<div style="font-size:12.5px; color:var(--ink); margin-top:6px;">${t('rep.distStart')}: <strong>${dow}, ${shortDate(startIso)}</strong> <span style="color:var(--text-muted);">· ${tf('rep.planMeta', {days: r.days, end: shortDate(endIso), n: r.totalLocations})}</span></div>`;
         } else {
-          const dow = r.date ? WEEKDAY_PL_FULL[new Date(r.date).getDay()] : '';
-          planHtml = `<div style="font-size:12.5px; color:var(--ink); margin-top:6px;">Start: <strong>${dow}, ${r.date ? shortDate(r.date) : '—'}</strong>${r.time ? ' at ' + r.time : ''}</div>`;
+          const dow = r.date ? fmtDow(r.date) : '';
+          planHtml = `<div style="font-size:12.5px; color:var(--ink); margin-top:6px;">${t('rep.startLabel')}: <strong>${dow}, ${r.date ? shortDate(r.date) : '—'}</strong>${r.time ? ' ' + tf('rep.atTime', {t: r.time}) : ''}</div>`;
         }
         return `<div class="card" style="margin-bottom:14px; border-left:3px solid var(--line);">
           <div style="display:flex; align-items:center; gap:8px;"><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--paper); color:var(--text-muted);">⧗ ${stMap[r.clientApproval]||r.clientApproval}</span>
@@ -6590,6 +6698,7 @@
       }).join('');
     }
 
+    if(showActive){
     html += '<label style="margin-bottom:8px; display:block;">'+t('rep.toReport')+'</label>';
     if(!active.length){
       html += '<div class="card" style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">'+t('rep.noActive')+'</div>';
@@ -6685,6 +6794,7 @@
           return prefix + renderActiveCard(r);
         }).join('');
     }
+    } // showActive
 
     // Split completed into recent (last 14 days) and archive (older).
     const NOW = new Date();
@@ -6734,8 +6844,12 @@
                 </div>
               </div>
               ${failedCount ? `<div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">${t('rep.currentlyFailed')}${(r.failedLocations||[]).map(f=>`<a href="#" onclick="event.preventDefault(); document.getElementById('correction-loc-${r.idx}').value='${(f.location||'').replace(/'/g,'')}';" style="color:var(--cyan); text-decoration:none; margin-right:8px;">${f.location}</a>`).join('')}</div>` : ''}
-              <button class="btn ghost" onclick="submitBatchCorrection(${r.idx})">${t('rep.saveCorrection')}</button>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn ghost" onclick="submitBatchCorrection(${r.idx}, 'installed')">${t('rep.changeToSuccessful')}</button>
+                <button class="btn ghost" onclick="submitBatchCorrection(${r.idx}, 'failed')">${t('rep.keepFailed')}</button>
+              </div>
             </div>
+            ${completedTimelineHtml(r)}
           </div>`;
         } else {
           return `<div class="card" id="installer-card-${r.idx}" style="margin-bottom:10px; background:var(--paper); border-left:3px solid ${outcome.color};">
@@ -6759,10 +6873,12 @@
                 : `<button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'installed')">${t('rep.changeToSuccessful')}</button>
                    <button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'failed')">${t('rep.keepFailed')}</button>`}
             </div>
+            ${completedTimelineHtml(r)}
           </div>`;
         }
     };
 
+    if(showCompleted){
     html += '<label style="margin:20px 0 8px 0; display:block;">'+t('rep.completed14')+'</label>';
     html += '<p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;">'+t('rep.completedNote')+'</p>';
     if(!recentCompleted.length){
@@ -6770,9 +6886,10 @@
     } else {
       html += recentCompleted.map(renderCompletedCard).join('');
     }
+    }
 
     // Archive tab for older completed deployments.
-    if(archiveCompleted.length){
+    if(archiveCompleted.length && showCompleted){
       html += `<div style="margin-top:20px;">
         <button class="mini-btn" onclick="toggleInstallerArchive()"><span id="installer-archive-label">${installerArchiveOpen ? 'Hide' : 'Show'} archived deployments (${archiveCompleted.length})</span></button>
         <div id="installer-archive-box" style="display:${installerArchiveOpen ? 'block' : 'none'}; margin-top:10px;">
@@ -6795,49 +6912,59 @@
     f.style.display = f.style.display === 'none' ? 'block' : 'none';
   }
 
-  function submitBatchCorrection(idx){
+  function submitBatchCorrection(idx, targetStatus){
     const d = DEPLOYMENTS_DATA[idx];
     const loc = document.getElementById('correction-loc-' + idx).value.trim();
     const reason = document.getElementById('correction-reason-' + idx).value.trim();
-    if(!loc){ showToast('Enter the location code'); return; }
-    if(!reason){ showToast('Enter the correction reason'); return; }
-    // If the location is currently marked as failed, correcting it means it actually succeeded.
+    if(!loc){ showToast(t('rep.enterLocation')); return; }
+    if(!reason){ showToast(t('rep.enterReason')); return; }
     d.failedLocations = d.failedLocations || [];
+    // The deployer explicitly picks the outcome (like single deployments): either
+    // this location actually succeeded, or it stays a failure with a new reason.
+    // Fall back to inferring it from the current state if no status was passed.
     const failedPos = d.failedLocations.findIndex(f => f.location === loc);
-    if(failedPos !== -1){
-      d.failedLocations.splice(failedPos, 1);
-      // put it back as installed
+    if(!targetStatus) targetStatus = failedPos !== -1 ? 'installed' : 'failed';
+
+    if(targetStatus === 'installed'){
+      if(failedPos !== -1) d.failedLocations.splice(failedPos, 1);
       getBatchPendingQueue(d);
       const qPos = (d.pendingQueue||[]).indexOf(loc);
       if(qPos !== -1){ d.pendingQueue.splice(qPos, 1); d.counts.scheduled = Math.max(0, d.counts.scheduled - 1); }
-      d.counts.installed += 1;
       getBatchHistoryRows(d);
       d.history = d.history || [];
-      d.history.push({location: loc, date: d.historyStart, time: d.time});
+      if(!d.history.some(h=>h.location === loc)){ d.history.push({location: loc, date: d.historyStart, time: d.time}); d.counts.installed += 1; }
       d.comments = d.comments || [];
       const _cs = nowStamp();
-      d.comments.push({date:_cs.date, time:_cs.time, author: actorName(), text:'Correction (→ successful): „' + loc + '” — ' + reason});
+      d.comments.push({date:_cs.date, time:_cs.time, author: actorName(), type:'system', icon:'✅', text:'Correction (→ successful): „' + loc + '” — ' + reason});
       renderInstallerPanel();
       renderDeploymentsTable();
-      showToast('Correction saved — „' + loc + '” marked as successful');
+      showToast(tf('rep.corrToSuccess', {loc}));
       return;
     }
-    // Otherwise the location was installed and we're now marking it failed.
+
+    // targetStatus === 'failed' → keep/mark this location as a failure with the reason.
     getBatchHistoryRows(d);
     const pos = d.history.findIndex(h => h.location === loc);
-    if(pos === -1){ showToast('„' + loc + '” not found in the install history of this deployment'); return; }
-    const entry = d.history.splice(pos, 1)[0];
-    d.counts.installed -= 1;
-    getBatchPendingQueue(d); // sync queue to current (pre-correction) scheduled count first
-    d.counts.scheduled += 1;
-    d.pendingQueue.unshift(loc); // now queue length matches the incremented count
-    d.failedLocations.push({location: loc, date: entry.date, time: entry.time, reason});
+    if(pos !== -1){
+      // It was recorded as installed → move it back into the failed queue.
+      const entry = d.history.splice(pos, 1)[0];
+      d.counts.installed -= 1;
+      getBatchPendingQueue(d);
+      d.counts.scheduled += 1;
+      d.pendingQueue.unshift(loc);
+      d.failedLocations.push({location: loc, date: entry.date, time: entry.time, reason});
+    } else if(failedPos !== -1){
+      // Already failed → just update the reason.
+      d.failedLocations[failedPos].reason = reason;
+    } else {
+      showToast(tf('rep.locNotFound', {loc})); return;
+    }
     d.comments = d.comments || [];
     const _cf = nowStamp();
-    d.comments.push({date:_cf.date, time:_cf.time, author: actorName(), text:'Correction (→ failed): „' + loc + '” — ' + reason});
+    d.comments.push({date:_cf.date, time:_cf.time, author: actorName(), type:'system', icon:'⚠️', text:'Correction (→ failed): „' + loc + '” — ' + reason});
     renderInstallerPanel();
     renderDeploymentsTable();
-    showToast('Correction saved — „' + loc + '” returns to the queue as failed');
+    showToast(tf('rep.corrToFailed', {loc}));
   }
 
   function submitSingleCorrection(idx, targetStatus){
@@ -6874,8 +7001,8 @@
         showToast('Marked as failed — moved to completed, notification sent to the release manager');
         highlightInstallerCard(idx);
         const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
-        dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + t('ev.failure'),
-          (d.id ? d.id + ' — ' : '') + projName + '\n' + reason, false);
+        dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + t('ev.failure') + ' (' + (d.env||'') + ')',
+          (d.id ? d.id + ' — ' : '') + projName + '\n' + t('notif.environment') + ': ' + (d.env||'') + '\n' + reason + '\n' + tf('notif.reportedByManual', {who}), true);
       }, t('rep.failureReason'), true);
       return;
     }
@@ -6891,8 +7018,10 @@
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
     const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
     dispatchEventNotification('completed', d.projectKey,
-      'RollDesk — ' + t('ev.completed'),
-      (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '') + '\n' + t('dep.sInstalled'), true);
+      'RollDesk — ' + t('ev.completed') + ' (' + (d.env||'') + ')',
+      (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '')
+      + '\n' + t('notif.environment') + ': ' + (d.env||'')
+      + '\n' + t('dep.sInstalled') + '\n' + tf('notif.reportedByManual', {who}), true);
   }
 
   function filterTodayBatch(input){
@@ -6957,6 +7086,13 @@
     d.counts.installed += successList.length;
     d.counts.scheduled -= successList.length;
 
+    // A location that failed on an earlier day and succeeds now must stop being
+    // counted as "to finish" — drop it from the failed list on success.
+    if(d.failedLocations && d.failedLocations.length && successList.length){
+      const okSet = new Set(successList);
+      d.failedLocations = d.failedLocations.filter(f=> !okSet.has(f.location));
+    }
+
     // Record who reported this day's result (visible on the timeline as "who did this section").
     d.dayReports = d.dayReports || {};
     d.dayReports[dayNum] = {by: who, success: successList.length, failed: failedList.length};
@@ -6988,13 +7124,23 @@
     if(successList.length || failedList.length){
       const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
       const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
-      let body = (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '')
+      const envLine = '\n' + t('notif.environment') + ': ' + (d.env || '');
+      const byLine = '\n' + tf('notif.reportedByManual', {who});
+      let body = (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '') + envLine
         + '\n' + tf('notif.dayReportBody', {day: dayNum, ok: successList.length, failed: failedList.length});
       if(failedList.length){
         body += '\n' + tf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
         if(reason) body += '\n' + t('rep.correctionReason') + ': ' + reason;
       }
-      dispatchEventNotification('dayReport', d.projectKey, 'RollDesk — ' + t('ev.dayReport'), body, true);
+      dispatchEventNotification('dayReport', d.projectKey, 'RollDesk — ' + t('ev.dayReport') + ' (' + (d.env||'') + ')', body + byLine, true);
+      // Guarantee a failure notification via the standard "failure" event too —
+      // clients subscribe to it by default, unlike the newer per-day event.
+      if(failedList.length){
+        let fbody = (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '') + envLine
+          + '\n' + tf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
+        if(reason) fbody += '\n' + t('rep.correctionReason') + ': ' + reason;
+        dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + t('ev.failure') + ' (' + (d.env||'') + ')', fbody + byLine, true);
+      }
     }
     renderInstallerPanel();
     showToast(successList.length + ' installed' + (failedList.length ? `, ${failedList.length} reported as failed — carried over to the next day` : ''));
@@ -7512,7 +7658,7 @@
       cells.push(`<td style="max-width:150px;">${r.apps.map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${a.name}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${a.version}</div></div>`).join('')}${r.internal ? '<div>'+internalBadge(r)+'</div>' : ''}</td>`);
 
       if(r.mode === 'batch'){
-        cells.push(`<td>${r.totalLocations} locations <span style="color:var(--text-faint);">· ${r.days} working days</span></td>`);
+        cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})} <span style="color:var(--text-faint);">· ${tf('notif.daysN', {n: r.days})}</span></td>`);
         cells.push(`<td><span class="env-tag ${envClass}">${r.env}</span></td>`);
         cells.push(`<td class="mono">${r.dateRange}</td>`);
         cells.push(`<td class="mono">${fmtTime(r.time)}</td>`);
@@ -7523,9 +7669,9 @@
         if(r.paused){
           progressExtra = `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' — ' + r.pauseReason : ''}</div>`;
         } else if(failedN){
-          progressExtra = `<div style="font-size:10.5px; color:#A81E1E; margin-top:3px;">⚠ ${failedN} to finish</div>`;
+          progressExtra = `<div style="font-size:10.5px; color:#A81E1E; margin-top:3px;">⚠ ${tf('dep.toFinishN', {n: failedN})}</div>`;
         } else if(isDone){
-          progressExtra = `<div style="font-size:10.5px; color:#0F7A38; margin-top:3px;">✓ complete</div>`;
+          progressExtra = `<div style="font-size:10.5px; color:#0F7A38; margin-top:3px;">✓ ${t('dep.complete')}</div>`;
         }
         cells.push(`<td>
           <div style="display:flex; align-items:center; gap:8px;">
@@ -7533,7 +7679,7 @@
             <span class="mono" style="font-size:11.5px; color:var(--text-muted);">${r.counts.installed}/${r.totalLocations}</span>
           </div>${progressExtra}`);
         cells.push(approvalBadgeHtml(r));
-        cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();"><button class="mini-btn" ${(r.counts.scheduled===0 || r.paused)?'disabled':''} onclick="markBatchInstalled(${r.idx})">Mark the rest</button></td>`);
+        cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();"><button class="mini-btn" ${(r.counts.scheduled===0 || r.paused)?'disabled':''} onclick="markBatchInstalled(${r.idx})">${t('rep.markRest')}</button></td>`);
         html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
         if(expandedBatchIdx === r.idx) html += timelinePanelHtml(r);
       } else if(editingDeployIdx === r.idx){
@@ -7824,9 +7970,20 @@
     const n = d.counts.scheduled;
     d.counts.installed += n;
     d.counts.scheduled = 0;
+    // Force-completing the rollout means nothing is left to finish.
+    d.failedLocations = [];
+    const who = actorName();
     persistDeployment(idx);
     renderDeploymentsTable();
-    showToast(`Marked the remaining ${n} locations as installed — email notifications sent`);
+    renderInstallerPanel();
+    showToast(tf('rep.markedRestN', {n}));
+    const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
+    const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
+    dispatchEventNotification('completed', d.projectKey,
+      'RollDesk — ' + t('ev.completed') + ' (' + (d.env||'') + ')',
+      (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '')
+      + '\n' + t('notif.environment') + ': ' + (d.env||'')
+      + '\n' + t('dep.sInstalled') + '\n' + tf('notif.reportedByManual', {who}), true);
   }
 
   initProjectSelect();

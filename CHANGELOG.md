@@ -4,10 +4,32 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-07-22
+
+### Added
+- **Deployer panel filter tabs.** A row of tabs at the top of the deployer panel (All / Awaiting client / To report / Completed / Reports) shows one group at a time, so a large number of distributions stays readable instead of one long scrolling page.
+- **Timeline preview for completed distributions.** Completed cards in the deployer panel now have a "Show timeline" toggle so the deployer can review everything that happened without leaving the panel.
+- **Batch correction lets you choose the outcome.** For a completed distribution the correction form now offers "change to successful" and "keep failure (change reason)" — the same explicit choice single deployments already had — instead of silently inferring it.
+- **Exact-count day limits + soft validation.** The per-day breakdown field is now labelled *Exact count* and shows a non-blocking warning when the locations pinned to a day exceed the exact count set for that type (e.g. limit 1 "big office" but 2 pinned).
+- **Remove a custom target column.** Each custom column in the target list has a "✕" button to delete it (and its data from every target) — useful after re-importing a CSV with a different column set (e.g. a leftover "Miejscowość").
+- **Assign any deployer.** The assignee selector now lists project-scoped deployers first and then every other active deployer, so a lead can hand a distribution to a colleague who is not project-scoped. Each assignment change is recorded on the deployment timeline.
+- **Richer notifications.** Teams/webhook and e-mail notifications now include the environment (ŚT/PROD) in the subject and body and note who reported/approved (manual), for day reports, completions, failures and client approvals.
+
+### Fixed
+- **Locations that succeed on a later day no longer show as "to finish".** When a target that failed earlier is later marked successful (on any subsequent day), it is removed from the failed list, so a finished distribution correctly shows nothing left to complete. "Mark the rest as installed" also clears any remaining failures.
+- **Failure notifications are actually sent.** Reporting a failed location now also dispatches the standard *Failure* event (which clients subscribe to by default), so a webhook/e-mail is delivered even if the newer per-day event is not enabled.
+- **Client approval is announced.** Approving a schedule from the client portal now sends a webhook/e-mail (with environment and who approved), not only a timeline entry.
+
+### Notes
+- Two items from the feedback are being finished in **0.10.1**: multiple changelog attachments per deployment and a separate attachment for deployer instructions (the storage layer already supports many files per deployment; the full UI is pending). The reported "draft with ŚT+PROD only shows ŚT" case could not be reproduced from the code and needs a concrete repro from a live instance.
+
 ## [0.9.1] - 2026-07-20
 
 ### Added
 - **Per-project option: test environments also require client approval.** A new toggle in *Project → Deployment defaults* ("Test environment also requires client approval") makes test-env deployments (e.g. ŚT) wait for the client's sign-off, appear in the client portal to approve, and stay in the deployer's "Awaiting client approval" group — exactly like production. Off by default, so existing behaviour is unchanged.
+
+### Fixed
+- **Polish translations** for several leftover English strings: "Mark the rest", "X locations / working days", "Distribution start / Start / at", "Instructions for the deployer", the schedule-generated toast, and the "to finish / complete" progress labels. Weekday names (e.g. "Monday") in the deployer's waiting list and in notifications now follow the selected language.
 
 ## [0.9.0] - 2026-07-20
 
