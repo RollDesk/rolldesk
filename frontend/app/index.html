@@ -898,13 +898,16 @@
         <div class="field">
           <label data-i18n="sch.changelogAttach">Changelog attachment (optional)</label>
           <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;" data-i18n="sch.changelogAttachNote">You can attach a file (e.g. full release notes, an instruction). The file name will be included in the notification to the client.</p>
-          <input type="file" id="schedule-changelog-file" onchange="onChangelogFileChange()">
+          <input type="file" id="schedule-changelog-file" multiple onchange="onChangelogFileChange()">
           <div id="schedule-changelog-file-name" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
         </div>
         <div class="field">
           <label data-i18n="sch.installerNotes">Instructions for deployers (optional)</label>
           <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;" data-i18n="sch.installerNotesNote">Actions to perform during the deployment — e.g. „stop the service before installation", „after installation run the migration.sql script". They will be shown in the deployer panel for this deployment.</p>
           <textarea id="schedule-installer-notes" placeholder="e.g.&#10;1. Stop the ServiceA service&#10;2. Make a database backup&#10;3. After installation run migrations.sql"></textarea>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:10px 0 6px 0;" data-i18n="sch.installerAttachNote">You can attach files for the deployers (e.g. an additional script). They will be available in the deployer panel.</p>
+          <input type="file" id="schedule-installer-file" multiple onchange="onInstallerFileChange()">
+          <div id="schedule-installer-file-name" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
         </div>
         <div class="field">
           <label data-i18n="sch.deps">Dependencies — must be deployed earlier (optional)</label>
@@ -3133,11 +3136,14 @@
   function onChangelogFileChange(){
     const input = document.getElementById('schedule-changelog-file');
     const nameEl = document.getElementById('schedule-changelog-file-name');
-    if(input.files && input.files.length){
-      nameEl.textContent = '📎 Attached: ' + input.files[0].name;
-    } else {
-      nameEl.textContent = '';
-    }
+    const files = input.files ? Array.from(input.files) : [];
+    nameEl.textContent = files.length ? '📎 ' + files.map(f=>f.name).join(', ') : '';
+  }
+  function onInstallerFileChange(){
+    const input = document.getElementById('schedule-installer-file');
+    const nameEl = document.getElementById('schedule-installer-file-name');
+    const files = input.files ? Array.from(input.files) : [];
+    nameEl.textContent = files.length ? '📎 ' + files.map(f=>f.name).join(', ') : '';
   }
   function pathToHtml(pathVal, envs){
     const envTags = (envs||['Test']).map(e=>`<span class="env-tag test">${e}</span>`).join('<span style="color:var(--text-faint);">+</span>');
@@ -3222,8 +3228,12 @@
       return;
     }
     const fileInput = document.getElementById('schedule-changelog-file');
-    const fileToUpload = (fileInput.files && fileInput.files.length) ? fileInput.files[0] : null;
+    const changelogFiles = fileInput.files ? Array.from(fileInput.files) : [];
+    const fileToUpload = changelogFiles[0] || null;
+    // Legacy single fields kept for back-compat; the full set is uploaded below.
     const attachment = fileToUpload ? fileToUpload.name : null;
+    const installerFileInput = document.getElementById('schedule-installer-file');
+    const installerFiles = installerFileInput && installerFileInput.files ? Array.from(installerFileInput.files) : [];
 
     const testEnvs = Array.from(document.querySelectorAll('#schedule-envs-checks input:checked')).map(c=>c.value);
     const testDate = document.getElementById('date-test').value || '2026-07-13';
@@ -3326,8 +3336,9 @@
     }
 
     // Save the newly created deployments to the database (if connected) and,
-    // when a changelog file was chosen, upload it and link its stored id.
-    finalizeCreatedDeployments(createdIdsStart, fileToUpload);
+    // when changelog / instruction files were chosen, upload them and link the
+    // stored ids (changelog attachments and deployer-instruction attachments).
+    finalizeCreatedDeployments(createdIdsStart, changelogFiles, installerFiles);
 
     renderDeploymentsTable();
     renderInstallerPanel();
@@ -3370,8 +3381,9 @@
   function resetScheduleForm(){
     document.querySelectorAll('.schedule-app-check').forEach(cb=>{ cb.checked = false; });
     document.querySelectorAll('.schedule-app-version').forEach(inp=>{ inp.value = ''; });
-    const ids = ['schedule-changelog','schedule-changelog-file','schedule-installer-notes'];
+    const ids = ['schedule-changelog','schedule-changelog-file','schedule-installer-notes','schedule-installer-file'];
     ids.forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ''; });
+    ['schedule-changelog-file-name','schedule-installer-file-name'].forEach(id=>{ const el = document.getElementById(id); if(el) el.textContent = ''; });
     const internal = document.getElementById('schedule-internal');
     if(internal) internal.checked = false;
     const draftCb = document.getElementById('schedule-draft');
@@ -5134,7 +5146,7 @@
             ${d.changelog ? `<div style="margin-top:14px; font-size:12.5px;">
               <div style="color:var(--text-muted); margin-bottom:4px; font-weight:600;">${t('client.changelogFor')}</div>
               <div style="white-space:pre-line; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px; padding:10px 12px; line-height:1.6;">${d.changelog}</div>
-              ${attachmentLinkHtml(d.attachment, d.attachmentId)}
+              ${attachmentsHtml(d.attachments, d.attachment, d.attachmentId)}
             </div>` : ''}
             ${timelineHtml}
           </div>
@@ -5363,6 +5375,14 @@
   // Renders the attachment line: a real download link when the file is stored
   // in the DB (attachmentId present), otherwise a plain label (e.g. offline or
   // legacy records where only the filename was kept).
+  // Render a list of attachments (multiple files). Falls back to the legacy
+  // single filename/id so older deployment records still show their attachment.
+  function attachmentsHtml(atts, legacyName, legacyId){
+    const list = (Array.isArray(atts) && atts.length) ? atts : (legacyName ? [{id: legacyId, filename: legacyName}] : []);
+    if(!list.length) return '';
+    return list.map(a=>attachmentLinkHtml(a.filename, a.id)).join('<br>');
+  }
+
   function attachmentLinkHtml(filename, attachmentId){
     if(!filename) return '';
     const safeName = String(filename).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -5459,34 +5479,47 @@
   // Persist freshly created deployments and, if a changelog file was attached,
   // upload it to each one and store the returned attachment id so it can later
   // be downloaded. Runs async; re-renders once the uploads have completed.
-  async function finalizeCreatedDeployments(startIdx, file){
+  async function finalizeCreatedDeployments(startIdx, changelogFiles, installerFiles){
+    // Back-compat: earlier callers passed a single File.
+    changelogFiles = Array.isArray(changelogFiles) ? changelogFiles : (changelogFiles ? [changelogFiles] : []);
+    installerFiles = Array.isArray(installerFiles) ? installerFiles : (installerFiles ? [installerFiles] : []);
     if(!API_CONNECTED){
-      // Offline: nothing to upload; keep the filename for display only.
+      // Offline: nothing to upload; keep the filenames for display only.
       return;
     }
+    // Upload one file to a deployment, returning its stored {id, filename} meta
+    // or null (and a toast) on failure. Shared by both attachment categories.
+    const uploadOne = async (d, f)=>{
+      try {
+        const meta = await apiUploadAttachment(d.id, f);
+        return {id: meta.id, filename: meta.filename};
+      } catch(upErr){
+        if(upErr.virus){
+          showToast(tf('sch.attachVirus', {name: f.name, virus: upErr.virus}));
+        } else if(upErr.status === 503){
+          showToast(t('sch.attachAvDown'));
+        } else {
+          showToast(tf('sch.attachFailed', {name: f.name}));
+        }
+        return null;
+      }
+    };
     for(let i = startIdx; i < DEPLOYMENTS_DATA.length; i++){
       const d = DEPLOYMENTS_DATA[i];
       try {
         await apiSaveDeployment(d);
-        if(file){
-          try {
-            const meta = await apiUploadAttachment(d.id, file);
-            d.attachmentId = meta.id;
-            d.attachment = meta.filename;
-            await apiSaveDeployment(d);
-          } catch(upErr){
-            // Surface a clear message for a virus rejection or an unavailable
-            // scanner; the deployment itself is still saved, just without the file.
-            d.attachment = null;
-            await apiSaveDeployment(d);
-            if(upErr.virus){
-              showToast('⚠ Attachment rejected by virus scan (' + upErr.virus + ') — deployment saved without the file');
-            } else if(upErr.status === 503){
-              showToast('⚠ Virus scanner unavailable — deployment saved without the attachment');
-            } else {
-              showToast('⚠ Could not upload the attachment — deployment saved without it');
-            }
-          }
+        if(changelogFiles.length){
+          d.attachments = [];
+          for(const f of changelogFiles){ const m = await uploadOne(d, f); if(m) d.attachments.push(m); }
+          // Keep the legacy single fields pointing at the first file.
+          if(d.attachments.length){ d.attachmentId = d.attachments[0].id; d.attachment = d.attachments[0].filename; }
+          else { d.attachmentId = null; d.attachment = null; }
+          await apiSaveDeployment(d);
+        }
+        if(installerFiles.length){
+          d.instructionAttachments = [];
+          for(const f of installerFiles){ const m = await uploadOne(d, f); if(m) d.instructionAttachments.push(m); }
+          await apiSaveDeployment(d);
         }
       } catch(err){
         console.warn('Failed to finalize deployment', d.id, err.message);
@@ -6374,10 +6407,13 @@
   }
 
   function installerNotesHtml(r){
-    if(!r.installerNotes) return '';
+    const hasNotes = !!r.installerNotes;
+    const atts = Array.isArray(r.instructionAttachments) ? r.instructionAttachments : [];
+    if(!hasNotes && !atts.length) return '';
     return `<div style="margin:8px 0 12px 0; padding:10px 12px; background:#EAF4FB; border:1px solid #BEE0F5; border-radius:8px;">
       <div style="font-size:11.5px; font-weight:700; color:#0A6E7A; margin-bottom:4px;">📋 ${t('rep.deployerInstr')}</div>
-      <div style="font-size:12.5px; color:var(--ink); white-space:pre-line; line-height:1.5;">${r.installerNotes}</div>
+      ${hasNotes ? `<div style="font-size:12.5px; color:var(--ink); white-space:pre-line; line-height:1.5;">${r.installerNotes}</div>` : ''}
+      ${atts.length ? `<div style="margin-top:6px;">${atts.map(a=>attachmentLinkHtml(a.filename, a.id)).join('<br>')}</div>` : ''}
     </div>`;
   }
 
@@ -7581,7 +7617,7 @@
         <div class="field" style="margin-bottom:16px;">
           <label style="margin-bottom:4px;">${t('sch.changelog')}${r.apps && r.apps.length ? ' — ' + r.apps.map(a=>a.name+' v'+a.version).join(', ') : ''}</label>
           <div style="white-space:pre-line; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px; padding:10px 12px; line-height:1.6; font-size:12.5px;">${r.changelog}</div>
-          ${attachmentLinkHtml(r.attachment, r.attachmentId)}
+          ${attachmentsHtml(r.attachments, r.attachment, r.attachmentId)}
         </div>` : '';
 
       // Action buttons live in the same bar as the deployment ID, pushed to the right.
