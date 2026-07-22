@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-07-22
+
+### Changed
+- **Deleting a project is always recoverable.** Delete now archives the project (even one with no deployments) instead of erasing it, so an accidental one-click delete can be undone with "Restore". Permanent deletion is a separate, explicit action on an already-archived project.
+- **Compact forms via info (ℹ) icons.** Long helper paragraphs in *New deployment* and *Projects* were moved into small info icons — hover to read the full text. Covers: applications & versions, changelog/instructions attachments, dependencies, internal/draft flags, per-day breakdown, location assignment, the production-approval notice, start time, skip-weekends and the test-approval option.
+
+### Added
+- **Remove individual attachments.** Files added to the changelog or deployer-instructions attachment fields now appear as chips with a "✕" so you can drop a single file before confirming the schedule (re-selecting appends instead of replacing).
+
+### Fixed
+- **No more confusing startup pop-up.** The untranslated "Loaded N deployment(s) from the database" toast that appeared on every screen at startup was removed — data hydration is now silent.
+
 ## [0.10.0] - 2026-07-22
 
 ### Added

@@ -371,6 +371,12 @@
   #users-table tr:hover td{background:var(--line-soft);}
   .queue-row:hover td{background:var(--line-soft);}
   #installer-list .card:hover{background:var(--line-soft);}
+  /* Info (ℹ) icon with a hover popover — used to tuck long helper text away so
+     forms stay compact. The text comes from data-tip (set from i18n). */
+  .info-ic{display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; border-radius:50%; border:1px solid var(--text-faint); color:var(--text-faint); font-size:10px; font-weight:700; font-style:italic; cursor:help; position:relative; vertical-align:middle; margin-left:6px; flex-shrink:0;}
+  .info-ic:hover{border-color:var(--cyan); color:var(--cyan);}
+  .info-ic::after{content:attr(data-tip); position:absolute; left:0; top:calc(100% + 8px); width:300px; max-width:70vw; background:var(--ink,#1E242C); color:#fff; padding:9px 11px; border-radius:8px; font-size:11.5px; font-style:normal; font-weight:400; line-height:1.55; white-space:normal; text-align:left; opacity:0; visibility:hidden; transition:opacity .12s; z-index:200; box-shadow:0 6px 22px rgba(0,0,0,0.22); pointer-events:none;}
+  .info-ic:hover::after{opacity:1; visibility:visible;}
 </style>
 </head>
 <body>
@@ -713,19 +719,16 @@
             <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;" data-i18n="proj.defaultDaysNote">How multi-target deployments are split across working days by default.</p>
           </div>
           <div class="field">
-            <label data-i18n="proj.defaultTime">Deployment start time</label>
+            <label style="display:flex; align-items:center;"><span data-i18n="proj.defaultTime">Deployment start time</span><span class="info-ic" data-i18n-tip="proj.defaultTimeNote">i</span></label>
             <input type="time" id="project-default-time" value="20:00" class="mono" style="width:100%;">
-            <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;" data-i18n="proj.defaultTimeNote">The time at which a deployment usually begins.</p>
           </div>
         </div>
         <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400; margin:4px 0 12px 0;">
-          <input type="checkbox" id="project-skip-weekends" style="width:auto;" checked> <span data-i18n="proj.skipWeekends">Skip weekends in the schedule</span>
+          <input type="checkbox" id="project-skip-weekends" style="width:auto;" checked> <span data-i18n="proj.skipWeekends">Skip weekends in the schedule</span><span class="info-ic" data-i18n-tip="proj.skipWeekendsNote">i</span>
         </label>
-        <p style="font-size:11px; color:var(--text-faint); margin:0 0 12px 0;" data-i18n="proj.skipWeekendsNote">When enabled, the auto-generated schedule skips Saturdays and Sundays.</p>
         <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400; margin:4px 0 12px 0;">
-          <input type="checkbox" id="project-test-approval" style="width:auto;"> <span data-i18n="proj.testApproval">Test environment also requires client approval</span>
+          <input type="checkbox" id="project-test-approval" style="width:auto;"> <span data-i18n="proj.testApproval">Test environment also requires client approval</span><span class="info-ic" data-i18n-tip="proj.testApprovalNote">i</span>
         </label>
-        <p style="font-size:11px; color:var(--text-faint); margin:0 0 12px 0;" data-i18n="proj.testApprovalNote">When enabled, deployments to test environments (e.g. ŚT) also wait for the client's approval, just like production.</p>
         <button class="btn" onclick="saveProjectDefaults()" data-i18n="proj.saveDefaults">Save defaults</button>
       </div>
 
@@ -850,9 +853,8 @@
               <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;" data-i18n="np.daysNote">Default schedule split for multi-target deployments.</p>
             </div>
             <div>
-              <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px;" data-i18n="np.startTime">Default start time</label>
+              <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px; display:flex; align-items:center;"><span data-i18n="np.startTime">Default start time</span><span class="info-ic" data-i18n-tip="np.startTimeNote">i</span></label>
               <input type="time" id="np-default-time" value="20:00" class="mono" style="width:100%;">
-              <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;" data-i18n="np.startTimeNote">The time at which a deployment usually begins.</p>
             </div>
           </div>
         </div>
@@ -893,31 +895,27 @@
           <select id="schedule-project-select" class="mono" onchange="switchProject(this.value)"></select>
         </div>
         <div class="field">
-          <label data-i18n="sch.appsVersions">Applications and versions included in this deployment</label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;" data-i18n="sch.appsVersionsNote">A single deployment can cover several applications. Select the applications and provide a version for each one (the version is required).</p>
-          <div id="schedule-apps-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+          <label style="display:flex; align-items:center;"><span data-i18n="sch.appsVersions">Applications and versions included in this deployment</span><span class="info-ic" data-i18n-tip="sch.appsVersionsNote">i</span></label>
+          <div id="schedule-apps-list" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;"></div>
         </div>
         <div class="field">
           <label><span data-i18n="sch.changelog">Changelog</span> <span style="color:#A81E1E;">*</span></label>
           <textarea id="schedule-changelog" data-i18n-ph="sch.changelogPh" placeholder="Describe the changes in this release (required)..."></textarea>
         </div>
         <div class="field">
-          <label data-i18n="sch.changelogAttach">Changelog attachment (optional)</label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;" data-i18n="sch.changelogAttachNote">You can attach a file (e.g. full release notes, an instruction). The file name will be included in the notification to the client.</p>
+          <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.changelogAttach">Changelog attachment (optional)</span><span class="info-ic" data-i18n-tip="sch.changelogAttachNote">i</span></label>
           <input type="file" id="schedule-changelog-file" multiple onchange="onChangelogFileChange()">
           <div id="schedule-changelog-file-name" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
         </div>
         <div class="field">
-          <label data-i18n="sch.installerNotes">Instructions for deployers (optional)</label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;" data-i18n="sch.installerNotesNote">Actions to perform during the deployment — e.g. „stop the service before installation", „after installation run the migration.sql script". They will be shown in the deployer panel for this deployment.</p>
+          <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.installerNotes">Instructions for deployers (optional)</span><span class="info-ic" data-i18n-tip="sch.installerNotesNote">i</span></label>
           <textarea id="schedule-installer-notes" placeholder="e.g.&#10;1. Stop the ServiceA service&#10;2. Make a database backup&#10;3. After installation run migrations.sql"></textarea>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:10px 0 6px 0;" data-i18n="sch.installerAttachNote">You can attach files for the deployers (e.g. an additional script). They will be available in the deployer panel.</p>
+          <label style="display:flex; align-items:center; margin:10px 0 6px 0;"><span data-i18n="sch.installerAttach">Attachments for deployers (optional)</span><span class="info-ic" data-i18n-tip="sch.installerAttachNote">i</span></label>
           <input type="file" id="schedule-installer-file" multiple onchange="onInstallerFileChange()">
           <div id="schedule-installer-file-name" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
         </div>
         <div class="field">
-          <label data-i18n="sch.deps">Dependencies — must be deployed earlier (optional)</label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;" data-i18n="sch.depsNote">If this deployment requires another one to be completed first (e.g. application A only after application B), select it here. The deployer will get a warning until the dependency is completed.</p>
+          <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.deps">Dependencies — must be deployed earlier (optional)</span><span class="info-ic" data-i18n-tip="sch.depsNote">i</span></label>
           <div id="schedule-deps-list" style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto;"></div>
         </div>
         <div class="field">
@@ -933,12 +931,10 @@
           <div id="schedule-envs-checks" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
         </div>
         <div class="field">
-          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="schedule-internal" style="width:auto;"> <span data-i18n="sch.internal">Internal deployment — not visible to the client</span></label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="sch.internalNote">Select this if it's a deployment to an internal environment. It won't appear in the client panel and doesn't require their approval — only the team and the deployer can see it.</p>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="schedule-internal" style="width:auto;"> <span data-i18n="sch.internal">Internal deployment — not visible to the client</span><span class="info-ic" data-i18n-tip="sch.internalNote">i</span></label>
         </div>
         <div class="field">
-          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="schedule-draft" style="width:auto;"> <span data-i18n="sch.draft">Save as draft — do not notify the client yet</span></label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="sch.draftNote">Prepare the schedule and attachments first. The client won't see it and no notification is sent until you press „Notify the client" on the deployment.</p>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="schedule-draft" style="width:auto;"> <span data-i18n="sch.draft">Save as draft — do not notify the client yet</span><span class="info-ic" data-i18n-tip="sch.draftNote">i</span></label>
         </div>
         <div class="field" id="schedule-rollout-fields">
           <label data-i18n="sch.modeField">Schedule mode (defined when the project was created)</label>
@@ -964,10 +960,9 @@
 
         <div class="field" id="schedule-daybreakdown-field">
           <div class="toolbar" style="margin-bottom:8px;">
-            <label style="margin-bottom:0;" data-i18n="sch.perDay">Per-day breakdown and PM guidelines</label>
+            <label style="margin-bottom:0; display:flex; align-items:center;"><span data-i18n="sch.perDay">Per-day breakdown and PM guidelines</span><span class="info-ic" data-i18n-tip="sch.perDayNote">i</span></label>
             <button class="mini-btn" onclick="buildDayBreakdown()" data-i18n="sch.spreadDays">Spread across days</button>
           </div>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;" data-i18n="sch.perDayNote">Set the number of locations and constraints for each day — "Generate schedule" will take them into account.</p>
           <div id="constraint-field-wrap" style="margin:0 0 10px 0;"></div>
           <div style="max-height:260px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;">
             <table>
@@ -1013,10 +1008,9 @@
 
         <div class="card">
           <div class="toolbar">
-            <strong style="font-size:13px;" data-i18n="sch.locAssign">Location assignment (preview)</strong>
+            <strong style="font-size:13px; display:inline-flex; align-items:center;"><span data-i18n="sch.locAssign">Location assignment (preview)</span><span class="info-ic" data-i18n-tip="sch.locAssignNote">i</span></strong>
             <input type="text" id="manifest-search" data-i18n-ph="sch.searchLocs" placeholder="Search locations..." style="width:180px; padding:6px 10px; font-size:12.5px;" oninput="filterManifestTable()">
           </div>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;" data-i18n="sch.locAssignNote">Move selected branches to the start or end of the queue — e.g. if the client wants a specific location to go first or only at the very end.</p>
           <div style="max-height:340px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;">
             <table>
               <thead><tr><th data-i18n="sch.thLocation">Location</th><th data-i18n="sch.thType">Type</th><th data-i18n="sch.thDay">Day</th><th data-i18n="sch.thDate">Date</th><th data-i18n="sch.time">Time</th><th data-i18n="sch.thEnv">Environment</th><th></th></tr></thead>
@@ -1031,8 +1025,8 @@
           </div>
         </div>
         <div class="card" id="schedule-approval-notice" style="background:var(--cyan-soft); border:1px solid #BEE7EB; margin-top:16px; display:none;">
-          <div style="font-size:12.5px; color:#0A6E7A; line-height:1.5;" data-i18n-html="sch.approvalNotice">
-            📧 Because this path includes <strong>production</strong>, once you approve it the client will automatically receive an e-mail asking them to approve the schedule. In response they can approve it, submit comments, or reject the schedule — in each of these cases a notification is also sent to you and the other interested parties.
+          <div style="font-size:12.5px; color:#0A6E7A; line-height:1.5; display:flex; align-items:center;">
+            <span>📧 <span data-i18n="sch.approvalNoticeShort">After you approve, the client automatically gets an e-mail asking them to approve the schedule.</span></span><span class="info-ic" style="border-color:#0A6E7A; color:#0A6E7A;" data-i18n-tip="sch.approvalNoticeTip">i</span>
           </div>
         </div>
         <div style="display:flex; gap:10px; margin-top:16px; justify-content:flex-end;">
@@ -1593,11 +1587,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.10.0"></script>
-<script src="i18n/en.js?v=0.10.0"></script>
+<script src="i18n/pl.js?v=0.10.1"></script>
+<script src="i18n/en.js?v=0.10.1"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.10.0';
+  const ROLLDESK_VERSION = '0.10.1';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -1682,6 +1676,12 @@
     document.querySelectorAll('[data-i18n-html]').forEach(el=>{
       const val = I18N[LANG] && I18N[LANG][el.getAttribute('data-i18n-html')];
       if(val != null) el.innerHTML = val;
+    });
+    // Hover tooltips on info (ℹ) icons — the help text lives in a popover instead
+    // of a long paragraph on screen.
+    document.querySelectorAll('[data-i18n-tip]').forEach(el=>{
+      const val = I18N[LANG] && I18N[LANG][el.getAttribute('data-i18n-tip')];
+      if(val != null) el.setAttribute('data-tip', val);
     });
     // refresh the current topbar title in the active language
     const active = document.querySelector('.nav-item.active');
@@ -2895,29 +2895,28 @@
   // it archives the project instead (hidden from active lists and pickers, its
   // deployments stay in the Deployments list as read-only history). A project
   // with no deployments is removed outright.
+  // Deleting is always recoverable: it archives the project (a one-click mistake
+  // can be undone with "Restore") rather than erasing it. Permanent deletion is a
+  // separate, explicit action on an already-archived project.
   function deleteProject(key){
     if(!isLoggedInAsAdmin()){ showToast(t('proj.onlyAdminDelete')); return; }
     const p = PROJECTS[key];
     if(!p) return;
     const depCount = DEPLOYMENTS_DATA.filter(d=>d.projectKey === key).length;
-    if(depCount > 0){
-      showAppConfirm(t('proj.archiveTitle') + ' — ' + p.name, tf('proj.archiveBody', {n: depCount}), ()=>{
-        p.archived = true;
-        persistProject(key); // persists when connected; surfaces its own error toast
-        if(currentProjectKey === key){
-          const keys = Object.keys(PROJECTS).filter(k=>!PROJECTS[k].archived);
-          currentProjectKey = keys.length ? keys[0] : null;
-        }
-        logAudit('changed', 'Project', 'Archived project „' + p.name + '” (history kept)', p.name, 'aud.d.projectArchived', {name: p.name});
-        const panel = document.getElementById('project-apps-panel');
-        if(panel) panel.style.display = 'none';
-        try { renderProjectsList(); initProjectSelect(); renderDeploymentsTable(); renderClientsTable(); } catch(e){}
-        showToast(tf('proj.archivedToast', {name: p.name}));
-      });
-      return;
-    }
-    // No deployments — safe to remove entirely.
-    showAppConfirm(t('proj.deleteTitle') + ' — ' + p.name, t('proj.deleteBody'), ()=> hardDeleteProject(key));
+    const body = depCount > 0 ? tf('proj.archiveBody', {n: depCount}) : t('proj.archiveBodyEmpty');
+    showAppConfirm(t('proj.archiveTitle') + ' — ' + p.name, body, ()=>{
+      p.archived = true;
+      persistProject(key); // persists when connected; surfaces its own error toast
+      if(currentProjectKey === key){
+        const keys = Object.keys(PROJECTS).filter(k=>!PROJECTS[k].archived);
+        currentProjectKey = keys.length ? keys[0] : null;
+      }
+      logAudit('changed', 'Project', 'Archived project „' + p.name + '” (history kept)', p.name, 'aud.d.projectArchived', {name: p.name});
+      const panel = document.getElementById('project-apps-panel');
+      if(panel) panel.style.display = 'none';
+      try { renderProjectsList(); initProjectSelect(); renderDeploymentsTable(); renderClientsTable(); } catch(e){}
+      showToast(tf('proj.archivedToast', {name: p.name}));
+    });
   }
 
   function restoreProject(key){
@@ -3199,18 +3198,40 @@
     }
   }
 
-  function onChangelogFileChange(){
-    const input = document.getElementById('schedule-changelog-file');
-    const nameEl = document.getElementById('schedule-changelog-file-name');
-    const files = input.files ? Array.from(input.files) : [];
-    nameEl.textContent = files.length ? '📎 ' + files.map(f=>f.name).join(', ') : '';
+  // Selected attachments are held in JS arrays (not the <input>.files, which is
+  // read-only and can't drop a single entry) so each file can be removed with its
+  // own "✕" before the schedule is confirmed. Re-selecting appends.
+  let scheduleChangelogFiles = [];
+  let scheduleInstallerFiles = [];
+  const scheduleFileState = {
+    changelog: { arr: ()=>scheduleChangelogFiles, input: 'schedule-changelog-file', box: 'schedule-changelog-file-name' },
+    installer: { arr: ()=>scheduleInstallerFiles, input: 'schedule-installer-file', box: 'schedule-installer-file-name' },
+  };
+  function renderScheduleFileChips(kind){
+    const st = scheduleFileState[kind];
+    const box = document.getElementById(st.box);
+    if(!box) return;
+    const files = st.arr();
+    box.innerHTML = files.map((f,i)=>`<span style="display:inline-flex; align-items:center; gap:6px; background:var(--line-soft); border:1px solid var(--line); border-radius:14px; padding:2px 6px 2px 10px; margin:0 6px 6px 0; font-size:12px;">📎 ${escapeHtml(f.name)} <button type="button" title="${t('sch.removeFile')}" onclick="removeScheduleFile('${kind}', ${i})" style="border:none; background:none; cursor:pointer; color:var(--text-muted); font-size:14px; line-height:1; padding:0 2px;">✕</button></span>`).join('');
   }
-  function onInstallerFileChange(){
-    const input = document.getElementById('schedule-installer-file');
-    const nameEl = document.getElementById('schedule-installer-file-name');
-    const files = input.files ? Array.from(input.files) : [];
-    nameEl.textContent = files.length ? '📎 ' + files.map(f=>f.name).join(', ') : '';
+  function addScheduleFiles(kind){
+    const st = scheduleFileState[kind];
+    const input = document.getElementById(st.input);
+    const arr = st.arr();
+    const picked = input && input.files ? Array.from(input.files) : [];
+    picked.forEach(f=>{
+      if(!arr.some(x=>x.name === f.name && x.size === f.size)) arr.push(f);
+    });
+    if(input) input.value = ''; // allow re-picking the same file later
+    renderScheduleFileChips(kind);
   }
+  function removeScheduleFile(kind, i){
+    const arr = scheduleFileState[kind].arr();
+    arr.splice(i, 1);
+    renderScheduleFileChips(kind);
+  }
+  function onChangelogFileChange(){ addScheduleFiles('changelog'); }
+  function onInstallerFileChange(){ addScheduleFiles('installer'); }
   function pathToHtml(pathVal, envs){
     const envTags = (envs||['Test']).map(e=>`<span class="env-tag test">${e}</span>`).join('<span style="color:var(--text-faint);">+</span>');
     if(pathVal === 'prod-only') return `<span class="env-tag prod">Production</span>`;
@@ -3293,13 +3314,11 @@
       document.getElementById('schedule-changelog').focus();
       return;
     }
-    const fileInput = document.getElementById('schedule-changelog-file');
-    const changelogFiles = fileInput.files ? Array.from(fileInput.files) : [];
+    const changelogFiles = scheduleChangelogFiles.slice();
     const fileToUpload = changelogFiles[0] || null;
     // Legacy single fields kept for back-compat; the full set is uploaded below.
     const attachment = fileToUpload ? fileToUpload.name : null;
-    const installerFileInput = document.getElementById('schedule-installer-file');
-    const installerFiles = installerFileInput && installerFileInput.files ? Array.from(installerFileInput.files) : [];
+    const installerFiles = scheduleInstallerFiles.slice();
 
     const testEnvs = Array.from(document.querySelectorAll('#schedule-envs-checks input:checked')).map(c=>c.value);
     const testDate = document.getElementById('date-test').value || '2026-07-13';
@@ -3449,7 +3468,9 @@
     document.querySelectorAll('.schedule-app-version').forEach(inp=>{ inp.value = ''; });
     const ids = ['schedule-changelog','schedule-changelog-file','schedule-installer-notes','schedule-installer-file'];
     ids.forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ''; });
-    ['schedule-changelog-file-name','schedule-installer-file-name'].forEach(id=>{ const el = document.getElementById(id); if(el) el.textContent = ''; });
+    scheduleChangelogFiles = [];
+    scheduleInstallerFiles = [];
+    ['schedule-changelog-file-name','schedule-installer-file-name'].forEach(id=>{ const el = document.getElementById(id); if(el) el.innerHTML = ''; });
     const internal = document.getElementById('schedule-internal');
     if(internal) internal.checked = false;
     const draftCb = document.getElementById('schedule-draft');
@@ -5811,7 +5832,8 @@
       // Load the signed-in user's personal access tokens for the profile.
       try { await loadApiTokens(); } catch(e){ console.warn('Failed to load tokens:', e.message); }
 
-      showToast('Loaded ' + rows.length + ' deployment(s) from the database');
+      // Initial data hydration is silent — a "Loaded N deployment(s)" toast used to
+      // pop up on every screen (projects, client panel, …) which was confusing.
     } catch(err){
       API_CONNECTED = false;
       console.warn('Failed to load data from the backend:', err.message);
