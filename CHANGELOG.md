@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Compact forms via info (ℹ) icons.** Long helper paragraphs in *New deployment* and *Projects* were moved into small info icons — hover to read the full text. Covers: applications & versions, changelog/instructions attachments, dependencies, internal/draft flags, per-day breakdown, location assignment, the production-approval notice, start time, skip-weekends and the test-approval option.
 - **Changelog is optional when a file is attached.** In *New deployment* you no longer have to type the release notes if you attach a changelog file (the file carries them). One of the two is still required.
 
+### Security
+- **Attachment access control (fixes IDOR).** Attachment download/list/upload/delete now verify that the caller may access the owning deployment (same scoping as the deployments API): clients are limited to their own non-internal projects, deployers to their granted projects, and clients can no longer upload or delete files. Previously any signed-in user could download or delete any file by guessing its (sequential) id.
+- **Output escaping against stored XSS.** User-supplied text (changelog, client comments/replies, deployer instructions, timeline comments and attachment file names) is now HTML-escaped before rendering, so a crafted comment or file name can't execute script in another user's session.
+- **HTTP security headers.** nginx now sends a Content-Security-Policy plus `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy` and a minimal `Permissions-Policy`.
+
 ### Fixed
 - **No more confusing startup pop-up.** The untranslated "Loaded N deployment(s) from the database" toast that appeared on every screen at startup was removed — data hydration is now silent.
 

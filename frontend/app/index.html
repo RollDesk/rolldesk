@@ -5203,7 +5203,7 @@
         };
         const st = map[d.clientApproval] || map.approved;
         let html = `<span class="mono" style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:${st.bg}; color:${st.color};">${st.label}</span>`;
-        if(d.clientComment) html += `<div style="font-size:11px; color:var(--text-muted); font-style:italic; margin-top:3px; max-width:200px;">"${d.clientComment}"</div>`;
+        if(d.clientComment) html += `<div style="font-size:11px; color:var(--text-muted); font-style:italic; margin-top:3px; max-width:200px;">"${escapeHtml(d.clientComment)}"</div>`;
         cells.push(`<td>${html}</td>`);
       }
       const rowKey = d.depId;
@@ -5238,10 +5238,10 @@
               ${d.env === 'Production' ? `<div><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.numLocations')}</div><strong>${proj.locations}</strong></div>` : ''}
               <div><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.deploymentStatus')}</div><strong>${statusLabel[d.status]}</strong></div>
             </div>
-            ${d.clientComment ? `<div style="margin-top:12px; font-size:12.5px;"><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.yourComment')}</div><div style="font-style:italic;">"${d.clientComment}"</div></div>` : ''}
+            ${d.clientComment ? `<div style="margin-top:12px; font-size:12.5px;"><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.yourComment')}</div><div style="font-style:italic;">"${escapeHtml(d.clientComment)}"</div></div>` : ''}
             ${d.changelog ? `<div style="margin-top:14px; font-size:12.5px;">
               <div style="color:var(--text-muted); margin-bottom:4px; font-weight:600;">${t('client.changelogFor')}</div>
-              <div style="white-space:pre-line; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px; padding:10px 12px; line-height:1.6;">${d.changelog}</div>
+              <div style="white-space:pre-line; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px; padding:10px 12px; line-height:1.6;">${escapeHtml(d.changelog)}</div>
               ${attachmentsHtml(d.attachments, d.attachment, d.attachmentId)}
             </div>` : ''}
             ${timelineHtml}
@@ -5502,7 +5502,7 @@
   function attachmentLinkHtml(filename, attachmentId){
     if(!filename) return '';
     const safeName = String(filename).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    const label = '📎 ' + filename;
+    const label = '📎 ' + escapeHtml(filename);
     const style = 'display:inline-flex; align-items:center; gap:6px; margin-top:8px; font-size:12px; text-decoration:none;';
     if(attachmentId){
       return `<a href="#" onclick="event.preventDefault(); event.stopPropagation(); downloadAttachment({id:'${attachmentId}', filename:'${safeName}'});" style="${style} color:var(--cyan);">${label}</a>`;
@@ -6544,7 +6544,7 @@
         const icon = c.icon || '⚙️';
         events.push({date: c.date, time: c.time, icon, text: c.text + (c.author ? ' <span style="color:var(--text-faint);">— ' + c.author + '</span>' : '')});
       } else {
-        events.push({date: c.date, time: c.time, icon:'🗒️', text: tf('dtl.comment', {who: '<strong>' + (c.author || 'Release Manager') + '</strong>', text: c.text})});
+        events.push({date: c.date, time: c.time, icon:'🗒️', text: tf('dtl.comment', {who: '<strong>' + escapeHtml(c.author || 'Release Manager') + '</strong>', text: escapeHtml(c.text || '')})});
       }
     });
 
@@ -6586,7 +6586,7 @@
     if(!hasNotes && !atts.length) return '';
     return `<div style="margin:8px 0 12px 0; padding:10px 12px; background:#EAF4FB; border:1px solid #BEE0F5; border-radius:8px;">
       <div style="font-size:11.5px; font-weight:700; color:#0A6E7A; margin-bottom:4px;">📋 ${t('rep.deployerInstr')}</div>
-      ${hasNotes ? `<div style="font-size:12.5px; color:var(--ink); white-space:pre-line; line-height:1.5;">${r.installerNotes}</div>` : ''}
+      ${hasNotes ? `<div style="font-size:12.5px; color:var(--ink); white-space:pre-line; line-height:1.5;">${escapeHtml(r.installerNotes)}</div>` : ''}
       ${atts.length ? `<div style="margin-top:6px;">${atts.map(a=>attachmentLinkHtml(a.filename, a.id)).join('<br>')}</div>` : ''}
     </div>`;
   }
@@ -7689,10 +7689,10 @@
       const options = Object.entries(map).map(([val,m])=>`<option value="${val}" ${val===current?'selected':''}>${m.label}</option>`).join('');
       let html = `<select onclick="event.stopPropagation();" onchange="changeClientApproval(${r.idx}, this.value)" class="mono" style="border:1px solid var(--line); border-radius:20px; padding:3px 8px; font-size:11px; font-weight:600; background:${st.bg}; color:${st.color};">${options}</select>`;
       if(r.clientComment){
-        html += `<div style="margin-top:5px; font-size:11px; color:var(--text-muted); font-style:italic;">💬 „${r.clientComment.length>60?r.clientComment.slice(0,60)+'…':r.clientComment}"</div>`;
+        html += `<div style="margin-top:5px; font-size:11px; color:var(--text-muted); font-style:italic;">💬 „${escapeHtml(r.clientComment.length>60?r.clientComment.slice(0,60)+'…':r.clientComment)}"</div>`;
       }
       if(r.clientReply){
-        html += `<div style="margin-top:3px; font-size:11px; color:#0A6E7A;">↳ ${t('dep.yourReply')}: „${r.clientReply.length>50?r.clientReply.slice(0,50)+'…':r.clientReply}"</div>`;
+        html += `<div style="margin-top:3px; font-size:11px; color:#0A6E7A;">↳ ${t('dep.yourReply')}: „${escapeHtml(r.clientReply.length>50?r.clientReply.slice(0,50)+'…':r.clientReply)}"</div>`;
       }
       if(r.clientComment){
         html += `<div style="margin-top:4px;"><button class="mini-btn" style="padding:2px 6px; font-size:10.5px;" onclick="event.stopPropagation(); replyToClientComment(${r.idx})">${r.clientReply ? t('dep.changeReply') : t('dep.reply')}</button></div>`;
@@ -7796,7 +7796,7 @@
       const changelogHtml = (r.changelog || clAttsHtml || instrAttsHtml) ? `
         <div class="field" style="margin-bottom:16px;">
           <label style="margin-bottom:4px;">${t('sch.changelog')}${r.apps && r.apps.length ? ' — ' + r.apps.map(a=>a.name+' v'+a.version).join(', ') : ''}</label>
-          ${r.changelog ? `<div style="white-space:pre-line; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px; padding:10px 12px; line-height:1.6; font-size:12.5px;">${r.changelog}</div>` : ''}
+          ${r.changelog ? `<div style="white-space:pre-line; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px; padding:10px 12px; line-height:1.6; font-size:12.5px;">${escapeHtml(r.changelog)}</div>` : ''}
           ${clAttsHtml}
           ${instrAttsHtml ? `<div style="margin-top:${r.changelog || clAttsHtml ? '10px' : '0'};"><span style="font-size:11px; color:var(--text-muted);">${t('sch.installerAttach')}</span><br>${instrAttsHtml}</div>` : ''}
         </div>` : '';
