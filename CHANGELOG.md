@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Remove a custom target column.** Each custom column in the target list has a "✕" button to delete it (and its data from every target) — useful after re-importing a CSV with a different column set (e.g. a leftover "Miejscowość").
 - **Assign any deployer.** The assignee selector now lists project-scoped deployers first and then every other active deployer, so a lead can hand a distribution to a colleague who is not project-scoped. Each assignment change is recorded on the deployment timeline.
 - **Richer notifications.** Teams/webhook and e-mail notifications now include the environment (ŚT/PROD) in the subject and body and note who reported/approved (manual), for day reports, completions, failures and client approvals.
+- **Multiple changelog attachments.** The "Changelog attachment" field in *New deployment* now accepts several files; all of them are uploaded, virus-scanned and shown as download links in the client portal and the deployments list.
+- **Attachment for deployer instructions.** *Instructions for deployers* now has its own file field (e.g. an additional script); attached files are available in the deployer panel next to the instructions.
 
 ### Fixed
 - **Locations that succeed on a later day no longer show as "to finish".** When a target that failed earlier is later marked successful (on any subsequent day), it is removed from the failed list, so a finished distribution correctly shows nothing left to complete. "Mark the rest as installed" also clears any remaining failures.
@@ -21,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Client approval is announced.** Approving a schedule from the client portal now sends a webhook/e-mail (with environment and who approved), not only a timeline entry.
 
 ### Notes
-- Two items from the feedback are being finished in **0.10.1**: multiple changelog attachments per deployment and a separate attachment for deployer instructions (the storage layer already supports many files per deployment; the full UI is pending). The reported "draft with ŚT+PROD only shows ŚT" case could not be reproduced from the code and needs a concrete repro from a live instance.
+- **Could not verify:** the reported "draft with ŚT+PROD only shows ŚT (production planned deployment missing)" case could not be reproduced from the code — both the test and production records are created and rendered. It needs a concrete reproduction from a live instance (ideally with the browser console open) to pin down.
 
 ## [0.9.1] - 2026-07-20
 
