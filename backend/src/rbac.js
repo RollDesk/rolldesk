@@ -43,3 +43,26 @@ export function isInstaller(req) {
 export async function userScope(req) {
   return clientScope(req);
 }
+
+// Loads a deployment's ownership columns (project + internal flag) for access
+// checks. Returns null when the deployment does not exist.
+export async function loadDeploymentAccess(deploymentId) {
+  const { rows } = await query(
+    'SELECT id, project_key, internal FROM deployments WHERE id = $1',
+    [deploymentId]
+  );
+  return rows[0] || null;
+}
+
+// Whether the caller may READ this deployment (and, by extension, its
+// attachments). Mirrors the scoping used by the deployments routes: admins and
+// release managers see everything; clients only their granted, non-internal
+// projects; installers only their granted projects.
+export async function canReadDeployment(req, dep) {
+  if (!dep) return false;
+  const role = req.auth && req.auth.role;
+  if (role === 'admin' || role === 'rm') return true;
+  const { projects } = await userScope(req);
+  if (role === 'client') return !dep.internal && projects.includes(dep.project_key);
+  return projects.includes(dep.project_key); // installer (and any other scoped role)
+}
