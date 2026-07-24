@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.11.0] - 2026-07-24
 
 ### Added
-- **Microsoft Teams via Microsoft Graph (threaded per deployment).** When `GRAPH_*` and `TEAMS_*` are configured, deployment notifications are posted to a Teams channel and grouped per deployment: the first event opens a message and later events (approval, schedule, day reports, completion) are posted as replies in that thread. Falls back to the existing per-client webhooks when Graph isn't configured — or when the tenant blocks app-only channel posting. Admin diagnostics: `GET /api/teams/graph/status|teams|channels`. Secrets live only in `.env` (never committed).
+- **Microsoft Teams via Microsoft Graph (threaded per deployment).** Optional integration behind the `GRAPH_ENABLED` feature flag (off by default — webhooks stay as today). When enabled and `GRAPH_*`/`TEAMS_*` are set, deployment notifications are posted to a Teams channel and grouped per deployment. Admin diagnostics: `GET /api/teams/graph/status|teams|channels`. Secrets live only in `.env`.
 - **Send an approval reminder.** Deployments still awaiting the client's decision get a "Send reminder" action that re-sends the approval request and records it on the timeline and in the change history.
 - **Move a target to any future day.** The deployment queue now has a "→ day…" picker to move a pending location to any upcoming day, not just the neighbouring one.
 - **Co-schedule paired locations.** Targets that share a "Group / pair with" label are always scheduled on the same day (e.g. a branch and its backup server). New column in the target list.
@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Richer completion / day-report notifications.** Notifications now include the actual status, who reported it (manually), and a progress line (installed / total / remaining).
 - **Exact-count day limits.** The per-day type limit now reliably targets exactly N of the chosen type by placing constrained targets first.
 - **Schedule PDF opens cleanly.** The printable schedule no longer forces the browser print dialog on open — it opens in a tab with a Print button, so the main app stays usable.
+- **Deployments list denser.** Time is shown in small type under the date (same pattern as the app version), and the client name sits under the project — the separate Client and Time columns are gone.
 
 ### Fixed
 - **Draft with test + production now keeps both.** Creating a draft that spans a test and a production environment saved both records reliably (the navigation no longer races the save and wipes the production record).
@@ -29,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **More Polish translations** for the new deployer-panel, schedule and notification strings.
 
 ### Notes
-- Sending Teams channel messages with application (app-only) permissions is restricted by Microsoft; if your tenant blocks it, RollDesk automatically falls back to the configured webhooks. The Graph client secret was shared in chat during setup — rotate it in Entra ID after deployment.
+- Teams Graph posting is behind `GRAPH_ENABLED` (default off). Sending channel messages with application (app-only) permissions is restricted by Microsoft; keep the flag off and use webhooks until permissions + tenant allow it. Rotate the Graph client secret in Entra ID after setup if it was shared during configuration.
 
 ## [0.10.1] - 2026-07-22
 

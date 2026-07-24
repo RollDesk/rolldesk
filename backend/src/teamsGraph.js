@@ -28,9 +28,11 @@ export function isConfigured() {
   return !!(g.tenantId && g.clientId && g.clientSecret);
 }
 
-// Is the integration fully wired to a concrete channel (so we can actually post)?
+// Is the integration enabled AND fully wired to a concrete channel, so we may
+// actually post? Gated behind the GRAPH_ENABLED feature flag; while it's off,
+// notifications fall back to the per-client webhooks (previous behaviour).
 export function canPost() {
-  return isConfigured() && !!(config.graph.teamId && config.graph.channelId);
+  return config.graph.enabled && isConfigured() && !!(config.graph.teamId && config.graph.channelId);
 }
 
 // Fetch (and cache) an app-only token for Microsoft Graph.
@@ -169,7 +171,7 @@ export async function postDeploymentEvent({ deploymentId, subject, text }) {
 
 // Overall status for the diagnostics endpoint.
 export async function status() {
-  const s = { configured: isConfigured(), canPost: canPost(), tokenOk: false };
+  const s = { enabled: config.graph.enabled, configured: isConfigured(), canPost: canPost(), tokenOk: false };
   if (!isConfigured()) return s;
   try { await getToken(); s.tokenOk = true; } catch (err) { s.tokenError = err.message; }
   return s;

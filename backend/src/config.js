@@ -85,6 +85,12 @@ export const config = {
   // channel and grouped per deployment; otherwise the app falls back to the
   // existing per-client webhooks.
   graph: {
+    // Feature flag: posting deployment notifications to Teams via Graph is OFF
+    // by default. App-only channel posting needs Graph application permissions
+    // + admin consent (and may be blocked by the tenant), so until that's sorted
+    // RollDesk uses the per-client webhooks. Flip GRAPH_ENABLED=1 to turn it on.
+    // Reading teams/channels for setup (diagnostics) works regardless of the flag.
+    enabled: /^(1|true|yes|on)$/i.test((process.env.GRAPH_ENABLED || '').trim()),
     tenantId: (process.env.GRAPH_TENANT_ID || '').trim(),
     clientId: (process.env.GRAPH_CLIENT_ID || '').trim(),
     clientSecret: (process.env.GRAPH_CLIENT_SECRET || '').trim(),
