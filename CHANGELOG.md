@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Deployer timeline shows who and when for single deployments.** Single test/prod marks record the actual report time and the deployer, and the timeline shows them instead of the planned date.
 - **Failure reasons persist.** A failure reason is now kept as a permanent timeline entry that survives a later success or a force-complete.
 - **Awaiting test-environment deployments are clearly flagged in the deployer panel** (environment tag on the "awaiting client approval" cards).
+- **Info (ℹ) icon tooltips always show.** The hover help on the info icons (e.g. in *New deployment*) could appear to do nothing when the CSS popover was clipped by a scrolling panel; a native tooltip fallback now guarantees the text is shown.
 - **More Polish translations** for the new deployer-panel, schedule and notification strings.
 
 ### Notes

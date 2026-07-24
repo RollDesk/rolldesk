@@ -1704,7 +1704,13 @@
     // of a long paragraph on screen.
     document.querySelectorAll('[data-i18n-tip]').forEach(el=>{
       const val = I18N[LANG] && I18N[LANG][el.getAttribute('data-i18n-tip')];
-      if(val != null) el.setAttribute('data-tip', val);
+      if(val != null){
+        el.setAttribute('data-tip', val);
+        // Native tooltip fallback: the CSS popover can be clipped by a scrolling
+        // panel (e.g. the tall "New deployment" form), which made the hover help
+        // appear to do nothing. `title` guarantees the text is always shown.
+        el.setAttribute('title', val);
+      }
     });
     // refresh the current topbar title in the active language
     const active = document.querySelector('.nav-item.active');
