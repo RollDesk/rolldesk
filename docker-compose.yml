@@ -72,6 +72,13 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-RollDesk <no-reply@rolldesk.local>}
+      # Microsoft Graph / Teams threaded notifications (optional). Secrets come
+      # from the environment only and must never be committed.
+      GRAPH_TENANT_ID: ${GRAPH_TENANT_ID:-}
+      GRAPH_CLIENT_ID: ${GRAPH_CLIENT_ID:-}
+      GRAPH_CLIENT_SECRET: ${GRAPH_CLIENT_SECRET:-}
+      TEAMS_TEAM_ID: ${TEAMS_TEAM_ID:-}
+      TEAMS_CHANNEL_ID: ${TEAMS_CHANNEL_ID:-}
     volumes:
       # Dev only: makes local (git-ignored) seed data available inside the container
       # so you can run `docker compose exec backend npm run seed`.

@@ -194,6 +194,8 @@ All configuration comes from environment variables (see `.env.example`). Key one
 | `MFA_ISSUER` | `RollDesk` | Label shown for the account in the user's authenticator app. |
 | `TRUST_PROXY` | `1` (in compose) | Trust `X-Forwarded-For` for the real client IP behind a proxy. |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | *(empty)* | SMTP for email notifications; if `SMTP_HOST` is unset, sending is skipped. |
+| `GRAPH_TENANT_ID` / `GRAPH_CLIENT_ID` / `GRAPH_CLIENT_SECRET` | *(empty)* | Microsoft Graph app (Entra ID) used to post threaded Teams notifications. Leave empty to use per-client webhooks instead. See [Microsoft Teams notifications](#microsoft-teams-notifications-microsoft-graph). |
+| `TEAMS_TEAM_ID` / `TEAMS_CHANNEL_ID` | *(empty)* | Target Teams team + channel for Graph notifications. Discover them via `GET /api/teams/graph/teams` and `/channels?teamId=…` (admin). |
 | `CLAMAV_HOST` / `CLAMAV_PORT` | `clamav` / `3310` | clamd host/port for virus-scanning uploads. Compose points these at the bundled `clamav` container; leave `CLAMAV_HOST` empty to disable scanning. |
 | `CLAMAV_FAIL_MODE` | `reject` | When the scanner is unreachable: `reject` (block the upload — fail closed) or `allow` (accept unscanned — fail open). |
 | `IMAGE_PREFIX` / `TAG` | — | Used by `docker-compose.prod.yml` to pick which registry images/version to run. |
@@ -278,6 +280,29 @@ CLAMAV_PORT=3310
 
 Then start the stack without the `clamav` service (e.g. `docker compose up -d backend frontend`, plus `db` if you use the bundled database). Set `CLAMAV_HOST=` (empty) to disable scanning altogether. See [Virus scanning of uploads](#virus-scanning-of-uploads) for the fail-open/fail-closed behaviour (`CLAMAV_FAIL_MODE`).
 
+### Microsoft Teams notifications (Microsoft Graph)
+
+RollDesk can post deployment notifications straight into a **Microsoft Teams channel**, grouped **per deployment**: the first event for a deployment starts a message and every later event (approval request, schedule created, per-day report, completion) is posted as a **reply in that thread**. This is optional — when it isn't configured, RollDesk uses the per-client Incoming Webhooks as before.
+
+Setup:
+
+1. Register an app in **Entra ID** (Azure AD) and create a **client secret**.
+2. Grant it Microsoft Graph permissions to read teams/channels (e.g. `Team.ReadBasic.All`, `Channel.ReadBasic.All`) and to send channel messages, then grant admin consent.
+3. Put the values in `.env` (never commit them):
+
+```bash
+# .env
+GRAPH_TENANT_ID=...        # directory (tenant) id
+GRAPH_CLIENT_ID=...        # application (client) id
+GRAPH_CLIENT_SECRET=...    # client secret value
+TEAMS_TEAM_ID=...          # target team
+TEAMS_CHANNEL_ID=...       # target channel
+```
+
+4. If you don't know the team/channel ids, start the app and call (as an admin): `GET /api/teams/graph/teams` and `GET /api/teams/graph/channels?teamId=<id>`. `GET /api/teams/graph/status` reports whether the integration is configured, the token is obtainable, and posting is possible.
+
+> **Important:** Microsoft restricts sending channel messages with **application (app-only)** permissions. If your tenant blocks it, RollDesk detects the failure and **falls back to the configured webhooks** automatically; Graph is still used to read teams/channels. Rotate the client secret in Entra ID after setup if it was shared during configuration.
+
 ---
 
 ## HTTP API
@@ -309,6 +334,10 @@ All endpoints are under `/api` (IP-filtered). `/health` is unfiltered for monito
 | GET | `/api/state/:key` | session | Read a shared collection (`roster`, `clients`, `notifications`). |
 | PUT | `/api/state/:key` | session | Replace a shared collection (last-write-wins). |
 | POST | `/api/notifications/test` | session | Send a test message to a Teams webhook (`{channel:'teams', url}`) or e-mail (`{channel:'email', address}`). |
+| GET | `/api/teams/graph/status` | session | Whether the Microsoft Graph / Teams integration is configured, a token is obtainable, and posting is possible. |
+| GET | `/api/teams/graph/teams` | admin | List Teams teams visible to the app (to discover `TEAMS_TEAM_ID`). |
+| GET | `/api/teams/graph/channels?teamId=…` | admin | List a team's channels (to discover `TEAMS_CHANNEL_ID`). |
+| GET | `/api/users/assignable` | session (non-client) | Minimal roster of active deployers for the "assign deployer" dropdown. |
 | GET | `/health` | — | Liveness + DB reachability. |
 
 Deployment statuses: `scheduled`, `installed`, `failed`, `rolledback`, `aborted`, `paused`.

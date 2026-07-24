@@ -78,4 +78,17 @@ export const config = {
     pass: process.env.SMTP_PASS || '',
     from: process.env.SMTP_FROM || 'RollDesk <no-reply@rolldesk.local>',
   },
+  // Microsoft Graph / Teams integration for threaded channel notifications
+  // (thread = deployment id). All values come from environment variables only —
+  // the client secret must never be committed. When tenantId/clientId/clientSecret
+  // and a target team+channel are set, notifications are posted to the Teams
+  // channel and grouped per deployment; otherwise the app falls back to the
+  // existing per-client webhooks.
+  graph: {
+    tenantId: (process.env.GRAPH_TENANT_ID || '').trim(),
+    clientId: (process.env.GRAPH_CLIENT_ID || '').trim(),
+    clientSecret: (process.env.GRAPH_CLIENT_SECRET || '').trim(),
+    teamId: (process.env.TEAMS_TEAM_ID || '').trim(),
+    channelId: (process.env.TEAMS_CHANNEL_ID || '').trim(),
+  },
 };
