@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Exact-count day limits.** The per-day type limit now reliably targets exactly N of the chosen type by placing constrained targets first.
 - **Schedule PDF opens cleanly.** The printable schedule no longer forces the browser print dialog on open — it opens in a tab with a Print button, so the main app stays usable.
 - **Deployments list denser.** Time is shown in small type under the date (same pattern as the app version), and the client name sits under the project — the separate Client and Time columns are gone.
+- **Deployer panel default view is the work queue only.** The "All" tab no longer embeds Reports and History — those stay on their own tabs. Cards are a flat list (one deployment per card), without Project → Application section headers.
 
 ### Fixed
 - **Draft with test + production now keeps both.** Creating a draft that spans a test and a production environment saved both records reliably (the navigation no longer races the save and wipes the production record).
@@ -27,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Failure reasons persist.** A failure reason is now kept as a permanent timeline entry that survives a later success or a force-complete.
 - **Awaiting test-environment deployments are clearly flagged in the deployer panel** (environment tag on the "awaiting client approval" cards).
 - **Info (ℹ) icon tooltips always show.** The hover help on the info icons (e.g. in *New deployment*) could appear to do nothing when the CSS popover was clipped by a scrolling panel; a native tooltip fallback now guarantees the text is shown.
+- **No duplicate deployer attachments.** Instruction files were listed twice in deployment details (blue instructions box and again under the changelog); they now appear only in the instructions box.
 - **More Polish translations** for the new deployer-panel, schedule and notification strings.
 
 ### Notes
