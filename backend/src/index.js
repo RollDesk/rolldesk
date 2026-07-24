@@ -15,6 +15,7 @@ import notifications from './routes/notifications.js';
 import tokens from './routes/tokens.js';
 import users from './routes/users.js';
 import sso from './routes/sso.js';
+import teams from './routes/teams.js';
 
 const app = express();
 if (config.trustProxy) app.set('trust proxy', true);
@@ -45,6 +46,7 @@ app.use('/api/sso', requireAuth, sso);
 app.use('/api', requireApiAuth, attachments);
 app.use('/api', requireApiAuth, state);
 app.use('/api/notifications', requireApiAuth, notifications);
+app.use('/api/teams', requireApiAuth, teams);
 app.use('/api/deployments', requireApiAuth, deployments);
 app.use('/api/projects', requireApiAuth, projects);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown endpoint' }));

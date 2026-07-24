@@ -17,6 +17,29 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ROLES = new Set(['admin', 'rm', 'installer', 'client']);
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+// GET /api/users/assignable — a minimal roster of active deployers, available to
+// any signed-in non-client (RM / installer / admin). The full directory is
+// admin-only, but release managers and deployers need this list to assign a
+// deployment to a deployer. Only non-sensitive fields are exposed.
+// Declared BEFORE the admin guard so non-admins can reach it.
+router.get('/assignable', (req, res, next) => {
+  if (!req.auth || req.auth.role === 'client') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  next();
+}, async (_req, res) => {
+  const { rows } = await query(
+    `SELECT name, email, projects
+       FROM users
+      WHERE role = 'installer' AND NOT archived
+      ORDER BY name ASC NULLS LAST, email ASC`
+  );
+  res.json(rows.map(r => ({
+    name: r.name || (r.email ? r.email.split('@')[0] : ''),
+    projects: Array.isArray(r.projects) ? r.projects : [],
+  })));
+});
+
 // Only admins may manage users.
 function requireAdmin(req, res, next) {
   if (!req.auth || req.auth.role !== 'admin') {

@@ -62,6 +62,11 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-RollDesk <no-reply@rolldesk.local>}
+      GRAPH_TENANT_ID: ${GRAPH_TENANT_ID:-}
+      GRAPH_CLIENT_ID: ${GRAPH_CLIENT_ID:-}
+      GRAPH_CLIENT_SECRET: ${GRAPH_CLIENT_SECRET:-}
+      TEAMS_TEAM_ID: ${TEAMS_TEAM_ID:-}
+      TEAMS_CHANNEL_ID: ${TEAMS_CHANNEL_ID:-}
 
   frontend:
     image: ${IMAGE_PREFIX:-ghcr.io/your-org/rolldesk}-frontend:${TAG:-latest}

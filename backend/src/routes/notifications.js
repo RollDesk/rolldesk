@@ -8,6 +8,7 @@ import { Router } from 'express';
 import { sendMail } from '../mailer.js';
 import { config } from '../config.js';
 import { forbidClient } from '../rbac.js';
+import * as teamsGraph from '../teamsGraph.js';
 
 const router = Router();
 
@@ -21,6 +22,17 @@ const TEST_TEXT =
 const APP_URL = config.appBaseUrl;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Recognise a Microsoft Teams Incoming Webhook by host, so we can let the Graph
+// integration take over the Teams channel while leaving other webhooks intact.
+function isTeamsWebhook(url) {
+  try {
+    const h = new URL(String(url)).hostname.toLowerCase();
+    return /(^|\.)office\.com$/.test(h) || /(^|\.)office365\.com$/.test(h) ||
+      /webhook\.office\.com$/.test(h) || /(^|\.)microsoft\.com$/.test(h) ||
+      /logic\.azure\.com$/.test(h);
+  } catch { return false; }
+}
 
 // POST a JSON body to a webhook with a bounded timeout.
 async function postWebhook(url, payload, timeoutMs = 10000) {
@@ -143,9 +155,31 @@ router.post('/notify', async (req, res) => {
   if (!text.trim()) return res.status(422).json({ error: 'A non-empty message text is required' });
 
   const emails = Array.isArray(b.emails) ? b.emails : [];
-  const webhooks = Array.isArray(b.webhooks) ? b.webhooks : [];
+  let webhooks = Array.isArray(b.webhooks) ? b.webhooks : [];
+  const deploymentId = b.deploymentId != null ? String(b.deploymentId) : '';
 
   const jobs = [];
+
+  // Microsoft Teams via Graph: when configured, post to the channel and thread
+  // per deployment. It replaces the per-client *Teams* webhooks (to avoid double
+  // messages), but non-Teams webhooks (e.g. Slack) and e-mails still go out. If
+  // the Graph post fails (e.g. app-only send is blocked by the tenant), we fall
+  // back to delivering the Teams webhooks as before.
+  let graphResult = null;
+  if (teamsGraph.canPost()) {
+    const teamsWebhooks = webhooks.filter((w) => isTeamsWebhook((w && w.url) || w));
+    const otherWebhooks = webhooks.filter((w) => !isTeamsWebhook((w && w.url) || w));
+    graphResult = await teamsGraph.postDeploymentEvent({ deploymentId, subject, text });
+    if (graphResult.ok) {
+      // Graph handled the Teams side — only keep the non-Teams webhooks.
+      webhooks = otherWebhooks;
+      jobs.push(Promise.resolve({ type: 'teams-graph', target: 'Teams channel', ok: true, threaded: !!graphResult.threaded }));
+    } else if (!graphResult.skipped) {
+      // Configured but the send failed — keep the Teams webhooks as a fallback
+      // and surface the Graph error in the results.
+      jobs.push(Promise.resolve({ type: 'teams-graph', target: 'Teams channel', ok: false, error: graphResult.error, status: graphResult.status }));
+    }
+  }
   for (const raw of emails) {
     const to = String(raw || '').trim();
     if (!EMAIL_RE.test(to)) { jobs.push(Promise.resolve({ type: 'email', target: to, ok: false, error: 'invalid e-mail address' })); continue; }

@@ -145,6 +145,21 @@
     padding:20px;
   }
   .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+
+  /* ---- Defensive layout (high browser zoom / small effective width) ----
+     At 150% scale on a 1920px screen the effective width is ~1280px, which can
+     make the two-column form grids and the topbar title crowd each other. These
+     rules keep content readable: the topbar text truncates instead of pushing
+     the profile off-screen, wide tables scroll horizontally within their card
+     instead of overflowing the page, and the two-column grids stack. */
+  .topbar h1, .topbar .sub{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .topbar > div{min-width:0;}
+  .view{overflow-x:hidden;}
+  .card{overflow-wrap:anywhere;}
+  .view table{max-width:100%;}
+  @media (max-width:1100px){
+    .grid-2{grid-template-columns:1fr;}
+  }
   label{display:block; font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:5px;}
   select,input[type=text],input[type=date],input[type=number],textarea{
     width:100%;
@@ -1595,11 +1610,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.10.1"></script>
-<script src="i18n/en.js?v=0.10.1"></script>
+<script src="i18n/pl.js?v=0.11.0"></script>
+<script src="i18n/en.js?v=0.11.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.10.1';
+  const ROLLDESK_VERSION = '0.11.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -1972,6 +1987,11 @@
   // No seed users — the real signed-in account is added after authentication.
   let USERS = [];
 
+  // Whether the backend has Microsoft Teams (Graph) notifications configured.
+  // Probed once after sign-in; when true, event notifications are dispatched
+  // (and threaded per deployment) even if a client has no webhook/e-mail set.
+  let notifGraphReady = false;
+
   let usersTab = 'active';
 
   function switchUsersTab(tab){
@@ -2257,16 +2277,19 @@
     return body;
   }
 
-  async function dispatchEventNotification(eventKey, projectKey, subject, text, includeEmail){
+  async function dispatchEventNotification(eventKey, projectKey, subject, text, includeEmail, deploymentId){
     const {targets, email} = notifyRecipientsFor(eventKey, projectKey);
     const webhooks = targets.map(w=>({url:w.url, name:w.name}));
     const emails = (includeEmail && email) ? [email] : [];
-    if(!webhooks.length && !emails.length) return; // nothing configured — stay silent
+    // When Teams (Graph) threading is configured server-side, the backend posts
+    // to the channel even if no per-client webhook/e-mail is set — so we must not
+    // bail out early in that case. `notifGraphReady` is probed at startup.
+    if(!webhooks.length && !emails.length && !notifGraphReady) return; // nothing configured — stay silent
     if(typeof API_CONNECTED === 'undefined' || !API_CONNECTED){ showToast(t('notif.dispatchOffline')); return; }
     try {
       const res = await apiFetch('/api/notifications/notify', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({subject, text, emails, webhooks})
+        body: JSON.stringify({subject, text, emails, webhooks, deploymentId: deploymentId || null})
       });
       let info = {}; try { info = await res.json(); } catch(e){}
       if(res.ok){ showToast(tf('notif.dispatched', {n: info.sent || 0})); }
@@ -3295,7 +3318,7 @@
     });
   }
 
-  function confirmSchedule(){
+  async function confirmSchedule(){
     const p = PROJECTS[currentProjectKey];
     const path = document.querySelector('input[name="schedule-path"]:checked').value;
 
@@ -3432,7 +3455,10 @@
     // Save the newly created deployments to the database (if connected) and,
     // when changelog / instruction files were chosen, upload them and link the
     // stored ids (changelog attachments and deployer-instruction attachments).
-    finalizeCreatedDeployments(createdIdsStart, changelogFiles, installerFiles);
+    // Awaited so all records (e.g. both ŚT + PROD) are fully persisted before we
+    // navigate away — otherwise the deployments refresh reloads from the DB and
+    // wipes any record whose PUT hadn't landed yet.
+    await finalizeCreatedDeployments(createdIdsStart, changelogFiles, installerFiles);
 
     renderDeploymentsTable();
     renderInstallerPanel();
@@ -3562,6 +3588,7 @@
       : 'Sort by type';
     head.innerHTML = '<tr><th style="width:28px;"><input type="checkbox" title="' + t('proj.selectAll') + '" onclick="toggleAllLocationsSelect(this.checked)"></th><th>Target</th>' +
       `<th style="cursor:pointer; user-select:none;" title="${sortTitle}" onclick="toggleLocationsSort()">Typ<span style="color:var(--text-faint); font-size:11px;">${sortArrow}</span></th>` +
+      `<th title="${t('proj.groupHint')}">${t('proj.groupCol')}</th>` +
       customFields.map((f,ci)=>`<th>${f} <button class="mini-btn" title="${t('proj.removeColTitle')}" onclick="removeCustomLocationField(${ci})" style="padding:0 5px; font-size:10px; line-height:1.6;">✕</button></th>`).join('') + '<th></th></tr>';
 
     const q = (document.getElementById('locations-search').value || '').toLowerCase().trim();
@@ -3575,7 +3602,7 @@
       filtered = filtered.slice().sort((a,b)=> dir * (prodRank(a.loc.type) - prodRank(b.loc.type)));
     }
     const shown = filtered.slice(0, 200);
-    const totalCols = 4 + customFields.length;
+    const totalCols = 5 + customFields.length;
     tbody.innerHTML = shown.map(({loc,i})=>{
       const cells = [
         `<td style="text-align:center;"><input type="checkbox" class="loc-select" data-i="${i}" ${selectedLocations.has(i)?'checked':''} onclick="toggleLocationSelect(${i}, this.checked)"></td>`,
@@ -3584,6 +3611,7 @@
           <option value="Production" ${loc.type==='Production'?'selected':''}>Production</option>
           <option value="Non-production" ${loc.type==='Non-production'?'selected':''}>Non-production</option>
         </select></td>`,
+        `<td><input type="text" value="${(loc.group || '').replace(/"/g,'&quot;')}" placeholder="${t('proj.groupPh')}" style="font-size:12px; padding:4px 6px; width:110px;" onchange="updateLocationField(${i}, 'group', this.value.trim())"></td>`,
       ];
       customFields.forEach(f=>{
         cells.push(`<td><input type="text" value="${((loc.custom && loc.custom[f]) || '').replace(/"/g,'&quot;')}" style="font-size:12.5px; padding:4px 6px;" onchange="updateLocationCustomField(${i}, '${f}', this.value)"></td>`);
@@ -4162,9 +4190,18 @@
       const cap = counts[dayIdx];
       const c = constraints[dayIdx] || {};
       const leftover = [];
-      for(let k=0; k<pool.length; k++){
-        const loc = pool[k];
-        if(dayAssignments[dayIdx].length >= cap){ leftover.push(...pool.slice(k)); break; }
+      // Exact-count semantics: when a day limits a type to N, place matching
+      // targets FIRST so the day actually reaches N of that type (rather than
+      // filling up with other types before the constrained ones are reached).
+      let ordered = pool;
+      if(c.limitType && c.limitMax != null){
+        const match = [], rest = [];
+        pool.forEach(loc => (attrValueOf(loc) === c.limitType ? match : rest).push(loc));
+        ordered = match.concat(rest);
+      }
+      for(let k=0; k<ordered.length; k++){
+        const loc = ordered[k];
+        if(dayAssignments[dayIdx].length >= cap){ leftover.push(...ordered.slice(k)); break; }
         const av = attrValueOf(loc);
         const matchesLimit = c.limitType && av === c.limitType;
         if(matchesLimit){
@@ -4183,6 +4220,27 @@
     for(let d=0; d<days; d++) remaining = tryFillDay(d, remaining);
     for(let d=0; d<days; d++){ if(dayAssignments[d].length < counts[d]) remaining = tryFillDay(d, remaining); }
     if(remaining.length) dayAssignments[days-1] = dayAssignments[days-1].concat(remaining);
+
+    // Co-scheduling: targets sharing a "group" label must land on the same day
+    // (e.g. a branch and its backup server). Move every group member to the day
+    // where the group first appears. This runs after the day fill so it can
+    // slightly exceed a day's nominal count — grouping wins over even spread.
+    const groupDay = {};
+    for(let d=0; d<days; d++){
+      dayAssignments[d].forEach(loc=>{
+        const g = (loc.group || '').trim().toLowerCase();
+        if(g && groupDay[g] === undefined) groupDay[g] = d;
+      });
+    }
+    if(Object.keys(groupDay).length){
+      for(let d=0; d<days; d++){
+        dayAssignments[d] = dayAssignments[d].filter(loc=>{
+          const g = (loc.group || '').trim().toLowerCase();
+          if(g && groupDay[g] !== d){ dayAssignments[groupDay[g]].push(loc); return false; }
+          return true;
+        });
+      }
+    }
 
     return dayAssignments;
   }
@@ -4298,7 +4356,7 @@
     // Only Production targets go into the production rollout (matches confirmSchedule).
     const prodTargets = p.locationsList.filter(loc => loc.type === 'Production');
     if(manifestOrder.length !== prodTargets.length){
-      manifestOrder = prodTargets.map(loc => ({code: loc.code, type: loc.type, label: loc.label, custom: loc.custom || {}}));
+      manifestOrder = prodTargets.map(loc => ({code: loc.code, type: loc.type, label: loc.label, group: loc.group || '', custom: loc.custom || {}}));
       // Only discard a manual day breakdown when it no longer fits the target
       // count. Previously it was always cleared here, so the very first
       // "Generate schedule" after spreading targets manually fell back to an
@@ -5002,6 +5060,30 @@
     }, t('draft.notifyBtn'));
   }
 
+  // Re-send the client approval request for a non-draft deployment that is still
+  // awaiting a decision (pending / commented / rejected). Reuses the approval
+  // notification and records an audit entry; does not touch the draft flag.
+  function sendApprovalReminder(idx){
+    if(!canEditDeployments()){ showToast(t('editdep.forbidden')); return; }
+    const r = DEPLOYMENTS_DATA[idx];
+    if(!r || r.draft || !r.clientApproval || r.clientApproval === 'approved') return;
+    const pk = r.projectKey;
+    const p = PROJECTS[pk] || {};
+    const projName = p.name || pk;
+    const recipients = notifySummary('approval', pk, true);
+    showAppConfirm(t('draft.remindTitle'), tf('draft.remindBody', {project: projName, recipients}), ()=>{
+      const body = buildScheduleNotifBody(r, projName) + '\n' + t('draft.remindNote');
+      dispatchEventNotification('approval', pk, 'RollDesk — ' + t('ev.approval') + ' (' + t('draft.remindTag') + ')', body, false);
+      logAudit('notified', 'Deployment', 'Sent an approval reminder for ' + (r.id||'') + ' — recipients: ' + recipients, projName + (p.clientName ? ' (' + p.clientName + ')' : ''), 'aud.d.approvalReminded', {id: r.id||'', recipients});
+      const _s = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'};
+      r.comments = r.comments || [];
+      r.comments.push({date:_s.date, time:_s.time, author: actorName(), type:'system', icon:'🔔', text: t('dtl.approvalReminded')});
+      persistDeployment(idx);
+      renderDeploymentsTable();
+      showToast(t('draft.reminded'));
+    }, t('draft.remindBtn'));
+  }
+
   function clientRespondApproval(depId, action){
     const rec = DEPLOYMENTS_DATA.find(d=>d.id === depId);
     if(!rec) return;
@@ -5661,6 +5743,13 @@
     if(!res.ok) throw new Error('GET /api/users ' + res.status);
     return res.json();
   }
+  // Minimal roster of assignable deployers — available to non-admins (RM /
+  // installer) who cannot read the full, admin-only user directory.
+  async function apiListAssignableUsers(){
+    const res = await apiFetch('/api/users/assignable');
+    if(!res.ok) throw new Error('GET /api/users/assignable ' + res.status);
+    return res.json();
+  }
   async function apiCreateUser(body){
     const res = await apiFetch('/api/users', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
     if(!res.ok){ let e={}; try{e=await res.json();}catch(_){} throw new Error(e.error || ('POST /api/users ' + res.status)); }
@@ -5679,6 +5768,18 @@
   // Fetch the directory from the backend and redraw the Users table.
   async function loadUsers(){
     if(!API_CONNECTED) return;
+    // Admins get the full directory; everyone else (RM / deployer) gets the
+    // minimal assignable-deployers roster so the assignee dropdown is populated
+    // even though they can't read the admin-only user list.
+    if(currentLoggedInRole !== 'admin'){
+      try {
+        const rows = await apiListAssignableUsers();
+        USERS.length = 0;
+        rows.forEach(u=>USERS.push(Object.assign({role:'installer', archived:false}, u)));
+        if(currentUser) applyCurrentUser(currentUser);
+      } catch(e){ console.warn('Failed to load assignable users:', e.message); }
+      return;
+    }
     try {
       const rows = await apiListUsers();
       USERS.length = 0;
@@ -5844,6 +5945,13 @@
 
       // Load the signed-in user's personal access tokens for the profile.
       try { await loadApiTokens(); } catch(e){ console.warn('Failed to load tokens:', e.message); }
+
+      // Probe whether Teams (Graph) notifications are configured so we can post
+      // (and thread) even when a client has no webhook/e-mail configured.
+      try {
+        const gs = await apiFetch('/api/teams/graph/status');
+        if(gs.ok){ const j = await gs.json(); notifGraphReady = !!(j && j.canPost); }
+      } catch(e){ /* endpoint may be admin-only or unavailable — ignore */ }
 
       // Initial data hydration is silent — a "Loaded N deployment(s)" toast used to
       // pop up on every screen (projects, client panel, …) which was confusing.
@@ -6101,7 +6209,6 @@
       <div class="sub">${subtitle}</div>
       <button class="noprint" onclick="window.print()" style="margin-bottom:14px; padding:8px 14px;">${t('sch.printBtn')}</button>
       <table><thead><tr><th>${t('rep.scheduleAppHdr')}</th><th>${t('rep.scheduleVerHdr')}</th><th>${t('rep.scheduleCodeHdr')}</th>${customHead}<th>${t('rep.scheduleDateHdr')}</th><th>${t('rep.scheduleDayHdr')}</th></tr></thead><tbody>${body}</tbody></table>
-      <script>window.onload=function(){setTimeout(function(){window.print();}, 300);};<\/script>
       </body></html>`;
     const w = window.open('', '_blank');
     if(!w){ showToast(t('sch.popupBlocked')); return; }
@@ -6535,7 +6642,13 @@
       }
     } else {
       const icon = r.status==='installed' ? '✅' : r.status==='failed' ? '⚠️' : r.status==='rolledback' ? '↩️' : r.status==='aborted' ? '⏹️' : '📅';
-      events.push({date: r.date, time: r.time, icon, text: statusLabelFull[r.status] + ' — ' + r.location});
+      // Once reported, use the actual report date/time (not the planned date) and
+      // attribute it to the deployer who marked the status.
+      const reported = r.status !== 'scheduled' && r.reportedDate;
+      const evDate = reported ? r.reportedDate : r.date;
+      const evTime = reported ? (r.reportedTime || r.time) : r.time;
+      const who = r.reportedBy ? ` <span style="color:var(--text-faint);">— ${escapeHtml(r.reportedBy)}</span>` : '';
+      events.push({date: evDate, time: evTime, icon, text: statusLabelFull[r.status] + ' — ' + escapeHtml(r.location) + who});
     }
 
     (r.comments || []).forEach(c=>{
@@ -6732,6 +6845,20 @@
     return r.mode === 'batch' ? (getDateForDay(r, r.days) || r.historyStart || r.createdDate) : (r.date || r.createdDate);
   }
   function installerReportPanelHtml(){
+    // Build the distinct project / environment / application option lists from
+    // the deployer's scoped, completed deployments so the filters only offer
+    // values that can actually appear in the report.
+    const completed = installerScopedDeployments().filter(r => (r.mode==='batch' && r.counts.scheduled===0) || (r.mode==='single' && r.status!=='scheduled'));
+    const projSet = new Map(), envSet = new Set(), appSet = new Set();
+    completed.forEach(r=>{
+      projSet.set(String(r.projectKey), r.project.name || r.projectKey);
+      if(r.env) envSet.add(r.env);
+      (r.apps||[]).forEach(a=> a.name && appSet.add(a.name));
+    });
+    const opt = (v,l,sel)=>`<option value="${escapeHtml(v)}"${sel?' selected':''}>${escapeHtml(l)}</option>`;
+    const projOpts = [opt('', t('rep.filterAllProjects'))].concat([...projSet.entries()].map(([k,n])=>opt(k,n))).join('');
+    const envOpts = [opt('', t('rep.filterAllEnvs'))].concat([...envSet].sort().map(e=>opt(e,e))).join('');
+    const appOpts = [opt('', t('rep.filterAllApps'))].concat([...appSet].sort().map(a=>opt(a,a))).join('');
     return `<div class="card" style="margin-bottom:20px; border-left:3px solid var(--cyan);">
       <div class="toolbar" style="margin-bottom:${installerReportOpen ? '12px' : '0'};">
         <strong style="font-size:13px;">📊 ${t('rep.reportTitle')}</strong>
@@ -6749,6 +6876,11 @@
             </select>
           </div>
         </div>
+        <div class="grid-2" style="gap:10px;">
+          <div class="field"><label>${t('proj.thProject')}</label><select id="report-project">${projOpts}</select></div>
+          <div class="field"><label>${t('rep.reportEnv')}</label><select id="report-env">${envOpts}</select></div>
+        </div>
+        <div class="field"><label>${t('rep.scheduleAppHdr')}</label><select id="report-app">${appOpts}</select></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button class="btn" onclick="generateInstallerReport()">${t('rep.reportGenerate')}</button>
           <button class="mini-btn" onclick="downloadInstallerReportCsv()">${t('rep.reportCsv')}</button>
@@ -6757,30 +6889,48 @@
       </div>
     </div>`;
   }
+  // Build the "unfinished locations" detail for a completed deployment: any
+  // target still in failedLocations (with its reason) plus any failure-reason
+  // comments recorded on the timeline. Non-empty even when the rollout was later
+  // force-completed, so a correction/audit is always traceable.
+  function unfinishedLocationsOf(r){
+    const items = [];
+    (r.failedLocations||[]).forEach(f=> items.push((f.location||'') + (f.reason && f.reason !== '—' ? ' — ' + f.reason : '')));
+    return items;
+  }
   function generateInstallerReport(){
     const fromVal = (document.getElementById('report-from')||{}).value || '';
     const statusVal = (document.getElementById('report-status')||{}).value || 'all';
+    const projVal = (document.getElementById('report-project')||{}).value || '';
+    const envVal = (document.getElementById('report-env')||{}).value || '';
+    const appVal = (document.getElementById('report-app')||{}).value || '';
     const completed = installerScopedDeployments().filter(r => (r.mode==='batch' && r.counts.scheduled===0) || (r.mode==='single' && r.status!=='scheduled'));
     let rows = completed.map(r=>{
       const failed = (r.failedLocations||[]).length;
       const total = r.mode==='batch' ? r.totalLocations : 1;
       const installed = r.mode==='batch' ? r.counts.installed : (r.status==='installed' ? 1 : 0);
       return {
+        projectKey: String(r.projectKey),
         project: r.project.name || r.projectKey, client: r.project.clientName || '',
+        appNames: (r.apps||[]).map(a=>a.name),
         apps: (r.apps||[]).map(a=>a.name + (a.version ? ' v'+a.version : '')).join(', '),
         env: r.env, date: completedDeploymentDate(r) || '', installed, total, failed,
+        unfinished: unfinishedLocationsOf(r),
         outcome: (typeof deploymentOutcome==='function' ? deploymentOutcome(r).label : '')
       };
     });
     if(fromVal) rows = rows.filter(x => x.date && x.date >= fromVal);
     if(statusVal === 'ok') rows = rows.filter(x => x.failed === 0);
     else if(statusVal === 'failed') rows = rows.filter(x => x.failed > 0);
+    if(projVal) rows = rows.filter(x => x.projectKey === projVal);
+    if(envVal) rows = rows.filter(x => x.env === envVal);
+    if(appVal) rows = rows.filter(x => x.appNames.includes(appVal));
     rows.sort((a,b)=> (b.date||'').localeCompare(a.date||''));
     lastInstallerReport = rows;
     const box = document.getElementById('installer-report-results');
     if(!box) return;
     if(!rows.length){ box.innerHTML = `<div style="color:var(--text-muted); font-size:12.5px;">${t('rep.reportEmpty')}</div>`; return; }
-    const head = [t('proj.thProject'), t('proj.thClient'), t('rep.scheduleAppHdr'), t('rep.reportEnv'), t('rep.reportDate'), t('rep.reportInstalled'), t('rep.reportFailedCol'), t('rep.reportOutcome')];
+    const head = [t('proj.thProject'), t('proj.thClient'), t('rep.scheduleAppHdr'), t('rep.reportEnv'), t('rep.reportDate'), t('rep.reportInstalled'), t('rep.reportFailedCol'), t('rep.reportUnfinished'), t('rep.reportOutcome')];
     box.innerHTML = `<div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">${tf('rep.reportCount', {n: rows.length})}</div>
       <div style="max-height:320px; overflow:auto; border:1px solid var(--line); border-radius:8px;">
         <table><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
@@ -6788,15 +6938,16 @@
           <td>${escapeHtml(x.project)}</td><td>${escapeHtml(x.client)}</td><td>${escapeHtml(x.apps)}</td>
           <td>${escapeHtml(x.env)}</td><td class="mono">${escapeHtml(fmtDate(x.date))}</td>
           <td class="mono">${x.installed}/${x.total}</td><td class="mono" style="color:${x.failed?'#A81E1E':'inherit'};">${x.failed}</td>
+          <td style="font-size:11.5px; color:${x.unfinished.length?'#A81E1E':'var(--text-faint)'};">${x.unfinished.length ? escapeHtml(x.unfinished.join('; ')) : '—'}</td>
           <td>${escapeHtml(x.outcome)}</td></tr>`).join('')}</tbody></table>
       </div>`;
   }
   function downloadInstallerReportCsv(){
     if(!lastInstallerReport.length){ generateInstallerReport(); }
     if(!lastInstallerReport.length){ showToast(t('rep.reportEmpty')); return; }
-    const head = ['Project','Client','Applications','Environment','Date','Installed','Total','Failed','Outcome'];
+    const head = ['Project','Client','Applications','Environment','Date','Installed','Total','Failed','Unfinished locations','Outcome'];
     const esc = v => { v = String(v==null?'':v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v; };
-    const lines = [head.join(';')].concat(lastInstallerReport.map(x=>[x.project,x.client,x.apps,x.env,x.date,x.installed,x.total,x.failed,x.outcome].map(esc).join(';')));
+    const lines = [head.join(';')].concat(lastInstallerReport.map(x=>[x.project,x.client,x.apps,x.env,x.date,x.installed,x.total,x.failed,(x.unfinished||[]).join(' | '),x.outcome].map(esc).join(';')));
     const csv = '\uFEFF' + lines.join('\r\n');
     if(downloadBlob(csv, 'rolldesk-report.csv', 'text/csv;charset=utf-8'))
       showToast(tf('rep.reportCount', {n: lastInstallerReport.length}));
@@ -6823,6 +6974,30 @@
     installerPanelFilter = f;
     if(f === 'reports') installerReportOpen = true;
     renderInstallerPanel();
+  }
+
+  // Group deployer-panel cards by Project → Application with clear subheaders so
+  // a deployer working across several projects/apps can scan them quickly. Used
+  // by the active, waiting and completed sections for a consistent layout.
+  function renderGroupedInstallerCards(list, renderCard){
+    const appLabelOf = r => (r.apps || []).map(a=>a.name + (a.version ? ' v' + a.version : '')).join(', ') || '—';
+    let curProj = null, curApp = null;
+    return list.slice()
+      .sort((a,b)=> (a.project.name||'').localeCompare(b.project.name||'') || appLabelOf(a).localeCompare(appLabelOf(b)) || (a.idx - b.idx))
+      .map(r=>{
+        let prefix = '';
+        const pn = r.project.name || '';
+        if(pn !== curProj){
+          curProj = pn; curApp = null;
+          prefix += `<div style="font-size:12px; font-weight:700; color:var(--text-muted); margin:14px 0 6px 0; padding-bottom:4px; border-bottom:1px solid var(--line);">📁 ${escapeHtml(pn)}</div>`;
+        }
+        const al = appLabelOf(r);
+        if(al !== curApp){
+          curApp = al;
+          prefix += `<div style="font-size:11px; font-weight:600; color:var(--text-faint); margin:2px 0 8px 6px;">📦 ${escapeHtml(al)}</div>`;
+        }
+        return prefix + renderCard(r);
+      }).join('');
   }
 
   function renderInstallerPanel(){
@@ -6883,7 +7058,7 @@
     // Waiting for client approval — informational, not actionable.
     if(waiting.length && showWaiting){
       html += '<label style="margin-bottom:8px; display:block;">' + t('dtl.awaiting') + '</label>';
-      html += waiting.map(r=>{
+      html += renderGroupedInstallerCards(waiting, (r)=>{
         const appsLabel = r.apps.map(a=>`${a.name} v${a.version}`).join(', ');
         const stMap = {pending:t('rep.stPending'), commented:t('rep.stCommented'), rejected:t('rep.stRejected')};
         // Concise "when distribution starts" info (day of week + short date).
@@ -6898,14 +7073,16 @@
           const dow = r.date ? fmtDow(r.date) : '';
           planHtml = `<div style="font-size:12.5px; color:var(--ink); margin-top:6px;">${t('rep.startLabel')}: <strong>${dow}, ${r.date ? shortDate(r.date) : '—'}</strong>${r.time ? ' ' + tf('rep.atTime', {t: r.time}) : ''}</div>`;
         }
+        const envClassW = r.env === 'Production' ? 'prod' : 'test';
         return `<div class="card" style="margin-bottom:14px; border-left:3px solid var(--line);">
-          <div style="display:flex; align-items:center; gap:8px;"><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--paper); color:var(--text-muted);">⧗ ${stMap[r.clientApproval]||r.clientApproval}</span>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--paper); color:var(--text-muted);">⧗ ${stMap[r.clientApproval]||r.clientApproval}</span>
+          <span class="env-tag ${envClassW}">${r.env}</span>
           <strong style="font-size:13px;">${r.project.name} — ${appsLabel}</strong>${deployIdBadge(r)}${internalBadge(r)}</div>
           ${planHtml}
           ${installerNotesHtml(r)}
           <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">${t('rep.appearAfterApproval')}</div>
         </div>`;
-      }).join('');
+      });
     }
 
     if(showActive){
@@ -6992,17 +7169,9 @@
           </div>`;
         }
       };
-      // Group the active cards by project with a subheader, so a deployer with
-      // several projects sees them clearly separated.
-      let _curProj = null;
-      html += active.slice()
-        .sort((a,b)=> (a.project.name||'').localeCompare(b.project.name||'') || (a.idx - b.idx))
-        .map(r=>{
-          let prefix = '';
-          const pn = r.project.name || '';
-          if(pn !== _curProj){ _curProj = pn; prefix = `<div style="font-size:12px; font-weight:700; color:var(--text-muted); margin:6px 0 8px 0; padding-bottom:4px; border-bottom:1px solid var(--line);">📁 ${pn}</div>`; }
-          return prefix + renderActiveCard(r);
-        }).join('');
+      // Group the active cards by Project → Application with subheaders, so a
+      // deployer with several projects/apps sees them clearly separated.
+      html += renderGroupedInstallerCards(active, renderActiveCard);
     }
     } // showActive
 
@@ -7094,7 +7263,7 @@
     if(!recentCompleted.length){
       html += '<div class="card" style="color:var(--text-muted); font-size:13px;">'+t('rep.noCompleted14')+'</div>';
     } else {
-      html += recentCompleted.map(renderCompletedCard).join('');
+      html += renderGroupedInstallerCards(recentCompleted, renderCompletedCard);
     }
     }
 
@@ -7201,10 +7370,13 @@
       showAppPrompt(t('rep.reportFailedTitle'), '', (reason)=>{
         if(reason === null) return;
         d.comments = d.comments || [];
-        const _s = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'15:00'};
-        d.comments.push({date:_s.date, time:_s.time, author: who, text: reason});
+        const _s = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'};
+        // Keep a permanent failure-reason comment (persists in the timeline even
+        // if this location is later marked successful).
+        d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'⚠️', text: tf('dtl.failReason', {reason: reason})});
         d.status = status;
         d.reportedBy = who;
+        d.reportedDate = _s.date; d.reportedTime = _s.time;
         persistDeployment(idx);
         renderInstallerPanel();
         renderDeploymentsTable();
@@ -7218,6 +7390,7 @@
     }
     d.status = status;
     d.reportedBy = who;
+    { const _s = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'}; d.reportedDate = _s.date; d.reportedTime = _s.time; }
     persistDeployment(idx);
     renderInstallerPanel();
     renderDeploymentsTable();
@@ -7231,7 +7404,8 @@
       'RollDesk — ' + t('ev.completed') + ' (' + (d.env||'') + ')',
       (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '')
       + '\n' + t('notif.environment') + ': ' + (d.env||'')
-      + '\n' + t('dep.sInstalled') + '\n' + tf('notif.reportedByManual', {who}), true);
+      + '\n' + t('notif.statusLine') + ': ' + (statusLabelFull[d.status] || statusLabelFull.installed)
+      + '\n' + tf('notif.reportedByManual', {who}), true);
   }
 
   function filterTodayBatch(input){
@@ -7307,11 +7481,15 @@
     d.dayReports = d.dayReports || {};
     d.dayReports[dayNum] = {by: who, success: successList.length, failed: failedList.length};
     d.comments = d.comments || [];
-    d.comments.push({date: rep.date, time: rep.time, author: who, type:'system', icon:'🧑‍🔧', text:`Day ${dayNum} completed: ${successList.length} OK${failedList.length ? ', ' + failedList.length + ' failed' : ''}`});
+    d.comments.push({date: rep.date, time: rep.time, author: who, type:'system', icon:'🧑‍🔧', text: tf('dtl.dayDone', {day: dayNum, ok: successList.length, failed: failedList.length})});
 
     if(failedList.length){
       d.failedLocations = d.failedLocations || [];
       failedList.forEach(loc=> d.failedLocations.push({location: loc, date: dateStr, time: d.time, reportedDate: rep.date, reportedTime: rep.time, reason: reason || '—'}));
+      // Permanent failure-reason entry per location — survives later success and
+      // any force-complete (unlike d.failedLocations, which drives the counter).
+      d.comments.push({date: rep.date, time: rep.time, author: who, type:'system', icon:'⚠️',
+        text: tf('dtl.failReasonLoc', {locations: failedList.join(', '), reason: reason || '—'})});
     }
     // Complete the reported day (its pending bucket is now empty) and carry any
     // failures over to the next available day — so the panel advances to the
@@ -7337,7 +7515,8 @@
       const envLine = '\n' + t('notif.environment') + ': ' + (d.env || '');
       const byLine = '\n' + tf('notif.reportedByManual', {who});
       let body = (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '') + envLine
-        + '\n' + tf('notif.dayReportBody', {day: dayNum, ok: successList.length, failed: failedList.length});
+        + '\n' + tf('notif.dayReportBody', {day: dayNum, ok: successList.length, failed: failedList.length})
+        + '\n' + tf('notif.progressLine', {done: d.counts.installed, total: (d.totalLocations || d.counts.installed + d.counts.scheduled), left: d.counts.scheduled});
       if(failedList.length){
         body += '\n' + tf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
         if(reason) body += '\n' + t('rep.correctionReason') + ': ' + reason;
@@ -7493,6 +7672,33 @@
     persistDeployment(batchIdx);
     renderDeploymentsTable();
     showToast(tf(where === 'nextDay' ? 'dtl.movedNextDay' : 'dtl.movedPrevDay', {loc: code, n: newDay}));
+  }
+
+  // Move a pending target to an arbitrary future day (not just the neighbouring
+  // one). Any day from "today" up to the last day is a valid destination.
+  function moveBatchQueueToDay(batchIdx, queueIdx, targetDay){
+    const d = DEPLOYMENTS_DATA[batchIdx];
+    if(!targetDay || targetDay < 1 || targetDay > d.days) return;
+    const todayDay = dayIndexForPosition(d, d.counts.installed);
+    if(targetDay < todayDay){ showToast(t('dtl.dayCompleted')); return; }
+    const q = getBatchPendingQueue(d);
+    const perDay = pendingQueueByDay(d, q);
+    // Find current day + position of this queue item.
+    let curDay0 = -1, within = 0, acc = 0;
+    for(let day = 0; day < d.days; day++){
+      const pc = perDay[day].length;
+      if(queueIdx < acc + pc){ curDay0 = day; within = queueIdx - acc; break; }
+      acc += pc;
+    }
+    if(curDay0 < 0) return;
+    if(curDay0 + 1 === targetDay){ return; }
+    const [code] = perDay[curDay0].splice(within, 1);
+    // Place near the front of the destination day for intuitive ordering.
+    perDay[targetDay - 1].push(code);
+    applyPendingByDay(d, perDay);
+    persistDeployment(batchIdx);
+    renderDeploymentsTable();
+    showToast(tf('dtl.movedToDay', {loc: code, n: targetDay}));
   }
 
   function getBatchHistoryRows(d){
@@ -7777,6 +7983,10 @@
                     <td style="white-space:nowrap;">
                       <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'prevDay')" title="${t('dtl.toPrevDay')}">${t('dtl.moveDayBack')}</button>
                       <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'nextDay')" title="${t('dtl.toNextDay')}">${t('dtl.moveDayFwd')}</button>
+                      <select class="mini-btn" title="${t('dtl.moveToDayTitle')}" onchange="if(this.value){moveBatchQueueToDay(${r.idx}, ${qi}, parseInt(this.value)); this.selectedIndex=0;}" style="padding:2px 4px;">
+                        <option value="">${t('dtl.moveToDay')}</option>
+                        ${(function(){ let o=''; for(let dd=todayDay; dd<=r.days; dd++){ if(dd!==dn) o+=`<option value="${dd}">${tf('dtl.day', {n: dd})}</option>`; } return o; })()}
+                      </select>
                       <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'start')">${t('dtl.moveStart')}</button>
                       <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'end')">${t('dtl.moveEnd')}</button>
                     </td>
@@ -7812,6 +8022,7 @@
       if(isActiveDep && !r.paused) barBtns.push(`<button class="mini-btn icon-btn warn" onclick="event.stopPropagation(); pauseDeployment(${r.idx})"><span class="mb-ic">⏸</span> ${t('dcard.pause')}</button>`);
       if(isActiveDep && canEditDeployments()) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); openEditDeployment(${r.idx})">✏️ ${t('editdep.btn')}</button>`);
       if(r.draft && canEditDeployments()) barBtns.push(`<button class="mini-btn icon-btn accent" onclick="event.stopPropagation(); notifyClientOfDraft(${r.idx})"><span class="mb-ic">📣</span> ${t('draft.notifyBtn')}</button>`);
+      if(!r.draft && r.clientApproval && r.clientApproval !== 'approved' && canEditDeployments()) barBtns.push(`<button class="mini-btn icon-btn" onclick="event.stopPropagation(); sendApprovalReminder(${r.idx})"><span class="mb-ic">🔔</span> ${t('draft.remindBtn')}</button>`);
       if(isLoggedInAsAdmin()) barBtns.push(`<button class="mini-btn mini-btn-danger" onclick="event.stopPropagation(); deleteDeployment(${r.idx})">${t('cli.delete')}</button>`);
       const idHtml = `
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; padding:10px 12px; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px;">
@@ -8196,11 +8407,14 @@
     showToast(tf('rep.markedRestN', {n}));
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
     const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
+    const total = d.totalLocations || d.counts.installed;
     dispatchEventNotification('completed', d.projectKey,
       'RollDesk — ' + t('ev.completed') + ' (' + (d.env||'') + ')',
       (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '')
       + '\n' + t('notif.environment') + ': ' + (d.env||'')
-      + '\n' + t('dep.sInstalled') + '\n' + tf('notif.reportedByManual', {who}), true);
+      + '\n' + t('notif.statusLine') + ': ' + (statusLabelFull.installed)
+      + '\n' + tf('notif.progressLine', {done: d.counts.installed, total, left: 0})
+      + '\n' + tf('notif.reportedByManual', {who}), true);
   }
 
   initProjectSelect();
