@@ -6975,35 +6975,13 @@
 
   // Left-side style filter for the deployer panel: instead of one long page with
   // several headed sections, the deployer picks a single group to view.
+  // Default "All" shows only the work queue (waiting + to-report). Reports and
+  // history stay on their own tabs — they used to inflate the default view.
   let installerPanelFilter = 'all';
   function setInstallerFilter(f){
     installerPanelFilter = f;
     if(f === 'reports') installerReportOpen = true;
     renderInstallerPanel();
-  }
-
-  // Group deployer-panel cards by Project → Application with clear subheaders so
-  // a deployer working across several projects/apps can scan them quickly. Used
-  // by the active, waiting and completed sections for a consistent layout.
-  function renderGroupedInstallerCards(list, renderCard){
-    const appLabelOf = r => (r.apps || []).map(a=>a.name + (a.version ? ' v' + a.version : '')).join(', ') || '—';
-    let curProj = null, curApp = null;
-    return list.slice()
-      .sort((a,b)=> (a.project.name||'').localeCompare(b.project.name||'') || appLabelOf(a).localeCompare(appLabelOf(b)) || (a.idx - b.idx))
-      .map(r=>{
-        let prefix = '';
-        const pn = r.project.name || '';
-        if(pn !== curProj){
-          curProj = pn; curApp = null;
-          prefix += `<div style="font-size:12px; font-weight:700; color:var(--text-muted); margin:14px 0 6px 0; padding-bottom:4px; border-bottom:1px solid var(--line);">📁 ${escapeHtml(pn)}</div>`;
-        }
-        const al = appLabelOf(r);
-        if(al !== curApp){
-          curApp = al;
-          prefix += `<div style="font-size:11px; font-weight:600; color:var(--text-faint); margin:2px 0 8px 6px;">📦 ${escapeHtml(al)}</div>`;
-        }
-        return prefix + renderCard(r);
-      }).join('');
   }
 
   function renderInstallerPanel(){
@@ -7025,10 +7003,11 @@
     const completed = all.filter(r => (r.mode==='batch' && r.counts.scheduled===0) || (r.mode==='single' && r.status!=='scheduled'));
 
     const f = installerPanelFilter;
-    const showReports = f === 'all' || f === 'reports';
+    // Reports and history (completed) only on their own tabs — not under "All".
+    const showReports = f === 'reports';
     const showWaiting = f === 'all' || f === 'waiting';
     const showActive = f === 'all' || f === 'active';
-    const showCompleted = f === 'all' || f === 'completed';
+    const showCompleted = f === 'completed';
 
     let html = '';
 
@@ -7064,7 +7043,7 @@
     // Waiting for client approval — informational, not actionable.
     if(waiting.length && showWaiting){
       html += '<label style="margin-bottom:8px; display:block;">' + t('dtl.awaiting') + '</label>';
-      html += renderGroupedInstallerCards(waiting, (r)=>{
+      html += waiting.map((r)=>{
         const appsLabel = r.apps.map(a=>`${a.name} v${a.version}`).join(', ');
         const stMap = {pending:t('rep.stPending'), commented:t('rep.stCommented'), rejected:t('rep.stRejected')};
         // Concise "when distribution starts" info (day of week + short date).
@@ -7088,7 +7067,7 @@
           ${installerNotesHtml(r)}
           <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">${t('rep.appearAfterApproval')}</div>
         </div>`;
-      });
+      }).join('');
     }
 
     if(showActive){
@@ -7175,9 +7154,8 @@
           </div>`;
         }
       };
-      // Group the active cards by Project → Application with subheaders, so a
-      // deployer with several projects/apps sees them clearly separated.
-      html += renderGroupedInstallerCards(active, renderActiveCard);
+      // Flat list — one card per deployment (no Project → Application headers).
+      html += active.map(renderActiveCard).join('');
     }
     } // showActive
 
@@ -7269,7 +7247,7 @@
     if(!recentCompleted.length){
       html += '<div class="card" style="color:var(--text-muted); font-size:13px;">'+t('rep.noCompleted14')+'</div>';
     } else {
-      html += renderGroupedInstallerCards(recentCompleted, renderCompletedCard);
+      html += recentCompleted.map(renderCompletedCard).join('');
     }
     }
 
@@ -8004,18 +7982,15 @@
           </div>`;
       }
 
-      // Changelog text (if any) plus downloadable attachments. Attachments are
-      // shown even when there is no changelog text (the file may carry the notes),
-      // and the deployer-instruction files are downloadable here too.
+      // Changelog text + changelog attachments only. Deployer-instruction files
+      // already appear in the blue "Instructions for the deployer" box above
+      // (installerNotesHtml) — don't list them again under the changelog.
       const clAttsHtml = attachmentsHtml(r.attachments, r.attachment, r.attachmentId);
-      const instrAtts = Array.isArray(r.instructionAttachments) ? r.instructionAttachments : [];
-      const instrAttsHtml = instrAtts.length ? instrAtts.map(a=>attachmentLinkHtml(a.filename, a.id)).join('<br>') : '';
-      const changelogHtml = (r.changelog || clAttsHtml || instrAttsHtml) ? `
+      const changelogHtml = (r.changelog || clAttsHtml) ? `
         <div class="field" style="margin-bottom:16px;">
           <label style="margin-bottom:4px;">${t('sch.changelog')}${r.apps && r.apps.length ? ' — ' + r.apps.map(a=>a.name+' v'+a.version).join(', ') : ''}</label>
           ${r.changelog ? `<div style="white-space:pre-line; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px; padding:10px 12px; line-height:1.6; font-size:12.5px;">${escapeHtml(r.changelog)}</div>` : ''}
           ${clAttsHtml}
-          ${instrAttsHtml ? `<div style="margin-top:${r.changelog || clAttsHtml ? '10px' : '0'};"><span style="font-size:11px; color:var(--text-muted);">${t('sch.installerAttach')}</span><br>${instrAttsHtml}</div>` : ''}
         </div>` : '';
 
       // Action buttons live in the same bar as the deployment ID, pushed to the right.
