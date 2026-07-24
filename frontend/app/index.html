@@ -7877,14 +7877,15 @@
         : (statusVal === 'installed' ? r.counts.scheduled === 0 : statusVal === 'scheduled' ? r.counts.scheduled > 0 : false));
     }
 
-    const showClientCol = clientVal === 'all';
-    const showProjectCol = clientVal !== 'all' && projectVal === 'all' || clientVal === 'all';
+    // Project column always shown (client name sits under it in small type —
+    // same pattern as app version under the application name). No separate
+    // Client column.
+    const showProjectCol = true;
 
     const head = document.getElementById('deploy-table-head');
     const cols = [];
-    if(showClientCol) cols.push(t('dep.thClient'));
     if(showProjectCol) cols.push(t('dep.thProject'));
-    cols.push(t('dep.thAppVer'),t('dep.thLocations'),t('dep.thEnv'),t('dep.thDate'),t('dep.thTime'),t('dep.thProgress'),t('dep.thApproval'),'');
+    cols.push(t('dep.thAppVer'),t('dep.thLocations'),t('dep.thEnv'),t('dep.thDate'),t('dep.thProgress'),t('dep.thApproval'),'');
     head.innerHTML = '<tr>' + cols.map(c=>`<th>${c}</th>`).join('') + '</tr>';
     const totalCols = cols.length;
 
@@ -8087,15 +8088,16 @@
     rows.forEach(r=>{
       const envClass = r.env === 'Production' ? 'prod' : 'test';
       const cells = [];
-      if(showClientCol) cells.push(`<td>${r.project.clientName}</td>`);
-      if(showProjectCol) cells.push(`<td>${r.project.name}</td>`);
+      if(showProjectCol){
+        const clientLabel = (r.project && r.project.clientName) ? r.project.clientName : '';
+        cells.push(`<td><div style="font-size:13px;">${escapeHtml(r.project.name || r.projectKey || '')}</div>${clientLabel ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${escapeHtml(clientLabel)}</div>` : ''}</td>`);
+      }
       cells.push(`<td style="max-width:150px;">${r.apps.map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${a.name}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${a.version}</div></div>`).join('')}${r.internal ? '<div>'+internalBadge(r)+'</div>' : ''}</td>`);
 
       if(r.mode === 'batch'){
         cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})} <span style="color:var(--text-faint);">· ${tf('notif.daysN', {n: r.days})}</span></td>`);
         cells.push(`<td><span class="env-tag ${envClass}">${r.env}</span></td>`);
-        cells.push(`<td class="mono">${r.dateRange}</td>`);
-        cells.push(`<td class="mono">${fmtTime(r.time)}</td>`);
+        cells.push(`<td class="mono">${r.dateRange}<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(r.time)}</div></td>`);
         const pct = Math.round((r.counts.installed / r.totalLocations) * 100);
         const failedN = (r.failedLocations || []).length;
         const isDone = r.counts.scheduled === 0;
@@ -8120,8 +8122,7 @@
         const envChoices = [...PROJECTS[r.projectKey].testEnvs, 'Production'];
         cells.push(`<td onclick="event.stopPropagation();">${r.location}</td>`);
         cells.push(`<td onclick="event.stopPropagation();"><select class="edit-env">${envChoices.map(e=>`<option ${e===r.env?'selected':''}>${e}</option>`).join('')}</select></td>`);
-        cells.push(`<td onclick="event.stopPropagation();"><input type="date" class="edit-date" value="${r.date}"></td>`);
-        cells.push(`<td onclick="event.stopPropagation();"><input type="time" class="edit-time mono" value="${r.time}"></td>`);
+        cells.push(`<td onclick="event.stopPropagation();"><input type="date" class="edit-date" value="${r.date}"><input type="time" class="edit-time mono" value="${r.time}" style="margin-top:4px;"></td>`);
         cells.push(`<td><span class="pill ${r.status}">${statusLabel[r.status]}</span></td>`);
         cells.push(approvalBadgeHtml(r));
         cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();"><button class="mini-btn" onclick="saveDeploymentEdit(${r.idx})">${t('common.save')}</button> <button class="mini-btn" onclick="toggleEditDeployment(${r.idx})">${t('common.cancel')}</button></td>`);
@@ -8131,8 +8132,7 @@
         const bgs = {scheduled:'#EEF0F3', installed:'var(--green-soft)', failed:'var(--red-soft)', rolledback:'#F1E9FB', aborted:'#EEF0F3'};
         cells.push(`<td>${r.location}</td>`);
         cells.push(`<td><span class="env-tag ${envClass}">${r.env}</span></td>`);
-        cells.push(`<td class="mono">${fmtDate(r.date)}</td>`);
-        cells.push(`<td class="mono">${fmtTime(r.time)}</td>`);
+        cells.push(`<td class="mono">${fmtDate(r.date)}<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(r.time)}</div></td>`);
         cells.push(`<td onclick="event.stopPropagation();"><select onchange="changeDeploymentStatus(${r.idx}, this.value)" class="mono" style="border:1px solid var(--line); border-radius:20px; padding:3px 8px; font-size:11.5px; font-weight:600; background:${bgs[r.status]}; color:${colors[r.status]};">
           ${statusOptions.map(s=>`<option value="${s}" ${s===r.status?'selected':''}>${statusLabel[s]}</option>`).join('')}
         </select>${r.paused ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' — ' + r.pauseReason : ''}</div>` : ''}</td>`);

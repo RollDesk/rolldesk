@@ -62,6 +62,9 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-RollDesk <no-reply@rolldesk.local>}
+      # GRAPH_ENABLED=0 → webhooks (default). Set to 1 once Graph app-only
+      # permissions + admin consent allow channel posting.
+      GRAPH_ENABLED: ${GRAPH_ENABLED:-0}
       GRAPH_TENANT_ID: ${GRAPH_TENANT_ID:-}
       GRAPH_CLIENT_ID: ${GRAPH_CLIENT_ID:-}
       GRAPH_CLIENT_SECRET: ${GRAPH_CLIENT_SECRET:-}

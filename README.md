@@ -194,6 +194,7 @@ All configuration comes from environment variables (see `.env.example`). Key one
 | `MFA_ISSUER` | `RollDesk` | Label shown for the account in the user's authenticator app. |
 | `TRUST_PROXY` | `1` (in compose) | Trust `X-Forwarded-For` for the real client IP behind a proxy. |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | *(empty)* | SMTP for email notifications; if `SMTP_HOST` is unset, sending is skipped. |
+| `GRAPH_ENABLED` | `0` | Feature flag for posting Teams notifications via Graph. Off by default — RollDesk uses per-client webhooks. Set to `1` only after the Entra app has the required Graph application permissions + admin consent. Diagnostics (`/api/teams/graph/*`) work regardless. |
 | `GRAPH_TENANT_ID` / `GRAPH_CLIENT_ID` / `GRAPH_CLIENT_SECRET` | *(empty)* | Microsoft Graph app (Entra ID) used to post threaded Teams notifications. Leave empty to use per-client webhooks instead. See [Microsoft Teams notifications](#microsoft-teams-notifications-microsoft-graph). |
 | `TEAMS_TEAM_ID` / `TEAMS_CHANNEL_ID` | *(empty)* | Target Teams team + channel for Graph notifications. Discover them via `GET /api/teams/graph/teams` and `/channels?teamId=…` (admin). |
 | `CLAMAV_HOST` / `CLAMAV_PORT` | `clamav` / `3310` | clamd host/port for virus-scanning uploads. Compose points these at the bundled `clamav` container; leave `CLAMAV_HOST` empty to disable scanning. |
@@ -282,16 +283,17 @@ Then start the stack without the `clamav` service (e.g. `docker compose up -d ba
 
 ### Microsoft Teams notifications (Microsoft Graph)
 
-RollDesk can post deployment notifications straight into a **Microsoft Teams channel**, grouped **per deployment**: the first event for a deployment starts a message and every later event (approval request, schedule created, per-day report, completion) is posted as a **reply in that thread**. This is optional — when it isn't configured, RollDesk uses the per-client Incoming Webhooks as before.
+RollDesk can post deployment notifications straight into a **Microsoft Teams channel**, grouped **per deployment**: the first event for a deployment starts a message and every later event (approval request, schedule created, per-day report, completion) is posted as a **reply in that thread**. This is optional and **off by default** (`GRAPH_ENABLED=0`) — while the flag is off, RollDesk uses the per-client Incoming Webhooks as before. Flip `GRAPH_ENABLED=1` once the Entra app has the right permissions.
 
 Setup:
 
 1. Register an app in **Entra ID** (Azure AD) and create a **client secret**.
-2. Grant it Microsoft Graph permissions to read teams/channels (e.g. `Team.ReadBasic.All`, `Channel.ReadBasic.All`) and to send channel messages, then grant admin consent.
+2. Grant it Microsoft Graph **application** permissions (minimal for one channel: `Team.ReadBasic.All`, `Channel.ReadBasic.All`, and for posting `ChannelMessage.Send` — then **Grant admin consent**). See the curl checklist below the env block.
 3. Put the values in `.env` (never commit them):
 
 ```bash
 # .env
+GRAPH_ENABLED=0            # keep 0 until permissions work; then set to 1
 GRAPH_TENANT_ID=...        # directory (tenant) id
 GRAPH_CLIENT_ID=...        # application (client) id
 GRAPH_CLIENT_SECRET=...    # client secret value
@@ -299,9 +301,9 @@ TEAMS_TEAM_ID=...          # target team
 TEAMS_CHANNEL_ID=...       # target channel
 ```
 
-4. If you don't know the team/channel ids, start the app and call (as an admin): `GET /api/teams/graph/teams` and `GET /api/teams/graph/channels?teamId=<id>`. `GET /api/teams/graph/status` reports whether the integration is configured, the token is obtainable, and posting is possible.
+4. If you don't know the team/channel ids, start the app and call (as an admin): `GET /api/teams/graph/teams` and `GET /api/teams/graph/channels?teamId=<id>`. `GET /api/teams/graph/status` reports whether the integration is enabled/configured, the token is obtainable, and posting is possible.
 
-> **Important:** Microsoft restricts sending channel messages with **application (app-only)** permissions. If your tenant blocks it, RollDesk detects the failure and **falls back to the configured webhooks** automatically; Graph is still used to read teams/channels. Rotate the client secret in Entra ID after setup if it was shared during configuration.
+> **Important:** Microsoft restricts sending channel messages with **application (app-only)** permissions. If your tenant blocks it, keep `GRAPH_ENABLED=0` and use webhooks; Graph diagnostics still work for listing teams/channels. Rotate the client secret in Entra ID after setup if it was shared during configuration.
 
 ---
 

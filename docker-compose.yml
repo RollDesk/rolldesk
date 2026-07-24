@@ -73,7 +73,9 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-RollDesk <no-reply@rolldesk.local>}
       # Microsoft Graph / Teams threaded notifications (optional). Secrets come
-      # from the environment only and must never be committed.
+      # from the environment only and must never be committed. Posting is OFF
+      # until GRAPH_ENABLED=1 (see .env.example) — falls back to webhooks.
+      GRAPH_ENABLED: ${GRAPH_ENABLED:-0}
       GRAPH_TENANT_ID: ${GRAPH_TENANT_ID:-}
       GRAPH_CLIENT_ID: ${GRAPH_CLIENT_ID:-}
       GRAPH_CLIENT_SECRET: ${GRAPH_CLIENT_SECRET:-}
