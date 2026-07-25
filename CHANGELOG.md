@@ -12,9 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Shorter queue move buttons.** First/last queue actions show only the arrows (⇤ / ⇥); the full label stays in the button tooltip.
 - **Consistent “targets” wording.** UI labels that still said “locations” / “lok.” now use “targets” / “cele”; the redundant short unit next to the day count is gone.
-- **Tighter schedule assignment preview.** Time sits under the date; Production / Non-production is a compact **P** / **N** badge next to the target name (full label on hover).
+- **Tighter schedule assignment preview.** Time sits under the date; the redundant P/NP badge is omitted there (only production targets appear — the Environment column already says so). In the targets list, type is a compact **P** / **NP** badge (full label on hover; click to toggle).
 - **Post-deployment section help** moved into an info (ℹ) tooltip.
 - **Repository link placeholder** is a generic `https://…` (not GitHub-specific).
+
+### Fixed
+- **Environment “Production” is localized in the UI** (e.g. Polish „Produkcja”) in lists, filters, schedule path badges, PDF titles, CSV export and notifications. The stored value stays `Production`.
 
 ## [0.11.1] - 2026-07-24
 

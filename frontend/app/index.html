@@ -416,6 +416,11 @@
   .info-ic:hover{border-color:var(--cyan); color:var(--cyan);}
   .info-ic::after{content:attr(data-tip); position:absolute; left:0; top:calc(100% + 8px); width:300px; max-width:70vw; background:var(--ink,#1E242C); color:#fff; padding:9px 11px; border-radius:8px; font-size:11.5px; font-style:normal; font-weight:400; line-height:1.55; white-space:normal; text-align:left; opacity:0; visibility:hidden; transition:opacity .12s; z-index:200; box-shadow:0 6px 22px rgba(0,0,0,0.22); pointer-events:none;}
   .info-ic:hover::after{opacity:1; visibility:visible;}
+  /* Compact P / NP target-type badge — hover shows the full Production / Non-production label. */
+  .type-badge{display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:18px; padding:0 4px; border-radius:4px; border:1px solid; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:9.5px; font-weight:700; letter-spacing:0.02em; flex-shrink:0; position:relative; cursor:help; vertical-align:middle; box-sizing:border-box; line-height:1; user-select:none;}
+  .type-badge::after{content:attr(data-tip); position:absolute; left:50%; transform:translateX(-50%); top:calc(100% + 6px); width:max-content; max-width:220px; background:var(--ink,#1E242C); color:#fff; padding:5px 8px; border-radius:6px; font-size:11px; font-weight:400; letter-spacing:0; line-height:1.35; white-space:nowrap; opacity:0; visibility:hidden; transition:opacity .12s; z-index:200; box-shadow:0 4px 14px rgba(0,0,0,0.2); pointer-events:none;}
+  .type-badge:hover::after{opacity:1; visibility:visible;}
+  .type-badge.type-badge-click{cursor:pointer;}
 </style>
 </head>
 <body>
@@ -963,7 +968,7 @@
         </div>
         <div class="field">
           <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.installerNotes">Instructions for deployers (optional)</span><span class="info-ic" data-i18n-tip="sch.installerNotesNote">i</span></label>
-          <textarea id="schedule-installer-notes" data-i18n-ph="sch.installerNotesPh" placeholder="np.&#10;1. Zatrzymaj usługę ServiceA&#10;2. Zrób kopię bazy danych&#10;3. Po instalacji uruchom migrations.sql"></textarea>
+          <textarea id="schedule-installer-notes" data-i18n-ph="sch.installerNotesPh" placeholder="Describe the actions for the deployer..."></textarea>
           <label style="display:flex; align-items:center; margin:10px 0 6px 0;"><span data-i18n="sch.installerAttach">Attachments for deployers (optional)</span><span class="info-ic" data-i18n-tip="sch.installerAttachNote">i</span></label>
           <input type="file" id="schedule-installer-file" multiple onchange="onInstallerFileChange()">
           <div id="schedule-installer-file-name" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
@@ -1020,7 +1025,13 @@
           <div id="constraint-field-wrap" style="margin:0 0 10px 0;"></div>
           <div style="max-height:260px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;">
             <table>
-              <thead><tr><th data-i18n="sch.thDay">Day</th><th data-i18n="sch.thLocs">Number of locations</th><th data-i18n="sch.thRestrict">Restrict type</th><th data-i18n="sch.thMax">Max count (0 = none of this type)</th><th data-i18n="sch.thPin">Pin locations (codes ; separated)</th></tr></thead>
+              <thead><tr>
+                <th data-i18n="sch.thDay">Day</th>
+                <th><span style="display:inline-flex; align-items:center;"><span data-i18n="sch.thLocs">Quantity</span><span class="info-ic" data-i18n-tip="sch.thLocsNote">i</span></span></th>
+                <th data-i18n="sch.thRestrict">Type</th>
+                <th><span style="display:inline-flex; align-items:center;"><span data-i18n="sch.thMax">Exact count</span><span class="info-ic" data-i18n-tip="sch.thMaxNote">i</span></span></th>
+                <th><span style="display:inline-flex; align-items:center;"><span data-i18n="sch.thPin">Pin</span><span class="info-ic" data-i18n-tip="sch.thPinNote">i</span></span></th>
+              </tr></thead>
               <tbody id="day-breakdown-table"></tbody>
             </table>
           </div>
@@ -1751,6 +1762,17 @@
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
+  // Canonical env values stay English in data (e.g. "Production"); localize for display.
+  // Custom test-environment names are left as-is.
+  function envLabel(env){
+    if(!env) return '';
+    if(env === 'Production') return t('proj.prod');
+    return String(env);
+  }
+  function envTagHtml(env){
+    const cls = env === 'Production' ? 'prod' : 'test';
+    return `<span class="env-tag ${cls}">${escapeHtml(envLabel(env))}</span>`;
+  }
 
   // ---- Multi-select status filters (deployments + deployer panel) ----
   function toggleMsFilter(id, ev){
@@ -2427,7 +2449,7 @@
     const appsLabel = (r.apps||[]).map(a=>a.name + (a.version ? ' v' + a.version : '')).join(', ');
     if(appsLabel) lines.push(t('notif.applications') + ': ' + appsLabel);
     if(r.mode === 'batch'){
-      lines.push(t('notif.environment') + ': ' + (r.env || 'Production')
+      lines.push(t('notif.environment') + ': ' + envLabel(r.env || 'Production')
         + ' · ' + tf('notif.locationsN', {n: r.totalLocations || 0})
         + ' · ' + tf('notif.daysN', {n: r.days || 1}));
       let startIso = r.historyStart;
@@ -2438,7 +2460,7 @@
           + (r.time ? ' ' + tf('notif.atTime', {time: fmtTime(r.time)}) : ''));
       }
     } else {
-      lines.push(t('notif.environment') + ': ' + (r.env || '') + (r.location ? ' · ' + r.location : ''));
+      lines.push(t('notif.environment') + ': ' + envLabel(r.env || '') + (r.location ? ' · ' + r.location : ''));
       if(r.date) lines.push(t('notif.start') + ': ' + fmtDate(r.date)
         + (r.time ? ' ' + tf('notif.atTime', {time: fmtTime(r.time)}) : ''));
     }
@@ -3398,7 +3420,7 @@
       return `<label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400; border:1px solid var(--line); border-radius:6px; padding:6px 9px; cursor:pointer;">
         <input type="checkbox" class="schedule-dep-check" value="${d.id}" style="width:auto;">
         <span class="mono" style="font-size:10.5px; font-weight:700; color:var(--text-muted);">${d.id}</span>
-        <span>${apps} <span style="color:var(--text-faint);">· ${d.env}</span></span>
+        <span>${apps} <span style="color:var(--text-faint);">· ${escapeHtml(envLabel(d.env))}</span></span>
       </label>`;
     }).join('');
   }
@@ -3469,10 +3491,10 @@
   function onChangelogFileChange(){ addScheduleFiles('changelog'); }
   function onInstallerFileChange(){ addScheduleFiles('installer'); }
   function pathToHtml(pathVal, envs){
-    const envTags = (envs||['Test']).map(e=>`<span class="env-tag test">${e}</span>`).join('<span style="color:var(--text-faint);">+</span>');
-    if(pathVal === 'prod-only') return `<span class="env-tag prod">Production</span>`;
+    const envTags = (envs||['Test']).map(e=>envTagHtml(e)).join('<span style="color:var(--text-faint);">+</span>');
+    if(pathVal === 'prod-only') return envTagHtml('Production');
     if(pathVal === 'test-only') return envTags;
-    return `${envTags}<span style="color:var(--text-faint);">→</span><span class="env-tag prod">Production</span>`;
+    return `${envTags}<span style="color:var(--text-faint);">→</span>${envTagHtml('Production')}`;
   }
 
   function updateScheduleTemplateOptions(){
@@ -3812,10 +3834,7 @@
       const cells = [
         `<td style="text-align:center;"><input type="checkbox" class="loc-select" data-i="${i}" ${selectedLocations.has(i)?'checked':''} onclick="toggleLocationSelect(${i}, this.checked)"></td>`,
         `<td><input type="text" value="${(loc.label || loc.code).replace(/"/g,'&quot;')}" style="font-size:12.5px; padding:4px 6px; min-width:200px;" onchange="updateLocationName(${i}, this.value)"></td>`,
-        `<td><select onchange="updateLocationField(${i}, 'type', this.value)" style="font-size:11px; padding:3px 6px; color:${typeColor(loc.type)}; font-weight:600;">
-          <option value="Production" ${loc.type==='Production'?'selected':''}>Production</option>
-          <option value="Non-production" ${loc.type==='Non-production'?'selected':''}>Non-production</option>
-        </select></td>`,
+        `<td>${typeBadgeHtml(loc.type, {onclick: `cycleLocationType(${i})`})}</td>`,
         `<td><input type="text" value="${(loc.group || '').replace(/"/g,'&quot;')}" placeholder="${t('proj.groupPh')}" style="font-size:12px; padding:4px 6px; width:110px;" onchange="updateLocationField(${i}, 'group', this.value.trim())"></td>`,
       ];
       customFields.forEach(f=>{
@@ -3839,6 +3858,14 @@
       logAudit('changed', 'Deployment target', 'Changed the type of target „' + (loc.label||loc.code) + '” from ' + prev + ' to ' + val, p.name + ' (' + p.clientName + ')', 'aud.d.targetType', {name: (loc.label||loc.code), prev, val});
     }
     persistProject(currentProjectKey);
+  }
+  function cycleLocationType(i){
+    const p = PROJECTS[currentProjectKey];
+    const loc = p && p.locationsList && p.locationsList[i];
+    if(!loc) return;
+    const next = loc.type === 'Production' ? 'Non-production' : 'Production';
+    updateLocationField(i, 'type', next);
+    renderLocationsTable();
   }
 
   function updateLocationName(i, val){
@@ -3967,6 +3994,7 @@
   function normalizeTargetType(v){
     const s = (v || '').toLowerCase();
     if(/^(prod|production|produkcja|produkcyjne|produkcyjny|prd|p)$/.test(s)) return 'Production';
+    if(/^(non-?prod|non-?production|nieprodukcja|nieprodukcyjne|nieprodukcyjny|np|n)$/.test(s)) return 'Non-production';
     return 'Non-production';
   }
 
@@ -4118,7 +4146,7 @@
     tbody.innerHTML = p.apps.map((a,i)=>{
       const last = lastDeploymentForApp(currentProjectKey, a.name);
       const lastCell = last
-        ? `<span class="mono" style="font-size:12px;">v${last.version}</span> <span style="font-size:11px; color:var(--text-muted);">· ${last.env} · ${last.date}</span>`
+        ? `<span class="mono" style="font-size:12px;">v${escapeHtml(last.version)}</span> <span style="font-size:11px; color:var(--text-muted);">· ${escapeHtml(envLabel(last.env))} · ${escapeHtml(last.date)}</span>`
         : `<span style="color:var(--text-faint); font-size:11.5px;">${t('app.noDeployments')}</span>`;
       return `<tr class="app-row" data-idx="${i}" onclick="openAppSettings(${i})" style="cursor:pointer;">
         <td><strong>${a.name}</strong></td>
@@ -4189,13 +4217,29 @@
   const dowNames = ['Mon','Tue','Wed','Thu','Fri'];
   const TYPE_COLORS = {'Production':'#0F7A38', 'Non-production':'#5B6472'};
   function typeColor(t){ return TYPE_COLORS[t] || '#5B6472'; }
-  // Compact P / N badge for Production / Non-production (full label in title).
-  function typeBadgeHtml(type){
+  function typeLabel(type){
+    return t(type === 'Production' ? 'proj.prod' : 'proj.nonprod');
+  }
+  // Compact P / NP badge for Production / Non-production. Hover shows the full
+  // localized type; optional onclick (e.g. cycle type in the targets table).
+  function typeBadgeHtml(type, opts){
+    opts = opts || {};
     const isProd = type === 'Production';
-    const letter = isProd ? 'P' : 'N';
-    const title = escapeHtml(t(isProd ? 'proj.prod' : 'proj.nonprod'));
+    const letter = isProd ? 'P' : 'NP';
+    const tip = escapeHtml(typeLabel(type));
     const color = typeColor(type);
-    return `<span class="mono" title="${title}" style="display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:4px; border:1px solid ${color}; color:${color}; font-size:10px; font-weight:700; flex-shrink:0;">${letter}</span>`;
+    const clickable = !!opts.onclick;
+    const cls = 'type-badge' + (clickable ? ' type-badge-click' : '');
+    const onclk = clickable ? ` onclick="event.stopPropagation(); ${opts.onclick}"` : '';
+    const titleAttr = clickable ? ` title="${tip} — ${escapeHtml(t('proj.typeBadgeToggle'))}"` : ` title="${tip}"`;
+    return `<span class="${cls}" data-tip="${tip}"${titleAttr} role="img" aria-label="${tip}" style="border-color:${color}; color:${color};"${onclk}>${letter}</span>`;
+  }
+  function typeOptionLabel(tv){
+    if(tv === 'Production' || tv === 'Non-production'){
+      const letter = tv === 'Production' ? 'P' : 'NP';
+      return letter + ' — ' + typeLabel(tv);
+    }
+    return tv;
   }
   function officeCode(i){ return 'U' + String(100 + i).padStart(4, '0'); }
   function classifyLocation(i){
@@ -4276,15 +4320,15 @@
     const types = currentTypes();
     tbody.innerHTML = dayCounts.map((c,i)=>`
       <tr>
-        <td class="mono">${tf('sch.day', {n: i+1})}</td>
+        <td class="mono">${i+1}</td>
         <td style="white-space:nowrap;">
           <input type="number" min="0" class="mono day-count-input" value="${c}" style="width:70px;" onchange="updateDayCount(${i}, this.value)">
           <button class="mini-btn" title="${t('sch.remainderTitle')}" style="padding:2px 7px; font-size:10.5px;" onclick="assignRemainderToDay(${i})">${t('sch.remainder')}</button>
         </td>
         <td>
           <select style="width:120px;" onchange="updateDayConstraint(${i}, 'limitType', this.value)">
-            <option value="">— none —</option>
-            ${types.map(tv=>`<option value="${tv}"${(dayConstraints[i]&&dayConstraints[i].limitType===tv)?' selected':''}>${tv}</option>`).join('')}
+            <option value="">${t('sch.restrictNone')}</option>
+            ${types.map(tv=>`<option value="${escapeHtml(tv)}"${(dayConstraints[i]&&dayConstraints[i].limitType===tv)?' selected':''}>${escapeHtml(typeOptionLabel(tv))}</option>`).join('')}
           </select>
         </td>
         <td><input type="number" class="mono" placeholder="—" value="${(dayConstraints[i]&&dayConstraints[i].limitMax!=null)?dayConstraints[i].limitMax:''}" style="width:60px;" onchange="updateDayConstraint(${i}, 'limitMax', this.value !== '' ? parseInt(this.value) : null)"></td>
@@ -4312,7 +4356,12 @@
     else if(diff > 0){ msg = tf('sch.spreadSome', {sum, total, diff}); color = '#8A5A05'; }
     else { msg = tf('sch.spreadOver', {sum, over: -diff, total}); color = '#A81E1E'; }
     footer.innerHTML = `<span style="color:${color}; font-weight:600;">${msg}</span>`
-      + (diff !== 0 ? `<button class="mini-btn" onclick="distributeRemainderEvenly()" style="font-size:10.5px;">${t('sch.spreadEvenly')}</button>` : '');
+      + (diff !== 0
+        ? `<span style="display:inline-flex; gap:6px; flex-shrink:0;">
+            <button class="mini-btn" onclick="distributeRemainderEvenly()" style="font-size:10.5px;">${t('sch.spreadEvenly')}</button>
+            <button class="mini-btn" onclick="assignRemainderToLastDay()" title="${t('sch.addToEndTitle')}" style="font-size:10.5px;">${t('sch.addToEnd')}</button>
+          </span>`
+        : '');
 
     // Soft validation: a day whose exact-count limit is exceeded by the pinned
     // locations of that type is flagged (non-blocking) so the PM can react.
@@ -4353,6 +4402,10 @@
     const sumOthers = dayCounts.reduce((a,b,idx)=> idx===i ? a : a+(parseInt(b)||0), 0);
     dayCounts[i] = Math.max(0, total - sumOthers);
     renderDayBreakdownTable();
+  }
+  function assignRemainderToLastDay(){
+    if(!dayCounts.length) return;
+    assignRemainderToDay(dayCounts.length - 1);
   }
 
   function distributeRemainderEvenly(){
@@ -4498,10 +4551,10 @@
       const testTimeVal = document.getElementById('time-test').value || '20:00';
       testEnvs.forEach(env=>{
         html += `<tr class="manifest-row" style="background:var(--cyan-soft);">
-          <td><strong>${escapeHtml(env)}</strong></td>
+          <td>${escapeHtml(env)}</td>
           <td class="mono">—</td>
           <td class="mono"><div>${testDateStr}</div><div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(testTimeVal)}</div></td>
-          <td><span class="env-tag test">${escapeHtml(env)}</span></td>
+          <td>${envTagHtml(env)}</td>
           <td></td>
         </tr>`;
       });
@@ -4518,10 +4571,10 @@
           ? ` <span style="color:var(--text-faint); font-size:11px;">${escapeHtml(loc.label)}</span>`
           : '';
         html += `<tr class="manifest-row">
-          <td><span style="display:inline-flex; align-items:center; gap:6px;">${typeBadgeHtml(loc.type)}<span>${name}${label}</span></span></td>
+          <td>${name}${label}</td>
           <td class="mono">${tf('sch.day', {n: dayIdx+1})}</td>
           <td class="mono"><div>${dayLabels[dayIdx].date}</div><div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(timeVal)}</div></td>
-          <td><span class="env-tag prod">Production</span></td>
+          <td>${envTagHtml('Production')}</td>
           <td style="white-space:nowrap;">
             <button class="mini-btn" onclick="moveManifestLocation(${idx}, 'start')" title="${t('sch.toStartTitle')}">${t('sch.toStart')}</button>
             <button class="mini-btn" onclick="moveManifestLocation(${idx}, 'end')" title="${t('sch.toEndTitle')}">${t('sch.toEnd')}</button>
@@ -5323,9 +5376,9 @@
       }).catch(err => { console.warn('Decision save failed:', err.message); showToast(t('client.saveFailed')); });
       renderClientPortal(currentClientScenario);
       showToast(t('client.approvedToast'));
-      dispatchEventNotification('decision', rec.projectKey, 'RollDesk — ' + t('ev.decision') + ' (' + (rec.env||'') + ')',
+      dispatchEventNotification('decision', rec.projectKey, 'RollDesk — ' + t('ev.decision') + ' (' + envLabel(rec.env||'') + ')',
         (rec.id ? rec.id + ' — ' : '') + projName
-        + '\n' + t('notif.environment') + ': ' + (rec.env||'')
+        + '\n' + t('notif.environment') + ': ' + envLabel(rec.env||'')
         + '\n' + t('dep.aApproved') + '\n' + tf('notif.approvedBy', {who}), true);
     } else if(action === 'commented'){
       showAppPrompt(t('client.commentTitle'), '', (note)=>{
@@ -5560,7 +5613,6 @@
 
     const renderClientTableRow = (r)=>{
       const proj = r.project || PROJECTS[r.projectKey] || {};
-      const envClass = r.env === 'Production' ? 'prod' : 'test';
       const rowKey = r.id || String(r.idx);
       const isExpanded = expandedClientRow === rowKey;
       const cells = [];
@@ -5571,7 +5623,7 @@
       } else {
         cells.push(`<td>${escapeHtml(r.location||'—')}</td>`);
       }
-      cells.push(`<td><span class="env-tag ${envClass}">${escapeHtml(r.env||'')}</span></td>`);
+      cells.push(`<td>${envTagHtml(r.env)}</td>`);
       cells.push(`<td class="mono">${installerDateLabel(r)}<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(r.time)}</div></td>`);
       cells.push(installerProgressCellHtml(r));
       // Approval / status column
@@ -6471,7 +6523,7 @@
   function scheduleTitle(r){
     const p = PROJECTS[r.projectKey] || {};
     const apps = (r.apps||[]).map(a=>a.name+' '+a.version).join(', ');
-    return tf('sch.docTitle', {project: p.name || r.projectKey, client: p.clientName || '', apps, env: r.env});
+    return tf('sch.docTitle', {project: p.name || r.projectKey, client: p.clientName || '', apps, env: envLabel(r.env)});
   }
 
   function scheduleFileBase(r){
@@ -6567,7 +6619,7 @@
       '{version}': firstApp.version,
       '{applications}': (r.apps||[]).map(a=>tf('msg.appVersion', {name: a.name, version: a.version})).join(', '),
       '{dates}': dates,
-      '{environment}': r.env || '—',
+      '{environment}': envLabel(r.env) || '—',
       '{client}': p.clientName || '—',
       '{attachments}': attachments.join(' ' + t('msg.and') + ' '),
     };
@@ -6915,7 +6967,7 @@
     const date = d.mode === 'batch' ? (d.historyStart || d.createdDate || d.date || '') : (d.date || d.createdDate || '');
     const time = d.time || '';
     const locN = d.mode === 'batch' ? (d.totalLocations || 0) : (proj && proj.locations);
-    events.push({date: created, icon:'📝', text: tf('tl.created', {app, version, env: d.env})});
+    events.push({date: created, icon:'📝', text: tf('tl.created', {app, version, env: envLabel(d.env)})});
 
     if(d.env === 'Production' || d.clientApproval){
       events.push({date: created, icon:'📧', text: t('tl.reqApprove')});
@@ -6951,7 +7003,7 @@
     const appsLabel = r.apps.map(a=>`${a.name} ${a.version}`).join(', ');
     const createdBy = r.createdBy || actorName();
     const locLabel = /^Environment /.test(r.location||'')
-      ? tf('dcard.envLoc', {env: (r.location||'').replace(/^Environment /, '')})
+      ? tf('dcard.envLoc', {env: envLabel((r.location||'').replace(/^Environment /, ''))})
       : r.location;
     const createdSuffix = r.mode==='batch'
       ? ` (${tf('dtl.locsDays', {n: r.totalLocations, d: r.days})})`
@@ -7378,7 +7430,7 @@
       p.clientName || '',
       apps,
       locations,
-      r.env || '',
+      envLabel(r.env) || '',
       date,
       progress,
       r.clientApproval || '',
@@ -7628,7 +7680,6 @@
   }
 
   function installerTableRowHtml(r, kind){
-    const envClass = r.env === 'Production' ? 'prod' : 'test';
     const clientLabel = (r.project && r.project.clientName) ? r.project.clientName : '';
     const cells = [];
     cells.push(`<td><div style="font-size:13px;">${escapeHtml(r.project.name || r.projectKey || '')}</div>${clientLabel ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${escapeHtml(clientLabel)}</div>` : ''}</td>`);
@@ -7638,7 +7689,7 @@
     } else {
       cells.push(`<td>${escapeHtml(r.location||'—')}</td>`);
     }
-    cells.push(`<td><span class="env-tag ${envClass}">${escapeHtml(r.env||'')}</span></td>`);
+    cells.push(`<td>${envTagHtml(r.env)}</td>`);
     cells.push(`<td class="mono">${installerDateLabel(r)}<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(r.time)}</div></td>`);
     cells.push(installerProgressCellHtml(r));
     cells.push(installerApprovalCellHtml(r, kind));
@@ -7966,8 +8017,8 @@
         showToast('Marked as failed — moved to completed, notification sent to the release manager');
         highlightInstallerCard(idx);
         const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
-        dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + t('ev.failure') + ' (' + (d.env||'') + ')',
-          (d.id ? d.id + ' — ' : '') + projName + '\n' + t('notif.environment') + ': ' + (d.env||'') + '\n' + reason + '\n' + tf('notif.reportedByManual', {who}), true);
+        dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + t('ev.failure') + ' (' + envLabel(d.env||'') + ')',
+          (d.id ? d.id + ' — ' : '') + projName + '\n' + t('notif.environment') + ': ' + envLabel(d.env||'') + '\n' + reason + '\n' + tf('notif.reportedByManual', {who}), true);
       }, t('rep.failureReason'), true);
       return;
     }
@@ -7984,9 +8035,9 @@
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
     const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
     dispatchEventNotification('completed', d.projectKey,
-      'RollDesk — ' + t('ev.completed') + ' (' + (d.env||'') + ')',
+      'RollDesk — ' + t('ev.completed') + ' (' + envLabel(d.env||'') + ')',
       (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '')
-      + '\n' + t('notif.environment') + ': ' + (d.env||'')
+      + '\n' + t('notif.environment') + ': ' + envLabel(d.env||'')
       + '\n' + t('notif.statusLine') + ': ' + (statusLabelFull[d.status] || statusLabelFull.installed)
       + '\n' + tf('notif.reportedByManual', {who}), true);
   }
@@ -8095,7 +8146,7 @@
     if(successList.length || failedList.length){
       const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
       const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
-      const envLine = '\n' + t('notif.environment') + ': ' + (d.env || '');
+      const envLine = '\n' + t('notif.environment') + ': ' + envLabel(d.env || '');
       const byLine = '\n' + tf('notif.reportedByManual', {who});
       let body = (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '') + envLine
         + '\n' + tf('notif.dayReportBody', {day: dayNum, ok: successList.length, failed: failedList.length})
@@ -8104,14 +8155,14 @@
         body += '\n' + tf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
         if(reason) body += '\n' + t('rep.correctionReason') + ': ' + reason;
       }
-      dispatchEventNotification('dayReport', d.projectKey, 'RollDesk — ' + t('ev.dayReport') + ' (' + (d.env||'') + ')', body + byLine, true);
+      dispatchEventNotification('dayReport', d.projectKey, 'RollDesk — ' + t('ev.dayReport') + ' (' + envLabel(d.env||'') + ')', body + byLine, true);
       // Guarantee a failure notification via the standard "failure" event too —
       // clients subscribe to it by default, unlike the newer per-day event.
       if(failedList.length){
         let fbody = (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '') + envLine
           + '\n' + tf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
         if(reason) fbody += '\n' + t('rep.correctionReason') + ': ' + reason;
-        dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + t('ev.failure') + ' (' + (d.env||'') + ')', fbody + byLine, true);
+        dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + t('ev.failure') + ' (' + envLabel(d.env||'') + ')', fbody + byLine, true);
       }
     }
     renderInstallerPanel();
@@ -8405,7 +8456,7 @@
     projectEntries.forEach(([k,p])=> (p.testEnvs||[]).forEach(e=>envSet.add(e)));
     envSet.add('Production');
     envSel.innerHTML = `<option value="all">${t('dep.fEnvs')}</option>` +
-      Array.from(envSet).map(e=>`<option>${e}</option>`).join('');
+      Array.from(envSet).map(e=>`<option value="${escapeHtml(e)}">${escapeHtml(envLabel(e))}</option>`).join('');
 
     populateDeployAppFilter();
     renderDeploymentsTable();
@@ -8671,7 +8722,6 @@
     const tbody = document.getElementById('deploy-table');
     let html = '';
     rows.forEach(r=>{
-      const envClass = r.env === 'Production' ? 'prod' : 'test';
       const cells = [];
       if(showProjectCol){
         const clientLabel = (r.project && r.project.clientName) ? r.project.clientName : '';
@@ -8681,7 +8731,7 @@
 
       if(r.mode === 'batch'){
         cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})} <span style="color:var(--text-faint);">· ${tf('notif.daysN', {n: r.days})}</span></td>`);
-        cells.push(`<td><span class="env-tag ${envClass}">${r.env}</span></td>`);
+        cells.push(`<td>${envTagHtml(r.env)}</td>`);
         cells.push(`<td class="mono">${r.dateRange}<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(r.time)}</div></td>`);
         const pct = Math.round((r.counts.installed / r.totalLocations) * 100);
         const failedN = (r.failedLocations || []).length;
@@ -8706,7 +8756,7 @@
       } else if(editingDeployIdx === r.idx){
         const envChoices = [...PROJECTS[r.projectKey].testEnvs, 'Production'];
         cells.push(`<td onclick="event.stopPropagation();">${r.location}</td>`);
-        cells.push(`<td onclick="event.stopPropagation();"><select class="edit-env">${envChoices.map(e=>`<option ${e===r.env?'selected':''}>${e}</option>`).join('')}</select></td>`);
+        cells.push(`<td onclick="event.stopPropagation();"><select class="edit-env">${envChoices.map(e=>`<option value="${escapeHtml(e)}" ${e===r.env?'selected':''}>${escapeHtml(envLabel(e))}</option>`).join('')}</select></td>`);
         cells.push(`<td onclick="event.stopPropagation();"><input type="date" class="edit-date" value="${r.date}"><input type="time" class="edit-time mono" value="${r.time}" style="margin-top:4px;"></td>`);
         cells.push(`<td><span class="pill ${r.status}">${statusLabel[r.status]}</span></td>`);
         cells.push(approvalBadgeHtml(r));
@@ -8716,7 +8766,7 @@
         const colors = {scheduled:'#5B6472', installed:'#0F7A38', failed:'#A81E1E', rolledback:'#6B21A8', aborted:'#5B6472'};
         const bgs = {scheduled:'#EEF0F3', installed:'var(--green-soft)', failed:'var(--red-soft)', rolledback:'#F1E9FB', aborted:'#EEF0F3'};
         cells.push(`<td>${r.location}</td>`);
-        cells.push(`<td><span class="env-tag ${envClass}">${r.env}</span></td>`);
+        cells.push(`<td>${envTagHtml(r.env)}</td>`);
         cells.push(`<td class="mono">${fmtDate(r.date)}<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(r.time)}</div></td>`);
         cells.push(`<td onclick="event.stopPropagation();"><select onchange="changeDeploymentStatus(${r.idx}, this.value)" class="mono" style="border:1px solid var(--line); border-radius:20px; padding:3px 8px; font-size:11.5px; font-weight:600; background:${bgs[r.status]}; color:${colors[r.status]};">
           ${statusOptions.map(s=>`<option value="${s}" ${s===r.status?'selected':''}>${statusLabel[s]}</option>`).join('')}
@@ -8776,7 +8826,7 @@
     // Capture the previous values so the change can be recorded on the timeline
     // and in the audit log (editing a single deployment previously left no trace).
     const changes = [];
-    if(envEl && envEl.value !== d.env){ changes.push('environment ' + d.env + ' → ' + envEl.value); d.env = envEl.value; }
+    if(envEl && envEl.value !== d.env){ changes.push('environment ' + envLabel(d.env) + ' → ' + envLabel(envEl.value)); d.env = envEl.value; }
     if(dateEl && dateEl.value !== d.date){ changes.push('date ' + (d.date||'—') + ' → ' + (dateEl.value||'—')); d.date = dateEl.value; }
     if(timeEl && timeEl.value !== d.time){ changes.push('time ' + (d.time||'—') + ' → ' + (timeEl.value||'—')); d.time = timeEl.value; }
     editingDeployIdx = null;
@@ -9000,9 +9050,9 @@
     const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
     const total = d.totalLocations || d.counts.installed;
     dispatchEventNotification('completed', d.projectKey,
-      'RollDesk — ' + t('ev.completed') + ' (' + (d.env||'') + ')',
+      'RollDesk — ' + t('ev.completed') + ' (' + envLabel(d.env||'') + ')',
       (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '')
-      + '\n' + t('notif.environment') + ': ' + (d.env||'')
+      + '\n' + t('notif.environment') + ': ' + envLabel(d.env||'')
       + '\n' + t('notif.statusLine') + ': ' + (statusLabelFull.installed)
       + '\n' + tf('notif.progressLine', {done: d.counts.installed, total, left: 0})
       + '\n' + tf('notif.reportedByManual', {who}), true);
