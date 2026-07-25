@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Matching action bar on the deployer panel.** ID, assignee, changelog, timeline, comment, full schedule and XLS/PDF — without RM-only actions. Deployer instructions stay always visible under the bar.
 - **CSV export of the current list.** ⬇ CSV on the deployments list and the deployer panel exports the rows matching the active filters (not available in the client portal).
 - **Approval reminder shows the delivery channel.** Confirm dialog, button tooltip and toast name Teams (Graph) and/or configured webhooks.
+- **Edit project name.** Open a project to rename it (display name only; the technical key is unchanged). Duplicate names for the same client are rejected.
 
 ### Changed
 - **Deployer panel aligned with deployments.** Same table layout, multi-select status filter and summary stats row; duplicate page titles/descriptions removed (title stays in the top bar only — same cleanup on Projects and Deployments).
@@ -21,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Escape closes modals sensibly.** Esc closes the end-user message dialog; Esc closes Edit deployment only when nothing changed.
 - **Changelog visible again for deployers** on active, waiting and completed rows.
+- **Deployer-instructions placeholder is localized** in *New deployment* (was hard-coded English).
 
 ## [0.11.0] - 2026-07-24
 

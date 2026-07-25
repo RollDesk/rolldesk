@@ -658,6 +658,17 @@
     </div>
 
     <div id="project-apps-panel" style="display:none; margin-top:20px;">
+      <div class="card" style="margin-bottom:18px;">
+        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="proj.settings">Project settings</h2>
+        <p class="section-desc" data-i18n="proj.settingsDesc">Display name of the project. The technical key stays unchanged.</p>
+        <div class="field" style="margin-bottom:0;">
+          <label data-i18n="np.name">Project name</label>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <input type="text" id="project-name-input" data-i18n-ph="np.namePh" placeholder="e.g. LogiHub" style="flex:1; min-width:200px;">
+            <button class="btn" onclick="saveProjectName()" data-i18n="proj.saveName">Save name</button>
+          </div>
+        </div>
+      </div>
       <div class="toolbar">
         <div>
           <h2 class="section-title" style="margin-bottom:2px;" id="apps-title" data-i18n="proj.apps">Applications</h2>
@@ -945,7 +956,7 @@
         </div>
         <div class="field">
           <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.installerNotes">Instructions for deployers (optional)</span><span class="info-ic" data-i18n-tip="sch.installerNotesNote">i</span></label>
-          <textarea id="schedule-installer-notes" placeholder="e.g.&#10;1. Stop the ServiceA service&#10;2. Make a database backup&#10;3. After installation run migrations.sql"></textarea>
+          <textarea id="schedule-installer-notes" data-i18n-ph="sch.installerNotesPh" placeholder="np.&#10;1. Zatrzymaj usługę ServiceA&#10;2. Zrób kopię bazy danych&#10;3. Po instalacji uruchom migrations.sql"></textarea>
           <label style="display:flex; align-items:center; margin:10px 0 6px 0;"><span data-i18n="sch.installerAttach">Attachments for deployers (optional)</span><span class="info-ic" data-i18n-tip="sch.installerAttachNote">i</span></label>
           <input type="file" id="schedule-installer-file" multiple onchange="onInstallerFileChange()">
           <div id="schedule-installer-file-name" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
@@ -3202,6 +3213,9 @@
     if(pdWebhook) pdWebhook.value = p.postDeployWebhook || legacyWebhook || '';
     if(pdEnabled) pdEnabled.checked = !!p.postDeployEnabled;
 
+    const nameEl = document.getElementById('project-name-input');
+    if(nameEl) nameEl.value = p.name || '';
+
     // Deployment defaults (working-day split + start time) — editable per project.
     const ddDays = document.getElementById('project-default-days');
     const ddTime = document.getElementById('project-default-time');
@@ -3238,6 +3252,31 @@
     updateScheduleTemplateOptions();
 
     clearManifestPreview();
+  }
+
+  function saveProjectName(){
+    const p = PROJECTS[currentProjectKey];
+    if(!p) return;
+    const name = (document.getElementById('project-name-input').value || '').trim();
+    if(!name){ showToast(t('proj.nameRequired')); return; }
+    const dupKey = name.toLowerCase();
+    const dup = Object.entries(PROJECTS).some(([k, x]) =>
+      k !== currentProjectKey && !x.archived && x.client === p.client && String(x.name || '').trim().toLowerCase() === dupKey
+    );
+    if(dup){ showToast(t('proj.dupName')); return; }
+    if(name === p.name){ showToast(t('proj.nameUnchanged')); return; }
+    const prev = p.name;
+    p.name = name;
+    persistProject(currentProjectKey);
+    logAudit('changed', 'Project', 'Renamed project „' + prev + '” → „' + name + '”', name + ' (' + p.clientName + ')', 'aud.d.projRenamed', {from: prev, to: name});
+    try {
+      renderProjectsList();
+      initProjectSelect();
+      renderDeploymentsTable();
+      renderInstallerPanel();
+      switchProject(currentProjectKey);
+    } catch(e){}
+    showToast(tf('proj.nameSaved', {name}));
   }
 
   function saveProjectDefaults(){
