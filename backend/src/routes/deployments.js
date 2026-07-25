@@ -1,13 +1,23 @@
 // Deployment endpoints — the full object is stored as JSONB (data).
 import { Router } from 'express';
 import { query } from '../db.js';
-import { forbidClient, isClient, isInstaller, clientScope, userScope } from '../rbac.js';
+import {
+  forbidClient, isClient, isInstaller, clientScope, userScope,
+  projectSharesAdminInfo, stripAdminInfoFromDeployment,
+} from '../rbac.js';
 
 const router = Router();
 
 // Returns the stored deployment object (JSONB) with the id attached.
 function rowToObj(r) {
   return Object.assign({ id: r.id }, r.data);
+}
+
+// For client accounts, drop deployer/admin notes unless the project opts in.
+async function shapeForCaller(req, obj) {
+  if (!isClient(req) || !obj) return obj;
+  if (await projectSharesAdminInfo(obj.projectKey || obj.project_key)) return obj;
+  return stripAdminInfoFromDeployment(obj);
 }
 
 // GET /api/deployments — list of full objects, with filters.
@@ -36,7 +46,21 @@ router.get('/', async (req, res) => {
 
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   const { rows } = await query(`SELECT * FROM deployments ${where} ORDER BY created_at ASC`, params);
-  res.json(rows.map(rowToObj));
+  const list = rows.map(rowToObj);
+  if (!isClient(req)) return res.json(list);
+  // Cache the per-project share flag so a long list does not re-query once per row.
+  const shareCache = new Map();
+  const out = [];
+  for (const obj of list) {
+    const pk = obj.projectKey || obj.project_key;
+    let share = shareCache.get(pk);
+    if (share === undefined) {
+      share = await projectSharesAdminInfo(pk);
+      shareCache.set(pk, share);
+    }
+    out.push(share ? obj : stripAdminInfoFromDeployment(obj));
+  }
+  res.json(out);
 });
 
 router.get('/:id', async (req, res) => {
@@ -55,7 +79,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Not found' });
     }
   }
-  res.json(rowToObj(row));
+  res.json(await shapeForCaller(req, rowToObj(row)));
 });
 
 // Upsert of the full deployment object (PUT by id) — used by the frontend.
@@ -153,7 +177,7 @@ router.post('/:id/decision', async (req, res) => {
     console.warn('[decision] audit insert failed:', err.message);
   }
 
-  res.json(rowToObj({ id: row.id, data }));
+  res.json(await shapeForCaller(req, rowToObj({ id: row.id, data })));
 });
 
 // PUT /api/deployments/:id — create or update (the frontend uses this to save).

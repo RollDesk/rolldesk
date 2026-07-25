@@ -66,3 +66,34 @@ export async function canReadDeployment(req, dep) {
   if (role === 'client') return !dep.internal && projects.includes(dep.project_key);
   return projects.includes(dep.project_key); // installer (and any other scoped role)
 }
+
+// Project policy: when true, deployer/admin notes on deployments are also
+// visible to client accounts (portal + attachment download). Stored in the
+// project's JSONB `data` column; defaults to false.
+export async function projectSharesAdminInfo(projectKey) {
+  if (!projectKey) return false;
+  const { rows } = await query(
+    `SELECT COALESCE((data->>'clientSeesAdminInfo')::boolean, false) AS flag
+       FROM projects WHERE key = $1`,
+    [projectKey]
+  );
+  return !!(rows[0] && rows[0].flag);
+}
+
+// Strip deployer/admin-only fields before returning a deployment to a client
+// account when the project does not share that information.
+export function stripAdminInfoFromDeployment(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  const out = Object.assign({}, obj);
+  delete out.installerNotes;
+  delete out.instructionAttachments;
+  return out;
+}
+
+// Attachment ids listed on the deployment as deployer-instruction files.
+export function instructionAttachmentIds(depData) {
+  const list = depData && Array.isArray(depData.instructionAttachments)
+    ? depData.instructionAttachments
+    : [];
+  return new Set(list.map((a) => String(a && a.id)).filter(Boolean));
+}

@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-07-25
+
+### Added
+- **Share administrator information with the client.** A per-project setting (on create and in deployment defaults) controls whether deployer/admin notes and their files also appear in the client portal. Off by default; the API strips those fields for client accounts when the setting is off.
+
+### Changed
+- **Shorter queue move buttons.** First/last queue actions show only the arrows (⇤ / ⇥); the full label stays in the button tooltip.
+- **Consistent “targets” wording.** UI labels that still said “locations” / “lok.” now use “targets” / “cele”; the redundant short unit next to the day count is gone.
+- **Tighter schedule assignment preview.** Time sits under the date; Production / Non-production is a compact **P** / **N** badge next to the target name (full label on hover).
+- **Post-deployment section help** moved into an info (ℹ) tooltip.
+- **Repository link placeholder** is a generic `https://…` (not GitHub-specific).
+
 ## [0.11.1] - 2026-07-24
 
 ### Added

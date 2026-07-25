@@ -9,7 +9,10 @@ import multer from 'multer';
 import { query } from '../db.js';
 import { config } from '../config.js';
 import { avEnabled, scanBuffer } from '../antivirus.js';
-import { forbidClient, loadDeploymentAccess, canReadDeployment } from '../rbac.js';
+import {
+  forbidClient, loadDeploymentAccess, canReadDeployment, isClient,
+  projectSharesAdminInfo, instructionAttachmentIds,
+} from '../rbac.js';
 
 const MAX_BYTES = 25 * 1024 * 1024; // 25 MB per file
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_BYTES } });
@@ -74,7 +77,14 @@ router.get('/deployments/:id/attachments', async (req, res) => {
        FROM attachments WHERE deployment_id = $1 ORDER BY uploaded_at ASC`,
     [req.params.id]
   );
-  res.json(rows.map(meta));
+  let list = rows.map(meta);
+  // Clients only see instruction files when the project shares admin info.
+  if (isClient(req) && !(await projectSharesAdminInfo(dep.project_key))) {
+    const { rows: depRows } = await query('SELECT data FROM deployments WHERE id = $1', [dep.id]);
+    const instr = instructionAttachmentIds(depRows[0] && depRows[0].data);
+    if (instr.size) list = list.filter((a) => !instr.has(String(a.id)));
+  }
+  res.json(list);
 });
 
 // GET /api/attachments/:attId — stream the stored bytes back for download.
@@ -88,6 +98,14 @@ router.get('/attachments/:attId', async (req, res) => {
   if (!rows.length) return res.status(404).json({ error: 'Not found' });
   const dep = await loadDeploymentAccess(rows[0].deployment_id);
   if (!dep || !(await canReadDeployment(req, dep))) return res.status(404).json({ error: 'Not found' });
+  // Instruction attachments stay team-only unless the project opts in.
+  if (isClient(req) && !(await projectSharesAdminInfo(dep.project_key))) {
+    const { rows: depRows } = await query('SELECT data FROM deployments WHERE id = $1', [dep.id]);
+    const instr = instructionAttachmentIds(depRows[0] && depRows[0].data);
+    if (instr.has(String(req.params.attId))) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+  }
   const a = rows[0];
   const asciiName = (a.filename || 'attachment').replace(/[^\x20-\x7E]/g, '_').replace(/"/g, "'");
   res.setHeader('Content-Type', a.mime || 'application/octet-stream');

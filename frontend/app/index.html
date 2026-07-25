@@ -691,7 +691,7 @@
             </div>
             <div class="field">
               <label data-i18n="proj.repoLink">Repository link</label>
-              <input type="text" id="app-repo" class="mono" placeholder="https://github.com/org/repo">
+              <input type="text" id="app-repo" class="mono" data-i18n-ph="proj.repoLinkPh" placeholder="https://...">
             </div>
           </div>
           <button class="btn" id="app-form-submit" onclick="addApplication()" data-i18n="proj.addAppBtn">Add application</button>
@@ -710,9 +710,12 @@
           <h2 class="section-title" style="margin-bottom:2px;" id="locations-title" data-i18n="proj.targets">Deployment targets</h2>
           <p class="section-desc" style="margin-bottom:0;" id="locations-desc" data-i18n="proj.targetsDesc">Deployment targets (locations, servers, tenants, regions…) of this project.</p>
         </div>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; align-items:center;">
           <button class="mini-btn" onclick="addCustomLocationField()" data-i18n="proj.addField">+ Add field</button>
-          <button class="mini-btn" onclick="triggerLocationCsvImport()" data-i18n="proj.importCsv" title="CSV: 1. kolumna = nazwa, 2. kolumna = typ (Production / Non-production)">⬆ Import CSV</button>
+          <span style="display:inline-flex; align-items:center; gap:4px;">
+            <button class="mini-btn" onclick="triggerLocationCsvImport()" data-i18n="proj.importCsv">⬆ Import CSV</button>
+            <span class="info-ic" data-i18n-tip="proj.importCsvNote">i</span>
+          </span>
           <input type="file" id="location-csv-input" accept=".csv,text/csv" style="display:none;" onchange="importLocationsCsv(this)">
           <button class="btn" onclick="toggleLocationForm()" data-i18n="proj.addTarget">+ Add target</button>
         </div>
@@ -776,12 +779,14 @@
         <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400; margin:4px 0 12px 0;">
           <input type="checkbox" id="project-test-approval" style="width:auto;"> <span data-i18n="proj.testApproval">Test environment also requires client approval</span><span class="info-ic" data-i18n-tip="proj.testApprovalNote">i</span>
         </label>
+        <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400; margin:4px 0 12px 0;">
+          <input type="checkbox" id="project-client-sees-admin-info" style="width:auto;"> <span data-i18n="proj.clientSeesAdminInfo">Share administrator information with the client</span><span class="info-ic" data-i18n-tip="proj.clientSeesAdminInfoNote">i</span>
+        </label>
         <button class="btn" onclick="saveProjectDefaults()" data-i18n="proj.saveDefaults">Save defaults</button>
       </div>
 
       <div class="card" style="margin-top:20px;">
-        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="proj.postDeploy">Post-deployment notifications</h2>
-        <p class="section-desc" data-i18n="proj.postDeployDesc">An additional notification sent after a production deployment of this project is completed — e.g. to the maintenance team, the service desk, or the client-side contact person.</p>
+        <h2 class="section-title" style="margin-bottom:12px; display:flex; align-items:center;"><span data-i18n="proj.postDeploy">Post-deployment notifications</span><span class="info-ic" data-i18n-tip="proj.postDeployDesc">i</span></h2>
         <div class="field">
           <label data-i18n="proj.postDeployEmail">E-mail address to notify after installation</label>
           <div style="display:flex; gap:8px;">
@@ -829,7 +834,7 @@
         </div>
 
         <div class="field">
-          <label data-i18n="np.people">Client-side people with access to this project</label>
+          <label style="display:flex; align-items:center;"><span data-i18n="np.people">Client-side people with access to this project</span><span class="info-ic" data-i18n-tip="np.peopleNote">i</span></label>
           <div id="np-people">
             <div class="person-row" style="display:flex; gap:8px; margin-bottom:8px;">
               <input type="text" class="np-person-name" data-i18n-ph="np.personNamePh" placeholder="Full name" style="flex:1;">
@@ -838,7 +843,6 @@
             </div>
           </div>
           <button class="mini-btn" onclick="addPersonRow()" data-i18n="np.addPerson">+ Add person</button>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="np.peopleNote">A person added only here sees this project alone. If you also add them to other projects of this client, they will have access to all the projects they have been added to.</p>
         </div>
 
         <div class="field">
@@ -856,15 +860,18 @@
               <button class="mini-btn" onclick="removeLocRow(this)" style="display:none;" data-i18n="np.remove">Remove</button>
             </div>
           </div>
-          <div style="display:flex; gap:8px;">
+          <div style="display:flex; gap:8px; align-items:center;">
             <button class="mini-btn" id="np-add-loc-btn" onclick="addLocRow()" style="display:none;" data-i18n="np.addLocation">+ Add location</button>
-            <button class="mini-btn" id="np-import-loc-btn" onclick="triggerNpLocationCsvImport()" data-i18n="proj.importCsv" title="CSV: 1. kolumna = nazwa, 2. kolumna = typ (Production / Non-production)">⬆ Import CSV</button>
+            <span style="display:inline-flex; align-items:center; gap:4px;">
+              <button class="mini-btn" id="np-import-loc-btn" onclick="triggerNpLocationCsvImport()" data-i18n="proj.importCsv">⬆ Import CSV</button>
+              <span class="info-ic" data-i18n-tip="proj.importCsvNote">i</span>
+            </span>
             <input type="file" id="np-location-csv-input" accept=".csv,text/csv" style="display:none;" onchange="importNpLocationsCsv(this)">
           </div>
         </div>
 
         <div class="field">
-          <label data-i18n="np.testEnvs">Project test environments</label>
+          <label style="display:flex; align-items:center;"><span data-i18n="np.testEnvs">Project test environments</span><span class="info-ic" data-i18n-tip="np.testEnvsNote">i</span></label>
           <div id="np-testenvs">
             <div class="loc-row" style="display:flex; gap:8px; margin-bottom:8px;">
               <input type="text" class="np-env-input" value="Test" style="flex:1;">
@@ -872,7 +879,6 @@
             </div>
           </div>
           <button class="mini-btn" onclick="addEnvRow()" data-i18n="np.addTestEnv">+ Add test environment</button>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="np.testEnvsNote">Some projects have several parallel test environments (e.g. Test1, Test2, Test3) — add as many as you need. Applications in this project will choose which ones they deploy to.</p>
         </div>
 
         <div class="field">
@@ -909,6 +915,7 @@
         <div class="field">
           <label data-i18n="np.clientVisibility">Client visibility</label>
           <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:400;"><input type="checkbox" id="np-client-visible" checked style="width:auto;"> <span data-i18n="np.clientVisibleLabel">The client sees the deployment schedule</span></label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:400; margin-top:8px;"><input type="checkbox" id="np-client-sees-admin-info" style="width:auto;"> <span data-i18n="np.clientSeesAdminInfoLabel">Share administrator information with the client</span><span class="info-ic" data-i18n-tip="proj.clientSeesAdminInfoNote">i</span></label>
         </div>
 
         <button class="btn" onclick="createProject()" data-i18n="np.create">Create project</button>
@@ -1060,7 +1067,7 @@
           </div>
           <div style="max-height:340px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;">
             <table>
-              <thead><tr><th data-i18n="sch.thLocation">Location</th><th data-i18n="sch.thType">Type</th><th data-i18n="sch.thDay">Day</th><th data-i18n="sch.thDate">Date</th><th data-i18n="sch.time">Time</th><th data-i18n="sch.thEnv">Environment</th><th></th></tr></thead>
+              <thead><tr><th data-i18n="sch.thLocation">Target</th><th data-i18n="sch.thDay">Day</th><th data-i18n="sch.thDate">Date</th><th data-i18n="sch.thEnv">Environment</th><th></th></tr></thead>
               <tbody id="manifest-table"></tbody>
             </table>
           </div>
@@ -1671,11 +1678,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.11.1"></script>
-<script src="i18n/en.js?v=0.11.1"></script>
+<script src="i18n/pl.js?v=0.12.0"></script>
+<script src="i18n/en.js?v=0.12.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.11.1';
+  const ROLLDESK_VERSION = '0.12.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -3225,6 +3232,8 @@
     if(skipWkndEl) skipWkndEl.checked = (p.skipWeekends !== false);
     const testApprEl = document.getElementById('project-test-approval');
     if(testApprEl) testApprEl.checked = !!p.testNeedsApproval;
+    const adminInfoEl = document.getElementById('project-client-sees-admin-info');
+    if(adminInfoEl) adminInfoEl.checked = !!p.clientSeesAdminInfo;
     // The rollout-preview note depends on the per-project weekend setting.
     const weekendNoteEl = document.getElementById('sch-weekends-note');
     if(weekendNoteEl) weekendNoteEl.textContent = t(p.skipWeekends !== false ? 'sch.weekendsNote' : 'sch.weekendsNoteIncluded');
@@ -3286,10 +3295,12 @@
     const time = document.getElementById('project-default-time').value || '20:00';
     const skipWkndEl = document.getElementById('project-skip-weekends');
     const testApprEl = document.getElementById('project-test-approval');
+    const adminInfoEl = document.getElementById('project-client-sees-admin-info');
     p.defaultDays = days < 1 ? 1 : days;
     p.defaultTime = time;
     p.skipWeekends = skipWkndEl ? skipWkndEl.checked : true;
     p.testNeedsApproval = testApprEl ? testApprEl.checked : false;
+    p.clientSeesAdminInfo = adminInfoEl ? adminInfoEl.checked : false;
     persistProject(currentProjectKey);
     logAudit('changed', 'Project', 'Changed deployment defaults (' + p.defaultDays + ' working days, start ' + p.defaultTime + ', weekends ' + (p.skipWeekends ? 'skipped' : 'included') + ')', p.name + ' (' + p.clientName + ')', 'aud.d.projDefaults', {days: p.defaultDays, time: p.defaultTime, weekends: t(p.skipWeekends ? 'aud.d.wkSkipped' : 'aud.d.wkIncluded')});
     showToast(t('proj.defaultsSaved'));
@@ -3810,7 +3821,7 @@
       customFields.forEach(f=>{
         cells.push(`<td><input type="text" value="${((loc.custom && loc.custom[f]) || '').replace(/"/g,'&quot;')}" style="font-size:12.5px; padding:4px 6px;" onchange="updateLocationCustomField(${i}, '${f}', this.value)"></td>`);
       });
-      cells.push(`<td><button class="mini-btn" onclick="removeLocation(${i})">Remove</button></td>`);
+      cells.push(`<td><button class="mini-btn" onclick="removeLocation(${i})">${t('np.remove')}</button></td>`);
       return '<tr>' + cells.join('') + '</tr>';
     }).join('') || `<tr><td colspan="${totalCols}" style="color:var(--text-faint); font-size:12px;">No deployment targets.</td></tr>`;
     if(filtered.length > 200){
@@ -4043,8 +4054,8 @@
     const loc = p.locationsList[i];
     const name = loc.label || loc.code;
     showAppConfirm(
-      'Remove deployment target?',
-      'The target „' + name + '” will be removed from the ' + p.name + ' project. This operation cannot be undone.',
+      t('proj.removeTargetTitle'),
+      tf('proj.removeTargetBody', {name, project: p.name}),
       ()=>{
         p.locationsList.splice(i, 1);
         p.locations = p.locationsList.length;
@@ -4053,7 +4064,7 @@
         renderLocationsTable();
         renderProjectsList();
         persistProject(currentProjectKey);
-        showToast('Target „' + name + '” removed');
+        showToast(tf('proj.removeTargetDone', {name}));
       }
     );
   }
@@ -4178,6 +4189,14 @@
   const dowNames = ['Mon','Tue','Wed','Thu','Fri'];
   const TYPE_COLORS = {'Production':'#0F7A38', 'Non-production':'#5B6472'};
   function typeColor(t){ return TYPE_COLORS[t] || '#5B6472'; }
+  // Compact P / N badge for Production / Non-production (full label in title).
+  function typeBadgeHtml(type){
+    const isProd = type === 'Production';
+    const letter = isProd ? 'P' : 'N';
+    const title = escapeHtml(t(isProd ? 'proj.prod' : 'proj.nonprod'));
+    const color = typeColor(type);
+    return `<span class="mono" title="${title}" style="display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:4px; border:1px solid ${color}; color:${color}; font-size:10px; font-weight:700; flex-shrink:0;">${letter}</span>`;
+  }
   function officeCode(i){ return 'U' + String(100 + i).padStart(4, '0'); }
   function classifyLocation(i){
     // most rollout locations are production; a small fraction are non-production (e.g. decommissioned)
@@ -4479,32 +4498,33 @@
       const testTimeVal = document.getElementById('time-test').value || '20:00';
       testEnvs.forEach(env=>{
         html += `<tr class="manifest-row" style="background:var(--cyan-soft);">
-          <td colspan="2"><strong>${env}</strong></td>
-          <td class="mono">Test environment</td>
-          <td class="mono">${testDateStr}</td>
-          <td class="mono">${testTimeVal}</td>
-          <td><span class="env-tag test">${env}</span></td>
+          <td><strong>${escapeHtml(env)}</strong></td>
+          <td class="mono">—</td>
+          <td class="mono"><div>${testDateStr}</div><div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(testTimeVal)}</div></td>
+          <td><span class="env-tag test">${escapeHtml(env)}</span></td>
           <td></td>
         </tr>`;
       });
       if(dayAssignments.length){
-        html += `<tr><td colspan="7" style="text-align:center; padding:10px 0; color:var(--text-muted); font-size:11.5px; border-top:1px dashed var(--line); border-bottom:1px dashed var(--line);">${t('sch.testFirstNote')}</td></tr>`;
+        html += `<tr><td colspan="5" style="text-align:center; padding:10px 0; color:var(--text-muted); font-size:11.5px; border-top:1px dashed var(--line); border-bottom:1px dashed var(--line);">${t('sch.testFirstNote')}</td></tr>`;
       }
     }
 
     let idx = 0;
     dayAssignments.forEach((arr, dayIdx)=>{
       arr.forEach(loc=>{
+        const name = escapeHtml(loc.code || '');
+        const label = (loc.label && loc.label !== loc.code)
+          ? ` <span style="color:var(--text-faint); font-size:11px;">${escapeHtml(loc.label)}</span>`
+          : '';
         html += `<tr class="manifest-row">
-          <td>${loc.code}${loc.label && loc.label !== loc.code ? ` <span style="color:var(--text-faint); font-size:11px;">${loc.label}</span>` : ''}</td>
-          <td><span class="mono" style="font-size:11px; padding:2px 7px; border-radius:10px; border:1px solid var(--line); color:${typeColor(loc.type)};">${loc.type}</span></td>
+          <td><span style="display:inline-flex; align-items:center; gap:6px;">${typeBadgeHtml(loc.type)}<span>${name}${label}</span></span></td>
           <td class="mono">${tf('sch.day', {n: dayIdx+1})}</td>
-          <td class="mono">${dayLabels[dayIdx].date}</td>
-          <td class="mono">${fmtTime(timeVal)}</td>
+          <td class="mono"><div>${dayLabels[dayIdx].date}</div><div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(timeVal)}</div></td>
           <td><span class="env-tag prod">Production</span></td>
           <td style="white-space:nowrap;">
-            <button class="mini-btn" onclick="moveManifestLocation(${idx}, 'start')">${t('sch.toStart')}</button>
-            <button class="mini-btn" onclick="moveManifestLocation(${idx}, 'end')">${t('sch.toEnd')}</button>
+            <button class="mini-btn" onclick="moveManifestLocation(${idx}, 'start')" title="${t('sch.toStartTitle')}">${t('sch.toStart')}</button>
+            <button class="mini-btn" onclick="moveManifestLocation(${idx}, 'end')" title="${t('sch.toEndTitle')}">${t('sch.toEnd')}</button>
           </td>
         </tr>`;
         idx++;
@@ -5012,6 +5032,7 @@
 
     const multi = document.getElementById('np-multi-toggle').checked;
     const clientVisible = document.getElementById('np-client-visible').checked;
+    const clientSeesAdminInfo = !!(document.getElementById('np-client-sees-admin-info') || {}).checked;
     const defaultDays = parseInt(document.getElementById('np-default-days').value) || 5;
     const defaultTime = document.getElementById('np-default-time').value || '20:00';
     const locNames = Array.from(document.querySelectorAll('#np-locations .np-loc-input')).map(i=>i.value.trim()).filter(Boolean);
@@ -5047,6 +5068,7 @@
       locationsList,
       customLocationFields: [],
       clientVisible,
+      clientSeesAdminInfo,
       defaultDays,
       defaultTime,
       skipWeekends: true
@@ -5574,6 +5596,7 @@
         if(r.changelog || (r.attachments && r.attachments.length) || r.attachment){
           body += changelogCollapsibleHtml(r, rowKey);
         }
+        body += clientAdminInfoHtml(r);
         body += `<div style="margin-top:4px;">
           <div style="color:var(--text-muted); font-size:12.5px; margin-bottom:8px; font-weight:600;">${t('client.timeline')}</div>
           <div style="max-height:240px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:4px 10px;">
@@ -7049,6 +7072,24 @@
       bodyHtml
     });
   }
+  // Project policy: whether deployer/admin notes may also appear in the client portal.
+  function projectSharesAdminInfo(projectKey){
+    const p = PROJECTS[projectKey];
+    return !!(p && p.clientSeesAdminInfo);
+  }
+  function clientAdminInfoHtml(r){
+    if(!projectSharesAdminInfo(r.projectKey)) return '';
+    const bodyHtml = installerNotesBodyHtml(r);
+    if(!bodyHtml) return '';
+    const id = 'client-admin-' + (r.id || r.idx || 'x');
+    return collapsibleBlockHtml({
+      id,
+      icon: '📋',
+      showKey: 'client.showAdminInfo',
+      hideKey: 'client.hideAdminInfo',
+      bodyHtml
+    });
+  }
   function toggleInstallerNotes(id, showKey, hideKey){
     const box = document.getElementById(id);
     const lbl = document.getElementById(id + '-label');
@@ -8497,7 +8538,7 @@
           dayPlanRows += `<tr>
             <td class="mono">${tf('dtl.day', {n: day})}</td>
             <td>${done ? `<span class="mono" style="font-size:12px;">${fmtDate(dateStr)}</span>` : `<input type="date" class="mono" value="${dateStr}" style="font-size:12px; padding:2px 6px; ${changed ? 'border-color:#8A5A05; background:#FDF8EE;' : ''}" onchange="stageDayDate(${r.idx}, ${day}, this.value)">`}${changed ? ` <span style="font-size:10px; color:#8A5A05;">${t('dtl.changed')}</span>` : ''}</td>
-            <td class="mono" style="font-size:11.5px;">${done ? `${computeDayCount(r, day)} ${t('dtl.locShort')}` : `<input type="number" min="0" value="${computeDayCount(r, day)}" style="width:56px; font-size:12px; padding:2px 6px;" title="${t('dtl.editCountTitle')}" onchange="setDayTargetCount(${r.idx}, ${day}, this.value)"> ${t('dtl.locShort')}`}</td>
+            <td class="mono" style="font-size:11.5px;">${done ? `${computeDayCount(r, day)}` : `<input type="number" min="0" value="${computeDayCount(r, day)}" style="width:56px; font-size:12px; padding:2px 6px;" title="${t('dtl.editCountTitle')}" onchange="setDayTargetCount(${r.idx}, ${day}, this.value)">`}</td>
             <td>${label}</td>
           </tr>`;
         }
@@ -8539,8 +8580,8 @@
                         <option value="">${t('dtl.moveToDay')}</option>
                         ${(function(){ let o=''; for(let dd=todayDay; dd<=r.days; dd++){ if(dd!==dn) o+=`<option value="${dd}">${tf('dtl.day', {n: dd})}</option>`; } return o; })()}
                       </select>
-                      <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'start')">${t('dtl.moveStart')}</button>
-                      <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'end')">${t('dtl.moveEnd')}</button>
+                      <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'start')" title="${t('dtl.moveStartTitle')}">${t('dtl.moveStart')}</button>
+                      <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'end')" title="${t('dtl.moveEndTitle')}">${t('dtl.moveEnd')}</button>
                     </td>
                   </tr>`;
                 }).join('')}
