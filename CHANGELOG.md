@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] - 2026-07-24
+
+### Added
+- **Action bar on expanded deployments.** Instructions, changelog, timeline (open by default), comment, schedule XLS/PDF, message, pause/resume, edit, reminder and delete share one compact bar; detail panels open one at a time.
+- **Matching action bar on the deployer panel.** ID, assignee, changelog, timeline, comment, full schedule and XLS/PDF — without RM-only actions. Deployer instructions stay always visible under the bar.
+- **CSV export of the current list.** ⬇ CSV on the deployments list and the deployer panel exports the rows matching the active filters (not available in the client portal).
+- **Approval reminder shows the delivery channel.** Confirm dialog, button tooltip and toast name Teams (Graph) and/or configured webhooks.
+- **Edit project name.** Open a project to rename it (display name only; the technical key is unchanged). Duplicate names for the same client are rejected.
+
+### Changed
+- **Deployer panel aligned with deployments.** Same table layout, multi-select status filter and summary stats row; duplicate page titles/descriptions removed (title stays in the top bar only — same cleanup on Projects and Deployments).
+- **Default deployments status filter shows everything in range.** Scheduled, installed, failed, rolled back and aborted are all on; the 14-day range still limits history.
+- **Shorter action labels.** e.g. Message, Reminder, ⬇ XLS / ⬇ PDF; schedule download filenames are `{deployment-id}-{app}`.
+- **Reports & history removed from the deployer panel.** Replaced by the list CSV export; the separate "Reports" status option is gone.
+
+### Fixed
+- **Escape closes modals sensibly.** Esc closes the end-user message dialog; Esc closes Edit deployment only when nothing changed.
+- **Changelog visible again for deployers** on active, waiting and completed rows.
+- **Deployer-instructions placeholder is localized** in *New deployment* (was hard-coded English).
+
 ## [0.11.0] - 2026-07-24
 
 ### Added

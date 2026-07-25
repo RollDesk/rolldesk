@@ -313,6 +313,7 @@
   }
   .mini-btn:hover{border-color:var(--ink);}
   .mini-btn:disabled{opacity:0.35; cursor:default;}
+  .mini-btn[aria-pressed="true"]{border-color:var(--cyan); background:var(--cyan-soft); color:#0A6E7A;}
   .mini-btn.mini-btn-danger{color:#A81E1E; border-color:#F0C4C4;}
   .mini-btn.mini-btn-danger:hover{border-color:#A81E1E; background:var(--red-soft);}
   .seg-tabs{display:inline-flex; gap:4px; padding:4px; background:var(--paper, #F1F2F4); border:1px solid var(--line); border-radius:10px;}
@@ -333,8 +334,32 @@
   .mini-btn.ok:hover{background:#D6F0DF; border-color:#0F7A38;}
 
   .toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
-  .filters{display:flex; gap:8px;}
+  .filters{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
   .filters select{width:auto; padding:6px 10px; font-size:12.5px;}
+  /* Multi-select status filter — same footprint as a regular <select>. */
+  .ms-filter{position:relative; display:inline-block; vertical-align:middle;}
+  .ms-filter-btn{
+    display:inline-flex; align-items:center; gap:6px; width:auto; min-width:150px; max-width:260px;
+    padding:6px 10px; font-size:12.5px; line-height:1.3; text-align:left;
+    border:1px solid var(--line); border-radius:8px; background:var(--paper-alt, #fff);
+    color:var(--ink); cursor:pointer;
+  }
+  .ms-filter-btn:hover{border-color:var(--text-faint);}
+  .ms-filter-btn .ms-caret{margin-left:auto; color:var(--text-faint); font-size:10px;}
+  .ms-filter-menu{
+    display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:80;
+    min-width:220px; padding:6px; background:var(--paper-raised, #fff);
+    border:1px solid var(--line); border-radius:8px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.12);
+  }
+  .ms-filter.open .ms-filter-menu{display:block;}
+  .ms-filter-menu label{
+    display:flex; align-items:center; gap:8px; margin:0; padding:6px 8px;
+    font-size:12.5px; font-weight:400; border-radius:6px; cursor:pointer;
+  }
+  .ms-filter-menu label:hover{background:var(--line-soft);}
+  .ms-filter-menu input{width:auto; margin:0;}
+
 
   .badge-row{display:flex; gap:8px; margin-bottom:18px;}
   .stat{
@@ -385,7 +410,6 @@
   .deploy-row:hover td{background:var(--line-soft);}
   #users-table tr:hover td{background:var(--line-soft);}
   .queue-row:hover td{background:var(--line-soft);}
-  #installer-list .card:hover{background:var(--line-soft);}
   /* Info (ℹ) icon with a hover popover — used to tuck long helper text away so
      forms stay compact. The text comes from data-tip (set from i18n). */
   .info-ic{display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; border-radius:50%; border:1px solid var(--text-faint); color:var(--text-faint); font-size:10px; font-weight:700; font-style:italic; cursor:help; position:relative; vertical-align:middle; margin-left:6px; flex-shrink:0;}
@@ -623,10 +647,7 @@
   <!-- ============ VIEW: PROJECTS DIRECTORY ============ -->
   <div class="view active" id="view-projects">
     <div class="toolbar">
-      <div>
-        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.projects">Projects</h2>
-        <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.projects">All clients and their projects in the system.</p>
-      </div>
+      <div></div>
       <button class="btn" onclick="goToView('newproject')" data-i18n="proj.newBtn">+ New project</button>
     </div>
     <div class="card">
@@ -637,6 +658,17 @@
     </div>
 
     <div id="project-apps-panel" style="display:none; margin-top:20px;">
+      <div class="card" style="margin-bottom:18px;">
+        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="proj.settings">Project settings</h2>
+        <p class="section-desc" data-i18n="proj.settingsDesc">Display name of the project. The technical key stays unchanged.</p>
+        <div class="field" style="margin-bottom:0;">
+          <label data-i18n="np.name">Project name</label>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <input type="text" id="project-name-input" data-i18n-ph="np.namePh" placeholder="e.g. LogiHub" style="flex:1; min-width:200px;">
+            <button class="btn" onclick="saveProjectName()" data-i18n="proj.saveName">Save name</button>
+          </div>
+        </div>
+      </div>
       <div class="toolbar">
         <div>
           <h2 class="section-title" style="margin-bottom:2px;" id="apps-title" data-i18n="proj.apps">Applications</h2>
@@ -924,7 +956,7 @@
         </div>
         <div class="field">
           <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.installerNotes">Instructions for deployers (optional)</span><span class="info-ic" data-i18n-tip="sch.installerNotesNote">i</span></label>
-          <textarea id="schedule-installer-notes" placeholder="e.g.&#10;1. Stop the ServiceA service&#10;2. Make a database backup&#10;3. After installation run migrations.sql"></textarea>
+          <textarea id="schedule-installer-notes" data-i18n-ph="sch.installerNotesPh" placeholder="np.&#10;1. Zatrzymaj usługę ServiceA&#10;2. Zrób kopię bazy danych&#10;3. Po instalacji uruchom migrations.sql"></textarea>
           <label style="display:flex; align-items:center; margin:10px 0 6px 0;"><span data-i18n="sch.installerAttach">Attachments for deployers (optional)</span><span class="info-ic" data-i18n-tip="sch.installerAttachNote">i</span></label>
           <input type="file" id="schedule-installer-file" multiple onchange="onInstallerFileChange()">
           <div id="schedule-installer-file-name" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
@@ -1054,10 +1086,7 @@
   <!-- ============ VIEW: DEPLOYMENTS LIST ============ -->
   <div class="view" id="view-deployments">
     <div class="toolbar">
-      <div>
-        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.deployments">Deployments</h2>
-        <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.deployments">A list of all deployments and their statuses. Select a client to see deployments aggregated across all of their projects.</p>
-      </div>
+      <div></div>
       <button class="btn" onclick="goToView('schedule')" data-i18n="dep.newBtn">+ New deployment</button>
     </div>
 
@@ -1078,14 +1107,18 @@
           <select id="deploy-filter-env" onchange="renderDeploymentsTable()">
             <option value="all" data-i18n="dep.fEnvs">All environments</option>
           </select>
-          <select id="deploy-filter-status" onchange="renderDeploymentsTable()">
-            <option value="all" data-i18n="dep.fStatuses">All statuses</option>
-            <option value="scheduled" data-i18n="dep.sScheduled">To be installed</option>
-            <option value="installed" data-i18n="dep.sInstalled">Installed</option>
-            <option value="failed" data-i18n="dep.sFailed">Failed</option>
-            <option value="rolledback" data-i18n="dep.sRolledback">Rolled back</option>
-            <option value="aborted" data-i18n="dep.sAborted">Aborted</option>
-          </select>
+          <div class="ms-filter" id="deploy-filter-status" onclick="event.stopPropagation();">
+            <button type="button" class="ms-filter-btn" onclick="toggleMsFilter('deploy-filter-status', event)">
+              <span id="deploy-filter-status-label">All statuses</span><span class="ms-caret">▾</span>
+            </button>
+            <div class="ms-filter-menu">
+              <label><input type="checkbox" value="scheduled" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sScheduled">To be installed</span></label>
+              <label><input type="checkbox" value="installed" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sInstalled">Installed</span></label>
+              <label><input type="checkbox" value="failed" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sFailed">Failed</span></label>
+              <label><input type="checkbox" value="rolledback" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sRolledback">Rolled back</span></label>
+              <label><input type="checkbox" value="aborted" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sAborted">Aborted</span></label>
+            </div>
+          </div>
           <select id="deploy-filter-range" onchange="renderDeploymentsTable()">
             <option value="14" selected data-i18n="dep.r14">Last 14 days</option>
             <option value="30" data-i18n="dep.r30">Last 30 days</option>
@@ -1093,6 +1126,7 @@
             <option value="all" data-i18n="dep.rAll">Full history</option>
           </select>
         </div>
+        <button type="button" class="mini-btn" onclick="exportDeploymentsListCsv()" data-i18n="list.exportCsv">⬇ CSV</button>
       </div>
       <table>
         <thead id="deploy-table-head"></thead>
@@ -1297,9 +1331,38 @@
 
   <!-- ============ VIEW: INSTALLER PANEL ============ -->
   <div class="view" id="view-installer">
-    <h2 class="section-title" data-i18n="title.installer">Deployer panel</h2>
-    <p class="section-desc" data-i18n="desc.installer">Here you report what succeeded and what didn't, and add comments — without access to changing the schedule, the order of locations, or client approval.</p>
-    <div id="installer-list"></div>
+    <div class="badge-row" id="installer-stats"></div>
+
+    <div class="card">
+      <div class="toolbar">
+        <div class="filters" style="flex-wrap:wrap;">
+          <select id="installer-filter-project" onchange="onInstallerFilterChange('project')">
+            <option value="" data-i18n="rep.filterAllProjects">All projects</option>
+          </select>
+          <select id="installer-filter-app" onchange="onInstallerFilterChange('app')">
+            <option value="" data-i18n="rep.filterAllApps">All applications</option>
+          </select>
+          <select id="installer-filter-env" onchange="onInstallerFilterChange('env')">
+            <option value="" data-i18n="rep.filterAllEnvs">All environments</option>
+            <option value="Production" data-i18n="client.envProd">Production</option>
+            <option value="test" data-i18n="client.envTest">Test</option>
+          </select>
+          <div class="ms-filter" id="installer-filter-status" onclick="event.stopPropagation();">
+            <button type="button" class="ms-filter-btn" onclick="toggleMsFilter('installer-filter-status', event)">
+              <span id="installer-filter-status-label">Awaiting client, To report</span><span class="ms-caret">▾</span>
+            </button>
+            <div class="ms-filter-menu">
+              <label><input type="checkbox" value="waiting" checked onchange="onInstallerStatusMsChange()"> <span data-i18n="rep.filterWaiting">Awaiting client</span></label>
+              <label><input type="checkbox" value="active" checked onchange="onInstallerStatusMsChange()"> <span data-i18n="rep.filterActive">To report</span></label>
+              <label><input type="checkbox" value="completed" onchange="onInstallerStatusMsChange()"> <span data-i18n="rep.filterCompleted">Completed</span></label>
+            </div>
+          </div>
+          <input type="text" id="installer-filter-q" data-i18n-ph="rep.searchPh" placeholder="Search ID, project, app…" style="min-width:160px; flex:1;" oninput="onInstallerFilterChange('q')">
+        </div>
+        <button type="button" class="mini-btn" onclick="exportInstallerListCsv()" data-i18n="list.exportCsv">⬇ CSV</button>
+      </div>
+      <div id="installer-list"></div>
+    </div>
   </div>
 
   <!-- ============ VIEW: CLIENT PORTAL ============ -->
@@ -1320,30 +1383,28 @@
 
     <div class="card">
       <div class="toolbar">
-        <strong style="font-size:13px;" data-i18n="client.yourDeployments">Your deployments</strong>
-        <div class="filters">
-          <select id="client-filter-project" onchange="renderClientPortal(currentClientScenario)">
+        <div class="filters" style="flex-wrap:wrap;">
+          <select id="client-filter-project" onchange="onClientFilterChange('project')">
             <option value="all" data-i18n="client.fProjects">All projects</option>
           </select>
-          <select id="client-filter-app" onchange="renderClientPortal(currentClientScenario)">
+          <select id="client-filter-app" onchange="onClientFilterChange('app')">
             <option value="all" data-i18n="client.fApps">All applications</option>
           </select>
-          <select id="client-filter-env" onchange="renderClientPortal(currentClientScenario)">
+          <select id="client-filter-env" onchange="onClientFilterChange('env')">
             <option value="all" data-i18n="client.fEnvs">All environments</option>
             <option value="Production" data-i18n="client.envProd">Production</option>
             <option value="test" data-i18n="client.envTest">Test</option>
           </select>
-          <select id="client-filter-status" onchange="renderClientPortal(currentClientScenario)">
-            <option value="all" data-i18n="client.fStatuses">All statuses</option>
-            <option value="installed" data-i18n="client.stInstalled">Installed</option>
-            <option value="scheduled" data-i18n="client.stScheduled">Scheduled</option>
+          <select id="client-filter-status" onchange="onClientFilterChange('status')">
+            <option value="all" data-i18n="client.tabAll">All</option>
+            <option value="waiting" data-i18n="client.tabAwaiting">Awaiting your decision</option>
+            <option value="active" data-i18n="client.tabScheduled">Scheduled</option>
+            <option value="completed" data-i18n="client.tabCompleted">Completed</option>
           </select>
+          <input type="text" id="client-filter-q" data-i18n-ph="client.searchPh" placeholder="Search ID, project, app…" style="min-width:160px; flex:1;" oninput="onClientFilterChange('q')">
         </div>
       </div>
-      <table>
-        <thead id="client-table-head"></thead>
-        <tbody id="client-table-body"></tbody>
-      </table>
+      <div id="client-list"></div>
     </div>
   </div>
 
@@ -1560,7 +1621,7 @@
         <button class="mini-btn" onclick="saveMessageTemplateForProject()" data-i18n="msg.saveDefault">💾 Save as default for the project</button>
       </div>
       <div style="display:flex; gap:8px;">
-        <button class="mini-btn" onclick="document.getElementById('message-modal-overlay').style.display='none'" data-i18n="common.close">Close</button>
+        <button class="mini-btn" onclick="closeMessageModal()" data-i18n="common.close">Close</button>
         <button class="btn" onclick="copyEndUserMessage()" data-i18n="msg.copy">Copy the finished message</button>
       </div>
     </div>
@@ -1586,7 +1647,7 @@
     <div id="edit-dep-installer-atts" style="margin-bottom:6px;"></div>
     <input type="file" id="edit-dep-installer-file" multiple onchange="onEditDepFileChange('installer')" style="font-size:12px;">
     <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px;">
-      <button class="mini-btn" onclick="document.getElementById('edit-dep-modal-overlay').style.display='none'" data-i18n="common.close">Close</button>
+      <button class="mini-btn" onclick="closeEditDeploymentModal(false)" data-i18n="common.close">Close</button>
       <button class="btn" onclick="saveDeploymentEdits()" data-i18n="editdep.save">Save changes</button>
     </div>
   </div>
@@ -1610,11 +1671,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.11.0"></script>
-<script src="i18n/en.js?v=0.11.0"></script>
+<script src="i18n/pl.js?v=0.11.1"></script>
+<script src="i18n/en.js?v=0.11.1"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.11.0';
+  const ROLLDESK_VERSION = '0.11.1';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -1683,6 +1744,90 @@
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
+
+  // ---- Multi-select status filters (deployments + deployer panel) ----
+  function toggleMsFilter(id, ev){
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+    document.querySelectorAll('.ms-filter.open').forEach(el=>{
+      if(el.id !== id) el.classList.remove('open');
+    });
+    const el = document.getElementById(id);
+    if(el) el.classList.toggle('open');
+  }
+  document.addEventListener('click', ()=>{
+    document.querySelectorAll('.ms-filter.open').forEach(el=> el.classList.remove('open'));
+  });
+  function msFilterChecked(rootId){
+    return [...document.querySelectorAll('#' + rootId + ' .ms-filter-menu input[type="checkbox"]:checked')].map(i=>i.value);
+  }
+  function syncMsFilterFromState(rootId, state){
+    const root = document.getElementById(rootId);
+    if(!root) return;
+    root.querySelectorAll('.ms-filter-menu input[type="checkbox"]').forEach(cb=>{
+      cb.checked = !!state[cb.value];
+    });
+  }
+  function updateMsFilterLabel(rootId, labelMap){
+    const lbl = document.getElementById(rootId + '-label');
+    if(!lbl) return;
+    const vals = msFilterChecked(rootId);
+    const allKeys = Object.keys(labelMap);
+    if(!vals.length) lbl.textContent = t('filter.noneSelected');
+    else if(vals.length === allKeys.length) lbl.textContent = t('filter.allSelected');
+    else if(vals.length <= 2) lbl.textContent = vals.map(v=> labelMap[v] || v).join(', ');
+    else lbl.textContent = tf('filter.nSelected', {n: vals.length});
+  }
+
+  // Deployments: default = all statuses; time range keeps the list to last 14 days.
+  let deployStatusFilter = { scheduled: true, installed: true, failed: true, rolledback: true, aborted: true };
+  function deployStatusLabelMap(){
+    return {
+      scheduled: t('dep.sScheduled'),
+      installed: t('dep.sInstalled'),
+      failed: t('dep.sFailed'),
+      rolledback: t('dep.sRolledback'),
+      aborted: t('dep.sAborted')
+    };
+  }
+  function onDeployStatusMsChange(){
+    const root = document.getElementById('deploy-filter-status');
+    if(root){
+      root.querySelectorAll('.ms-filter-menu input[type="checkbox"]').forEach(cb=>{
+        deployStatusFilter[cb.value] = !!cb.checked;
+      });
+    }
+    updateMsFilterLabel('deploy-filter-status', deployStatusLabelMap());
+    renderDeploymentsTable();
+  }
+  function refreshDeployStatusMsLabel(){
+    syncMsFilterFromState('deploy-filter-status', deployStatusFilter);
+    updateMsFilterLabel('deploy-filter-status', deployStatusLabelMap());
+  }
+
+  // Deployer panel: default = waiting + to-report. Completed off.
+  let installerPanelStatuses = { waiting: true, active: true, completed: false };
+  function installerStatusLabelMap(){
+    return {
+      waiting: t('rep.filterWaiting'),
+      active: t('rep.filterActive'),
+      completed: t('rep.filterCompleted')
+    };
+  }
+  function onInstallerStatusMsChange(){
+    const root = document.getElementById('installer-filter-status');
+    if(root){
+      root.querySelectorAll('.ms-filter-menu input[type="checkbox"]').forEach(cb=>{
+        installerPanelStatuses[cb.value] = !!cb.checked;
+      });
+    }
+    updateMsFilterLabel('installer-filter-status', installerStatusLabelMap());
+    renderInstallerPanel();
+  }
+  function refreshInstallerStatusMsLabel(){
+    syncMsFilterFromState('installer-filter-status', installerPanelStatuses);
+    updateMsFilterLabel('installer-filter-status', installerStatusLabelMap());
+  }
+
   function titleFor(view){ return t('topbar.' + view); }
   function applyLanguage(){
     document.querySelectorAll('[data-i18n]').forEach(el=>{
@@ -1715,6 +1860,8 @@
     // refresh the current topbar title in the active language
     const active = document.querySelector('.nav-item.active');
     if(active && active.dataset.view) document.getElementById('topbar-title').textContent = titleFor(active.dataset.view);
+    try { refreshDeployStatusMsLabel(); } catch(e){}
+    try { refreshInstallerStatusMsLabel(); } catch(e){}
   }
   // Reflect the active language in every language toggle (profile + login screen).
   function syncLanguageControls(){
@@ -2234,12 +2381,25 @@
     const email = (p && p.postDeployEnabled && p.postDeployEmail) ? p.postDeployEmail : null;
     return {webhooks, targets, email};
   }
+  function notifyChannelsList(eventKey, projectKey, includeEmail){
+    const {webhooks, email} = notifyRecipientsFor(eventKey, projectKey);
+    const parts = [];
+    if(notifGraphReady) parts.push(t('notif.viaTeamsGraph'));
+    (webhooks || []).forEach(name => parts.push(tf('notif.viaWebhook', {name})));
+    if(includeEmail && email) parts.push(tf('notif.viaEmail', {email}));
+    return parts;
+  }
+  function notifyChannelsLabel(eventKey, projectKey, includeEmail){
+    const parts = notifyChannelsList(eventKey, projectKey, includeEmail);
+    return parts.length ? parts.join(' · ') : t('notif.viaNone');
+  }
   function notifySummary(eventKey, projectKey, includeClient){
     const {webhooks} = notifyRecipientsFor(eventKey, projectKey);
     const parts = [];
-    if(includeClient) parts.push('client');
+    if(includeClient) parts.push(t('notif.viaClient'));
+    if(notifGraphReady) parts.push(t('notif.viaTeamsGraph'));
     if(webhooks.length) parts.push(webhooks.length + (webhooks.length === 1 ? ' webhook' : ' webhooks'));
-    return parts.length ? parts.join(', ') : 'no recipients defined';
+    return parts.length ? parts.join(', ') : t('notif.viaNone');
   }
   // Deep link back into the app (used in Teams/Slack notifications so the client
   // can jump straight to the schedule). Uses the current origin the team is on.
@@ -3053,6 +3213,9 @@
     if(pdWebhook) pdWebhook.value = p.postDeployWebhook || legacyWebhook || '';
     if(pdEnabled) pdEnabled.checked = !!p.postDeployEnabled;
 
+    const nameEl = document.getElementById('project-name-input');
+    if(nameEl) nameEl.value = p.name || '';
+
     // Deployment defaults (working-day split + start time) — editable per project.
     const ddDays = document.getElementById('project-default-days');
     const ddTime = document.getElementById('project-default-time');
@@ -3089,6 +3252,31 @@
     updateScheduleTemplateOptions();
 
     clearManifestPreview();
+  }
+
+  function saveProjectName(){
+    const p = PROJECTS[currentProjectKey];
+    if(!p) return;
+    const name = (document.getElementById('project-name-input').value || '').trim();
+    if(!name){ showToast(t('proj.nameRequired')); return; }
+    const dupKey = name.toLowerCase();
+    const dup = Object.entries(PROJECTS).some(([k, x]) =>
+      k !== currentProjectKey && !x.archived && x.client === p.client && String(x.name || '').trim().toLowerCase() === dupKey
+    );
+    if(dup){ showToast(t('proj.dupName')); return; }
+    if(name === p.name){ showToast(t('proj.nameUnchanged')); return; }
+    const prev = p.name;
+    p.name = name;
+    persistProject(currentProjectKey);
+    logAudit('changed', 'Project', 'Renamed project „' + prev + '” → „' + name + '”', name + ' (' + p.clientName + ')', 'aud.d.projRenamed', {from: prev, to: name});
+    try {
+      renderProjectsList();
+      initProjectSelect();
+      renderDeploymentsTable();
+      renderInstallerPanel();
+      switchProject(currentProjectKey);
+    } catch(e){}
+    showToast(tf('proj.nameSaved', {name}));
   }
 
   function saveProjectDefaults(){
@@ -5077,16 +5265,20 @@
     const p = PROJECTS[pk] || {};
     const projName = p.name || pk;
     const recipients = notifySummary('approval', pk, true);
-    showAppConfirm(t('draft.remindTitle'), tf('draft.remindBody', {project: projName, recipients}), ()=>{
+    const channels = notifyChannelsLabel('approval', pk, false);
+    showAppConfirm(
+      t('draft.remindTitle'),
+      tf('draft.remindBody', {project: projName, recipients}) + '\n\n' + tf('draft.remindChannels', {channels}),
+      ()=>{
       const body = buildScheduleNotifBody(r, projName) + '\n' + t('draft.remindNote');
       dispatchEventNotification('approval', pk, 'RollDesk — ' + t('ev.approval') + ' (' + t('draft.remindTag') + ')', body, false);
-      logAudit('notified', 'Deployment', 'Sent an approval reminder for ' + (r.id||'') + ' — recipients: ' + recipients, projName + (p.clientName ? ' (' + p.clientName + ')' : ''), 'aud.d.approvalReminded', {id: r.id||'', recipients});
+      logAudit('notified', 'Deployment', 'Sent an approval reminder for ' + (r.id||'') + ' — recipients: ' + recipients + ' — channels: ' + channels, projName + (p.clientName ? ' (' + p.clientName + ')' : ''), 'aud.d.approvalReminded', {id: r.id||'', recipients, channels});
       const _s = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'};
       r.comments = r.comments || [];
       r.comments.push({date:_s.date, time:_s.time, author: actorName(), type:'system', icon:'🔔', text: t('dtl.approvalReminded')});
       persistDeployment(idx);
       renderDeploymentsTable();
-      showToast(t('draft.reminded'));
+      showToast(t('draft.reminded') + ' — ' + channels);
     }, t('draft.remindBtn'));
   }
 
@@ -5152,15 +5344,102 @@
     }
   }
 
+  let clientPanelFilter = 'all';
+  let clientPanelFilters = { project: 'all', app: 'all', env: 'all', q: '' };
+
+  function setClientPanelFilter(f){
+    clientPanelFilter = f;
+    const statusEl = document.getElementById('client-filter-status');
+    if(statusEl) statusEl.value = f;
+    renderClientPortal(currentClientScenario);
+  }
+  function onClientFilterChange(which){
+    const projEl = document.getElementById('client-filter-project');
+    const appEl = document.getElementById('client-filter-app');
+    const envEl = document.getElementById('client-filter-env');
+    const statusEl = document.getElementById('client-filter-status');
+    const qEl = document.getElementById('client-filter-q');
+    if(which === 'project'){
+      clientPanelFilters.project = (projEl && projEl.value) || 'all';
+      clientPanelFilters.app = 'all';
+    } else if(which === 'app'){
+      clientPanelFilters.app = (appEl && appEl.value) || 'all';
+    } else if(which === 'env'){
+      clientPanelFilters.env = (envEl && envEl.value) || 'all';
+    } else if(which === 'status'){
+      clientPanelFilter = (statusEl && statusEl.value) || 'all';
+    } else if(which === 'q'){
+      clientPanelFilters.q = (qEl && qEl.value) || '';
+    }
+    renderClientPortal(currentClientScenario);
+  }
+
+  function clientDeploymentStatus(r){
+    if(r.mode === 'batch') return (r.counts && r.counts.scheduled === 0) ? 'installed' : 'scheduled';
+    return r.status || 'scheduled';
+  }
+  function clientNeedsDecision(r){
+    return !!(r.clientApproval && r.clientApproval !== 'approved');
+  }
+  function clientIsComplete(r){
+    return clientDeploymentStatus(r) !== 'scheduled';
+  }
+
+  function clientStatusBadgeHtml(r){
+    if(r.paused){
+      return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:#FDF1E1; color:#8A5A05;">⏸ ${t('pause.badge')}</span>`;
+    }
+    if(clientNeedsDecision(r)){
+      const map = {
+        pending: {label: t('tl.awaiting'), bg:'var(--paper)', color:'var(--text-muted)', icon:'⧗'},
+        commented: {label: t('client.appCommented'), bg:'#FDF1E1', color:'#8A5A05', icon:'💬'},
+        rejected: {label: t('client.appRejected'), bg:'var(--red-soft)', color:'#A81E1E', icon:'✕'}
+      };
+      const st = map[r.clientApproval] || map.pending;
+      return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:${st.bg}; color:${st.color};">${st.icon} ${st.label}</span>`;
+    }
+    if(r.clientApproval === 'approved'){
+      const done = clientIsComplete(r);
+      if(done){
+        return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--green-soft); color:#0F7A38;">✓ ${t('status.installed')}</span>`;
+      }
+      return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--green-soft); color:#0F7A38;">✓ ${t('client.appApproved')}</span>`;
+    }
+    const status = clientDeploymentStatus(r);
+    const statusLabel = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
+    const pillClass = status === 'installed' ? 'var(--green-soft)' : 'var(--paper)';
+    const pillColor = status === 'installed' ? '#0F7A38' : 'var(--text-muted)';
+    return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:${pillClass}; color:${pillColor};">${statusLabel[status]||status}</span>`;
+  }
+
+  function clientMetaLineHtml(r){
+    const parts = [];
+    if(r.mode === 'batch'){
+      const startIso = getDateForDay(r, 1);
+      if(clientIsComplete(r)){
+        parts.push(tf('rep.deployedCount', {done: r.counts.installed, total: r.totalLocations}));
+      } else {
+        parts.push(`${t('rep.distStart')}: <strong>${fmtDow(startIso)}, ${fmtDate(startIso)}</strong> · ${tf('rep.planMeta', {days: r.days, end: fmtDate(getDateForDay(r, r.days)), n: r.totalLocations})}`);
+      }
+    } else {
+      const when = [r.date ? fmtDate(r.date) : '', r.time ? fmtTime(r.time) : ''].filter(Boolean).join(' ');
+      if(r.location) parts.push(escapeHtml(r.location));
+      if(when) parts.push(when);
+    }
+    return parts.filter(Boolean).join(' · ');
+  }
+
   function renderClientPortal(scenarioKey){
     currentClientScenario = scenarioKey;
     const scenario = scenarioKey ? CLIENT_SCENARIOS[scenarioKey] : null;
+    const listWrap = document.getElementById('client-list');
     // No client-access scenario configured — show a neutral empty banner and stop.
     if(!scenario){
       const bn = document.getElementById('client-banner-name');
       const bs = document.getElementById('client-banner-sub');
       if(bn) bn.textContent = t('client.portalTitle');
       if(bs) bs.textContent = t('client.noAccessYet');
+      if(listWrap) listWrap.innerHTML = '';
       return;
     }
     const projectNames = scenario.projectKeys.map(k=> PROJECTS[k] ? PROJECTS[k].name : k);
@@ -5186,158 +5465,148 @@
         : `<div style="color:var(--text-faint); font-size:12.5px;">${t('client.noPeople')}</div>`;
     }
 
-    // Populate filter dropdowns based on the projects/apps in this scenario.
+    // Scoped deployments visible to this client scenario.
+    let scoped = DEPLOYMENTS_DATA.map((d,i)=>Object.assign({idx:i}, d, {
+      project: PROJECTS[d.projectKey] || {name: d.projectKey || '', clientName:'', locationsList:[]}
+    })).filter(d=>{
+      if(!scenario.projectKeys.includes(d.projectKey)) return false;
+      if(d.internal) return false;
+      if(d.draft) return false;
+      if(PROJECTS[d.projectKey] && PROJECTS[d.projectKey].clientVisible === false) return false;
+      return true;
+    });
+
+    // Populate filter dropdowns from the scoped set.
     const projFilter = document.getElementById('client-filter-project');
     const appFilter = document.getElementById('client-filter-app');
     const envFilter = document.getElementById('client-filter-env');
     const statusFilter = document.getElementById('client-filter-status');
-    const prevProj = projFilter ? projFilter.value : 'all';
-    const prevApp = appFilter ? appFilter.value : 'all';
+    const qFilter = document.getElementById('client-filter-q');
     if(projFilter){
       projFilter.innerHTML = `<option value="all">${t('client.fProjects')}</option>` +
-        scenario.projectKeys.map(pk=>`<option value="${pk}">${PROJECTS[pk].name}</option>`).join('');
-      if(Array.from(projFilter.options).some(o=>o.value===prevProj)) projFilter.value = prevProj;
+        scenario.projectKeys.map(pk=>`<option value="${pk}">${escapeHtml(PROJECTS[pk] ? PROJECTS[pk].name : pk)}</option>`).join('');
+      if(Array.from(projFilter.options).some(o=>o.value===clientPanelFilters.project)) projFilter.value = clientPanelFilters.project;
+      else clientPanelFilters.project = 'all';
     }
-    // Build the app filter from the deployments that actually exist for these projects.
     const appSet = new Set();
-    DEPLOYMENTS_DATA.forEach(d=>{
-      if(!scenario.projectKeys.includes(d.projectKey)) return;
-      (d.apps||[]).forEach(a=>appSet.add(a.name));
+    scoped.filter(d => clientPanelFilters.project === 'all' || d.projectKey === clientPanelFilters.project).forEach(d=>{
+      (d.apps||[]).forEach(a=> a && a.name && appSet.add(a.name));
     });
+    if(clientPanelFilters.app !== 'all' && !appSet.has(clientPanelFilters.app)) clientPanelFilters.app = 'all';
     if(appFilter){
       appFilter.innerHTML = `<option value="all">${t('client.fApps')}</option>` +
-        Array.from(appSet).sort().map(a=>`<option>${a}</option>`).join('');
-      if(Array.from(appFilter.options).some(o=>o.value===prevApp)) appFilter.value = prevApp;
+        Array.from(appSet).sort().map(a=>`<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
+      appFilter.value = clientPanelFilters.app;
     }
-    const fProj = projFilter ? projFilter.value : 'all';
-    const fApp = appFilter ? appFilter.value : 'all';
-    const fEnv = envFilter ? envFilter.value : 'all';
-    const fStatus = statusFilter ? statusFilter.value : 'all';
+    if(envFilter) envFilter.value = clientPanelFilters.env || 'all';
+    if(statusFilter) statusFilter.value = clientPanelFilter || 'all';
+    if(qFilter && document.activeElement !== qFilter) qFilter.value = clientPanelFilters.q || '';
 
-    const statusLabel = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
-    const head = document.getElementById('client-table-head');
-    const body = document.getElementById('client-table-body');
-    const cols = multiProject
-      ? [t('client.colProject'),t('client.colApp'),t('client.colVersion'),t('client.colEnv'),t('client.colDate'),t('client.colTime'),t('client.colStatus'),t('client.colProdSchedule'),'']
-      : [t('client.colApp'),t('client.colVersion'),t('client.colEnv'),t('client.colDate'),t('client.colTime'),t('client.colStatus'),t('client.colProdSchedule'),''];
-    head.innerHTML = '<tr>' + cols.map(c=>`<th>${c}</th>`).join('') + '</tr>';
-
-    // Single source of truth: the client sees the same DEPLOYMENTS_DATA records the RM
-    // creates. Each record is flattened into one client row per app.
-    let rows = [];
-    DEPLOYMENTS_DATA.forEach((d, idx)=>{
-      if(!scenario.projectKeys.includes(d.projectKey)) return;
-      // Internal deployments are never visible to the client.
-      if(d.internal) return;
-      // Draft deployments are held back until the RM notifies the client.
-      if(d.draft) return;
-      // Respect the per-project "client sees the schedule" flag (default: visible).
-      if(PROJECTS[d.projectKey] && PROJECTS[d.projectKey].clientVisible === false) return;
-      const clientStatus = d.mode === 'batch'
-        ? (d.counts && d.counts.scheduled === 0 ? 'installed' : 'scheduled')
-        : d.status;
-      const dateStr = d.mode === 'batch' ? (d.historyStart || d.createdDate) : (d.date || d.createdDate);
-      (d.apps||[]).forEach(a=>{
-        rows.push({
-          depId: d.id, id: d.id, idx,
-          project: PROJECTS[d.projectKey].name, pk: d.projectKey,
-          app: a.name, version: a.version,
-          env: d.env, date: dateStr, time: d.time || '',
-          status: clientStatus,
-          clientApproval: d.clientApproval, clientComment: d.clientComment, clientReply: d.clientReply,
-          changelog: d.changelog, attachment: d.attachment, attachmentId: d.attachmentId
-        });
-      });
-    });
-    // Apply filters.
-    rows = rows.filter(d=>{
-      if(fProj !== 'all' && d.pk !== fProj) return false;
-      if(fApp !== 'all' && d.app !== fApp) return false;
-      if(fEnv === 'Production' && d.env !== 'Production') return false;
-      if(fEnv === 'test' && d.env === 'Production') return false;
-      if(fStatus !== 'all' && d.status !== fStatus) return false;
+    const f = clientPanelFilters;
+    const q = (f.q || '').trim().toLowerCase();
+    scoped = scoped.filter(d=>{
+      if(f.project !== 'all' && d.projectKey !== f.project) return false;
+      if(f.app !== 'all' && !(d.apps||[]).some(a=>a.name === f.app)) return false;
+      if(f.env === 'Production' && d.env !== 'Production') return false;
+      if(f.env === 'test' && d.env === 'Production') return false;
+      if(q){
+        const hay = [
+          d.id, d.projectKey, d.project && d.project.name, d.env, d.location,
+          ...((d.apps||[]).map(a=> (a.name||'') + ' ' + (a.version||'')))
+        ].filter(Boolean).join(' ').toLowerCase();
+        if(!hay.includes(q)) return false;
+      }
       return true;
     });
-    // Newest first.
-    rows.sort((a,b)=> (b.date||'').localeCompare(a.date||''));
-    if(!rows.length){
-      body.innerHTML = `<tr><td colspan="${cols.length}" style="color:var(--text-faint); font-size:12.5px; text-align:center; padding:16px;">${t('client.noMatch')}</td></tr>`;
-      return;
-    }
-    body.innerHTML = rows.map(d=>{
-      const envClass = d.env === 'Production' ? 'prod' : 'test';
-      const cells = [];
-      if(multiProject) cells.push(`<td>${d.project}</td>`);
-      cells.push(`<td>${d.app}</td>`);
-      cells.push(`<td class="mono">${d.version}</td>`);
-      cells.push(`<td><span class="env-tag ${envClass}">${d.env}</span></td>`);
-      cells.push(`<td class="mono">${d.date}</td>`);
-      cells.push(`<td class="mono">${d.time}</td>`);
-      cells.push(`<td><span class="pill ${d.status}">${statusLabel[d.status]}</span></td>`);
+    scoped.sort((a,b)=>{
+      const da = a.mode === 'batch' ? (a.historyStart || a.createdDate || '') : (a.date || a.createdDate || '');
+      const db = b.mode === 'batch' ? (b.historyStart || b.createdDate || '') : (b.date || b.createdDate || '');
+      return db.localeCompare(da);
+    });
 
-      if(d.clientApproval === 'pending'){
-        cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();">
-          <button class="mini-btn" onclick="clientRespondApproval('${d.depId}', 'approved')">${t('client.approve')}</button>
-          <button class="mini-btn" onclick="clientRespondApproval('${d.depId}', 'reschedule')">${t('client.proposeDate')}</button>
-          <button class="mini-btn" onclick="clientRespondApproval('${d.depId}', 'commented')">${t('client.comment')}</button>
-        </td>`);
-      } else if(!d.clientApproval){
-        cells.push(`<td style="color:var(--text-faint); font-size:12px;">—</td>`);
-      } else {
-        const map = {
-          approved:  {label:t('client.appApproved'), bg:'var(--green-soft)', color:'#0F7A38'},
-          commented: {label:t('client.appCommented'), bg:'#FDF1E1', color:'#8A5A05'},
-          rejected:  {label:t('client.appRejected'), bg:'var(--red-soft)', color:'#A81E1E'},
-        };
-        const st = map[d.clientApproval] || map.approved;
-        let html = `<span class="mono" style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:${st.bg}; color:${st.color};">${st.label}</span>`;
-        if(d.clientComment) html += `<div style="font-size:11px; color:var(--text-muted); font-style:italic; margin-top:3px; max-width:200px;">"${escapeHtml(d.clientComment)}"</div>`;
-        cells.push(`<td>${html}</td>`);
-      }
-      const rowKey = d.depId;
+    const waiting = scoped.filter(r => !clientIsComplete(r) && clientNeedsDecision(r));
+    const active = scoped.filter(r => !clientIsComplete(r) && !clientNeedsDecision(r));
+    const completed = scoped.filter(r => clientIsComplete(r));
+
+    const tab = clientPanelFilter;
+    const showWaiting = tab === 'all' || tab === 'waiting';
+    const showActive = tab === 'all' || tab === 'active';
+    const showCompleted = tab === 'completed';
+
+    if(!listWrap) return;
+    let html = '';
+
+    const renderClientTableRow = (r)=>{
+      const proj = r.project || PROJECTS[r.projectKey] || {};
+      const envClass = r.env === 'Production' ? 'prod' : 'test';
+      const rowKey = r.id || String(r.idx);
       const isExpanded = expandedClientRow === rowKey;
+      const cells = [];
+      cells.push(`<td><div style="font-size:13px;">${escapeHtml((r.project && r.project.name) || r.projectKey || '')}</div></td>`);
+      cells.push(`<td style="max-width:150px;">${(r.apps||[]).map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${escapeHtml(a.name)}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${escapeHtml(a.version||'')}</div></div>`).join('')}</td>`);
+      if(r.mode === 'batch'){
+        cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})} <span style="color:var(--text-faint);">· ${tf('notif.daysN', {n: r.days})}</span></td>`);
+      } else {
+        cells.push(`<td>${escapeHtml(r.location||'—')}</td>`);
+      }
+      cells.push(`<td><span class="env-tag ${envClass}">${escapeHtml(r.env||'')}</span></td>`);
+      cells.push(`<td class="mono">${installerDateLabel(r)}<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(r.time)}</div></td>`);
+      cells.push(installerProgressCellHtml(r));
+      // Approval / status column
+      if(r.clientApproval === 'pending'){
+        cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();">
+          <button class="mini-btn" onclick="clientRespondApproval('${r.id}', 'approved')">${t('client.approve')}</button>
+          <button class="mini-btn" onclick="clientRespondApproval('${r.id}', 'reschedule')">${t('client.proposeDate')}</button>
+          <button class="mini-btn" onclick="clientRespondApproval('${r.id}', 'commented')">${t('client.comment')}</button>
+        </td>`);
+      } else {
+        cells.push(`<td>${clientStatusBadgeHtml(r)}${r.clientComment ? `<div style="font-size:11px; color:var(--text-muted); font-style:italic; margin-top:3px; max-width:200px;">"${escapeHtml(r.clientComment)}"</div>` : ''}</td>`);
+      }
       cells.push(`<td style="color:var(--text-faint); font-size:12px; white-space:nowrap;">${isExpanded ? t('client.collapse') : t('client.previewTimeline')}</td>`);
 
-      let rowsHtml = `<tr class="deploy-row" onclick="toggleClientRowDetail('${rowKey}')" style="cursor:pointer;">` + cells.join('') + '</tr>';
+      let html = `<tr class="deploy-row" onclick="toggleClientRowDetail('${rowKey}')" style="cursor:pointer;">${cells.join('')}</tr>`;
       if(isExpanded){
-        const totalCols = cols.length;
-        const proj = PROJECTS[d.pk];
-        const timeline = getClientTimeline(d, proj);
-        const timelineHtml = `
-          <div style="margin-top:16px;">
-            <div style="color:var(--text-muted); font-size:12.5px; margin-bottom:8px; font-weight:600;">${t('client.timeline')}</div>
-            <div style="max-height:240px; overflow-y:auto;">
-              ${timeline.map(e=>`
-                <div style="display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--line-soft);">
-                  <div class="mono" style="width:96px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${e.date ? e.date + (e.time ? ' ' + e.time : '') : t('dtl.pending')}</div>
-                  <div style="flex-shrink:0;">${e.icon}</div>
-                  <div style="flex:1; font-size:12.5px;">${e.text}</div>
-                </div>`).join('')}
-            </div>
-          </div>`;
-        rowsHtml += `<tr><td colspan="${totalCols}" style="background:var(--paper);">
-          <div style="padding:14px;">
-            <div style="display:flex; gap:28px; flex-wrap:wrap; font-size:12.5px;">
-              <div><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.deploymentId')}</div><strong class="mono" style="display:inline-flex; align-items:center; gap:6px;">${d.id || '—'}${d.id ? `<button title="Copy ID" onclick="event.stopPropagation(); copyDeploymentId('${d.id}')" style="background:none; border:none; padding:0; cursor:pointer; color:var(--text-muted); display:inline-flex;">${COPY_ICON}</button>` : ''}</strong></div>
-              <div><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.colProject')}</div><strong>${proj.name} (${proj.clientName})</strong></div>
-              <div><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.appVersion')}</div><strong>${d.app} v${d.version}</strong></div>
-              <div><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.environment')}</div><strong>${d.env}</strong></div>
-              <div><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.date')}</div><strong>${d.date} ${d.time}</strong></div>
-              ${d.env === 'Production' ? `<div><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.numLocations')}</div><strong>${proj.locations}</strong></div>` : ''}
-              <div><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.deploymentStatus')}</div><strong>${statusLabel[d.status]}</strong></div>
-            </div>
-            ${d.clientComment ? `<div style="margin-top:12px; font-size:12.5px;"><div style="color:var(--text-muted); margin-bottom:2px;">${t('client.yourComment')}</div><div style="font-style:italic;">"${escapeHtml(d.clientComment)}"</div></div>` : ''}
-            ${d.changelog ? `<div style="margin-top:14px; font-size:12.5px;">
-              <div style="color:var(--text-muted); margin-bottom:4px; font-weight:600;">${t('client.changelogFor')}</div>
-              <div style="white-space:pre-line; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px; padding:10px 12px; line-height:1.6;">${escapeHtml(d.changelog)}</div>
-              ${attachmentsHtml(d.attachments, d.attachment, d.attachmentId)}
-            </div>` : ''}
-            ${timelineHtml}
+        const timeline = getClientTimeline(r, proj);
+        let body = '';
+        if(r.paused){
+          body += `<div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">${t('dcard.reason')}: ${r.pauseReason ? '„'+escapeHtml(r.pauseReason)+'”' : '—'}</div>`;
+        }
+        if(r.changelog || (r.attachments && r.attachments.length) || r.attachment){
+          body += changelogCollapsibleHtml(r, rowKey);
+        }
+        body += `<div style="margin-top:4px;">
+          <div style="color:var(--text-muted); font-size:12.5px; margin-bottom:8px; font-weight:600;">${t('client.timeline')}</div>
+          <div style="max-height:240px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:4px 10px;">
+            ${timeline.map(e=>`
+              <div style="display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--line-soft);">
+                <div class="mono" style="width:96px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${e.date ? e.date + (e.time ? ' ' + e.time : '') : t('dtl.pending')}</div>
+                <div style="flex-shrink:0;">${e.icon}</div>
+                <div style="flex:1; font-size:12.5px;">${e.text}</div>
+              </div>`).join('') || `<div style="color:var(--text-faint); font-size:12px; padding:8px 0;">—</div>`}
           </div>
-        </td></tr>`;
+        </div>`;
+        html += `<tr><td colspan="8" style="background:var(--paper);"><div style="padding:14px;" onclick="event.stopPropagation();">${body}</div></td></tr>`;
       }
-      return rowsHtml;
-    }).join('');
+      return html;
+    };
+
+    // Flat table like Deployments / deployer — no section grouping headers.
+    const listRows = [];
+    if(showWaiting) waiting.forEach(r => listRows.push(r));
+    if(showActive) active.forEach(r => listRows.push(r));
+    if(showCompleted) completed.forEach(r => listRows.push(r));
+
+    const headCols = [t('dep.thProject'), t('dep.thAppVer'), t('dep.thLocations'), t('dep.thEnv'), t('dep.thDate'), t('dep.thProgress'), t('client.colProdSchedule'), ''];
+    html += `<div style="overflow:auto;">
+      <table>
+        <thead><tr>${headCols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${listRows.length ? listRows.map(renderClientTableRow).join('') : `<tr><td colspan="${headCols.length}" style="color:var(--text-muted); font-size:13px; text-align:center; padding:16px;">${t('client.noMatch')}</td></tr>`}
+        </tbody>
+      </table>
+    </div>`;
+
+    listWrap.innerHTML = html;
   }
   function showToast(text){
     const t = document.getElementById('toast');
@@ -5432,6 +5701,17 @@
     const overlay = document.getElementById('confirm-modal-overlay');
     if(!overlay || overlay.style.display === 'none') return;
     if(e.key === 'Escape') closeConfirmModal(false);
+  });
+  document.addEventListener('keydown', (e)=>{
+    if(e.key !== 'Escape') return;
+    const app = document.getElementById('app-modal-overlay');
+    if(app && app.style.display !== 'none') return;
+    const confirm = document.getElementById('confirm-modal-overlay');
+    if(confirm && confirm.style.display !== 'none') return;
+    const msg = document.getElementById('message-modal-overlay');
+    if(msg && msg.style.display !== 'none'){ e.preventDefault(); closeMessageModal(); return; }
+    const edit = document.getElementById('edit-dep-modal-overlay');
+    if(edit && edit.style.display !== 'none'){ e.preventDefault(); closeEditDeploymentModal(false); }
   });
 
   // ---- master deployments dataset, spans all clients/projects ----
@@ -5591,7 +5871,7 @@
     if(!filename) return '';
     const safeName = String(filename).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     const label = '📎 ' + escapeHtml(filename);
-    const style = 'display:inline-flex; align-items:center; gap:6px; margin-top:8px; font-size:12px; text-decoration:none;';
+    const style = 'display:inline-flex; align-items:center; gap:6px; font-size:12px; text-decoration:none;';
     if(attachmentId){
       return `<a href="#" onclick="event.preventDefault(); event.stopPropagation(); downloadAttachment({id:'${attachmentId}', filename:'${safeName}'});" style="${style} color:var(--cyan);">${label}</a>`;
     }
@@ -6129,6 +6409,19 @@
     return rows;
   }
 
+  function ensureFullScheduleRendered(idx){
+    const box = document.getElementById('full-sched-' + idx);
+    if(!box || box.dataset.rendered) return;
+    const r = DEPLOYMENTS_DATA[idx];
+    if(!r) return;
+    const rows = buildScheduleRows(r);
+    const customFields = scheduleCustomFieldNames(r);
+    const customHead = customFields.map(f=>`<th>${escapeHtml(f)}</th>`).join('');
+    box.innerHTML = `<table><thead><tr><th>${t('rep.scheduleAppHdr')}</th><th>${t('rep.scheduleVerHdr')}</th><th>${t('rep.scheduleCodeHdr')}</th>${customHead}<th>${t('rep.scheduleDateHdr')}</th><th>${t('rep.scheduleDayHdr')}</th></tr></thead><tbody>`
+      + rows.map(x=>`<tr><td>${x.app}</td><td class="mono" style="font-size:11.5px;">${x.version}</td><td>${x.code}</td>${customFields.map(f=>`<td>${escapeHtml((x.custom&&x.custom[f])||'')}</td>`).join('')}<td class="mono" style="font-size:11.5px;">${x.date}</td><td class="mono" style="font-size:11.5px;">${x.dow}</td></tr>`).join('')
+      + `</tbody></table>`;
+    box.dataset.rendered = '1';
+  }
   function toggleFullSchedule(idx){
     const box = document.getElementById('full-sched-' + idx);
     const label = document.getElementById('full-sched-label-' + idx);
@@ -6136,16 +6429,7 @@
     const open = box.style.display === 'none';
     box.style.display = open ? 'block' : 'none';
     if(label) label.textContent = open ? t('rep.hideFullSchedule') : t('rep.showFullSchedule');
-    if(open && !box.dataset.rendered){
-      const r = DEPLOYMENTS_DATA[idx];
-      const rows = buildScheduleRows(r);
-      const customFields = scheduleCustomFieldNames(r);
-      const customHead = customFields.map(f=>`<th>${escapeHtml(f)}</th>`).join('');
-      box.innerHTML = `<table><thead><tr><th>${t('rep.scheduleAppHdr')}</th><th>${t('rep.scheduleVerHdr')}</th><th>${t('rep.scheduleCodeHdr')}</th>${customHead}<th>${t('rep.scheduleDateHdr')}</th><th>${t('rep.scheduleDayHdr')}</th></tr></thead><tbody>`
-        + rows.map(x=>`<tr><td>${x.app}</td><td class="mono" style="font-size:11.5px;">${x.version}</td><td>${x.code}</td>${customFields.map(f=>`<td>${escapeHtml((x.custom&&x.custom[f])||'')}</td>`).join('')}<td class="mono" style="font-size:11.5px;">${x.date}</td><td class="mono" style="font-size:11.5px;">${x.dow}</td></tr>`).join('')
-        + `</tbody></table>`;
-      box.dataset.rendered = '1';
-    }
+    if(open) ensureFullScheduleRendered(idx);
   }
 
   function downloadBlob(content, filename, mime){
@@ -6168,8 +6452,9 @@
   }
 
   function scheduleFileBase(r){
-    const appPart = (r.apps||[]).map(a=>a.name).join('_').replace(/[^\w-]+/g,'') || 'application';
-    return 'schedule-' + appPart + '-' + (r.id || 'deployment');
+    const idPart = String(r.id || 'deployment').replace(/[^\w.-]+/g, '_');
+    const appPart = (r.apps||[]).map(a=>a.name).join('_').replace(/[^\w.-]+/g, '') || 'application';
+    return idPart + '-' + appPart;
   }
 
   // XLS: Excel-compatible file (HTML table with the vnd.ms-excel type — opens as columns).
@@ -6197,11 +6482,12 @@
     const rows = buildScheduleRows(r);
     if(!rows.length){ showToast(t('sch.noBatch')); return; }
     const title = scheduleTitle(r);
+    const fileBase = scheduleFileBase(r);
     const customFields = scheduleCustomFieldNames(r);
     const customHead = customFields.map(f=>`<th>${escapeHtml(f)}</th>`).join('');
     const body = rows.map(x=>`<tr><td>${x.app}</td><td>${x.version}</td><td>${x.code}</td>${customFields.map(f=>`<td>${escapeHtml((x.custom&&x.custom[f])||'')}</td>`).join('')}<td>${x.date}</td><td>${x.dow}</td></tr>`).join('');
     const subtitle = tf('sch.docSubtitle', {id: r.id || '—', n: rows.length});
-    const doc = `<!doctype html><html lang="${LANG}"><head><meta charset="utf-8"><title>${title}</title>
+    const doc = `<!doctype html><html lang="${LANG}"><head><meta charset="utf-8"><title>${escapeHtml(fileBase)}</title>
       <style>
         body{font-family:Arial, sans-serif; color:#1a1a1a; padding:24px;}
         h1{font-size:16px; margin:0 0 4px 0;}
@@ -6269,6 +6555,10 @@
     return template.replace(/\{[a-z]+\}/gi, m => (m in values ? values[m] : m));
   }
 
+  function closeMessageModal(){
+    const el = document.getElementById('message-modal-overlay');
+    if(el) el.style.display = 'none';
+  }
   function generateEndUserMessage(idx){
     messageContextIdx = idx;
     const r = DEPLOYMENTS_DATA[idx];
@@ -6281,6 +6571,36 @@
     tb.innerHTML = MESSAGE_TAGS.map(mt=>`<button class="mini-btn" style="font-size:10.5px;" onclick="insertMessageTag('${mt.tag}')" title="${t(mt.labelKey)}"><span class="mono">${mt.tag}</span></button>`).join('');
     updateMessagePreview();
     document.getElementById('message-modal-overlay').style.display = 'flex';
+  }
+
+  let editDepSnapshot = null;
+  function captureEditDepSnapshot(){
+    return JSON.stringify({
+      versions: [...document.querySelectorAll('#edit-dep-versions input[data-app-idx]')].map(i=>i.value),
+      time: (document.getElementById('edit-dep-time')||{}).value || '',
+      changelog: (document.getElementById('edit-dep-changelog')||{}).value || '',
+      notes: (document.getElementById('edit-dep-installer-notes')||{}).value || '',
+      chExist: (editDepChangelogExisting||[]).map(a=>a.id||a.filename),
+      inExist: (editDepInstallerExisting||[]).map(a=>a.id||a.filename),
+      chNew: (editDepChangelogNew||[]).map(f=>f.name+'|'+f.size),
+      inNew: (editDepInstallerNew||[]).map(f=>f.name+'|'+f.size),
+      removed: (editDepRemovedAttIds||[]).slice()
+    });
+  }
+  function editDepIsDirty(){
+    if(editDepSnapshot == null) return false;
+    return captureEditDepSnapshot() !== editDepSnapshot;
+  }
+  function closeEditDeploymentModal(force){
+    const el = document.getElementById('edit-dep-modal-overlay');
+    if(!el || el.style.display === 'none') return;
+    if(!force && editDepIsDirty()){
+      showToast(t('editdep.unsavedEscape'));
+      return;
+    }
+    el.style.display = 'none';
+    editDepIdx = null;
+    editDepSnapshot = null;
   }
 
   // Release managers and administrators may edit planned (not-yet-finished)
@@ -6350,6 +6670,7 @@
     renderEditDepAtts('changelog');
     renderEditDepAtts('installer');
     document.getElementById('edit-dep-modal-overlay').style.display = 'flex';
+    editDepSnapshot = captureEditDepSnapshot();
   }
   async function saveDeploymentEdits(){
     if(editDepIdx === null) return;
@@ -6391,7 +6712,8 @@
     }
     if(attsChanged) changes.push(t('editdep.attachments'));
 
-    document.getElementById('edit-dep-modal-overlay').style.display = 'none';
+    const savedIdx = editDepIdx;
+    closeEditDeploymentModal(true);
     if(!changes.length){ showToast(t('editdep.noChanges')); return; }
     const projLabel = (PROJECTS[r.projectKey]||{}).name || r.projectKey;
     const summary = changes.join('; ');
@@ -6399,7 +6721,7 @@
     r.comments = r.comments || [];
     const stamp = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
     r.comments.push({date:stamp.date, time:stamp.time, author: actorName(), type:'system', icon:'✏️', text: tf('editdep.tlEdited', {summary})});
-    persistDeployment(editDepIdx);
+    persistDeployment(savedIdx);
     renderDeploymentsTable();
     renderInstallerPanel();
     showToast(t('editdep.saved'));
@@ -6559,34 +6881,41 @@
   const statusLabelFull = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
 
   function getClientTimeline(d, proj){
-    // Build a client-facing timeline for a client-portal deployment record.
-    // Mirrors the RM timeline but from the client's perspective.
+    // Client-facing timeline for a full deployment record (same shape as DEPLOYMENTS_DATA).
     const events = [];
-    const created = d.date; // schedule date as a stand-in for "created"
-    events.push({date: created, icon:'📝', text: tf('tl.created', {app: d.app, version: d.version, env: d.env})});
+    const apps = d.apps || [];
+    const app = d.app || apps.map(a=>a.name).filter(Boolean).join(', ') || '—';
+    const version = d.version != null ? d.version
+      : (apps.length === 1 ? (apps[0].version || '') : apps.map(a=>a.version).filter(Boolean).join(', '));
+    const status = d.status || (typeof clientDeploymentStatus === 'function' ? clientDeploymentStatus(d) : 'scheduled');
+    const created = d.createdDate || d.date || d.historyStart || '';
+    const date = d.mode === 'batch' ? (d.historyStart || d.createdDate || d.date || '') : (d.date || d.createdDate || '');
+    const time = d.time || '';
+    const locN = d.mode === 'batch' ? (d.totalLocations || 0) : (proj && proj.locations);
+    events.push({date: created, icon:'📝', text: tf('tl.created', {app, version, env: d.env})});
 
     if(d.env === 'Production' || d.clientApproval){
       events.push({date: created, icon:'📧', text: t('tl.reqApprove')});
       if(d.clientApproval === 'approved'){
         events.push({date: d.clientApprovalDate || created, time: d.clientApprovalTime, icon:'✅', text: d.clientApprovalBy ? tf('tl.approvedBy', {who: d.clientApprovalBy}) : t('tl.approved')});
       } else if(d.clientApproval === 'commented'){
-        events.push({date: created, icon:'💬', text: tf('tl.commented', {c: d.clientComment||''})});
+        events.push({date: d.clientApprovalDate || created, time: d.clientApprovalTime, icon:'💬', text: tf('tl.commented', {c: d.clientComment||''})});
       } else if(d.clientApproval === 'rejected'){
-        events.push({date: created, icon:'❌', text: tf('tl.rejected', {c: d.clientComment||''})});
+        events.push({date: d.clientApprovalDate || created, time: d.clientApprovalTime, icon:'❌', text: tf('tl.rejected', {c: d.clientComment||''})});
       } else {
         events.push({date: null, icon:'⏳', text: t('tl.awaiting')});
       }
     }
 
-    if(d.status === 'installed'){
-      events.push({date: d.date, time: d.time, icon:'✅', text: (d.env==='Production' ? tf('tl.prodDone', {n: proj.locations}) : t('tl.testDone'))});
-    } else if(d.status === 'scheduled'){
+    if(status === 'installed'){
+      events.push({date: date, time, icon:'✅', text: (d.env==='Production' ? tf('tl.prodDone', {n: locN}) : t('tl.testDone'))});
+    } else if(status === 'scheduled'){
       if(d.env === 'Production' && d.clientApproval === 'approved'){
-        events.push({date: d.date, time: d.time, icon:'📅', text: tf('tl.prodWillStart', {date: d.date, time: d.time, n: proj.locations})});
+        events.push({date, time, icon:'📅', text: tf('tl.prodWillStart', {date, time, n: locN})});
       } else if(d.env === 'Production'){
-        events.push({date: d.date, time: d.time, icon:'📅', text: tf('tl.prodPlannedAfter', {date: d.date, time: d.time})});
+        events.push({date, time, icon:'📅', text: tf('tl.prodPlannedAfter', {date, time})});
       } else {
-        events.push({date: d.date, time: d.time, icon:'📅', text: tf('tl.scheduledFor', {date: d.date, time: d.time})});
+        events.push({date, time, icon:'📅', text: tf('tl.scheduledFor', {date, time})});
       }
     }
 
@@ -6699,56 +7028,185 @@
     return {blocked: pending.length > 0, pending};
   }
 
-  function installerNotesHtml(r){
+  function installerNotesBodyHtml(r){
     const hasNotes = !!r.installerNotes;
     const atts = Array.isArray(r.instructionAttachments) ? r.instructionAttachments : [];
     if(!hasNotes && !atts.length) return '';
-    return `<div style="margin:8px 0 12px 0; padding:10px 12px; background:#EAF4FB; border:1px solid #BEE0F5; border-radius:8px;">
-      <div style="font-size:11.5px; font-weight:700; color:#0A6E7A; margin-bottom:4px;">📋 ${t('rep.deployerInstr')}</div>
-      ${hasNotes ? `<div style="font-size:12.5px; color:var(--ink); white-space:pre-line; line-height:1.5;">${escapeHtml(r.installerNotes)}</div>` : ''}
-      ${atts.length ? `<div style="margin-top:6px;">${atts.map(a=>attachmentLinkHtml(a.filename, a.id)).join('<br>')}</div>` : ''}
+    const bodyParts = [];
+    if(hasNotes) bodyParts.push(`<div style="white-space:pre-line; line-height:1.55; color:var(--ink);">${escapeHtml(r.installerNotes)}</div>`);
+    if(atts.length) bodyParts.push(`<div style="display:flex; flex-direction:column; gap:6px;${hasNotes ? ' margin-top:8px;' : ''}">${atts.map(a=>attachmentLinkHtml(a.filename, a.id)).join('')}</div>`);
+    return bodyParts.join('');
+  }
+  function installerNotesHtml(r){
+    const bodyHtml = installerNotesBodyHtml(r);
+    if(!bodyHtml) return '';
+    const id = 'instr-' + (r.idx != null ? r.idx : String(r.id || 'x'));
+    return collapsibleBlockHtml({
+      id,
+      icon: '📋',
+      showKey: 'rep.showInstr',
+      hideKey: 'rep.hideInstr',
+      bodyHtml
+    });
+  }
+  function toggleInstallerNotes(id, showKey, hideKey){
+    const box = document.getElementById(id);
+    const lbl = document.getElementById(id + '-label');
+    if(!box) return;
+    const open = box.style.display === 'none';
+    box.style.display = open ? 'block' : 'none';
+    if(lbl) lbl.textContent = open ? t(hideKey || 'rep.hideInstr') : t(showKey || 'rep.showInstr');
+  }
+
+  // Shared chrome for collapsible detail blocks (instructions / changelog).
+  function collapsibleBlockHtml({id, icon, showKey, hideKey, titleExtra, bodyHtml}){
+    return `<div style="margin:8px 0 12px 0;">
+      <button type="button" class="mini-btn" onclick="event.stopPropagation(); toggleInstallerNotes('${id}', '${showKey}', '${hideKey}')">${icon} <span id="${id}-label">${t(showKey)}</span>${titleExtra ? ` <span style="color:var(--text-muted); font-weight:400;">${escapeHtml(titleExtra)}</span>` : ''}</button>
+      <div id="${id}" style="display:none; margin-top:8px; padding:10px 12px; background:var(--paper); border:1px solid var(--line); border-radius:8px; font-size:12.5px;">
+        ${bodyHtml}
+      </div>
     </div>`;
+  }
+
+  function changelogBodyHtml(r){
+    const clAtts = (Array.isArray(r.attachments) && r.attachments.length)
+      ? r.attachments
+      : (r.attachment ? [{id: r.attachmentId, filename: r.attachment}] : []);
+    if(!r.changelog && !clAtts.length) return '';
+    const bodyParts = [];
+    if(r.changelog) bodyParts.push(`<div style="white-space:pre-line; line-height:1.55; color:var(--ink);">${escapeHtml(r.changelog)}</div>`);
+    if(clAtts.length) bodyParts.push(`<div style="display:flex; flex-direction:column; gap:6px;${r.changelog ? ' margin-top:8px;' : ''}">${clAtts.map(a=>attachmentLinkHtml(a.filename, a.id)).join('')}</div>`);
+    return bodyParts.join('');
+  }
+
+  // Collapsible changelog (+ attachments). Same layout as deployer instructions.
+  function changelogCollapsibleHtml(r, idSuffix){
+    const bodyHtml = changelogBodyHtml(r);
+    if(!bodyHtml) return '';
+    const id = 'cl-' + idSuffix;
+    const titleExtra = r.apps && r.apps.length ? ' — ' + r.apps.map(a=>a.name+' v'+a.version).join(', ') : '';
+    return collapsibleBlockHtml({
+      id,
+      icon: '📄',
+      showKey: 'rep.showChangelog',
+      hideKey: 'rep.hideChangelog',
+      titleExtra,
+      bodyHtml
+    });
+  }
+
+  // One-at-a-time detail panels under the deployment / installer action bar.
+  // scope: 'w' = deployments list (default), 'i' = installer panel.
+  function toggleDepDetailPanel(idx, kind, scope){
+    scope = scope || 'w';
+    const prefix = scope === 'i' ? 'inst' : 'dep';
+    const kinds = scope === 'i'
+      ? ['instr','changelog','timeline','comment','schedule']
+      : ['instr','changelog','timeline','comment'];
+    const panel = document.getElementById(prefix + '-panel-' + kind + '-' + idx);
+    if(!panel) return;
+    const willOpen = panel.style.display === 'none';
+    kinds.forEach(k=>{
+      const p = document.getElementById(prefix + '-panel-' + k + '-' + idx);
+      if(p) p.style.display = (k === kind && willOpen) ? 'block' : 'none';
+      const btn = document.getElementById(prefix + '-panel-btn-' + k + '-' + idx);
+      if(btn) btn.setAttribute('aria-pressed', (k === kind && willOpen) ? 'true' : 'false');
+    });
+    if(kind === 'comment' && willOpen){
+      const ta = document.getElementById('new-comment-' + (scope === 'i' ? 'i' : 'w') + '-' + idx);
+      if(ta) setTimeout(()=>{ try{ ta.focus(); }catch(e){} }, 0);
+    }
+    if(kind === 'schedule' && willOpen) ensureFullScheduleRendered(idx);
+  }
+  function depDetailPanelHtml(idx, kind, bodyHtml, openByDefault, prefix){
+    prefix = prefix || 'dep';
+    // Empty string is allowed for schedule (filled lazily on open).
+    if(bodyHtml == null || (bodyHtml === '' && kind !== 'schedule')) return '';
+    return `<div id="${prefix}-panel-${kind}-${idx}" style="display:${openByDefault ? 'block' : 'none'}; margin:0 0 12px 0; padding:10px 12px; background:var(--paper); border:1px solid var(--line); border-radius:8px; font-size:12.5px;">${bodyHtml}</div>`;
   }
 
   // Compact timeline for the deployer panel so comments the deployer adds (and
   // other timeline events) are actually visible there — the deployer has no
   // access to the full deployments list where the timeline is otherwise shown.
-  function installerTimelineHtml(r){
+  function installerTimelineEventsHtml(r){
     const events = getDeploymentTimeline(r);
-    if(!events.length) return '';
-    return `<div style="margin:12px 0;">
-      <div style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px;">${t('dcard.timeline')}</div>
-      <div style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:4px 10px;">
-        ${events.map(e=>`
-          <div style="display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--line-soft);">
-            <div class="mono" style="width:92px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${e.date ? e.date + (e.time ? ' ' + e.time : '') : t('dtl.pending')}</div>
-            <div style="flex-shrink:0;">${e.icon}</div>
-            <div style="flex:1; font-size:12px;">
-              ${e.text}
-              ${e.locations ? `<div class="mono" style="margin-top:3px; font-size:11px; color:var(--text-muted);">${e.locations.join(', ')}</div>` : ''}
-            </div>
-          </div>`).join('')}
-      </div>
+    if(!events.length){
+      return `<div style="font-size:12px; color:var(--text-muted);">${t('rep.timelineEmpty')}</div>`;
+    }
+    return `<div style="max-height:200px; overflow-y:auto;">
+      ${events.map(e=>`
+        <div style="display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--line-soft);">
+          <div class="mono" style="width:92px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${e.date ? e.date + (e.time ? ' ' + e.time : '') : t('dtl.pending')}</div>
+          <div style="flex-shrink:0;">${e.icon}</div>
+          <div style="flex:1; font-size:12px;">
+            ${e.text}
+            ${e.locations ? `<div class="mono" style="margin-top:3px; font-size:11px; color:var(--text-muted);">${e.locations.join(', ')}</div>` : ''}
+          </div>
+        </div>`).join('')}
     </div>`;
   }
 
-  // Collapsible timeline for a completed distribution card in the deployer
-  // panel, so the deployer can review what happened without leaving the panel.
-  function completedTimelineHtml(r){
-    const events = getDeploymentTimeline(r);
-    if(!events.length) return '';
-    return `<div style="margin-top:10px;">
-      <button class="mini-btn" onclick="toggleCompletedTimeline(${r.idx})">🕓 <span id="ctl-label-${r.idx}">${t('rep.showTimeline')}</span></button>
-      <div id="ctl-${r.idx}" style="display:none;">${installerTimelineHtml(r)}</div>
-    </div>`;
-  }
-  function toggleCompletedTimeline(idx){
-    const box = document.getElementById('ctl-' + idx);
-    const lbl = document.getElementById('ctl-label-' + idx);
-    if(!box) return;
-    const open = box.style.display === 'none';
-    box.style.display = open ? 'block' : 'none';
-    if(lbl) lbl.textContent = open ? t('rep.hideTimeline') : t('rep.showTimeline');
+  // Action bar for the installer panel — same chrome as deployments, but only
+  // deployer-relevant actions (no edit / pause / message / delete).
+  // Instructions stay always visible below the bar so they cannot be missed.
+  function installerActionChromeHtml(r, opts){
+    opts = opts || {};
+    const showSchedule = !!opts.showSchedule;
+    const showComment = opts.showComment !== false;
+    const showTimeline = opts.showTimeline !== false;
+    const timelineOpen = opts.timelineOpen !== false;
+    const showAssignee = !!opts.showAssignee;
+    const prefix = 'inst';
+    const scopeArg = ", 'i'";
+
+    const instrBody = installerNotesBodyHtml(r);
+    const changelogBody = changelogBodyHtml(r);
+    const timelineBody = showTimeline ? installerTimelineEventsHtml(r) : null;
+    const commentBody = showComment
+      ? `<div class="field" style="margin:0;">
+          <label>${t('dcard.addComment')}</label>
+          <textarea id="new-comment-i-${r.idx}" placeholder="${t('dcard.addCommentPh')}"></textarea>
+          <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'i'); renderInstallerPanel();">${t('dcard.saveComment')}</button>
+        </div>`
+      : null;
+    const scheduleBody = showSchedule
+      ? `<div id="full-sched-${r.idx}" style="max-height:240px; overflow-y:auto;"></div>`
+      : null;
+
+    const panels = [
+      depDetailPanelHtml(r.idx, 'changelog', changelogBody, false, prefix),
+      showTimeline ? depDetailPanelHtml(r.idx, 'timeline', timelineBody, timelineOpen, prefix) : '',
+      showComment ? depDetailPanelHtml(r.idx, 'comment', commentBody, false, prefix) : '',
+      showSchedule ? depDetailPanelHtml(r.idx, 'schedule', scheduleBody, false, prefix) : ''
+    ].join('');
+
+    const barBtns = [];
+    if(changelogBody) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-changelog-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'changelog'${scopeArg})">📄 ${t('rep.changelogShort')}</button>`);
+    if(showTimeline) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-timeline-${r.idx}" aria-pressed="${timelineOpen ? 'true' : 'false'}" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'timeline'${scopeArg})">🕓 ${t('dcard.timeline')}</button>`);
+    if(showComment) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-comment-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'comment'${scopeArg})">💬 ${t('dcard.commentShort')}</button>`);
+    if(showSchedule){
+      barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-schedule-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'schedule'${scopeArg})">📅 ${t('rep.schedShort')}</button>`);
+      barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportScheduleXls(${r.idx})">${t('dtl.schedXls')}</button>`);
+      barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">${t('dtl.schedPdf')}</button>`);
+    }
+
+    const assigneeHtml = showAssignee ? assigneeControlHtml(r, true) : '';
+    const instrAlways = instrBody
+      ? `<div style="margin:0 0 12px 0; padding:10px 12px; background:var(--paper); border:1px solid var(--line); border-left:3px solid var(--cyan); border-radius:8px; font-size:12.5px;">
+          <div style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px;">📋 ${t('rep.deployerInstr')}</div>
+          ${instrBody}
+        </div>`
+      : '';
+
+    return `
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px;">
+        <span class="mono" style="font-size:13px; font-weight:700;">${r.id || '—'}</span>
+        <button class="mini-btn" title="${t('dcard.copyId')}" style="padding:4px 7px; display:inline-flex; align-items:center;" onclick="event.stopPropagation(); copyDeploymentId('${r.id||''}')">${COPY_ICON}</button>
+        ${assigneeHtml}
+        ${barBtns.length ? `<div style="margin-left:auto; display:flex; gap:6px; flex-wrap:wrap;">${barBtns.join('')}</div>` : ''}
+      </div>
+      ${instrAlways}
+      ${panels}`;
   }
 
   function depWarningHtml(r){
@@ -6827,10 +7285,14 @@
   }
 
   // Assignment control (select of installers + "assign to me"). Not shown to the client.
-  function assigneeControlHtml(r){
+  // compact=true embeds it in the installer action bar.
+  function assigneeControlHtml(r, compact){
     const options = installersForProject(r.projectKey);
     const cur = r.assignedTo || '';
-    return `<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:2px 0 10px 0;">
+    const wrapStyle = compact
+      ? 'display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; margin:0; padding-left:8px; border-left:1px solid var(--line);'
+      : 'display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:2px 0 10px 0;';
+    return `<div style="${wrapStyle}">
       <span style="font-size:11.5px; color:var(--text-muted);">${t('rep.assignee')}</span>
       <select data-assignee="${r.idx}" onchange="assignDeployment(${r.idx}, this.value)" style="font-size:11.5px; padding:3px 8px; border:1px solid var(--line); border-radius:6px;">
         <option value="">${t('rep.unassigned')}</option>
@@ -6840,128 +7302,73 @@
     </div>`;
   }
 
-  // ---- Deployer reports & history (read-only) ----
-  let installerReportOpen = false;
-  let lastInstallerReport = [];
-  function toggleInstallerReport(){
-    installerReportOpen = !installerReportOpen;
-    renderInstallerPanel();
+  // ---- List CSV export (deployments + installer; not client portal) ----
+  let lastDeploymentsCsvRows = [];
+  let lastInstallerCsvRows = [];
+  function csvCell(v){
+    v = String(v == null ? '' : v);
+    return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
   }
-  function completedDeploymentDate(r){
-    return r.mode === 'batch' ? (getDateForDay(r, r.days) || r.historyStart || r.createdDate) : (r.date || r.createdDate);
-  }
-  function installerReportPanelHtml(){
-    // Build the distinct project / environment / application option lists from
-    // the deployer's scoped, completed deployments so the filters only offer
-    // values that can actually appear in the report.
-    const completed = installerScopedDeployments().filter(r => (r.mode==='batch' && r.counts.scheduled===0) || (r.mode==='single' && r.status!=='scheduled'));
-    const projSet = new Map(), envSet = new Set(), appSet = new Set();
-    completed.forEach(r=>{
-      projSet.set(String(r.projectKey), r.project.name || r.projectKey);
-      if(r.env) envSet.add(r.env);
-      (r.apps||[]).forEach(a=> a.name && appSet.add(a.name));
-    });
-    const opt = (v,l,sel)=>`<option value="${escapeHtml(v)}"${sel?' selected':''}>${escapeHtml(l)}</option>`;
-    const projOpts = [opt('', t('rep.filterAllProjects'))].concat([...projSet.entries()].map(([k,n])=>opt(k,n))).join('');
-    const envOpts = [opt('', t('rep.filterAllEnvs'))].concat([...envSet].sort().map(e=>opt(e,e))).join('');
-    const appOpts = [opt('', t('rep.filterAllApps'))].concat([...appSet].sort().map(a=>opt(a,a))).join('');
-    return `<div class="card" style="margin-bottom:20px; border-left:3px solid var(--cyan);">
-      <div class="toolbar" style="margin-bottom:${installerReportOpen ? '12px' : '0'};">
-        <strong style="font-size:13px;">📊 ${t('rep.reportTitle')}</strong>
-        <button class="mini-btn" onclick="toggleInstallerReport()">${installerReportOpen ? t('rep.reportHide') : t('rep.reportShow')}</button>
-      </div>
-      <div style="display:${installerReportOpen ? 'block' : 'none'};">
-        <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;">${t('rep.reportNote')}</p>
-        <div class="grid-2" style="gap:10px;">
-          <div class="field"><label>${t('rep.reportFrom')}</label><input type="date" id="report-from"></div>
-          <div class="field"><label>${t('rep.reportStatus')}</label>
-            <select id="report-status">
-              <option value="all">${t('rep.reportStAll')}</option>
-              <option value="ok">${t('rep.reportStOk')}</option>
-              <option value="failed">${t('rep.reportStFailed')}</option>
-            </select>
-          </div>
-        </div>
-        <div class="grid-2" style="gap:10px;">
-          <div class="field"><label>${t('proj.thProject')}</label><select id="report-project">${projOpts}</select></div>
-          <div class="field"><label>${t('rep.reportEnv')}</label><select id="report-env">${envOpts}</select></div>
-        </div>
-        <div class="field"><label>${t('rep.scheduleAppHdr')}</label><select id="report-app">${appOpts}</select></div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button class="btn" onclick="generateInstallerReport()">${t('rep.reportGenerate')}</button>
-          <button class="mini-btn" onclick="downloadInstallerReportCsv()">${t('rep.reportCsv')}</button>
-        </div>
-        <div id="installer-report-results" style="margin-top:12px;"></div>
-      </div>
-    </div>`;
-  }
-  // Build the "unfinished locations" detail for a completed deployment: any
-  // target still in failedLocations (with its reason) plus any failure-reason
-  // comments recorded on the timeline. Non-empty even when the rollout was later
-  // force-completed, so a correction/audit is always traceable.
-  function unfinishedLocationsOf(r){
-    const items = [];
-    (r.failedLocations||[]).forEach(f=> items.push((f.location||'') + (f.reason && f.reason !== '—' ? ' — ' + f.reason : '')));
-    return items;
-  }
-  function generateInstallerReport(){
-    const fromVal = (document.getElementById('report-from')||{}).value || '';
-    const statusVal = (document.getElementById('report-status')||{}).value || 'all';
-    const projVal = (document.getElementById('report-project')||{}).value || '';
-    const envVal = (document.getElementById('report-env')||{}).value || '';
-    const appVal = (document.getElementById('report-app')||{}).value || '';
-    const completed = installerScopedDeployments().filter(r => (r.mode==='batch' && r.counts.scheduled===0) || (r.mode==='single' && r.status!=='scheduled'));
-    let rows = completed.map(r=>{
-      const failed = (r.failedLocations||[]).length;
-      const total = r.mode==='batch' ? r.totalLocations : 1;
-      const installed = r.mode==='batch' ? r.counts.installed : (r.status==='installed' ? 1 : 0);
-      return {
-        projectKey: String(r.projectKey),
-        project: r.project.name || r.projectKey, client: r.project.clientName || '',
-        appNames: (r.apps||[]).map(a=>a.name),
-        apps: (r.apps||[]).map(a=>a.name + (a.version ? ' v'+a.version : '')).join(', '),
-        env: r.env, date: completedDeploymentDate(r) || '', installed, total, failed,
-        unfinished: unfinishedLocationsOf(r),
-        outcome: (typeof deploymentOutcome==='function' ? deploymentOutcome(r).label : '')
-      };
-    });
-    if(fromVal) rows = rows.filter(x => x.date && x.date >= fromVal);
-    if(statusVal === 'ok') rows = rows.filter(x => x.failed === 0);
-    else if(statusVal === 'failed') rows = rows.filter(x => x.failed > 0);
-    if(projVal) rows = rows.filter(x => x.projectKey === projVal);
-    if(envVal) rows = rows.filter(x => x.env === envVal);
-    if(appVal) rows = rows.filter(x => x.appNames.includes(appVal));
-    rows.sort((a,b)=> (b.date||'').localeCompare(a.date||''));
-    lastInstallerReport = rows;
-    const box = document.getElementById('installer-report-results');
-    if(!box) return;
-    if(!rows.length){ box.innerHTML = `<div style="color:var(--text-muted); font-size:12.5px;">${t('rep.reportEmpty')}</div>`; return; }
-    const head = [t('proj.thProject'), t('proj.thClient'), t('rep.scheduleAppHdr'), t('rep.reportEnv'), t('rep.reportDate'), t('rep.reportInstalled'), t('rep.reportFailedCol'), t('rep.reportUnfinished'), t('rep.reportOutcome')];
-    box.innerHTML = `<div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">${tf('rep.reportCount', {n: rows.length})}</div>
-      <div style="max-height:320px; overflow:auto; border:1px solid var(--line); border-radius:8px;">
-        <table><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
-        <tbody>${rows.map(x=>`<tr>
-          <td>${escapeHtml(x.project)}</td><td>${escapeHtml(x.client)}</td><td>${escapeHtml(x.apps)}</td>
-          <td>${escapeHtml(x.env)}</td><td class="mono">${escapeHtml(fmtDate(x.date))}</td>
-          <td class="mono">${x.installed}/${x.total}</td><td class="mono" style="color:${x.failed?'#A81E1E':'inherit'};">${x.failed}</td>
-          <td style="font-size:11.5px; color:${x.unfinished.length?'#A81E1E':'var(--text-faint)'};">${x.unfinished.length ? escapeHtml(x.unfinished.join('; ')) : '—'}</td>
-          <td>${escapeHtml(x.outcome)}</td></tr>`).join('')}</tbody></table>
-      </div>`;
-  }
-  function downloadInstallerReportCsv(){
-    if(!lastInstallerReport.length){ generateInstallerReport(); }
-    if(!lastInstallerReport.length){ showToast(t('rep.reportEmpty')); return; }
-    const head = ['Project','Client','Applications','Environment','Date','Installed','Total','Failed','Unfinished locations','Outcome'];
-    const esc = v => { v = String(v==null?'':v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v; };
-    const lines = [head.join(';')].concat(lastInstallerReport.map(x=>[x.project,x.client,x.apps,x.env,x.date,x.installed,x.total,x.failed,(x.unfinished||[]).join(' | '),x.outcome].map(esc).join(';')));
+  function downloadListCsv(filename, headers, rows){
+    if(!rows.length){ showToast(t('list.csvEmpty')); return false; }
+    const lines = [headers.map(csvCell).join(';')].concat(rows.map(cols => cols.map(csvCell).join(';')));
     const csv = '\uFEFF' + lines.join('\r\n');
-    if(downloadBlob(csv, 'rolldesk-report.csv', 'text/csv;charset=utf-8'))
-      showToast(tf('rep.reportCount', {n: lastInstallerReport.length}));
+    if(downloadBlob(csv, filename, 'text/csv;charset=utf-8')){
+      showToast(tf('list.csvExported', {n: rows.length}));
+      return true;
+    }
+    return false;
+  }
+  function deploymentCsvRecord(r){
+    const p = r.project || PROJECTS[r.projectKey] || {};
+    const apps = (r.apps || []).map(a => a.name + (a.version ? ' v' + a.version : '')).join(', ');
+    const locations = r.mode === 'batch'
+      ? String(r.totalLocations != null ? r.totalLocations : '')
+      : (r.location || '');
+    const date = r.mode === 'batch'
+      ? (r.dateRange || '')
+      : ((r.date || '') + (r.time ? ' ' + r.time : ''));
+    const progress = r.mode === 'batch'
+      ? (((r.counts && r.counts.installed) || 0) + '/' + (r.totalLocations || 0))
+      : (r.status || '');
+    return [
+      r.id || '',
+      p.name || r.projectKey || '',
+      p.clientName || '',
+      apps,
+      locations,
+      r.env || '',
+      date,
+      progress,
+      r.clientApproval || '',
+      r.paused ? (r.pauseReason || t('pause.badge')) : '',
+      r.assignedTo || ''
+    ];
+  }
+  function deploymentCsvHeaders(){
+    return [
+      'ID',
+      t('dep.thProject'),
+      t('proj.thClient'),
+      t('dep.thAppVer'),
+      t('dep.thLocations'),
+      t('dep.thEnv'),
+      t('dep.thDate'),
+      t('dep.thProgress'),
+      t('dep.thApproval'),
+      t('pause.badge'),
+      t('rep.assignee')
+    ];
+  }
+  function exportDeploymentsListCsv(){
+    downloadListCsv('rolldesk-deployments.csv', deploymentCsvHeaders(), lastDeploymentsCsvRows);
+  }
+  function exportInstallerListCsv(){
+    downloadListCsv('rolldesk-installer.csv', deploymentCsvHeaders(), lastInstallerCsvRows);
   }
 
   // Deployments visible in the deployer panel: scoped to the deployer's granted
-  // projects (admin/RM see all) and never drafts. Shared by the panel and the
-  // report generator so both use exactly the same set.
+  // projects (admin/RM see all) and never drafts.
   function installerScopedDeployments(){
     let all = DEPLOYMENTS_DATA.map((d,i)=>Object.assign({idx:i}, d, {
       project: PROJECTS[d.projectKey] || {name: d.projectKey || 'Unknown project', clientName:'', testEnvs:[], apps:[], locationsList:[]}
@@ -6973,27 +7380,377 @@
     return all.filter(r => !r.draft);
   }
 
-  // Left-side style filter for the deployer panel: instead of one long page with
-  // several headed sections, the deployer picks a single group to view.
-  // Default "All" shows only the work queue (waiting + to-report). Reports and
-  // history stay on their own tabs — they used to inflate the default view.
-  let installerPanelFilter = 'all';
+  // Top-bar filters (project / app / env / search).
+  // Status multi-select lives in installerPanelStatuses (default: waiting + active).
+  let installerPanelFilters = { project: '', app: '', env: '', q: '' };
+
   function setInstallerFilter(f){
-    installerPanelFilter = f;
-    if(f === 'reports') installerReportOpen = true;
+    // Legacy helper: map a single status key onto the multi-select.
+    if(f === 'all'){
+      installerPanelStatuses = { waiting: true, active: true, completed: false };
+    } else if(installerPanelStatuses.hasOwnProperty(f)){
+      installerPanelStatuses = { waiting: false, active: false, completed: false };
+      installerPanelStatuses[f] = true;
+    }
+    refreshInstallerStatusMsLabel();
     renderInstallerPanel();
+  }
+
+  function onInstallerFilterChange(which){
+    const projEl = document.getElementById('installer-filter-project');
+    const appEl = document.getElementById('installer-filter-app');
+    const envEl = document.getElementById('installer-filter-env');
+    const qEl = document.getElementById('installer-filter-q');
+    if(which === 'project'){
+      installerPanelFilters.project = (projEl && projEl.value) || '';
+      installerPanelFilters.app = '';
+    } else if(which === 'app'){
+      installerPanelFilters.app = (appEl && appEl.value) || '';
+    } else if(which === 'env'){
+      installerPanelFilters.env = (envEl && envEl.value) || '';
+    } else if(which === 'q'){
+      installerPanelFilters.q = (qEl && qEl.value) || '';
+    }
+    renderInstallerPanel();
+  }
+
+  function populateInstallerFilterOptions(scoped){
+    const projEl = document.getElementById('installer-filter-project');
+    const appEl = document.getElementById('installer-filter-app');
+    const envEl = document.getElementById('installer-filter-env');
+    const qEl = document.getElementById('installer-filter-q');
+    if(!projEl || !appEl) return;
+    const projMap = new Map();
+    scoped.forEach(r=>{
+      projMap.set(String(r.projectKey), (r.project && r.project.name) || String(r.projectKey));
+    });
+    const curProj = installerPanelFilters.project;
+    projEl.innerHTML = `<option value="">${t('rep.filterAllProjects')}</option>` +
+      [...projMap.entries()].sort((a,b)=> String(a[1]).localeCompare(String(b[1]))).map(([k,n])=>
+        `<option value="${escapeHtml(k)}"${k===curProj?' selected':''}>${escapeHtml(n)}</option>`
+      ).join('');
+    const appSet = new Set();
+    scoped.filter(r => !curProj || String(r.projectKey) === curProj).forEach(r=>{
+      (r.apps||[]).forEach(a=>{ if(a && a.name) appSet.add(a.name); });
+    });
+    if(installerPanelFilters.app && !appSet.has(installerPanelFilters.app)) installerPanelFilters.app = '';
+    const curApp = installerPanelFilters.app;
+    appEl.innerHTML = `<option value="">${t('rep.filterAllApps')}</option>` +
+      [...appSet].sort().map(a=>
+        `<option value="${escapeHtml(a)}"${a===curApp?' selected':''}>${escapeHtml(a)}</option>`
+      ).join('');
+    if(envEl) envEl.value = installerPanelFilters.env || '';
+    if(qEl && document.activeElement !== qEl) qEl.value = installerPanelFilters.q || '';
+    refreshInstallerStatusMsLabel();
+  }
+
+  function applyInstallerFilters(list){
+    const f = installerPanelFilters;
+    const q = (f.q || '').trim().toLowerCase();
+    return list.filter(r=>{
+      if(f.project && String(r.projectKey) !== f.project) return false;
+      if(f.env === 'Production' && r.env !== 'Production') return false;
+      if(f.env === 'test' && r.env === 'Production') return false;
+      if(f.app){
+        const names = (r.apps||[]).map(a=>a.name);
+        if(!names.includes(f.app)) return false;
+      }
+      if(q){
+        const bits = [
+          r.id, r.projectKey,
+          r.project && r.project.name, r.project && r.project.clientName,
+          r.env, r.location, r.assignedTo,
+          ...((r.apps||[]).map(a=> (a.name||'') + ' ' + (a.version||''))),
+          ...((r.failedLocations||[]).map(x=>x.location||'')),
+          ...((r.pendingQueue||[]).map(x=> (typeof x === 'string' ? x : (x && (x.code||x.label||''))) || ''))
+        ];
+        const hay = bits.filter(Boolean).join(' ').toLowerCase();
+        if(!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  function installerAppsLabel(r){
+    return (r.apps||[]).map(a=> a.name + (a.version ? ' v'+a.version : '')).join(', ');
+  }
+
+  function installerStatusBadgeHtml(r, kind){
+    if(kind === 'waiting'){
+      const stMap = {pending:t('rep.stPending'), commented:t('rep.stCommented'), rejected:t('rep.stRejected')};
+      return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--paper); color:var(--text-muted);">⧗ ${stMap[r.clientApproval]||r.clientApproval||''}</span>`;
+    }
+    if(kind === 'paused'){
+      return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:#FDF1E1; color:#8A5A05;">⏸ ${t('pause.badge')}</span>`;
+    }
+    if(kind === 'completed'){
+      const outcome = deploymentOutcome(r);
+      return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:${outcome.bg}; color:${outcome.color};">${outcome.icon} ${outcome.label}</span>`;
+    }
+    if(r.clientApproval === 'approved'){
+      return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--green-soft); color:#0F7A38;">✓ ${t('rep.clientApproved')}</span>`;
+    }
+    return '';
+  }
+
+  function installerMetaLineHtml(r, kind){
+    const parts = [];
+    if(kind === 'waiting'){
+      if(r.mode === 'batch'){
+        const startIso = getDateForDay(r, 1);
+        const endIso = getDateForDay(r, r.days);
+        parts.push(`${t('rep.distStart')}: <strong>${fmtDow(startIso)}, ${fmtDate(startIso)}</strong> · ${tf('rep.planMeta', {days: r.days, end: fmtDate(endIso), n: r.totalLocations})}`);
+      } else {
+        parts.push(`${t('rep.startLabel')}: <strong>${r.date ? (fmtDow(r.date) + ', ' + fmtDate(r.date)) : '—'}</strong>${r.time ? ' ' + tf('rep.atTime', {t: r.time}) : ''}`);
+      }
+    } else if(kind === 'paused' || kind === 'active'){
+      if(r.mode === 'batch'){
+        const todayDay = dayIndexForPosition(r, r.counts.installed);
+        parts.push(tf('rep.dayProgress', {day: todayDay, done: r.counts.installed, total: r.totalLocations}));
+      } else {
+        parts.push([r.location||'', fmtDate(r.date), fmtTime(r.time)].filter(Boolean).join(' · '));
+      }
+    } else if(kind === 'completed'){
+      if(r.mode === 'batch'){
+        const failedCount = (r.failedLocations || []).length;
+        parts.push(tf('rep.deployedCount', {done: r.counts.installed, total: r.totalLocations}));
+        if(failedCount) parts.push(tf('rep.failedCount', {n: failedCount}));
+      } else if(r.location){
+        parts.push(escapeHtml(r.location));
+      }
+    }
+    if(r.assignedTo && kind !== 'waiting'){
+      parts.push(kind === 'completed' ? tf('rep.doneBy', {who: escapeHtml(r.assignedTo)}) : tf('rep.assignedTo', {who: escapeHtml(r.assignedTo)}));
+    }
+    return parts.filter(Boolean).join(' · ');
+  }
+
+  let expandedInstallerIdx = null;
+  function toggleInstallerDetails(idx){
+    expandedInstallerIdx = (expandedInstallerIdx === idx) ? null : idx;
+    renderInstallerPanel();
+  }
+
+  function installerDateLabel(r){
+    if(r.mode === 'batch'){
+      const start = getDateForDay(r, 1);
+      const end = getDateForDay(r, r.days);
+      if(start && end && start !== end) return fmtDate(start) + ' – ' + fmtDate(end);
+      return r.dateRange || fmtDate(start || r.historyStart || r.createdDate) || '—';
+    }
+    return fmtDate(r.date || r.createdDate) || '—';
+  }
+
+  function installerProgressCellHtml(r){
+    if(r.mode === 'batch'){
+      const pct = Math.round((r.counts.installed / Math.max(1, r.totalLocations)) * 100);
+      const failedN = (r.failedLocations || []).length;
+      const isDone = r.counts.scheduled === 0;
+      let extra = '';
+      if(r.paused){
+        extra = `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' — ' + escapeHtml(r.pauseReason) : ''}</div>`;
+      } else if(failedN){
+        extra = `<div style="font-size:10.5px; color:#A81E1E; margin-top:3px;">⚠ ${tf('dep.toFinishN', {n: failedN})}</div>`;
+      } else if(isDone){
+        extra = `<div style="font-size:10.5px; color:#0F7A38; margin-top:3px;">✓ ${t('dep.complete')}</div>`;
+      }
+      return `<td>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="width:64px; height:6px; background:var(--line); border-radius:3px; overflow:hidden;"><div style="width:${pct}%; height:100%; background:${failedN ? 'var(--amber)' : 'var(--green)'};"></div></div>
+          <span class="mono" style="font-size:11.5px; color:var(--text-muted);">${r.counts.installed}/${r.totalLocations}</span>
+        </div>${extra}</td>`;
+    }
+    const statusLabel = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
+    const st = r.status || 'scheduled';
+    return `<td><span class="pill ${st}">${statusLabel[st]||st}</span>${r.paused ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}</div>` : ''}</td>`;
+  }
+
+  function installerApprovalCellHtml(r, kind){
+    if(kind === 'waiting'){
+      const stMap = {pending:t('rep.stPending'), commented:t('rep.stCommented'), rejected:t('rep.stRejected')};
+      return `<td style="white-space:nowrap;">
+        <span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--paper); color:var(--text-muted);">⧗ ${stMap[r.clientApproval]||r.clientApproval||''}</span>
+        <span class="info-ic" data-tip="${escapeHtml(t('rep.appearAfterApproval'))}" title="${escapeHtml(t('rep.appearAfterApproval'))}">i</span>
+      </td>`;
+    }
+    if(kind === 'paused'){
+      return `<td><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:#FDF1E1; color:#8A5A05;">⏸ ${t('pause.badge')}</span></td>`;
+    }
+    if(kind === 'completed'){
+      const outcome = deploymentOutcome(r);
+      return `<td><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:${outcome.bg}; color:${outcome.color};">${outcome.icon} ${outcome.label}</span></td>`;
+    }
+    if(r.clientApproval === 'approved'){
+      return `<td><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--green-soft); color:#0F7A38;">✓ ${t('rep.clientApproved')}</span></td>`;
+    }
+    return `<td style="color:var(--text-faint); font-size:12px;">—</td>`;
+  }
+
+  function installerTableRowHtml(r, kind){
+    const envClass = r.env === 'Production' ? 'prod' : 'test';
+    const clientLabel = (r.project && r.project.clientName) ? r.project.clientName : '';
+    const cells = [];
+    cells.push(`<td><div style="font-size:13px;">${escapeHtml(r.project.name || r.projectKey || '')}</div>${clientLabel ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${escapeHtml(clientLabel)}</div>` : ''}</td>`);
+    cells.push(`<td style="max-width:150px;">${(r.apps||[]).map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${escapeHtml(a.name)}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${escapeHtml(a.version||'')}</div></div>`).join('')}${internalBadge(r)}</td>`);
+    if(r.mode === 'batch'){
+      cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})} <span style="color:var(--text-faint);">· ${tf('notif.daysN', {n: r.days})}</span></td>`);
+    } else {
+      cells.push(`<td>${escapeHtml(r.location||'—')}</td>`);
+    }
+    cells.push(`<td><span class="env-tag ${envClass}">${escapeHtml(r.env||'')}</span></td>`);
+    cells.push(`<td class="mono">${installerDateLabel(r)}<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(r.time)}</div></td>`);
+    cells.push(installerProgressCellHtml(r));
+    cells.push(installerApprovalCellHtml(r, kind));
+    const open = expandedInstallerIdx === r.idx;
+    cells.push(`<td style="color:var(--text-faint); font-size:12px; white-space:nowrap;">${open ? t('client.collapse') : t('rep.openDetails')}</td>`);
+    let html = `<tr data-idx="${r.idx}" class="deploy-row" onclick="toggleInstallerDetails(${r.idx})" style="cursor:pointer;">${cells.join('')}</tr>`;
+    if(open) html += installerDetailRowHtml(r, kind);
+    return html;
+  }
+
+  function installerDetailRowHtml(r, kind){
+    const cols = 8;
+    return `<tr><td colspan="${cols}" style="background:var(--paper);">
+      <div style="padding:14px;" onclick="event.stopPropagation();">
+        ${installerDetailBodyHtml(r, kind)}
+      </div>
+    </td></tr>`;
+  }
+
+  function installerDetailBodyHtml(r, kind){
+    if(kind === 'paused'){
+      return `${installerActionChromeHtml(r, {showSchedule:false, showComment:false, showTimeline:false})}
+        <div style="font-size:12px; color:var(--text-muted);">${t('dcard.reason')}: ${r.pauseReason ? '„'+escapeHtml(r.pauseReason)+'”' : '—'}</div>
+        <div style="font-size:11.5px; color:var(--text-faint); margin-top:4px;">${t('pause.resumedByRM')}</div>`;
+    }
+    if(kind === 'waiting'){
+      const hasMeta = !!(installerNotesBodyHtml(r) || changelogBodyHtml(r));
+      return `${installerActionChromeHtml(r, {showSchedule:false, showComment:false, showTimeline:false, showAssignee:false})}
+        ${hasMeta ? '' : `<div style="font-size:12px; color:var(--text-muted);">${t('rep.waitingNoNotes')}</div>`}`;
+    }
+    if(kind === 'completed'){
+      return installerCompletedDetailHtml(r);
+    }
+    // active — report UI
+    return installerActiveDetailHtml(r);
+  }
+
+  function installerActiveDetailHtml(r){
+    if(r.mode === 'batch'){
+      const todayDay = dayIndexForPosition(r, r.counts.installed);
+      const todayBatch = todaysPendingBatch(r);
+      if(reportedResults[r.idx]){
+        const lr = reportedResults[r.idx];
+        return `<div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+            <div style="width:32px; height:32px; border-radius:50%; background:var(--green); color:#fff; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;">✓</div>
+            <strong style="font-size:14px;">${tf('rep.resultSavedDay', {day: lr.day})}</strong>
+          </div>
+          <div style="display:flex; gap:20px; padding:12px; background:var(--paper-alt,#fff); border-radius:8px; margin-bottom:12px;">
+            <div><div style="font-size:22px; font-weight:700; color:#0F7A38;">${lr.success}</div><div style="font-size:11.5px; color:var(--text-muted);">${t('rep.installedLc')}</div></div>
+            ${lr.failed ? `<div><div style="font-size:22px; font-weight:700; color:#A81E1E;">${lr.failed}</div><div style="font-size:11.5px; color:var(--text-muted);">${t('rep.failedCarried')}</div></div>` : ''}
+            <div><div style="font-size:22px; font-weight:700;">${r.counts.installed}/${r.totalLocations}</div><div style="font-size:11.5px; color:var(--text-muted);">${t('rep.deployedTotal')}</div></div>
+          </div>
+          <button class="btn" onclick="dismissReportConfirmation(${r.idx})">${tf('rep.nextDay', {day: todayDay, n: todayBatch.length})}</button>`;
+      }
+      return `${installerActionChromeHtml(r, {showSchedule:true, showComment:true, showTimeline:true, timelineOpen:true, showAssignee:true})}
+        ${depWarningHtml(r)}
+        <label style="margin-bottom:6px;">${tf('rep.todaysBatch', {n: todayBatch.length})}</label>
+        <input type="text" class="today-batch-search" placeholder="${t('rep.searchLocations')}" style="width:100%; margin-bottom:8px; padding:6px 10px; font-size:12.5px;" oninput="filterTodayBatch(this)">
+        <div style="max-height:180px; overflow-y:auto; border:1px solid var(--line); border-radius:6px; padding:8px; margin-bottom:10px;">
+          ${todayBatch.map(loc=>`<label class="today-ok-row" data-loc="${String(loc).toLowerCase()}" style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; padding:6px 8px; border-radius:6px; background:var(--green-soft); cursor:pointer;">
+            <input type="checkbox" class="today-fail-check" data-batch="${r.idx}" data-scope="i" value="${escapeHtml(loc)}" checked style="width:auto;" onchange="onTodayOkToggle(this)">
+            ${escapeHtml(loc)} <span class="today-ok-badge mono" style="margin-left:auto; font-size:11px; font-weight:700; color:#0F7A38;">${t('rep.correct')}</span>
+          </label>`).join('')}
+        </div>
+        <textarea id="today-fail-reason-i-${r.idx}" placeholder="${t('rep.failureReasonUnchecked')}"></textarea>
+        <button class="btn" style="margin-top:8px;" onclick="reportBatchDayResult(${r.idx}, 'i')">${t('rep.saveResult')}</button>`;
+    }
+    return `${installerActionChromeHtml(r, {showSchedule:true, showComment:true, showTimeline:true, timelineOpen:true, showAssignee:true})}
+      ${depWarningHtml(r)}
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px 0;">${t('rep.assumeSuccess')}</p>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button class="btn ghost" onclick="installerMarkSingle(${r.idx}, 'installed')">${t('rep.confirmInstalled')}</button>
+        <button class="btn ghost" onclick="installerMarkSingle(${r.idx}, 'failed')">${t('rep.reportFailed')}</button>
+      </div>`;
+  }
+
+  function installerCompletedDetailHtml(r){
+    const failedCount = (r.failedLocations || []).length;
+    const corrBtn = `<button class="mini-btn" onclick="toggleInstallerCorrection(${r.idx})">${t('rep.reportCorrection')}</button>`;
+    const chrome = installerActionChromeHtml(r, {showSchedule:true, showComment:true, showTimeline:true, timelineOpen:true});
+    if(r.mode === 'batch'){
+      const doneBanner = reportedResults[r.idx] ? `
+        <div style="background:var(--green-soft); border:1px solid #BEE7C4; border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:12.5px;">
+          <strong style="color:#0F7A38;">${t('rep.resultSavedComplete')}</strong>
+          <div style="color:var(--text-muted); margin-top:2px;">${t('rep.allAccounted')}</div>
+        </div>` : '';
+      return `${chrome}
+        ${doneBanner}
+        <div style="margin-bottom:10px;">${corrBtn}</div>
+        ${failedCount ? `<div style="margin-bottom:8px; font-size:11.5px; color:#A81E1E;">⚠ ${tf('rep.toFinish', {list: (r.failedLocations||[]).map(f=>f.location).join(', ')})}</div>` : ''}
+        <div id="correction-form-${r.idx}" style="display:none; margin-top:4px;">
+          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">${t('rep.correctionHint')}</p>
+          <div class="grid-2">
+            <div class="field">
+              <label>${t('rep.targetCode')}</label>
+              <input type="text" id="correction-loc-${r.idx}" class="mono" list="correction-targets-${r.idx}" placeholder="${t('rep.targetCodePh')}">
+              <datalist id="correction-targets-${r.idx}">${(PROJECTS[r.projectKey] && PROJECTS[r.projectKey].locationsList ? PROJECTS[r.projectKey].locationsList.filter(t=>t.type==='Production').map(t=>`<option value="${(t.label||t.code).replace(/"/g,'&quot;')}"></option>`).join('') : '')}</datalist>
+            </div>
+            <div class="field">
+              <label>${t('rep.correctionReason')} <span style="color:#A81E1E;">*</span></label>
+              <input type="text" id="correction-reason-${r.idx}" placeholder="${t('rep.correctionReasonPh')}">
+            </div>
+          </div>
+          ${failedCount ? `<div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">${t('rep.currentlyFailed')}${(r.failedLocations||[]).map(f=>`<a href="#" onclick="event.preventDefault(); document.getElementById('correction-loc-${r.idx}').value='${(f.location||'').replace(/'/g,'')}';" style="color:var(--cyan); text-decoration:none; margin-right:8px;">${escapeHtml(f.location||'')}</a>`).join('')}</div>` : ''}
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn ghost" onclick="submitBatchCorrection(${r.idx}, 'installed')">${t('rep.changeToSuccessful')}</button>
+            <button class="btn ghost" onclick="submitBatchCorrection(${r.idx}, 'failed')">${t('rep.keepFailed')}</button>
+          </div>
+        </div>`;
+    }
+    return `${chrome}
+      <div style="margin-bottom:10px;">${corrBtn}</div>
+      <div id="correction-form-${r.idx}" style="display:none; margin-top:4px;">
+        <div class="field">
+          <label>${t('rep.correctionReason')} <span style="color:#A81E1E;">*</span></label>
+          <input type="text" id="correction-reason-${r.idx}" placeholder="${t('rep.correctionReasonPh')}">
+        </div>
+        ${r.status === 'installed'
+          ? `<button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'failed')">${t('rep.changeToFailed')}</button>`
+          : `<button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'installed')">${t('rep.changeToSuccessful')}</button>
+             <button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'failed')">${t('rep.keepFailed')}</button>`}
+      </div>`;
+  }
+
+  function renderInstallerStats(list){
+    const stats = document.getElementById('installer-stats');
+    if(!stats) return;
+    let total = list.length, pending = 0, installed = 0, issues = 0;
+    list.forEach(r=>{
+      if(r.mode === 'batch'){
+        if(r.counts && r.counts.scheduled === 0) installed += 1; else pending += 1;
+      } else {
+        if(r.status === 'scheduled') pending += 1;
+        else if(r.status === 'installed') installed += 1;
+        else issues += 1;
+      }
+    });
+    stats.innerHTML = `
+      <div class="stat"><div class="num mono">${total}</div><div class="lbl">${t('rep.total')}</div></div>
+      <div class="stat"><div class="num mono" style="color:var(--text-muted);">${pending}</div><div class="lbl">${t('rep.pending')}</div></div>
+      <div class="stat"><div class="num mono" style="color:var(--green);">${installed}</div><div class="lbl">${t('rep.installed')}</div></div>
+      <div class="stat"><div class="num mono" style="color:var(--red);">${issues}</div><div class="lbl">${t('rep.issues')}</div></div>
+    `;
   }
 
   function renderInstallerPanel(){
     const wrap = document.getElementById('installer-list');
     if(!wrap) return;
-    let all = installerScopedDeployments();
-    // A production deployment is only actionable by the installer once the client has
-    // approved it. Pending / commented / rejected prod schedules stay hidden here.
-    // Paused deployments are shown separately (read-only, with the pause reason).
+    const scoped = installerScopedDeployments();
+    populateInstallerFilterOptions(scoped);
+    let all = applyInstallerFilters(scoped);
+    renderInstallerStats(all);
     function needsApprovalGate(r){
-      // Any deployment carrying an unresolved client approval (production, or a
-      // test env when the project opted in) stays gated until approved.
       return r.clientApproval && r.clientApproval !== 'approved';
     }
     const isActive = r => (r.mode==='batch' && r.counts.scheduled>0) || (r.mode==='single' && r.status==='scheduled');
@@ -7002,261 +7759,62 @@
     const paused = all.filter(r => isActive(r) && r.paused);
     const completed = all.filter(r => (r.mode==='batch' && r.counts.scheduled===0) || (r.mode==='single' && r.status!=='scheduled'));
 
-    const f = installerPanelFilter;
-    // Reports and history (completed) only on their own tabs — not under "All".
-    const showReports = f === 'reports';
-    const showWaiting = f === 'all' || f === 'waiting';
-    const showActive = f === 'all' || f === 'active';
-    const showCompleted = f === 'completed';
+    const f = installerPanelStatuses;
+    const showWaiting = !!f.waiting;
+    const showActive = !!f.active;
+    const showCompleted = !!f.completed;
 
     let html = '';
 
-    // Filter tabs (tree-style groups) — keep the panel readable when there are
-    // many distributions by showing one group at a time.
-    const pill = (key, label, count)=>`<button class="mini-btn${f===key?' accent':''}" onclick="setInstallerFilter('${key}')" style="font-size:11.5px;">${label}${count!=null?` <span class="mono">(${count})</span>`:''}</button>`;
-    html += `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--line);">
-      ${pill('all', t('rep.filterAll'), null)}
-      ${pill('waiting', t('rep.filterWaiting'), waiting.length)}
-      ${pill('active', t('rep.filterActive'), active.length)}
-      ${pill('completed', t('rep.filterCompleted'), completed.length)}
-      ${pill('reports', t('rep.filterReports'), null)}
+    // Flat list like Deployments — no Project→App / section grouping headers.
+    const rows = [];
+    if(showWaiting) waiting.forEach(r => rows.push({r, kind:'waiting'}));
+    if(showActive){
+      paused.forEach(r => rows.push({r, kind:'paused'}));
+      active.forEach(r => rows.push({r, kind:'active'}));
+    }
+    if(showCompleted){
+      const NOW = new Date();
+      const completedDate = r => {
+        const iso = r.mode === 'batch' ? (getDateForDay(r, r.days) || r.historyStart || r.createdDate) : (r.date || r.createdDate);
+        return iso ? new Date(iso) : NOW;
+      };
+      const daysAgo = r => Math.floor((NOW - completedDate(r)) / 86400000);
+      const recentCompleted = completed.filter(r => daysAgo(r) <= 14);
+      const archiveCompleted = completed.filter(r => daysAgo(r) > 14);
+      recentCompleted.forEach(r => rows.push({r, kind:'completed'}));
+      if(archiveCompleted.length){
+        // Archive toggle row handled after the table.
+        rows._archive = archiveCompleted;
+      }
+    }
+
+    const csvSource = rows.slice();
+    if(installerArchiveOpen && rows._archive) rows._archive.forEach(r => csvSource.push({r, kind:'completed'}));
+    lastInstallerCsvRows = csvSource.map(({r}) => deploymentCsvRecord(r));
+
+    const headCols = [t('dep.thProject'), t('dep.thAppVer'), t('dep.thLocations'), t('dep.thEnv'), t('dep.thDate'), t('dep.thProgress'), t('dep.thApproval'), ''];
+    const emptyMsg = (!showWaiting && !showActive && !showCompleted)
+      ? t('filter.noneSelected')
+      : t(showCompleted && !showWaiting && !showActive ? 'rep.noCompleted14' : 'rep.noActive');
+    const bodyRows = rows.length
+      ? rows.map(({r, kind}) => installerTableRowHtml(r, kind)).join('')
+      : ((rows._archive && rows._archive.length) ? '' : `<tr><td colspan="${headCols.length}" style="color:var(--text-muted); font-size:13px; text-align:center; padding:16px;">${emptyMsg}</td></tr>`);
+    html += `<div style="overflow:auto;">
+      <table>
+        <thead><tr>${headCols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
     </div>`;
 
-    // Reports & history (collapsible): completed installations filtered by date
-    // and status, with CSV export. Read-only — no corrections here.
-    if(showReports) html += installerReportPanelHtml();
-
-    // Paused deployments — visible, clearly flagged, not actionable until resumed.
-    if(paused.length && showActive){
-      html += '<label style="margin-bottom:8px; display:block;">' + t('pause.badge') + '</label>';
-      html += paused.map(r=>{
-        const appsLabel = r.apps.map(a=>`${a.name} v${a.version}`).join(', ');
-        return `<div class="card" style="margin-bottom:14px; border-left:3px solid #C99A00;">
-          <div style="display:flex; align-items:center; gap:8px;"><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:#FDF1E1; color:#8A5A05;">⏸ ${t('pause.badge')}</span>
-          <strong style="font-size:13px;">${r.project.name} — ${appsLabel}</strong>${deployIdBadge(r)}</div>
-          <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">${t('dcard.reason')}: ${r.pauseReason ? '„'+r.pauseReason+'”' : '—'}</div>
-          <div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">${t('pause.resumedByRM')}</div>
-        </div>`;
-      }).join('');
-    }
-
-    // Waiting for client approval — informational, not actionable.
-    if(waiting.length && showWaiting){
-      html += '<label style="margin-bottom:8px; display:block;">' + t('dtl.awaiting') + '</label>';
-      html += waiting.map((r)=>{
-        const appsLabel = r.apps.map(a=>`${a.name} v${a.version}`).join(', ');
-        const stMap = {pending:t('rep.stPending'), commented:t('rep.stCommented'), rejected:t('rep.stRejected')};
-        // Concise "when distribution starts" info (day of week + short date).
-        let planHtml = '';
-        const shortDate = iso => fmtDate(iso);
-        if(r.mode === 'batch'){
-          const startIso = getDateForDay(r, 1);
-          const endIso = getDateForDay(r, r.days);
-          const dow = fmtDow(startIso);
-          planHtml = `<div style="font-size:12.5px; color:var(--ink); margin-top:6px;">${t('rep.distStart')}: <strong>${dow}, ${shortDate(startIso)}</strong> <span style="color:var(--text-muted);">· ${tf('rep.planMeta', {days: r.days, end: shortDate(endIso), n: r.totalLocations})}</span></div>`;
-        } else {
-          const dow = r.date ? fmtDow(r.date) : '';
-          planHtml = `<div style="font-size:12.5px; color:var(--ink); margin-top:6px;">${t('rep.startLabel')}: <strong>${dow}, ${r.date ? shortDate(r.date) : '—'}</strong>${r.time ? ' ' + tf('rep.atTime', {t: r.time}) : ''}</div>`;
-        }
-        const envClassW = r.env === 'Production' ? 'prod' : 'test';
-        return `<div class="card" style="margin-bottom:14px; border-left:3px solid var(--line);">
-          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--paper); color:var(--text-muted);">⧗ ${stMap[r.clientApproval]||r.clientApproval}</span>
-          <span class="env-tag ${envClassW}">${r.env}</span>
-          <strong style="font-size:13px;">${r.project.name} — ${appsLabel}</strong>${deployIdBadge(r)}${internalBadge(r)}</div>
-          ${planHtml}
-          ${installerNotesHtml(r)}
-          <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">${t('rep.appearAfterApproval')}</div>
-        </div>`;
-      }).join('');
-    }
-
-    if(showActive){
-    html += '<label style="margin-bottom:8px; display:block;">'+t('rep.toReport')+'</label>';
-    if(!active.length){
-      html += '<div class="card" style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">'+t('rep.noActive')+'</div>';
-    } else {
-      const renderActiveCard = (r)=>{
-        const appsLabel = r.apps.map(a=>`${a.name} v${a.version}`).join(', ');
-        const envClass = r.env === 'Production' ? 'prod' : 'test';
-        if(r.mode === 'batch'){
-          const todayDay = dayIndexForPosition(r, r.counts.installed);
-          const todayBatch = todaysPendingBatch(r);
-
-          // After saving, show a confirmation state instead of the batch form —
-          // the deployer must click "Next" to move to the next day. Nothing
-          // auto-advances, so it's always clear that the save registered.
-          if(reportedResults[r.idx]){
-            const lr = reportedResults[r.idx];
-            return `<div class="card" id="installer-card-${r.idx}" style="margin-bottom:14px; border:2px solid var(--green);">
-              <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-                <div style="width:32px; height:32px; border-radius:50%; background:var(--green); color:#fff; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;">✓</div>
-                <div>
-                  <strong style="font-size:14px;">${tf('rep.resultSavedDay', {day: lr.day})}</strong>
-                  <div style="font-size:12px; color:var(--text-muted);">${r.project.name} — ${appsLabel}${deployIdBadge(r)}</div>
-                </div>
-              </div>
-              <div style="display:flex; gap:20px; padding:12px; background:var(--paper); border-radius:8px; margin-bottom:12px;">
-                <div><div style="font-size:22px; font-weight:700; color:#0F7A38;">${lr.success}</div><div style="font-size:11.5px; color:var(--text-muted);">${t('rep.installedLc')}</div></div>
-                ${lr.failed ? `<div><div style="font-size:22px; font-weight:700; color:#A81E1E;">${lr.failed}</div><div style="font-size:11.5px; color:var(--text-muted);">${t('rep.failedCarried')}</div></div>` : ''}
-                <div><div style="font-size:22px; font-weight:700;">${r.counts.installed}/${r.totalLocations}</div><div style="font-size:11.5px; color:var(--text-muted);">${t('rep.deployedTotal')}</div></div>
-              </div>
-              <button class="btn" onclick="dismissReportConfirmation(${r.idx})">${tf('rep.nextDay', {day: todayDay, n: todayBatch.length})}</button>
-            </div>`;
-          }
-
-          return `<div class="card" id="installer-card-${r.idx}" style="margin-bottom:14px;">
-            <strong style="font-size:13px;">${r.project.name} — ${appsLabel}${deployIdBadge(r)}${internalBadge(r)}${clientApprovedBadge(r)}</strong>
-            <div style="font-size:11.5px; color:var(--text-muted); margin:4px 0 12px 0;"><span class="env-tag ${envClass}">${r.env}</span> · ${tf('rep.dayProgress', {day: todayDay, done: r.counts.installed, total: r.totalLocations})}</div>
-            ${depWarningHtml(r)}
-            ${installerNotesHtml(r)}
-            ${assigneeControlHtml(r)}
-            <div style="margin-bottom:12px;">
-              <button class="mini-btn" onclick="toggleFullSchedule(${r.idx})"><span id="full-sched-label-${r.idx}">${t('rep.showFullSchedule')}</span></button>
-              <button class="mini-btn" onclick="exportScheduleXls(${r.idx})">⬇ XLS</button>
-              <button class="mini-btn" onclick="exportSchedulePdf(${r.idx})">⬇ PDF</button>
-              <div id="full-sched-${r.idx}" style="display:none; margin-top:10px; max-height:240px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;"></div>
-            </div>
-            <label style="margin-bottom:6px;">${tf('rep.todaysBatch', {n: todayBatch.length})}</label>
-            <input type="text" class="today-batch-search" placeholder="${t('rep.searchLocations')}" style="width:100%; margin-bottom:8px; padding:6px 10px; font-size:12.5px;" oninput="filterTodayBatch(this)">
-            <div style="max-height:180px; overflow-y:auto; border:1px solid var(--line); border-radius:6px; padding:8px; margin-bottom:10px;">
-              ${todayBatch.map(loc=>`<label class="today-ok-row" data-loc="${loc.toLowerCase()}" style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; padding:6px 8px; border-radius:6px; background:var(--green-soft); cursor:pointer;">
-                <input type="checkbox" class="today-fail-check" data-batch="${r.idx}" data-scope="i" value="${loc}" checked style="width:auto;" onchange="onTodayOkToggle(this)">
-                ${loc} <span class="today-ok-badge mono" style="margin-left:auto; font-size:11px; font-weight:700; color:#0F7A38;">${t('rep.correct')}</span>
-              </label>`).join('')}
-            </div>
-            <textarea id="today-fail-reason-i-${r.idx}" placeholder="${t('rep.failureReasonUnchecked')}"></textarea>
-            <button class="btn" style="margin-top:8px;" onclick="reportBatchDayResult(${r.idx}, 'i')">${t('rep.saveResult')}</button>
-            ${installerTimelineHtml(r)}
-            <textarea id="new-comment-i-${r.idx}" style="margin-top:12px;" placeholder="${t('dcard.addCommentPh')}"></textarea>
-            <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'i'); renderInstallerPanel();">${t('dcard.saveComment')}</button>
-          </div>`;
-        } else {
-          return `<div class="card" id="installer-card-${r.idx}" style="margin-bottom:14px;">
-            <strong style="font-size:13px;">${r.project.name} — ${appsLabel}${deployIdBadge(r)}${internalBadge(r)}${clientApprovedBadge(r)}</strong>
-            <div style="font-size:11.5px; color:var(--text-muted); margin:4px 0 12px 0;"><span class="env-tag ${envClass}">${r.env}</span> · ${r.location} · ${fmtDate(r.date)} ${fmtTime(r.time)}</div>
-            ${depWarningHtml(r)}
-            ${installerNotesHtml(r)}
-            ${assigneeControlHtml(r)}
-            <div style="margin-bottom:12px;">
-              <button class="mini-btn" onclick="toggleFullSchedule(${r.idx})"><span id="full-sched-label-${r.idx}">${t('rep.showFullSchedule')}</span></button>
-              <button class="mini-btn" onclick="exportScheduleXls(${r.idx})">⬇ XLS</button>
-              <button class="mini-btn" onclick="exportSchedulePdf(${r.idx})">⬇ PDF</button>
-              <div id="full-sched-${r.idx}" style="display:none; margin-top:10px; max-height:240px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;"></div>
-            </div>
-            <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px 0;">${t('rep.assumeSuccess')}</p>
-            <div style="display:flex; gap:8px; margin-bottom:10px;">
-              <button class="btn ghost" onclick="installerMarkSingle(${r.idx}, 'installed')">${t('rep.confirmInstalled')}</button>
-              <button class="btn ghost" onclick="installerMarkSingle(${r.idx}, 'failed')">${t('rep.reportFailed')}</button>
-            </div>
-            ${installerTimelineHtml(r)}
-            <textarea id="new-comment-i-${r.idx}" placeholder="${t('dcard.addCommentPh')}"></textarea>
-            <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'i'); renderInstallerPanel();">${t('dcard.saveComment')}</button>
-          </div>`;
-        }
-      };
-      // Flat list — one card per deployment (no Project → Application headers).
-      html += active.map(renderActiveCard).join('');
-    }
-    } // showActive
-
-    // Split completed into recent (last 14 days) and archive (older).
-    const NOW = new Date();
-    const completedDate = r => {
-      const iso = r.mode === 'batch' ? (getDateForDay(r, r.days) || r.historyStart || r.createdDate) : (r.date || r.createdDate);
-      return iso ? new Date(iso) : NOW;
-    };
-    const daysAgo = r => Math.floor((NOW - completedDate(r)) / 86400000);
-    const recentCompleted = completed.filter(r => daysAgo(r) <= 14);
-    const archiveCompleted = completed.filter(r => daysAgo(r) > 14);
-
-    const renderCompletedCard = (r)=>{
-        const appsLabel = r.apps.map(a=>`${a.name} v${a.version}`).join(', ');
-        const envClass = r.env === 'Production' ? 'prod' : 'test';
-        const outcome = deploymentOutcome(r);
-        if(r.mode === 'batch'){
-          const doneBanner = reportedResults[r.idx] ? `
-            <div style="background:var(--green-soft); border:1px solid #BEE7C4; border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:12.5px;">
-              <strong style="color:#0F7A38;">${t('rep.resultSavedComplete')}</strong>
-              <div style="color:var(--text-muted); margin-top:2px;">${t('rep.allAccounted')}</div>
-            </div>` : '';
-          const failedCount = (r.failedLocations || []).length;
-          return `<div class="card" id="installer-card-${r.idx}" style="margin-bottom:10px; background:var(--paper); border-left:3px solid ${outcome.color};">
-            ${doneBanner}
-            <div class="toolbar">
-              <div>
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <strong style="font-size:13px;">${r.project.name} — ${appsLabel}${deployIdBadge(r)}${internalBadge(r)}</strong>
-                  <span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:${outcome.bg}; color:${outcome.color};">${outcome.icon} ${outcome.label}</span>
-                </div>
-                <div style="font-size:11.5px; color:var(--text-muted); margin-top:3px;"><span class="env-tag ${envClass}">${r.env}</span> · ${tf('rep.deployedCount', {done: r.counts.installed, total: r.totalLocations})}${failedCount ? ` · ${tf('rep.failedCount', {n: failedCount})}` : ''}${r.assignedTo ? ' · ' + tf('rep.doneBy', {who: r.assignedTo}) : ''}</div>
-              </div>
-              <button class="mini-btn" onclick="toggleInstallerCorrection(${r.idx})">${t('rep.reportCorrection')}</button>
-            </div>
-            ${failedCount ? `<div style="margin-top:8px; font-size:11.5px; color:#A81E1E;">⚠ ${tf('rep.toFinish', {list: (r.failedLocations||[]).map(f=>f.location).join(', ')})}</div>` : ''}
-            <div id="correction-form-${r.idx}" style="display:none; margin-top:10px;">
-              <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">${t('rep.correctionHint')}</p>
-              <div class="grid-2">
-                <div class="field">
-                  <label>${t('rep.targetCode')}</label>
-                  <input type="text" id="correction-loc-${r.idx}" class="mono" list="correction-targets-${r.idx}" placeholder="${t('rep.targetCodePh')}">
-                  <datalist id="correction-targets-${r.idx}">${(PROJECTS[r.projectKey] && PROJECTS[r.projectKey].locationsList ? PROJECTS[r.projectKey].locationsList.filter(t=>t.type==='Production').map(t=>`<option value="${(t.label||t.code).replace(/"/g,'&quot;')}"></option>`).join('') : '')}</datalist>
-                </div>
-                <div class="field">
-                  <label>${t('rep.correctionReason')} <span style="color:#A81E1E;">*</span></label>
-                  <input type="text" id="correction-reason-${r.idx}" placeholder="${t('rep.correctionReasonPh')}">
-                </div>
-              </div>
-              ${failedCount ? `<div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">${t('rep.currentlyFailed')}${(r.failedLocations||[]).map(f=>`<a href="#" onclick="event.preventDefault(); document.getElementById('correction-loc-${r.idx}').value='${(f.location||'').replace(/'/g,'')}';" style="color:var(--cyan); text-decoration:none; margin-right:8px;">${f.location}</a>`).join('')}</div>` : ''}
-              <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button class="btn ghost" onclick="submitBatchCorrection(${r.idx}, 'installed')">${t('rep.changeToSuccessful')}</button>
-                <button class="btn ghost" onclick="submitBatchCorrection(${r.idx}, 'failed')">${t('rep.keepFailed')}</button>
-              </div>
-            </div>
-            ${completedTimelineHtml(r)}
-          </div>`;
-        } else {
-          return `<div class="card" id="installer-card-${r.idx}" style="margin-bottom:10px; background:var(--paper); border-left:3px solid ${outcome.color};">
-            <div class="toolbar">
-              <div>
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <strong style="font-size:13px;">${r.project.name} — ${appsLabel}${deployIdBadge(r)}${internalBadge(r)}</strong>
-                  <span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:${outcome.bg}; color:${outcome.color};">${outcome.icon} ${outcome.label}</span>
-                </div>
-                <div style="font-size:11.5px; color:var(--text-muted); margin-top:3px;"><span class="env-tag ${envClass}">${r.env}</span> · ${r.location}${r.assignedTo ? ' · done by: ' + r.assignedTo : ''}</div>
-              </div>
-              <button class="mini-btn" onclick="toggleInstallerCorrection(${r.idx})">${t('rep.reportCorrection')}</button>
-            </div>
-            <div id="correction-form-${r.idx}" style="display:none; margin-top:10px;">
-              <div class="field">
-                <label>${t('rep.correctionReason')} <span style="color:#A81E1E;">*</span></label>
-                <input type="text" id="correction-reason-${r.idx}" placeholder="${t('rep.correctionReasonPh')}">
-              </div>
-              ${r.status === 'installed'
-                ? `<button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'failed')">${t('rep.changeToFailed')}</button>`
-                : `<button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'installed')">${t('rep.changeToSuccessful')}</button>
-                   <button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'failed')">${t('rep.keepFailed')}</button>`}
-            </div>
-            ${completedTimelineHtml(r)}
-          </div>`;
-        }
-    };
-
-    if(showCompleted){
-    html += '<label style="margin:20px 0 8px 0; display:block;">'+t('rep.completed14')+'</label>';
-    html += '<p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;">'+t('rep.completedNote')+'</p>';
-    if(!recentCompleted.length){
-      html += '<div class="card" style="color:var(--text-muted); font-size:13px;">'+t('rep.noCompleted14')+'</div>';
-    } else {
-      html += recentCompleted.map(renderCompletedCard).join('');
-    }
-    }
-
-    // Archive tab for older completed deployments.
-    if(archiveCompleted.length && showCompleted){
-      html += `<div style="margin-top:20px;">
-        <button class="mini-btn" onclick="toggleInstallerArchive()"><span id="installer-archive-label">${installerArchiveOpen ? 'Hide' : 'Show'} archived deployments (${archiveCompleted.length})</span></button>
+    if(rows._archive && rows._archive.length){
+      html += `<div style="margin-top:14px;">
+        <button class="mini-btn" onclick="toggleInstallerArchive()"><span id="installer-archive-label">${installerArchiveOpen ? t('rep.hideArchive') : t('rep.showArchive')} (${rows._archive.length})</span></button>
         <div id="installer-archive-box" style="display:${installerArchiveOpen ? 'block' : 'none'}; margin-top:10px;">
-          ${installerArchiveOpen ? archiveCompleted.map(renderCompletedCard).join('') : ''}
+          ${installerArchiveOpen ? `<div style="overflow:auto;"><table>
+            <thead><tr>${headCols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+            <tbody>${rows._archive.map(r => installerTableRowHtml(r, 'completed')).join('')}</tbody>
+          </table></div>` : ''}
         </div>
       </div>`;
     }
@@ -7817,8 +8375,8 @@
     const projectVal = document.getElementById('deploy-filter-project').value;
     const appVal = (document.getElementById('deploy-filter-app')||{}).value || 'all';
     const envVal = document.getElementById('deploy-filter-env').value;
-    const statusVal = document.getElementById('deploy-filter-status').value;
     const rangeVal = document.getElementById('deploy-filter-range').value;
+    refreshDeployStatusMsLabel();
 
     let rows = DEPLOYMENTS_DATA.map((d,i)=>Object.assign({idx:i}, d, {project:PROJECTS[d.projectKey]}));
     // Newest-added deployments (higher _seq) float to the top so a freshly created
@@ -7849,11 +8407,20 @@
     if(projectVal !== 'all') rows = rows.filter(r=> r.projectKey === projectVal);
     if(appVal !== 'all') rows = rows.filter(r=> (r.apps||[]).some(a=>a.name === appVal));
     if(envVal !== 'all') rows = rows.filter(r=> r.env === envVal);
-    if(statusVal !== 'all'){
-      rows = rows.filter(r=> r.mode === 'single'
-        ? r.status === statusVal
-        : (statusVal === 'installed' ? r.counts.scheduled === 0 : statusVal === 'scheduled' ? r.counts.scheduled > 0 : false));
+    // Multi-select status: default is all statuses (scoped by the 14-day range).
+    // Empty selection → no rows.
+    const statusSelected = Object.keys(deployStatusFilter).filter(k=> deployStatusFilter[k]);
+    if(!statusSelected.length){
+      rows = [];
+    } else {
+      rows = rows.filter(r=>{
+        const st = r.mode === 'batch'
+          ? (r.counts.scheduled === 0 ? 'installed' : 'scheduled')
+          : (r.status || 'scheduled');
+        return statusSelected.includes(st);
+      });
     }
+    lastDeploymentsCsvRows = rows.map(r => deploymentCsvRecord(r));
 
     // Project column always shown (client name sits under it in small type —
     // same pattern as app version under the application name). No separate
@@ -7907,7 +8474,7 @@
         </div>`;
 
       const commentForm = `
-        <div class="field" style="margin-bottom:16px;">
+        <div class="field" style="margin:0;">
           <label>${t('dcard.addComment')}</label>
           <textarea id="new-comment-w-${r.idx}" placeholder="${t('dcard.addCommentExamplePh')}"></textarea>
           <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'w')">${t('dcard.saveComment')}</button>
@@ -7982,37 +8549,45 @@
           </div>`;
       }
 
-      // Changelog text + changelog attachments only. Deployer-instruction files
-      // already appear in the blue "Instructions for the deployer" box above
-      // (installerNotesHtml) — don't list them again under the changelog.
-      const clAttsHtml = attachmentsHtml(r.attachments, r.attachment, r.attachmentId);
-      const changelogHtml = (r.changelog || clAttsHtml) ? `
-        <div class="field" style="margin-bottom:16px;">
-          <label style="margin-bottom:4px;">${t('sch.changelog')}${r.apps && r.apps.length ? ' — ' + r.apps.map(a=>a.name+' v'+a.version).join(', ') : ''}</label>
-          ${r.changelog ? `<div style="white-space:pre-line; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px; padding:10px 12px; line-height:1.6; font-size:12.5px;">${escapeHtml(r.changelog)}</div>` : ''}
-          ${clAttsHtml}
-        </div>` : '';
+      // Detail content (instructions / changelog / timeline / comment) opens
+      // one-at-a-time from the ID action bar so the expanded row stays compact.
+      // Timeline starts open — it's the primary context when expanding a row.
+      const instrBody = installerNotesBodyHtml(r);
+      const changelogBody = changelogBodyHtml(r);
+      const detailPanels = [
+        depDetailPanelHtml(r.idx, 'instr', instrBody),
+        depDetailPanelHtml(r.idx, 'changelog', changelogBody),
+        depDetailPanelHtml(r.idx, 'timeline', timelineHtml, true),
+        depDetailPanelHtml(r.idx, 'comment', commentForm)
+      ].join('');
 
       // Action buttons live in the same bar as the deployment ID, pushed to the right.
       const isActiveDep = (r.mode === 'batch' && r.counts.scheduled > 0) || (r.mode === 'single' && r.status === 'scheduled');
       const isBatch = r.mode === 'batch';
       const barBtns = [];
       const canExportSchedule = !!(r.apps && r.apps.length);
+      if(instrBody) barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-instr-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'instr')">📋 ${t('rep.instrShort')}</button>`);
+      if(changelogBody) barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-changelog-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'changelog')">📄 ${t('rep.changelogShort')}</button>`);
+      barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-timeline-${r.idx}" aria-pressed="true" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'timeline')">🕓 ${t('dcard.timeline')}</button>`);
+      barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-comment-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'comment')">💬 ${t('dcard.commentShort')}</button>`);
       if(canExportSchedule) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportScheduleXls(${r.idx})">${t('dtl.schedXls')}</button>`);
       if(canExportSchedule) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">${t('dtl.schedPdf')}</button>`);
       if(isActiveDep) barBtns.push(`<button class="mini-btn icon-btn accent" onclick="event.stopPropagation(); generateEndUserMessage(${r.idx})"><span class="mb-ic">✉</span> ${t('dcard.genMessage')}</button>`);
       if(isActiveDep && !r.paused) barBtns.push(`<button class="mini-btn icon-btn warn" onclick="event.stopPropagation(); pauseDeployment(${r.idx})"><span class="mb-ic">⏸</span> ${t('dcard.pause')}</button>`);
+      if(isActiveDep && r.paused) barBtns.push(`<button class="mini-btn icon-btn ok" onclick="event.stopPropagation(); resumeDeployment(${r.idx})"><span class="mb-ic">▶</span> ${t('dcard.resume')}</button>`);
       if(isActiveDep && canEditDeployments()) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); openEditDeployment(${r.idx})">✏️ ${t('editdep.btn')}</button>`);
       if(r.draft && canEditDeployments()) barBtns.push(`<button class="mini-btn icon-btn accent" onclick="event.stopPropagation(); notifyClientOfDraft(${r.idx})"><span class="mb-ic">📣</span> ${t('draft.notifyBtn')}</button>`);
-      if(!r.draft && r.clientApproval && r.clientApproval !== 'approved' && canEditDeployments()) barBtns.push(`<button class="mini-btn icon-btn" onclick="event.stopPropagation(); sendApprovalReminder(${r.idx})"><span class="mb-ic">🔔</span> ${t('draft.remindBtn')}</button>`);
+      if(!r.draft && r.clientApproval && r.clientApproval !== 'approved' && canEditDeployments()){
+        const remindChannels = notifyChannelsLabel('approval', r.projectKey, false);
+        barBtns.push(`<button class="mini-btn icon-btn" title="${escapeHtml(remindChannels)}" onclick="event.stopPropagation(); sendApprovalReminder(${r.idx})"><span class="mb-ic">🔔</span> ${t('draft.remindBtn')}</button>`);
+      }
       if(isLoggedInAsAdmin()) barBtns.push(`<button class="mini-btn mini-btn-danger" onclick="event.stopPropagation(); deleteDeployment(${r.idx})">${t('cli.delete')}</button>`);
       const idHtml = `
-        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; padding:10px 12px; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px;">
-          <span style="font-size:11.5px; color:var(--text-muted);">${t('dcard.idLabel')}</span>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px;">
           <span class="mono" style="font-size:13px; font-weight:700;">${r.id || '—'}</span>
           <button class="mini-btn" title="${t('dcard.copyId')}" style="padding:4px 7px; display:inline-flex; align-items:center;" onclick="event.stopPropagation(); copyDeploymentId('${r.id||''}')">${COPY_ICON}</button>
           ${r.draft ? `<span class="mono" style="font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; background:#FDF1E1; color:#8A5A05;">📝 ${t('draft.badge')}</span>` : ''}
-          ${barBtns.length ? `<div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">${barBtns.join('')}</div>` : ''}
+          ${barBtns.length ? `<div style="margin-left:auto; display:flex; gap:6px; flex-wrap:wrap;">${barBtns.join('')}</div>` : ''}
         </div>`;
 
       const depHtml = (r.dependsOn && r.dependsOn.length) ? (function(){
@@ -8028,29 +8603,23 @@
         return `<div class="field" style="margin-bottom:16px;"><label style="margin-bottom:4px;">${t('dcard.dependencies')}</label><div style="border:1px solid var(--line); border-radius:8px; padding:8px 12px;">${items}</div></div>`;
       })() : '';
 
-      // Paused state — informational box with the resume control (active-state
-      // controls now live in the ID bar above).
+      // Paused state — reason stays below; resume control lives on the ID bar.
       let pauseHtml = '';
       if(r.paused){
         pauseHtml = `<div style="margin-bottom:16px; padding:10px 12px; background:#FDF1E1; border:1px solid #F0D9A8; border-radius:8px;">
           <div style="font-size:12.5px; color:#8A5A05; font-weight:600;">⏸ ${t('dcard.paused')}</div>
           <div style="font-size:12px; color:var(--text-muted); margin-top:3px;">${t('dcard.reason')}: ${r.pauseReason ? '„'+r.pauseReason+'”' : '—'}</div>
           ${r.pausedBy ? `<div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">${t('dcard.pausedBy')}: <strong>${r.pausedBy}</strong>${r.pausedAt ? ' · ' + r.pausedAt : ''}</div>` : ''}
-          <button class="mini-btn icon-btn ok" style="margin-top:8px;" onclick="event.stopPropagation(); resumeDeployment(${r.idx})"><span class="mb-ic">▶</span> ${t('dcard.resume')}</button>
         </div>`;
       }
 
       return `<tr><td colspan="${totalCols}" style="background:var(--paper);" onclick="event.stopPropagation();">
         <div style="padding:14px;">
           ${idHtml}
+          ${detailPanels}
           ${r.assignedTo ? `<div style="font-size:12px; color:var(--text-muted); margin:-4px 0 12px 0;">Assigned to / done by: <strong>${r.assignedTo}</strong></div>` : ''}
           ${pauseHtml}
-          ${installerNotesHtml(r)}
           ${depHtml}
-          ${changelogHtml}
-          <label style="margin-bottom:8px;">${t('dcard.timeline')}</label>
-          ${timelineHtml}
-          ${commentForm}
           ${r.paused ? '' : actionHtml}
         </div>
       </td></tr>`;
@@ -8855,6 +9424,8 @@
   renderClientPortal(currentClientScenario);
   populateDeployClientFilter();
   onDeployClientChange();
+  try { refreshDeployStatusMsLabel(); } catch(e){}
+  try { refreshInstallerStatusMsLabel(); } catch(e){}
   renderUsersTable();
   renderClientsTable();
   populateClientSelect();
