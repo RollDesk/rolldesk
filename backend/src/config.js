@@ -77,6 +77,8 @@ export const config = {
     user: process.env.SMTP_USER || '',
     pass: process.env.SMTP_PASS || '',
     from: process.env.SMTP_FROM || 'RollDesk <no-reply@rolldesk.local>',
+    // Set SMTP_TLS_REJECT_UNAUTHORIZED=false to accept self-signed certificates.
+    tlsRejectUnauthorized: String(process.env.SMTP_TLS_REJECT_UNAUTHORIZED ?? 'true') !== 'false',
   },
   // Microsoft Graph / Teams integration for threaded channel notifications
   // (thread = deployment id). All values come from environment variables only —
