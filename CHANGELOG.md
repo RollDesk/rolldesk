@@ -4,6 +4,33 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-07-29
+
+UX review pass over **Projects** and **Deployments**, with the resulting patterns applied to the rest of the app.
+
+### Added
+- **Inline form validation.** Saving a form with problems no longer shows one toast at a time: every issue is listed in an error banner at the top of the form and the offending fields are marked in red with a message underneath. Applied to *New project*, *New deployment*, the schedule step, and the Users, Clients and SSO forms.
+- **Header counters on a project.** Applications, production and non-production targets are shown as tiles — the same full-width summary row as the deployments list.
+- **Client access card on a project.** Shows which Client-role people can see the project's deployments, with granting access done there or in Users.
+- **A header on the deployer panel** (title, one-line purpose, summary tiles), matching the deployments list.
+
+### Changed
+- **Projects is a switcher, not a table.** One pill per project on a single line (client name shown only when there is more than one client), archived projects separated by a hairline, "New project" at the end of the strip. The selected project's configuration renders below.
+- **Applications and targets are edited in a dialog** instead of an inline form that pushed the page around.
+- **One consistent button order and shape.** Cancel on the left, the confirming action on the right — in dialogs, in form footers and in table rows. Add buttons all use the same ＋ glyph, and section headers all use the same title/description/actions layout.
+- **One datetime field** wherever a moment in time is entered — editing a deployment row and the test/production start of a schedule (date and time were two controls that could drift apart). Cancel/Save in the standard order, and a pencil on *Edit*.
+- **Framed, sticky table headers** on every list (deployments, deployer panel, client portal, users, clients, audit) — the header stays visible while scrolling and the corners are rounded.
+- **Unified alerts.** Notes, warnings and confirmations share one alert component with a consistent icon and colour per kind.
+- **"Mark the rest" moved into the progress cell** of a batch deployment as an icon, next to the number it acts on.
+- **Shorter approval pill** (full wording in the tooltip) so it no longer stretches the column.
+- **"Filter by" labels** on the filter rows, so it is clear what the controls do.
+
+### Fixed
+- **A zero counter no longer shouts.** The *Failed* tile is grey at zero and only turns red once there is something to see.
+- **Editing a deployment row no longer scrolls the table away.** The scroll position is preserved across the re-render.
+- **`index.html` is always revalidated** (`Cache-Control: no-cache`), so a version bump actually reaches the browser instead of a cached page requesting the previous version's translation bundles.
+- **Missing and duplicated UI strings.** Client access, the *New project* step headings and the hidden-history note are translated; the doubled ＋ signs and the doubled ℹ icon in the test-only note are gone. The "new target field", "archive user" and "reply to the client comment" dialogs are localized too (they were hard-coded English).
+
 ## [0.12.0] - 2026-07-25
 
 ### Added

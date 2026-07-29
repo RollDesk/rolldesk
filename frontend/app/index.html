@@ -24,6 +24,12 @@
     --amber-soft: #FDF1E1;
     --red: #DC2626;
     --red-soft: #FCE9E9;
+    /* Alerts get their own blue so an informational banner is never confused with
+       an interactive element (radio pills, selected states use --cyan). */
+    --info: #2563EB;
+    --info-soft: #EAF1FE;
+    --info-line: #C3D8FB;
+    --info-text: #1D4FBF;
     --radius: 8px;
   }
   *{box-sizing:border-box;}
@@ -161,8 +167,14 @@
     .grid-2{grid-template-columns:1fr;}
   }
   label{display:block; font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:5px;}
-  select,input[type=text],input[type=date],input[type=number],textarea{
+  /* One control geometry for every form field — text, e-mail, number, date, time,
+     datetime and select share the same border, padding and height so a row of
+     mixed inputs (and the buttons beside them) lines up. */
+  select,
+  input[type=text],input[type=email],input[type=password],input[type=date],
+  input[type=time],input[type=datetime-local],input[type=number],textarea{
     width:100%;
+    height:36px;
     border:1px solid var(--line);
     border-radius:6px;
     padding:8px 10px;
@@ -170,9 +182,28 @@
     font-family:'Space Grotesk', sans-serif;
     background:#fff;
     color:var(--text);
+    line-height:1.3;
   }
-  textarea{resize:vertical; min-height:64px;}
+  /* A native select renders its caret inside the padding box, so text can sit
+     right against it — reserve room on the right. */
+  select{padding-right:28px;}
+  textarea{resize:vertical; height:auto; min-height:64px;}
+  input[type=checkbox],input[type=radio],input[type=file]{height:auto;}
+  input[type=file]{width:100%; padding:7px 10px; font-size:12.5px;}
+  /* ---- Three field widths ----
+     Full-bleed inputs are hard to scan, so a field is sized to the data it holds:
+     `small` for counts/codes, `medium` for names/e-mails, `long` for URLs and
+     free text. They cap at 100% so a narrow viewport still fits. */
+  .w-small{width:110px; max-width:100%;}
+  .w-medium{width:260px; max-width:100%;}
+  .w-long{width:440px; max-width:100%;}
   .field{margin-bottom:14px;}
+  /* Invalid field: red outline plus a message underneath, set by markFieldError(). */
+  .field-error input,.field-error select,.field-error textarea,
+  input.field-error,select.field-error,textarea.field-error{
+    border-color:var(--red); background:#FFFBFB;
+  }
+  .field-error-msg{display:block; font-size:11.5px; font-weight:600; color:#A81E1E; margin-top:4px;}
   .radio-row{display:flex; gap:10px;}
   .radio-pill{
     flex:1;
@@ -224,6 +255,8 @@
   .btn.ghost{background:transparent; color:var(--text); border:1px solid var(--line);}
   .btn.ghost:hover{background:var(--line-soft);}
   .btn:disabled{opacity:0.4; cursor:not-allowed;}
+  /* Primary action inside a table row — same weight, sized to the row. */
+  .btn.small{padding:5px 12px; font-size:12px; border-radius:6px;}
 
   /* manifest strip - signature element */
   .manifest{
@@ -260,6 +293,50 @@
     margin:0 auto;
   }
 
+  /* ---- Alerts ----
+     Four meanings, four colours, one icon each: info (blue), success (green),
+     warning (amber), error (red). Anything that informs the user uses this — never
+     the interactive cyan, so a banner can't be mistaken for a control. */
+  .alert{
+    display:flex; align-items:flex-start; gap:10px;
+    border:1px solid; border-radius:10px;
+    padding:11px 14px;
+    font-size:12.5px; line-height:1.5;
+    margin-bottom:16px;
+  }
+  .alert .alert-ic{flex-shrink:0; font-size:14px; line-height:1.4;}
+  .alert .alert-body{flex:1; min-width:0;}
+  .alert .alert-title{font-weight:700; margin-bottom:3px;}
+  .alert ul{margin:6px 0 0 0; padding-left:18px;}
+  .alert li{margin-bottom:2px;}
+  .alert-info{background:var(--info-soft); border-color:var(--info-line); color:var(--info-text);}
+  .alert-success{background:var(--green-soft); border-color:#BFE6CE; color:#0F7A38;}
+  .alert-warning{background:var(--amber-soft); border-color:#F0D9A8; color:#8A5A05;}
+  .alert-error{background:var(--red-soft); border-color:#F0C4C4; color:#A81E1E;}
+
+  /* ---- Section headers with actions ----
+     A section whose title is followed by a primary action puts that action in the
+     top-right, level with the heading (never below the fields). */
+  .section-head{display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:14px; flex-wrap:wrap;}
+  .section-head > div:first-child{min-width:0;}
+  .section-head .section-actions{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-left:auto;}
+  /* Step headings inside a multi-step form: bigger and dark, so the steps read as
+     separate chunks of work rather than one long scroll. */
+  h2.step-title{font-size:18px; font-weight:700; color:var(--ink); margin:0 0 4px 0; display:flex; align-items:center; gap:10px;}
+  h2.step-title .step-num{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:24px; height:24px; border-radius:50%;
+    background:var(--ink); color:#fff;
+    font-family:'IBM Plex Mono', monospace; font-size:12px; font-weight:700;
+    flex-shrink:0;
+  }
+  h2.step-title:not(:first-child){margin-top:26px;}
+  h3.sub-title{font-size:13.5px; font-weight:700; color:var(--ink); margin:0 0 10px 0;}
+  .step-hint{font-size:12.5px; color:var(--text-muted); margin:0 0 18px 0;}
+  /* Card footer: save/submit actions always sit right, separated from the fields. */
+  .card-actions{display:flex; justify-content:flex-end; gap:8px; align-items:center; margin-top:16px; padding-top:14px; border-top:1px solid var(--line-soft); flex-wrap:wrap;}
+  .card-actions.no-rule{border-top:none; padding-top:0;}
+
   table{width:100%; border-collapse:collapse; font-size:13px;}
   th{
     text-align:left;
@@ -270,6 +347,15 @@
     padding:9px 12px;
     border-bottom:1px solid var(--line);
     font-weight:600;
+  }
+  /* Sticky column headers for every table inside a scrolling pane (.table-scroll):
+     scrolling a long target/day list keeps the column names in view. */
+  .table-scroll{overflow-y:auto; overflow-x:auto; border:1px solid var(--line); border-radius:8px;}
+  .table-scroll thead th{
+    position:sticky; top:0; z-index:3;
+    background:var(--paper-raised);
+    box-shadow:inset 0 -1px 0 var(--line);
+    border-bottom:none;
   }
   td{padding:11px 12px; border-bottom:1px solid var(--line-soft);}
   tr:last-child td{border-bottom:none;}
@@ -290,6 +376,8 @@
   .pill.installed::before{background:var(--green);}
   .pill.error{background:var(--red-soft); color:#A81E1E;}
   .pill.error::before{background:var(--red);}
+  /* One environment style: the text already says which environment it is, so a
+     second, darker treatment for production adds nothing. Grey outline for all. */
   .env-tag{
     font-family:'IBM Plex Mono', monospace;
     font-size:11px;
@@ -298,8 +386,6 @@
     border:1px solid var(--line);
     color:var(--text-muted);
   }
-  .env-tag.test{border-color:#CBD5E1;}
-  .env-tag.prod{border-color:var(--ink); color:var(--ink); font-weight:600;}
   .mini-btn{
     border:1px solid var(--line);
     background:#fff;
@@ -313,6 +399,12 @@
   }
   .mini-btn:hover{border-color:var(--ink);}
   .mini-btn:disabled{opacity:0.35; cursor:default;}
+  /* Icon-only action (e.g. "mark the rest") — square, so it doesn't stretch a
+     table row the way a labelled button does. The label lives in the tooltip. */
+  .icon-only-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:28px; height:28px; padding:0; flex-shrink:0;
+  }
   .mini-btn[aria-pressed="true"]{border-color:var(--cyan); background:var(--cyan-soft); color:#0A6E7A;}
   .mini-btn.mini-btn-danger{color:#A81E1E; border-color:#F0C4C4;}
   .mini-btn.mini-btn-danger:hover{border-color:#A81E1E; background:var(--red-soft);}
@@ -335,6 +427,7 @@
 
   .toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
   .filters{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .filter-label{font-size:11px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-muted); margin-right:2px;}
   .filters select{width:auto; padding:6px 10px; font-size:12.5px;}
   /* Multi-select status filter — same footprint as a regular <select>. */
   .ms-filter{position:relative; display:inline-block; vertical-align:middle;}
@@ -371,6 +464,99 @@
   }
   .stat .num{font-family:'IBM Plex Mono', monospace; font-size:22px; font-weight:600;}
   .stat .lbl{font-size:11.5px; color:var(--text-muted); margin-top:2px;}
+  /* An icon next to the number gives the tile a second, faster read than the
+     caption alone. */
+  .stat .stat-top{display:flex; align-items:center; gap:8px;}
+  .stat .stat-ic{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:28px; height:28px; border-radius:8px; flex-shrink:0;
+    background:var(--line-soft); color:var(--text-muted); font-size:14px;
+  }
+  .stat .stat-ic.ic-total{background:#E9EDF1; color:var(--ink);}
+  .stat .stat-ic.ic-pending{background:#EEF0F3; color:var(--text-muted);}
+  .stat .stat-ic.ic-done{background:var(--green-soft); color:#0F7A38;}
+  .stat .stat-ic.ic-issue{background:var(--red-soft); color:#A81E1E;}
+  /* A counter at zero carries no signal, so it must not shout: an empty
+     "Failed" tile stays grey and only turns red once there is something to see. */
+  .stat .stat-ic.ic-zero{background:#EEF0F3; color:var(--text-faint);}
+  .stat .num.num-zero{color:var(--text-faint);}
+  /* Read-only facts under a title (targets / apps counts in the Projects header).
+     Deliberately the same tile as the Deployments stat row — icon and number on
+     one line, caption underneath — just narrower, so the two screens read alike. */
+  .fact-row{display:flex; gap:8px; margin:0 0 18px 0;}
+  .fact{
+    background:var(--paper-raised); border:1px solid var(--line);
+    border-radius:10px; padding:10px 14px; min-width:132px;
+    /* Spread across the full width like the Deployments tiles instead of
+       bunching up on the left. */
+    flex:1;
+  }
+  .fact .fact-top{display:flex; align-items:center; gap:8px;}
+  .fact .fact-ic{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:26px; height:26px; border-radius:8px; flex-shrink:0;
+    background:var(--line-soft); color:var(--text-muted); font-size:13px;
+  }
+  .fact .fact-num{font-family:'IBM Plex Mono', monospace; font-size:19px; font-weight:600; line-height:1.1;}
+  .fact .fact-lbl{font-size:11.5px; color:var(--text-muted); margin-top:3px;}
+
+  /* ---- Project switcher (Projects view) ----
+     Picking a project is a navigation act, not a row in a data table. One pill per
+     project on a single line: two-line tabs that repeated the client name above
+     every project made the strip look ragged, and the client is already spelled
+     out in the header below. The client only appears on the pill when there is
+     more than one client to tell apart, and then inline. */
+  .proj-tabs{
+    display:flex; gap:6px; align-items:center; flex-wrap:wrap;
+    margin-bottom:18px;
+  }
+  .proj-tab{
+    display:inline-flex; align-items:center; gap:7px;
+    border:1px solid var(--line); background:var(--paper-raised);
+    padding:7px 15px; border-radius:999px;
+    font-family:'Space Grotesk', sans-serif; font-size:13px; font-weight:600;
+    color:var(--text-muted); cursor:pointer; white-space:nowrap;
+    transition:background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .proj-tab:hover{color:var(--ink); border-color:var(--text-faint);}
+  .proj-tab.active{background:var(--ink); border-color:var(--ink); color:#fff;}
+  .proj-tab .tab-client{font-size:11px; font-weight:500; color:var(--text-faint);}
+  .proj-tab.active .tab-client{color:rgba(255,255,255,0.62);}
+  .proj-tab .tab-sep{color:var(--line); font-weight:400;}
+  .proj-tab.active .tab-sep{color:rgba(255,255,255,0.35);}
+  /* Archived projects stay reachable but must not compete with live ones. */
+  .proj-tab.archived{border-style:dashed; color:var(--text-faint);}
+  .proj-tab.archived.active{background:var(--text-muted); border-color:var(--text-muted); color:#fff;}
+  /* Adding a project is not one of the projects — a dashed outline says "new slot". */
+  .proj-tab-add{border-style:dashed; border-color:var(--cyan); color:var(--cyan); background:transparent;}
+  .proj-tab-add:hover{border-color:#0A6E7A; color:#0A6E7A; background:var(--paper-raised);}
+  .proj-tabs-sep{width:1px; align-self:stretch; min-height:26px; background:var(--line); margin:0 4px;}
+
+  /* ---- Modal shell ----
+     Small add/edit interactions (an application, a target, a column) open here
+     instead of pushing the page around, so the list behind stays visible. */
+  .modal-overlay{
+    display:none; position:fixed; inset:0; z-index:1002;
+    background:rgba(20,24,30,0.45);
+    align-items:center; justify-content:center;
+    padding:24px;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal-box{
+    background:var(--paper-raised);
+    border:1px solid var(--line); border-radius:12px;
+    width:min(560px, 100%); max-height:88vh;
+    display:flex; flex-direction:column;
+    box-shadow:0 24px 60px rgba(12,16,22,0.30);
+  }
+  .modal-box.wide{width:min(760px, 100%);}
+  .modal-head{padding:18px 20px 12px 20px; border-bottom:1px solid var(--line-soft);}
+  .modal-head .modal-title{font-size:15px; font-weight:700; color:var(--ink);}
+  .modal-head .modal-sub{font-size:12px; color:var(--text-muted); margin-top:3px;}
+  .modal-body{padding:18px 20px; overflow-y:auto; flex:1;}
+  .modal-body .field:last-child{margin-bottom:0;}
+  /* Cancel left, Save right — the same order in every dialog in the app. */
+  .modal-foot{display:flex; justify-content:flex-end; gap:8px; padding:14px 20px 18px 20px; border-top:1px solid var(--line-soft); flex-wrap:wrap;}
 
   .client-banner{
     background:linear-gradient(135deg, var(--ink) 0%, #263041 100%);
@@ -402,8 +588,6 @@
   .drag-handle{cursor:grab; color:var(--text-faint); margin-right:6px;}
   .project-link{color:var(--text); font-weight:600; text-decoration:none; cursor:pointer;}
   .project-link:hover{color:var(--cyan); text-decoration:underline;}
-  .project-row-active{background:var(--cyan-soft);}
-  .project-row:hover td{background:var(--line-soft);}
   .app-row:hover td{background:var(--line-soft);}
   /* Shared "hover a list row" standard across the app: deployments list, client
      portal rows (.deploy-row), the users table, and the deployer-panel cards. */
@@ -651,112 +835,107 @@
 
   <!-- ============ VIEW: PROJECTS DIRECTORY ============ -->
   <div class="view active" id="view-projects">
-    <div class="toolbar">
-      <div></div>
-      <button class="btn" onclick="goToView('newproject')" data-i18n="proj.newBtn">+ New project</button>
-    </div>
-    <div class="card">
-      <table>
-        <thead><tr><th data-i18n="proj.thClient">Client</th><th data-i18n="proj.thProject">Project</th><th data-i18n="proj.thProd">Targets: production</th><th data-i18n="proj.thNonProd">Targets: non-production</th><th data-i18n="proj.thApps">Applications</th><th></th></tr></thead>
-        <tbody id="projects-table"></tbody>
-      </table>
+    <!-- Picking a project is navigation, not a table row: one tab per project,
+         the active one underlined, its configuration rendered below. -->
+    <div class="proj-tabs" id="projects-tabs"></div>
+
+    <div id="projects-empty" style="display:none;">
+      <div class="card" style="text-align:center; padding:38px 20px;">
+        <div style="font-size:28px; margin-bottom:8px;">📁</div>
+        <h2 class="section-title" data-i18n="proj.emptyTitle">No projects yet</h2>
+        <p class="section-desc" style="margin-bottom:18px;" data-i18n="proj.emptyDesc">Create your first project to plan deployments for a client.</p>
+        <button class="btn" style="margin:0 auto;" onclick="goToView('newproject')"><span aria-hidden="true">＋</span> <span data-i18n="proj.newBtn">New project</span></button>
+      </div>
     </div>
 
-    <div id="project-apps-panel" style="display:none; margin-top:20px;">
+    <div id="project-apps-panel" style="display:none;">
+      <!-- Project header: name, client, and the key counts as boxes — the same
+           at-a-glance pattern as the Deployments summary row. Destructive and
+           primary actions sit top-right, level with the title. -->
+      <div class="section-head" style="margin-bottom:14px;">
+        <div>
+          <h2 class="step-title" id="project-head-name" style="margin-bottom:0;">—</h2>
+        </div>
+        <div class="section-actions" id="project-head-actions"></div>
+      </div>
+      <!-- The counts get their own full-width row, exactly like the Deployments
+           summary: cramming them under the title squeezed them into the left half. -->
+      <div class="fact-row" id="project-head-facts"></div>
+
       <div class="card" style="margin-bottom:18px;">
-        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="proj.settings">Project settings</h2>
+        <h3 class="sub-title" data-i18n="proj.settings">Project settings</h3>
         <p class="section-desc" data-i18n="proj.settingsDesc">Display name of the project. The technical key stays unchanged.</p>
         <div class="field" style="margin-bottom:0;">
           <label data-i18n="np.name">Project name</label>
-          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-            <input type="text" id="project-name-input" data-i18n-ph="np.namePh" placeholder="e.g. LogiHub" style="flex:1; min-width:200px;">
-            <button class="btn" onclick="saveProjectName()" data-i18n="proj.saveName">Save name</button>
+          <input type="text" id="project-name-input" class="w-medium" data-i18n-ph="np.namePh" placeholder="e.g. LogiHub">
+        </div>
+        <div class="card-actions">
+          <button class="btn" onclick="saveProjectName()" data-i18n="common.save">Save</button>
+        </div>
+      </div>
+
+      <!-- Who on the client side can see this project. Access is granted here (or in
+           Users) rather than while creating the project. -->
+      <div class="card" style="margin-bottom:18px;">
+        <div class="section-head" style="margin-bottom:12px;">
+          <div>
+            <h3 class="sub-title" style="margin-bottom:2px;" data-i18n="proj.access">Client-side access</h3>
+            <p class="section-desc" style="margin-bottom:0;" data-i18n="proj.accessDesc">People with the Client role who can see this project's deployments.</p>
+          </div>
+          <div class="section-actions">
+            <button class="btn" onclick="openProjectAccessModal()"><span aria-hidden="true">＋</span> <span data-i18n="proj.addPerson">Add person</span></button>
           </div>
         </div>
-      </div>
-      <div class="toolbar">
-        <div>
-          <h2 class="section-title" style="margin-bottom:2px;" id="apps-title" data-i18n="proj.apps">Applications</h2>
-          <p class="section-desc" style="margin-bottom:0;" id="apps-desc">No project selected. Create a project to get started.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th data-i18n="usr.thName">Name</th><th data-i18n="usr.thEmail">E-mail</th><th></th></tr></thead>
+            <tbody id="project-access-table"></tbody>
+          </table>
         </div>
-        <button class="btn" onclick="toggleAppForm()" data-i18n="proj.addApp">+ Add application</button>
       </div>
 
-      <div id="app-form-home">
-        <div class="card" id="app-form" style="display:none; margin-bottom:18px;">
-          <div class="toolbar" style="margin-bottom:14px;">
-            <strong id="app-form-title" style="font-size:13px;" data-i18n="proj.newApp">New application</strong>
-            <button class="mini-btn" onclick="closeAppForm()" data-i18n="proj.cancel">Cancel</button>
+      <div class="card" style="margin-bottom:18px;">
+        <div class="section-head" style="margin-bottom:12px;">
+          <div>
+            <h3 class="sub-title" style="margin-bottom:2px;" id="apps-title" data-i18n="proj.apps">Applications</h3>
+            <p class="section-desc" style="margin-bottom:0;" id="apps-desc">No project selected. Create a project to get started.</p>
           </div>
-
-          <div class="grid-2">
-            <div class="field">
-              <label data-i18n="proj.appName">Application name</label>
-              <input type="text" id="app-name" placeholder="e.g. fintrack-notifications">
-            </div>
-            <div class="field">
-              <label data-i18n="proj.repoLink">Repository link</label>
-              <input type="text" id="app-repo" class="mono" data-i18n-ph="proj.repoLinkPh" placeholder="https://...">
-            </div>
-          </div>
-          <button class="btn" id="app-form-submit" onclick="addApplication()" data-i18n="proj.addAppBtn">Add application</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <table>
-          <thead><tr><th data-i18n="proj.thApp">Application</th><th data-i18n="proj.thLastDeploy">Last deployment</th><th></th></tr></thead>
-          <tbody id="apps-table"></tbody>
-        </table>
-      </div>
-
-      <div class="toolbar" style="margin-top:24px;">
-        <div>
-          <h2 class="section-title" style="margin-bottom:2px;" id="locations-title" data-i18n="proj.targets">Deployment targets</h2>
-          <p class="section-desc" style="margin-bottom:0;" id="locations-desc" data-i18n="proj.targetsDesc">Deployment targets (locations, servers, tenants, regions…) of this project.</p>
-        </div>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <button class="mini-btn" onclick="addCustomLocationField()" data-i18n="proj.addField">+ Add field</button>
-          <span style="display:inline-flex; align-items:center; gap:4px;">
-            <button class="mini-btn" onclick="triggerLocationCsvImport()" data-i18n="proj.importCsv">⬆ Import CSV</button>
-            <span class="info-ic" data-i18n-tip="proj.importCsvNote">i</span>
-          </span>
-          <input type="file" id="location-csv-input" accept=".csv,text/csv" style="display:none;" onchange="importLocationsCsv(this)">
-          <button class="btn" onclick="toggleLocationForm()" data-i18n="proj.addTarget">+ Add target</button>
-        </div>
-      </div>
-
-      <div class="card" id="location-form" style="display:none; margin-bottom:18px;">
-        <div class="toolbar" style="margin-bottom:14px;">
-          <strong style="font-size:13px;" data-i18n="proj.newTarget">New deployment target</strong>
-          <button class="mini-btn" onclick="toggleLocationForm()" data-i18n="proj.cancel">Cancel</button>
-        </div>
-        <div class="grid-2">
-          <div class="field">
-            <label data-i18n="proj.targetName">Target name</label>
-            <input type="text" id="location-code-input" placeholder="e.g. Central branch, server app-prod-03, region eu-west">
-          </div>
-          <div class="field">
-            <label data-i18n="proj.type">Type</label>
-            <select id="location-type-input">
-              <option value="Production" data-i18n="proj.prod">Production</option>
-              <option value="Non-production" data-i18n="proj.nonprod">Non-production</option>
-            </select>
+          <div class="section-actions">
+            <button class="btn" onclick="openAppModal()"><span aria-hidden="true">＋</span> <span data-i18n="proj.addApp">Add application</span></button>
           </div>
         </div>
-        <div id="location-custom-fields"></div>
-        <button class="btn" onclick="addLocation()" data-i18n="proj.addTargetBtn">Add target</button>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th data-i18n="proj.thApp">Application</th><th data-i18n="proj.thLastDeploy">Last deployment</th><th></th></tr></thead>
+            <tbody id="apps-table"></tbody>
+          </table>
+        </div>
       </div>
 
-      <div class="card">
+      <div class="card" style="margin-bottom:18px;">
+        <div class="section-head" style="margin-bottom:12px;">
+          <div>
+            <h3 class="sub-title" style="margin-bottom:2px;" id="locations-title" data-i18n="proj.targets">Deployment targets</h3>
+            <p class="section-desc" style="margin-bottom:0;" id="locations-desc" data-i18n="proj.targetsDesc">Deployment targets (locations, servers, tenants, regions…) of this project.</p>
+          </div>
+          <div class="section-actions">
+            <button class="mini-btn" onclick="addCustomLocationField()"><span aria-hidden="true">＋</span> <span data-i18n="proj.addField">Add field</span></button>
+            <span style="display:inline-flex; align-items:center; gap:4px;">
+              <button class="mini-btn" onclick="triggerLocationCsvImport()" data-i18n="proj.importCsv">⬆ Import CSV</button>
+              <span class="info-ic" data-i18n-tip="proj.importCsvNote">i</span>
+            </span>
+            <input type="file" id="location-csv-input" accept=".csv,text/csv" style="display:none;" onchange="importLocationsCsv(this)">
+            <button class="btn" onclick="openLocationModal()"><span aria-hidden="true">＋</span> <span data-i18n="proj.addTarget">Add target</span></button>
+          </div>
+        </div>
         <div class="toolbar">
           <strong style="font-size:13px;"><span data-i18n="proj.targetList">Target list</span> (<span id="locations-count">0</span>)</strong>
           <div style="display:flex; gap:8px; align-items:center;">
             <button class="mini-btn mini-btn-danger" id="locations-delete-selected" style="display:none;" onclick="deleteSelectedLocations()"><span data-i18n="proj.deleteSelected">Delete selected</span> (<span id="locations-selected-count">0</span>)</button>
-            <input type="text" id="locations-search" data-i18n-ph="proj.searchTargets" placeholder="Search targets..." style="width:180px; padding:6px 10px; font-size:12.5px;" oninput="renderLocationsTable()">
+            <input type="text" id="locations-search" class="w-medium" data-i18n-ph="proj.searchTargets" placeholder="Search targets..." oninput="renderLocationsTable()">
           </div>
         </div>
-        <div style="max-height:340px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; margin-top:10px;">
+        <div class="table-scroll" style="max-height:340px; margin-top:10px;">
           <table>
             <thead id="locations-table-head"></thead>
             <tbody id="locations-table"></tbody>
@@ -764,18 +943,18 @@
         </div>
       </div>
 
-      <div class="card" style="margin-top:20px;">
-        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="proj.defaults">Deployment defaults</h2>
+      <div class="card" style="margin-bottom:18px;">
+        <h3 class="sub-title" data-i18n="proj.defaults">Configure deployment defaults</h3>
         <p class="section-desc" data-i18n="proj.defaultsDesc">Default schedule used when the release manager plans a deployment for this project.</p>
-        <div class="grid-2">
+        <div style="display:flex; gap:16px; flex-wrap:wrap;">
           <div class="field">
             <label data-i18n="proj.defaultDays">Standard number of working days</label>
-            <input type="number" id="project-default-days" min="1" value="5" class="mono" style="width:100%;">
-            <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;" data-i18n="proj.defaultDaysNote">How multi-target deployments are split across working days by default.</p>
+            <input type="number" id="project-default-days" min="1" value="5" class="mono w-small">
+            <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0; max-width:320px;" data-i18n="proj.defaultDaysNote">How multi-target deployments are split across working days by default.</p>
           </div>
           <div class="field">
             <label style="display:flex; align-items:center;"><span data-i18n="proj.defaultTime">Deployment start time</span><span class="info-ic" data-i18n-tip="proj.defaultTimeNote">i</span></label>
-            <input type="time" id="project-default-time" value="20:00" class="mono" style="width:100%;">
+            <input type="time" id="project-default-time" value="20:00" class="mono w-small">
           </div>
         </div>
         <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400; margin:4px 0 12px 0;">
@@ -784,89 +963,118 @@
         <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400; margin:4px 0 12px 0;">
           <input type="checkbox" id="project-test-approval" style="width:auto;"> <span data-i18n="proj.testApproval">Test environment also requires client approval</span><span class="info-ic" data-i18n-tip="proj.testApprovalNote">i</span>
         </label>
-        <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400; margin:4px 0 12px 0;">
+        <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400; margin:4px 0 0 0;">
           <input type="checkbox" id="project-client-sees-admin-info" style="width:auto;"> <span data-i18n="proj.clientSeesAdminInfo">Share administrator information with the client</span><span class="info-ic" data-i18n-tip="proj.clientSeesAdminInfoNote">i</span>
         </label>
-        <button class="btn" onclick="saveProjectDefaults()" data-i18n="proj.saveDefaults">Save defaults</button>
+        <div class="card-actions">
+          <button class="btn" onclick="saveProjectDefaults()" data-i18n="common.save">Save</button>
+        </div>
       </div>
 
-      <div class="card" style="margin-top:20px;">
-        <h2 class="section-title" style="margin-bottom:12px; display:flex; align-items:center;"><span data-i18n="proj.postDeploy">Post-deployment notifications</span><span class="info-ic" data-i18n-tip="proj.postDeployDesc">i</span></h2>
+      <div class="card">
+        <h3 class="sub-title" style="display:flex; align-items:center;"><span data-i18n="proj.postDeploy">Configure post-deployment notifications</span><span class="info-ic" data-i18n-tip="proj.postDeployDesc">i</span></h3>
         <div class="field">
           <label data-i18n="proj.postDeployEmail">E-mail address to notify after installation</label>
-          <div style="display:flex; gap:8px;">
-            <input type="email" id="project-postdeploy-email" data-i18n-ph="proj.postDeployEmailPh" placeholder="e.g. maintenance-core@example.com" style="flex:1;">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <input type="email" id="project-postdeploy-email" class="w-medium" data-i18n-ph="proj.postDeployEmailPh" placeholder="e.g. maintenance-core@example.com">
             <button class="mini-btn" type="button" onclick="testProjectPostDeploy('email')" data-i18n="proj.sendTest">Send test</button>
           </div>
         </div>
         <div class="field">
           <label data-i18n="proj.postDeployWebhook">Webhook (Teams channel) to notify after installation</label>
-          <div style="display:flex; gap:8px;">
-            <input type="text" id="project-postdeploy-webhook" class="mono" data-i18n-ph="proj.postDeployWebhookPh" placeholder="https://... (webhook for the „Core — maintenance” channel)" style="flex:1;">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <input type="text" id="project-postdeploy-webhook" class="mono w-long" data-i18n-ph="proj.postDeployWebhookPh" placeholder="https://... (webhook for the „Core — maintenance” channel)">
             <button class="mini-btn" type="button" onclick="testProjectPostDeploy('teams')" data-i18n="proj.sendTest">Send test</button>
           </div>
         </div>
-        <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400; margin-bottom:12px;">
+        <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400;">
           <input type="checkbox" id="project-postdeploy-enabled" style="width:auto;"> <span data-i18n="proj.postDeployEnable">Enable notification after a production deployment is completed</span>
         </label>
-        <button class="btn" onclick="saveProjectPostDeploy()" data-i18n="proj.savePostDeploy">Save project notification</button>
+        <div class="card-actions">
+          <button class="btn" onclick="saveProjectPostDeploy()" data-i18n="common.save">Save</button>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- ============ VIEW: NEW PROJECT ============ -->
   <div class="view" id="view-newproject">
-    <h2 class="section-title" data-i18n="title.newproject">New project</h2>
-    <p class="section-desc" data-i18n="desc.newproject">The deployment schedule for this project will be adjusted automatically to the number of locations — you set it once, here.</p>
+    <!-- Two explicit, numbered steps so the amount of work ahead is visible at a
+         glance, and the primary action sits top-right level with the title. -->
+    <div class="section-head" style="margin-bottom:6px;">
+      <div>
+        <h2 class="section-title" style="margin-bottom:4px;" data-i18n="title.newproject">New project</h2>
+        <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.newproject">The deployment schedule for this project will be adjusted automatically to the number of locations — you set it once, here.</p>
+      </div>
+      <div class="section-actions">
+        <button class="btn" id="np-create-btn" onclick="createProject()" disabled><span aria-hidden="true">✓</span> <span data-i18n="np.create">Create project</span></button>
+      </div>
+    </div>
+    <p class="step-hint" data-i18n="np.stepsHint">Two steps: who the project is for, and what gets deployed.</p>
 
+    <div id="np-errors" style="display:none; margin-bottom:16px;"></div>
+
+    <!-- Step 1 — main information -->
+    <h2 class="step-title"><span class="step-num">1</span><span data-i18n="np.step1">Project main information</span></h2>
     <div class="grid-2" style="align-items:start;">
       <div class="card">
+        <h3 class="sub-title" data-i18n="np.step1a">Name the project and pick its client</h3>
         <div class="field">
           <label data-i18n="np.name">Project name</label>
-          <input type="text" id="np-name" data-i18n-ph="np.namePh" placeholder="e.g. LogiHub">
+          <input type="text" id="np-name" class="w-medium" oninput="refreshNewProjectReady()" data-i18n-ph="np.namePh" placeholder="e.g. LogiHub">
         </div>
         <div class="field">
           <label data-i18n="np.client">Client</label>
-          <select id="np-client-select" onchange="toggleNewClientInput()"></select>
-          <input type="text" id="np-client-new" data-i18n-ph="np.clientNewPh" placeholder="New client name" style="display:none; margin-top:8px;">
+          <select id="np-client-select" class="w-medium" onchange="toggleNewClientInput()"></select>
+          <input type="text" id="np-client-new" class="w-medium" oninput="refreshNewProjectReady()" data-i18n-ph="np.clientNewPh" placeholder="New client name" style="display:none; margin-top:8px;">
           <div id="np-client-new-webhook" style="display:none; margin-top:8px;">
             <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 6px 0;" data-i18n="np.newClientWebhookNote">A new client requires a notification webhook — deployment events for its projects are sent there.</p>
-            <div style="display:flex; gap:8px;">
-              <input type="text" id="np-client-webhook-name" data-i18n-ph="np.webhookNamePh" placeholder="Webhook name (e.g. ACME — Teams)" style="width:220px;">
-              <input type="text" id="np-client-webhook-url" class="mono" data-i18n-ph="np.webhookUrlPh" placeholder="https://... (webhook URL)" style="flex:1;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <input type="text" id="np-client-webhook-name" class="w-medium" data-i18n-ph="np.webhookNamePh" placeholder="Webhook name (e.g. ACME — Teams)">
+              <input type="text" id="np-client-webhook-url" class="mono w-long" data-i18n-ph="np.webhookUrlPh" placeholder="https://... (webhook URL)">
             </div>
           </div>
         </div>
+      </div>
 
-        <div class="field">
-          <label style="display:flex; align-items:center;"><span data-i18n="np.people">Client-side people with access to this project</span><span class="info-ic" data-i18n-tip="np.peopleNote">i</span></label>
-          <div id="np-people">
-            <div class="person-row" style="display:flex; gap:8px; margin-bottom:8px;">
-              <input type="text" class="np-person-name" data-i18n-ph="np.personNamePh" placeholder="Full name" style="flex:1;">
-              <input type="text" class="np-person-email mono" data-i18n-ph="np.personEmailPh" placeholder="e-mail" style="flex:1;">
-              <button class="mini-btn" onclick="removePersonRow(this)" style="display:none;" data-i18n="np.remove">Remove</button>
-            </div>
-          </div>
-          <button class="mini-btn" onclick="addPersonRow()" data-i18n="np.addPerson">+ Add person</button>
+      <div class="card">
+        <h3 class="sub-title" data-i18n="np.step1b">Decide what the client can see</h3>
+        <!-- Client-side people are NOT collected here: access is granted later, in
+             user management or on the project's own access card, once the project
+             exists. Creating a project should not require knowing the names yet. -->
+        <div class="alert alert-info" style="margin-bottom:14px;">
+          <span class="alert-ic" aria-hidden="true">ℹ</span>
+          <div class="alert-body"><span data-i18n="np.peopleLater">You will grant client-side people access after the project is created — in Users or on the project's access card.</span></div>
         </div>
+        <div class="field" style="margin-bottom:0;">
+          <label data-i18n="np.clientVisibility">Client visibility</label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:400;"><input type="checkbox" id="np-client-visible" checked style="width:auto;"> <span data-i18n="np.clientVisibleLabel">The client sees the deployment schedule</span></label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:400; margin-top:8px;"><input type="checkbox" id="np-client-sees-admin-info" style="width:auto;"> <span data-i18n="np.clientSeesAdminInfoLabel">Share administrator information with the client</span><span class="info-ic" data-i18n-tip="proj.clientSeesAdminInfoNote">i</span></label>
+        </div>
+      </div>
+    </div>
 
+    <!-- Step 2 — what actually gets deployed, and where -->
+    <h2 class="step-title"><span class="step-num">2</span><span data-i18n="np.step2">Project specification</span></h2>
+    <div class="grid-2" style="align-items:start;">
+      <div class="card">
+        <h3 class="sub-title" data-i18n="np.step2a">Add deployment locations</h3>
         <div class="field">
           <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px; color:var(--text);">
             <input type="checkbox" id="np-multi-toggle" onchange="toggleMultiLocation()" style="width:auto;">
             <span data-i18n="np.multiLabel">This is a special case — the project has multiple deployment locations (e.g. a network of client branches)</span>
           </label>
         </div>
-
         <div class="field">
           <label id="np-loc-label" data-i18n="np.locLabel">Deployment location</label>
           <div id="np-locations">
             <div class="loc-row" style="display:flex; gap:8px; margin-bottom:8px;">
-              <input type="text" class="np-loc-input" value="Main office" style="flex:1;">
+              <input type="text" class="np-loc-input w-medium" value="Main office">
               <button class="mini-btn" onclick="removeLocRow(this)" style="display:none;" data-i18n="np.remove">Remove</button>
             </div>
           </div>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <button class="mini-btn" id="np-add-loc-btn" onclick="addLocRow()" style="display:none;" data-i18n="np.addLocation">+ Add location</button>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button class="mini-btn" id="np-add-loc-btn" onclick="addLocRow()" style="display:none;"><span aria-hidden="true">＋</span> <span data-i18n="np.addLocation">Add location</span></button>
             <span style="display:inline-flex; align-items:center; gap:4px;">
               <button class="mini-btn" id="np-import-loc-btn" onclick="triggerNpLocationCsvImport()" data-i18n="proj.importCsv">⬆ Import CSV</button>
               <span class="info-ic" data-i18n-tip="proj.importCsvNote">i</span>
@@ -874,84 +1082,100 @@
             <input type="file" id="np-location-csv-input" accept=".csv,text/csv" style="display:none;" onchange="importNpLocationsCsv(this)">
           </div>
         </div>
-
-        <div class="field">
+        <div class="field" style="margin-bottom:0;">
           <label style="display:flex; align-items:center;"><span data-i18n="np.testEnvs">Project test environments</span><span class="info-ic" data-i18n-tip="np.testEnvsNote">i</span></label>
           <div id="np-testenvs">
             <div class="loc-row" style="display:flex; gap:8px; margin-bottom:8px;">
-              <input type="text" class="np-env-input" value="Test" style="flex:1;">
+              <input type="text" class="np-env-input w-medium" value="Test">
               <button class="mini-btn" onclick="removeEnvRow(this)" style="display:none;" data-i18n="np.remove">Remove</button>
             </div>
           </div>
-          <button class="mini-btn" onclick="addEnvRow()" data-i18n="np.addTestEnv">+ Add test environment</button>
+          <button class="mini-btn" onclick="addEnvRow()"><span aria-hidden="true">＋</span> <span data-i18n="np.addTestEnv">Add test environment</span></button>
         </div>
+      </div>
 
+      <div class="card">
+        <h3 class="sub-title" data-i18n="np.step2b">Add the applications to deploy</h3>
         <div class="field">
           <label data-i18n="np.apps">Project applications</label>
           <div id="np-apps">
             <div class="loc-row" style="display:flex; gap:8px; margin-bottom:8px;">
-              <input type="text" class="np-app-input" value="portal-web" style="flex:1;">
+              <input type="text" class="np-app-input w-medium" value="portal-web">
               <button class="mini-btn" onclick="removeAppRow(this)" data-i18n="np.remove">Remove</button>
             </div>
             <div class="loc-row" style="display:flex; gap:8px; margin-bottom:8px;">
-              <input type="text" class="np-app-input" value="service-b" style="flex:1;">
+              <input type="text" class="np-app-input w-medium" value="service-b">
               <button class="mini-btn" onclick="removeAppRow(this)" data-i18n="np.remove">Remove</button>
             </div>
           </div>
-          <button class="mini-btn" onclick="addAppRow()" data-i18n="np.addApp">+ Add application</button>
+          <button class="mini-btn" onclick="addAppRow()"><span aria-hidden="true">＋</span> <span data-i18n="np.addApp">Add application</span></button>
           <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="np.appsNote">You can also add applications later, in the Applications tab — there you will set the repository and deployment path for each one.</p>
         </div>
-
-        <div class="field">
+        <div class="field" style="margin-bottom:0;">
           <label data-i18n="np.defaults">Default schedule parameters</label>
-          <div class="grid-2">
+          <div style="display:flex; gap:16px; flex-wrap:wrap;">
             <div>
               <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px;" data-i18n="np.days">Standard number of working days</label>
-              <input type="number" id="np-default-days" min="1" value="5" class="mono" style="width:100%;">
-              <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0;" data-i18n="np.daysNote">Default schedule split for multi-target deployments.</p>
+              <input type="number" id="np-default-days" min="1" value="5" class="mono w-small">
+              <p style="font-size:11px; color:var(--text-faint); margin:4px 0 0 0; max-width:260px;" data-i18n="np.daysNote">Default schedule split for multi-target deployments.</p>
             </div>
             <div>
               <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px; display:flex; align-items:center;"><span data-i18n="np.startTime">Default start time</span><span class="info-ic" data-i18n-tip="np.startTimeNote">i</span></label>
-              <input type="time" id="np-default-time" value="20:00" class="mono" style="width:100%;">
+              <input type="time" id="np-default-time" value="20:00" class="mono w-small">
             </div>
           </div>
         </div>
-
-        <div class="field">
-          <label data-i18n="np.clientVisibility">Client visibility</label>
-          <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:400;"><input type="checkbox" id="np-client-visible" checked style="width:auto;"> <span data-i18n="np.clientVisibleLabel">The client sees the deployment schedule</span></label>
-          <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:400; margin-top:8px;"><input type="checkbox" id="np-client-sees-admin-info" style="width:auto;"> <span data-i18n="np.clientSeesAdminInfoLabel">Share administrator information with the client</span><span class="info-ic" data-i18n-tip="proj.clientSeesAdminInfoNote">i</span></label>
-        </div>
-
-        <button class="btn" onclick="createProject()" data-i18n="np.create">Create project</button>
       </div>
+    </div>
 
-      <div class="card">
-        <label style="margin-bottom:10px;" data-i18n="np.modeLabel">Resulting schedule mode</label>
-        <div id="np-mode-box" style="background:var(--cyan-soft); border:1px solid #BEE7EB; border-radius:10px; padding:16px; margin-bottom:14px;">
-          <div class="mono" style="font-size:12px; color:#0A6E7A; margin-bottom:4px;" data-i18n="np.modeAuto">MODE SELECTED AUTOMATICALLY</div>
-          <div id="np-mode-text" style="font-size:15px; font-weight:600; color:#0A6E7A;" data-i18n="np.modeOne">One date for everything</div>
-          <div id="np-mode-sub" style="font-size:12.5px; color:#0A6E7A; margin-top:4px;" data-i18n="np.modeOneSub">1 location — this is the standard case. The whole project deploys on a single day.</div>
+    <div class="card">
+      <h3 class="sub-title" data-i18n="np.modeLabel">Resulting schedule mode</h3>
+      <div id="np-mode-box" class="alert alert-info" style="margin-bottom:14px;">
+        <span class="alert-ic" aria-hidden="true">ℹ</span>
+        <div class="alert-body">
+          <div class="alert-title" id="np-mode-text" data-i18n="np.modeOne">One date for everything</div>
+          <div id="np-mode-sub" data-i18n="np.modeOneSub">1 location — this is the standard case. The whole project deploys on a single day.</div>
         </div>
-        <p style="font-size:12.5px; color:var(--text-muted); line-height:1.5;" data-i18n-html="np.rule">
-          Rule: <strong>1 location</strong> (default) → one shared deployment date.<br>
-          <strong>Multiple locations</strong> (special case) → the deployment is spread proportionally across working days once the release manager plans a specific release.
-        </p>
       </div>
+      <p style="font-size:12.5px; color:var(--text-muted); line-height:1.5; margin:0;" data-i18n-html="np.rule">
+        Rule: <strong>1 location</strong> (default) → one shared deployment date.<br>
+        <strong>Multiple locations</strong> (special case) → the deployment is spread proportionally across working days once the release manager plans a specific release.
+      </p>
     </div>
   </div>
 
   <!-- ============ VIEW: SCHEDULE GENERATOR ============ -->
   <div class="view" id="view-schedule">
     <a href="#" onclick="goToView('deployments'); return false;" style="font-size:12.5px; color:var(--text-muted); text-decoration:none; display:inline-block; margin-bottom:10px;" data-i18n="sch.back">← Back to deployments</a>
-    <h2 class="section-title" data-i18n="title.schedule">New deployment</h2>
-    <p class="section-desc" data-i18n="desc.schedule">Choose a version and how it's spread over time. The system will calculate the split into working days automatically.</p>
+    <!-- Approving is the outcome of this screen, so it is the primary action and it
+         sits top-right level with the title. Generating a schedule is a separate,
+         repeatable step further down — generating is not approving. -->
+    <div class="section-head">
+      <div>
+        <h2 class="section-title" style="margin-bottom:4px;" data-i18n="title.schedule">New deployment</h2>
+        <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.schedule">Choose a version and how it's spread over time. The system will calculate the split into working days automatically.</p>
+      </div>
+      <div class="section-actions">
+        <button class="btn" id="schedule-approve-btn" onclick="confirmSchedule()" disabled><span aria-hidden="true">✓</span> <span data-i18n="sch.approveSchedule">Approve schedule</span></button>
+      </div>
+    </div>
+
+    <!-- The informational banner belongs at the top, under the heading, in the
+         alert blue — never the cyan used by clickable pills. -->
+    <div class="alert alert-info" id="schedule-approval-notice" style="display:none;">
+      <span class="alert-ic" aria-hidden="true">✉</span>
+      <div class="alert-body">
+        <span data-i18n="sch.approvalNoticeShort">After you approve, the client automatically gets an e-mail asking them to approve the schedule.</span>
+        <span class="info-ic" data-i18n-tip="sch.approvalNoticeTip">i</span>
+      </div>
+    </div>
+    <div id="schedule-errors" style="display:none; margin-bottom:16px;"></div>
 
     <div class="grid-2" style="align-items:start;">
       <div class="card">
         <div class="field">
           <label data-i18n="sch.project">Project</label>
-          <select id="schedule-project-select" class="mono" onchange="switchProject(this.value)"></select>
+          <select id="schedule-project-select" class="mono w-long" onchange="switchProject(this.value)"></select>
         </div>
         <div class="field">
           <label style="display:flex; align-items:center;"><span data-i18n="sch.appsVersions">Applications and versions included in this deployment</span><span class="info-ic" data-i18n-tip="sch.appsVersionsNote">i</span></label>
@@ -975,7 +1199,7 @@
         </div>
         <div class="field">
           <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.deps">Dependencies — must be deployed earlier (optional)</span><span class="info-ic" data-i18n-tip="sch.depsNote">i</span></label>
-          <div id="schedule-deps-list" style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto;"></div>
+          <div id="schedule-deps-list" style="display:flex; flex-direction:column; gap:6px;"></div>
         </div>
         <div class="field">
           <label data-i18n="sch.path">Deployment path — set for this specific deployment</label>
@@ -997,23 +1221,23 @@
         </div>
         <div class="field" id="schedule-rollout-fields">
           <label data-i18n="sch.modeField">Schedule mode (defined when the project was created)</label>
-          <div id="schedule-mode-badge" style="background:var(--cyan-soft); border:1px solid #BEE7EB; border-radius:8px; padding:10px 12px; font-size:13px; color:#0A6E7A; font-weight:600;">
-            Spread across working days — the project has 400 locations
+          <div class="alert alert-info" style="margin-bottom:0;">
+            <span class="alert-ic" aria-hidden="true">&#8505;</span>
+            <div class="alert-body"><span class="alert-title" id="schedule-mode-badge">Spread across working days — the project has 400 locations</span></div>
           </div>
         </div>
-        <div class="card" id="schedule-test-only-note" style="background:var(--paper); display:none; margin-bottom:14px;">
-          <div style="font-size:12.5px; color:var(--text-muted); line-height:1.5;" data-i18n="sch.testOnlyNote">
-            ℹ️ A test environment is a single instance — one installation to the selected test environment(s) is enough, with no spreading across multiple locations and days. The split across locations applies to production only.
-          </div>
+        <div class="alert alert-info" id="schedule-test-only-note" style="display:none;">
+          <span class="alert-ic" aria-hidden="true">&#8505;</span>
+          <div class="alert-body"><span data-i18n="sch.testOnlyNote">A test environment is a single instance — one installation to the selected test environment(s) is enough, with no spreading across multiple locations and days. The split across locations applies to production only.</span></div>
         </div>
         <div class="grid-2" id="schedule-rollout-fields-2">
           <div class="field">
             <label data-i18n="sch.locsCovered">Number of locations covered</label>
-            <input type="number" id="loc-count" value="400" class="mono" disabled style="background:var(--paper); color:var(--text-muted);">
+            <input type="number" id="loc-count" value="400" class="mono w-small" disabled style="background:var(--paper); color:var(--text-muted);">
           </div>
           <div class="field">
             <label data-i18n="sch.workingDays">Number of working days</label>
-            <input type="number" id="day-count" value="10" class="mono">
+            <input type="number" id="day-count" value="10" class="mono w-small">
           </div>
         </div>
 
@@ -1023,7 +1247,7 @@
             <button class="mini-btn" onclick="buildDayBreakdown()" data-i18n="sch.spreadDays">Spread across days</button>
           </div>
           <div id="constraint-field-wrap" style="margin:0 0 10px 0;"></div>
-          <div style="max-height:260px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;">
+          <div class="table-scroll" style="max-height:260px;">
             <table>
               <thead><tr>
                 <th data-i18n="sch.thDay">Day</th>
@@ -1037,30 +1261,26 @@
           </div>
         </div>
 
-        <div class="grid-2" id="schedule-test-date-fields">
+        <!-- A start is one moment in time: one control instead of a date and a
+             time field that can drift apart. -->
+        <div id="schedule-test-date-fields">
           <div class="field">
-            <label data-i18n="sch.startTestDate">Start (test) — date</label>
-            <input type="date" id="date-test" value="2026-07-13">
-          </div>
-          <div class="field">
-            <label data-i18n="sch.time">Time</label>
-            <input type="time" id="time-test" value="20:00" class="mono">
+            <label data-i18n="sch.startTest">Start (test)</label>
+            <input type="datetime-local" id="dt-test" class="mono w-medium" value="2026-07-13T20:00">
           </div>
         </div>
-        <div class="grid-2" id="schedule-prod-date-fields">
+        <div id="schedule-prod-date-fields">
           <div class="field">
-            <label data-i18n="sch.startProdDate">Start (production) — date</label>
-            <input type="date" id="date-prod" value="2026-07-20">
-          </div>
-          <div class="field">
-            <label data-i18n="sch.time">Time</label>
-            <input type="time" id="time-prod" value="22:00" class="mono">
+            <label data-i18n="sch.startProd">Start (production)</label>
+            <input type="datetime-local" id="dt-prod" class="mono w-medium" value="2026-07-20T22:00">
           </div>
         </div>
-        <button class="btn" id="schedule-generate-btn" onclick="generateManifest()">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-          <span data-i18n="sch.generate">Generate schedule</span>
-        </button>
+        <div class="card-actions">
+          <button class="btn" id="schedule-generate-btn" onclick="generateManifest()">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            <span data-i18n="sch.generate">Generate schedule</span>
+          </button>
+        </div>
       </div>
 
       <div>
@@ -1074,9 +1294,9 @@
         <div class="card">
           <div class="toolbar">
             <strong style="font-size:13px; display:inline-flex; align-items:center;"><span data-i18n="sch.locAssign">Location assignment (preview)</span><span class="info-ic" data-i18n-tip="sch.locAssignNote">i</span></strong>
-            <input type="text" id="manifest-search" data-i18n-ph="sch.searchLocs" placeholder="Search locations..." style="width:180px; padding:6px 10px; font-size:12.5px;" oninput="filterManifestTable()">
+            <input type="text" id="manifest-search" class="w-medium" data-i18n-ph="sch.searchLocs" placeholder="Search locations..." oninput="filterManifestTable()">
           </div>
-          <div style="max-height:340px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;">
+          <div class="table-scroll" style="max-height:340px;">
             <table>
               <thead><tr><th data-i18n="sch.thLocation">Target</th><th data-i18n="sch.thDay">Day</th><th data-i18n="sch.thDate">Date</th><th data-i18n="sch.thEnv">Environment</th><th></th></tr></thead>
               <tbody id="manifest-table"></tbody>
@@ -1084,18 +1304,9 @@
           </div>
         </div>
         </div>
-        <div class="card" id="schedule-test-only-preview-note" style="display:none;">
-          <div style="font-size:12.5px; color:var(--text-muted); line-height:1.5;" data-i18n="sch.testOnlyPreviewNote">
-            This deployment applies only to the test environment(s) — it's installed once, manually, without a schedule spread across locations.
-          </div>
-        </div>
-        <div class="card" id="schedule-approval-notice" style="background:var(--cyan-soft); border:1px solid #BEE7EB; margin-top:16px; display:none;">
-          <div style="font-size:12.5px; color:#0A6E7A; line-height:1.5; display:flex; align-items:center;">
-            <span>📧 <span data-i18n="sch.approvalNoticeShort">After you approve, the client automatically gets an e-mail asking them to approve the schedule.</span></span><span class="info-ic" style="border-color:#0A6E7A; color:#0A6E7A;" data-i18n-tip="sch.approvalNoticeTip">i</span>
-          </div>
-        </div>
-        <div style="display:flex; gap:10px; margin-top:16px; justify-content:flex-end;">
-          <button class="btn" onclick="confirmSchedule()" data-i18n="sch.approveSchedule">Approve schedule</button>
+        <div class="alert alert-info" id="schedule-test-only-preview-note" style="display:none;">
+          <span class="alert-ic" aria-hidden="true">ℹ</span>
+          <div class="alert-body"><span data-i18n="sch.testOnlyPreviewNote">This deployment applies only to the test environment(s) — it's installed once, manually, without a schedule spread across locations.</span></div>
         </div>
       </div>
     </div>
@@ -1103,9 +1314,14 @@
 
   <!-- ============ VIEW: DEPLOYMENTS LIST ============ -->
   <div class="view" id="view-deployments">
-    <div class="toolbar">
-      <div></div>
-      <button class="btn" onclick="goToView('schedule')" data-i18n="dep.newBtn">+ New deployment</button>
+    <div class="section-head">
+      <div>
+        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.deployments">Deployments</h2>
+        <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.deployments">A list of all deployments and their statuses. Pick a client to see deployments across all their projects.</p>
+      </div>
+      <div class="section-actions">
+        <button class="btn" onclick="goToView('schedule')"><span aria-hidden="true">＋</span> <span data-i18n="dep.newBtnShort">New deployment</span></button>
+      </div>
     </div>
 
     <div class="badge-row" id="deploy-stats"></div>
@@ -1113,6 +1329,9 @@
     <div class="card">
       <div class="toolbar">
         <div class="filters">
+          <!-- The filter row is labelled, so a row of bare dropdowns doesn't have to
+               be decoded from its option text. -->
+          <span class="filter-label" data-i18n="dep.filterBy">Filter by</span>
           <select id="deploy-filter-client" onchange="onDeployClientChange()">
             <option value="all" data-i18n="dep.fClients">All clients</option>
           </select>
@@ -1146,21 +1365,25 @@
         </div>
         <button type="button" class="mini-btn" onclick="exportDeploymentsListCsv()" data-i18n="list.exportCsv">⬇ CSV</button>
       </div>
-      <table>
-        <thead id="deploy-table-head"></thead>
-        <tbody id="deploy-table"></tbody>
-      </table>
+      <div class="table-scroll" style="max-height:640px; margin-top:10px;">
+        <table>
+          <thead id="deploy-table-head"></thead>
+          <tbody id="deploy-table"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
   <!-- ============ VIEW: USERS & ROLES ============ -->
   <div class="view" id="view-users">
-    <div class="toolbar">
+    <div class="section-head">
       <div>
         <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.users">Users</h2>
         <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.users">Who has access to the system and in what role. Only an Administrator can add and edit users.</p>
       </div>
-      <button class="btn" id="add-user-btn" onclick="toggleUserForm()" data-i18n="usr.addUser">+ Add user</button>
+      <div class="section-actions">
+        <button class="btn" id="add-user-btn" onclick="toggleUserForm()"><span aria-hidden="true">＋</span> <span data-i18n="usr.addUser">Add user</span></button>
+      </div>
     </div>
 
     <div class="seg-tabs" id="users-seg" style="margin-bottom:16px;">
@@ -1175,10 +1398,8 @@
     </div>
 
     <div class="card" id="user-form" style="display:none; margin-bottom:18px;">
-      <div class="toolbar" style="margin-bottom:14px;">
-        <strong id="user-form-title" style="font-size:13px;" data-i18n="usr.newUser">New user</strong>
-        <button class="mini-btn" onclick="toggleUserForm()" data-i18n="usr.cancel">Cancel</button>
-      </div>
+      <h3 class="sub-title" id="user-form-title" data-i18n="usr.newUser">New user</h3>
+      <div id="user-form-errors" style="display:none; margin-bottom:14px;"></div>
       <div class="grid-2">
         <div class="field">
           <label data-i18n="usr.fullName">Full name</label>
@@ -1213,36 +1434,41 @@
         <div id="user-projects-checks" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
         <p id="user-domain-hint" style="display:none; font-size:11.5px; color:var(--text-muted); margin:8px 0 0 0;"></p>
       </div>
-      <div id="user-invite-note" style="display:flex; gap:8px; align-items:flex-start; background:var(--cyan-soft); border:1px solid #BEE7EB; border-radius:8px; padding:10px 12px; font-size:11.5px; color:#0A6E7A; margin-bottom:14px;">
-        <span style="font-size:14px;">✉️</span>
-        <span data-i18n="usr.inviteNote">You don't set a password. After the user is added, a link will be sent to their e-mail address to set their own password and configure two-factor authentication (2FA).</span>
+      <div class="alert alert-info" id="user-invite-note" style="margin-bottom:14px;">
+        <span class="alert-ic" aria-hidden="true">✉</span>
+        <div class="alert-body"><span data-i18n="usr.inviteNote">You don't set a password. After the user is added, a link will be sent to their e-mail address to set their own password and configure two-factor authentication (2FA).</span></div>
       </div>
-      <button class="btn" id="user-form-submit" onclick="addUser()" data-i18n="usr.addAndInvite">Add user and send invitation</button>
+      <div class="card-actions">
+        <button class="mini-btn" onclick="toggleUserForm()" data-i18n="common.cancel">Cancel</button>
+        <button class="btn" id="user-form-submit" onclick="addUser()" data-i18n="usr.addAndInvite">Add user and send invitation</button>
+      </div>
     </div>
 
     <div class="card">
-      <table>
-        <thead><tr><th data-i18n="usr.thName">Full name</th><th data-i18n="usr.thEmail">E-mail</th><th data-i18n="usr.thRole">Role</th><th data-i18n="usr.thGroup">Group</th><th data-i18n="usr.thProjects">Projects</th><th></th></tr></thead>
-        <tbody id="users-table"></tbody>
-      </table>
+      <div class="table-scroll" style="max-height:640px;">
+        <table>
+          <thead><tr><th data-i18n="usr.thName">Full name</th><th data-i18n="usr.thEmail">E-mail</th><th data-i18n="usr.thRole">Role</th><th data-i18n="usr.thGroup">Group</th><th data-i18n="usr.thProjects">Projects</th><th></th></tr></thead>
+          <tbody id="users-table"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
   <!-- ============ VIEW: CLIENTS ============ -->
   <div class="view" id="view-clients">
-    <div class="toolbar">
+    <div class="section-head">
       <div>
         <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.clients">Clients</h2>
         <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.clients">Companies for which projects are delivered. Only an Administrator can add and edit clients.</p>
       </div>
-      <button class="btn" id="add-client-btn" onclick="toggleClientForm()" data-i18n="cli.addClient">+ Add client</button>
+      <div class="section-actions">
+        <button class="btn" id="add-client-btn" onclick="toggleClientForm()"><span aria-hidden="true">＋</span> <span data-i18n="cli.addClient">Add client</span></button>
+      </div>
     </div>
 
     <div class="card" id="client-form" style="display:none; margin-bottom:18px;">
-      <div class="toolbar" style="margin-bottom:14px;">
-        <strong id="client-form-title" style="font-size:13px;" data-i18n="cli.newClient">New client</strong>
-        <button class="mini-btn" onclick="toggleClientForm()" data-i18n="cli.cancel">Cancel</button>
-      </div>
+      <h3 class="sub-title" id="client-form-title" data-i18n="cli.newClient">New client</h3>
+      <div id="client-form-errors" style="display:none; margin-bottom:14px;"></div>
       <div class="grid-2">
         <div class="field">
           <label data-i18n="cli.name">Client name</label>
@@ -1257,37 +1483,42 @@
 
       <div class="toolbar" style="margin:6px 0 8px 0;">
         <label style="margin-bottom:0;" data-i18n="client.webhooks">Notification webhooks (Teams / Slack / your own system)</label>
-        <button class="mini-btn" type="button" onclick="addClientWebhook()" data-i18n="client.addWebhook">+ Add webhook</button>
+        <button class="mini-btn" type="button" onclick="addClientWebhook()"><span aria-hidden="true">＋</span> <span data-i18n="client.addWebhook">Add webhook</span></button>
       </div>
       <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;" data-i18n="client.webhooksNote">Deployment events for this client's projects are sent to these webhooks. At least one webhook is required.</p>
       <div id="client-webhooks-list" style="display:flex; flex-direction:column; gap:12px; margin-bottom:14px;"></div>
 
-      <button class="btn" id="client-form-submit" onclick="saveClient()" data-i18n="cli.addClientSubmit">Add client</button>
+      <div class="card-actions">
+        <button class="mini-btn" onclick="toggleClientForm()" data-i18n="common.cancel">Cancel</button>
+        <button class="btn" id="client-form-submit" onclick="saveClient()" data-i18n="cli.addClientSubmit">Add client</button>
+      </div>
     </div>
 
     <div class="card">
-      <table>
-        <thead><tr><th data-i18n="cli.thName">Client</th><th data-i18n="cli.thDomain">E-mail domain</th><th data-i18n="cli.thProjects">Number of projects</th><th></th></tr></thead>
-        <tbody id="clients-table"></tbody>
-      </table>
+      <div class="table-scroll" style="max-height:640px;">
+        <table>
+          <thead><tr><th data-i18n="cli.thName">Client</th><th data-i18n="cli.thDomain">E-mail domain</th><th data-i18n="cli.thProjects">Number of projects</th><th></th></tr></thead>
+          <tbody id="clients-table"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
   <!-- ============ VIEW: SINGLE SIGN-ON (SSO) ============ -->
   <div class="view" id="view-sso">
-    <div class="toolbar">
+    <div class="section-head">
       <div>
         <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.sso">Single sign-on (SSO)</h2>
         <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.sso">Let users of a given e-mail domain sign in through their company identity provider (Microsoft Entra ID / Azure AD, Google, or any OpenID Connect provider) instead of a password. Accounts must already exist — users are added by an Administrator. Only an Administrator can configure SSO.</p>
       </div>
-      <button class="btn" id="add-sso-btn" onclick="toggleSsoForm()" data-i18n="sso.add">+ Add domain</button>
+      <div class="section-actions">
+        <button class="btn" id="add-sso-btn" onclick="toggleSsoForm()"><span aria-hidden="true">＋</span> <span data-i18n="sso.add">Add domain</span></button>
+      </div>
     </div>
 
     <div class="card" id="sso-form" style="display:none; margin-bottom:18px;">
-      <div class="toolbar" style="margin-bottom:14px;">
-        <strong id="sso-form-title" style="font-size:13px;" data-i18n="sso.newTitle">New SSO domain</strong>
-        <button class="mini-btn" onclick="toggleSsoForm()" data-i18n="sso.cancel">Cancel</button>
-      </div>
+      <h3 class="sub-title" id="sso-form-title" data-i18n="sso.newTitle">New SSO domain</h3>
+      <div id="sso-form-errors" style="display:none; margin-bottom:14px;"></div>
       <input type="hidden" id="sso-id">
       <div class="grid-2">
         <div class="field">
@@ -1330,8 +1561,10 @@
         </div>
       </div>
       <label class="radio-pill" style="margin:4px 0 14px 0;"><input type="checkbox" id="sso-enabled" checked> <span data-i18n="sso.enabled">Enabled</span></label>
-      <div id="sso-form-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
-      <button class="btn" id="sso-form-submit" onclick="saveSsoProvider()" data-i18n="sso.save">Save</button>
+      <div class="card-actions">
+        <button class="mini-btn" onclick="toggleSsoForm()" data-i18n="common.cancel">Cancel</button>
+        <button class="btn" id="sso-form-submit" onclick="saveSsoProvider()" data-i18n="sso.save">Save</button>
+      </div>
     </div>
 
     <div class="card">
@@ -1349,11 +1582,21 @@
 
   <!-- ============ VIEW: INSTALLER PANEL ============ -->
   <div class="view" id="view-installer">
+    <!-- Same header shape as the Deployments list: title, one-line purpose, then
+         the stat row — the two views are read one after the other. -->
+    <div class="section-head">
+      <div>
+        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.installer">Deployer panel</h2>
+        <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.installer">Here you report what succeeded and what failed, and add notes — without access to changing the schedule, target order, or client approval.</p>
+      </div>
+    </div>
+
     <div class="badge-row" id="installer-stats"></div>
 
     <div class="card">
       <div class="toolbar">
         <div class="filters" style="flex-wrap:wrap;">
+          <span class="filter-label" data-i18n="dep.filterBy">Filter by</span>
           <select id="installer-filter-project" onchange="onInstallerFilterChange('project')">
             <option value="" data-i18n="rep.filterAllProjects">All projects</option>
           </select>
@@ -1402,6 +1645,7 @@
     <div class="card">
       <div class="toolbar">
         <div class="filters" style="flex-wrap:wrap;">
+          <span class="filter-label" data-i18n="dep.filterBy">Filter by</span>
           <select id="client-filter-project" onchange="onClientFilterChange('project')">
             <option value="all" data-i18n="client.fProjects">All projects</option>
           </select>
@@ -1488,7 +1732,7 @@
         <div class="card">
           <div class="toolbar" style="margin-bottom:6px;">
             <label style="margin-bottom:0;" data-i18n="acc.apiTokens">API tokens</label>
-            <button class="mini-btn" onclick="toggleNewTokenForm()" data-i18n="acc.genNewToken">+ Generate new token</button>
+            <button class="mini-btn" onclick="toggleNewTokenForm()"><span aria-hidden="true">＋</span> <span data-i18n="acc.genNewToken">Generate new token</span></button>
           </div>
           <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 12px 0;" data-i18n="acc.tokensDesc">You can have several active tokens at once (e.g. one for the CI/CD pipeline, one for manual tests). Click a token to revoke it or view its usage history.</p>
 
@@ -1546,11 +1790,16 @@
   </div>
 
   <div class="view" id="view-audit">
-    <h2 class="section-title" data-i18n="title.audit">Change history</h2>
-    <p class="section-desc" data-i18n="desc.audit">Who changed what and when — additions, removals and modifications of targets, applications and users.</p>
+    <div class="section-head">
+      <div>
+        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.audit">Change history</h2>
+        <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.audit">Who changed what and when — additions, removals and modifications of targets, applications and users.</p>
+      </div>
+    </div>
     <div class="card">
       <div class="toolbar">
         <div class="filters">
+          <span class="filter-label" data-i18n="dep.filterBy">Filter by</span>
           <select id="audit-filter-action" onchange="renderAuditLog()">
             <option value="all" data-i18n="aud.allActions">All actions</option>
             <option value="added" data-i18n="aud.added">Addition</option>
@@ -1566,10 +1815,12 @@
           <input type="text" id="audit-filter-search" data-i18n-ph="aud.searchPh" placeholder="Search in description / person..." style="width:220px; padding:6px 10px; font-size:12.5px;" oninput="renderAuditLog()">
         </div>
       </div>
-      <table>
-        <thead><tr><th data-i18n="aud.thDateTime">Date and time</th><th data-i18n="aud.thWho">Who</th><th data-i18n="aud.thAction">Action</th><th data-i18n="aud.thObject">Object</th><th data-i18n="aud.thDetails">Details</th><th data-i18n="aud.thProject">Project</th></tr></thead>
-        <tbody id="audit-table"></tbody>
-      </table>
+      <div class="table-scroll" style="max-height:640px; margin-top:10px;">
+        <table>
+          <thead><tr><th data-i18n="aud.thDateTime">Date and time</th><th data-i18n="aud.thWho">Who</th><th data-i18n="aud.thAction">Action</th><th data-i18n="aud.thObject">Object</th><th data-i18n="aud.thDetails">Details</th><th data-i18n="aud.thProject">Project</th></tr></thead>
+          <tbody id="audit-table"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -1671,6 +1922,86 @@
   </div>
 </div>
 
+<!-- Add / edit an application — a dialog, so the applications table behind stays
+     in place instead of the page reflowing into an inline editor. -->
+<div class="modal-overlay" id="app-modal-form">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title" id="app-modal-form-title" data-i18n="proj.newApp">New application</div>
+      <div class="modal-sub" id="app-modal-form-sub" data-i18n="proj.newAppSub">Name it and, optionally, link its repository.</div>
+    </div>
+    <div class="modal-body">
+      <div id="app-modal-form-errors" style="display:none;"></div>
+      <div class="field">
+        <label data-i18n="proj.appName">Application name</label>
+        <input type="text" id="app-name" class="w-medium" data-i18n-ph="proj.appNamePh" placeholder="e.g. fintrack-notifications">
+      </div>
+      <div class="field">
+        <label data-i18n="proj.repoLink">Repository link</label>
+        <input type="text" id="app-repo" class="mono w-long" data-i18n-ph="proj.repoLinkPh" placeholder="https://...">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="mini-btn" onclick="closeFormModal('app-modal-form')" data-i18n="common.cancel">Cancel</button>
+      <button class="btn" id="app-modal-form-submit" onclick="submitAppModal()" data-i18n="common.save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add a deployment target — same dialog treatment as applications. -->
+<div class="modal-overlay" id="location-modal-form">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title" data-i18n="proj.newTarget">New deployment target</div>
+      <div class="modal-sub" data-i18n="proj.newTargetSub">A location, server, tenant or region this project deploys to.</div>
+    </div>
+    <div class="modal-body">
+      <div id="location-modal-form-errors" style="display:none;"></div>
+      <div class="field">
+        <label data-i18n="proj.targetName">Target name</label>
+        <input type="text" id="location-code-input" class="w-long" data-i18n-ph="proj.targetNamePh" placeholder="e.g. Central branch, server app-prod-03, region eu-west">
+      </div>
+      <div class="field">
+        <label data-i18n="proj.type">Type</label>
+        <select id="location-type-input" class="w-medium">
+          <option value="Production" data-i18n="proj.prod">Production</option>
+          <option value="Non-production" data-i18n="proj.nonprod">Non-production</option>
+        </select>
+      </div>
+      <div id="location-custom-fields"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="mini-btn" onclick="closeFormModal('location-modal-form')" data-i18n="common.cancel">Cancel</button>
+      <button class="btn" onclick="addLocation()" data-i18n="common.save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Grant a client-side person access to the current project. -->
+<div class="modal-overlay" id="access-modal-form">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title" data-i18n="proj.addPerson">Add person</div>
+      <div class="modal-sub" data-i18n="proj.addPersonSub">They get a Client-role account and an invitation to set a password.</div>
+    </div>
+    <div class="modal-body">
+      <div id="access-modal-form-errors" style="display:none;"></div>
+      <div class="field">
+        <label data-i18n="usr.thName">Full name</label>
+        <input type="text" id="access-person-name" class="w-medium" data-i18n-ph="np.personNamePh" placeholder="Full name">
+      </div>
+      <div class="field">
+        <label data-i18n="usr.thEmail">E-mail</label>
+        <input type="email" id="access-person-email" class="mono w-long" data-i18n-ph="np.personEmailPh" placeholder="e-mail">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="mini-btn" onclick="closeFormModal('access-modal-form')" data-i18n="common.cancel">Cancel</button>
+      <button class="btn" onclick="submitProjectAccess()" data-i18n="common.save">Save</button>
+    </div>
+  </div>
+</div>
+
 <div id="twofa-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(20,24,30,0.45); z-index:999; align-items:center; justify-content:center;">
   <div class="card" style="max-width:420px; width:90%; background:var(--paper-alt, #fff);">
     <div style="font-weight:600; font-size:14px; margin-bottom:4px;">Two-factor authentication setup</div>
@@ -1689,11 +2020,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.12.0"></script>
-<script src="i18n/en.js?v=0.12.0"></script>
+<script src="i18n/pl.js?v=0.13.0"></script>
+<script src="i18n/en.js?v=0.13.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.12.0';
+  const ROLLDESK_VERSION = '0.13.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -1770,8 +2101,7 @@
     return String(env);
   }
   function envTagHtml(env){
-    const cls = env === 'Production' ? 'prod' : 'test';
-    return `<span class="env-tag ${cls}">${escapeHtml(envLabel(env))}</span>`;
+    return `<span class="env-tag">${escapeHtml(envLabel(env))}</span>`;
   }
 
   // ---- Multi-select status filters (deployments + deployer panel) ----
@@ -2071,15 +2401,18 @@
 
   // Validate + normalise the draft webhooks. Returns the cleaned list, or null
   // (after showing a toast) when the input is invalid.
-  function collectClientWebhooks(){
+  // Returns the webhooks, appending anything wrong to `errs` instead of alerting —
+  // the caller shows every problem in the form's error banner at once.
+  function collectClientWebhooks(errs){
     const hooks = clientDraftWebhooks
       .map(w=>({name:(w.name||'').trim(), url:(w.url||'').trim(), enabled:w.enabled!==false, events:w.events||defaultEventMap()}))
       .filter(w=>w.name || w.url);
-    if(!hooks.length){ showToast('Add at least one notification webhook for this client'); return null; }
-    for(const w of hooks){
-      if(!w.name){ showToast('Each webhook needs a name'); return null; }
-      if(!/^https?:\/\//i.test(w.url)){ showToast('Each webhook needs a valid https:// URL'); return null; }
-    }
+    if(!hooks.length){ errs.push({label:t('client.webhooks'), msg:t('form.needWebhook')}); return hooks; }
+    hooks.forEach((w, i)=>{
+      const label = t('client.webhook') + ' ' + (i+1);
+      if(!w.name) errs.push({label, msg:t('form.required')});
+      if(!/^https?:\/\//i.test(w.url)) errs.push({label, msg:t('form.httpsUrl')});
+    });
     return hooks;
   }
 
@@ -2087,9 +2420,14 @@
     if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can manage clients'); return; }
     const name = document.getElementById('client-name-input').value.trim();
     const domain = document.getElementById('client-domain-input').value.trim().toLowerCase().replace(/^@/,'');
-    if(!name){ showToast('Enter a client name'); return; }
-    const webhooks = collectClientWebhooks();
-    if(!webhooks) return;
+    const errs = [];
+    if(!name) errs.push({id:'client-name-input', label:t('cli.name'), msg:t('form.required')});
+    const webhooks = collectClientWebhooks(errs);
+    if(!editingClientKey && name && CLIENTS.some(c=>c.key===slugifyClientName(name))){
+      errs.push({id:'client-name-input', label:t('cli.name'), msg:t('form.dupClient')});
+    }
+    if(errs.length){ showFormErrors('client-form', errs); return; }
+    clearFormErrors('client-form');
     if(editingClientKey){
       const c = CLIENTS.find(c=>c.key===editingClientKey);
       c.name = name;
@@ -2099,7 +2437,6 @@
       showToast('Client „' + name + '” updated');
     } else {
       const key = slugifyClientName(name);
-      if(CLIENTS.some(c=>c.key===key)){ showToast('This client already exists'); return; }
       CLIENTS.push({key, name, domain, webhooks});
       showToast('Client „' + name + '” added');
     }
@@ -2616,7 +2953,7 @@
     document.getElementById('sso-client-id').value = '';
     document.getElementById('sso-client-secret').value = '';
     document.getElementById('sso-enabled').checked = true;
-    document.getElementById('sso-form-error').style.display = 'none';
+    clearFormErrors('sso-form');
     document.getElementById('sso-redirect').value = SSO_REDIRECT_URI;
     document.getElementById('sso-secret-hint').textContent = t('sso.secretHintNew');
     onSsoProviderChange();
@@ -2646,7 +2983,7 @@
     document.getElementById('sso-client-id').value = p.clientId || '';
     document.getElementById('sso-client-secret').value = '';
     document.getElementById('sso-enabled').checked = !!p.enabled;
-    document.getElementById('sso-form-error').style.display = 'none';
+    clearFormErrors('sso-form');
     document.getElementById('sso-redirect').value = SSO_REDIRECT_URI;
     document.getElementById('sso-secret-hint').textContent = p.hasSecret ? t('sso.secretHintKeep') : t('sso.secretHintNew');
     onSsoProviderChange();
@@ -2655,7 +2992,6 @@
 
   async function saveSsoProvider(){
     if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can configure SSO'); return; }
-    const err = document.getElementById('sso-form-error');
     const id = document.getElementById('sso-id').value;
     const provider = document.getElementById('sso-provider').value;
     const body = {
@@ -2667,9 +3003,14 @@
       clientSecret: document.getElementById('sso-client-secret').value,
       enabled: document.getElementById('sso-enabled').checked
     };
-    if(!body.domain){ err.textContent = t('sso.errDomain'); err.style.display='block'; return; }
-    if(!body.clientId){ err.textContent = t('sso.errClientId'); err.style.display='block'; return; }
-    if(!id && !body.clientSecret){ err.textContent = t('sso.errSecret'); err.style.display='block'; return; }
+    // Every problem with the form at once, marked on the fields themselves.
+    const errs = [];
+    if(!body.domain) errs.push({id:'sso-domain', label:t('sso.domain'), msg:t('sso.errDomain')});
+    if(provider === 'oidc' && !body.issuer) errs.push({id:'sso-issuer', label:t('sso.issuer'), msg:t('form.required')});
+    if(!body.clientId) errs.push({id:'sso-client-id', label:t('sso.clientId'), msg:t('sso.errClientId')});
+    if(!id && !body.clientSecret) errs.push({id:'sso-client-secret', label:t('sso.clientSecret'), msg:t('sso.errSecret')});
+    if(errs.length){ showFormErrors('sso-form', errs); return; }
+    clearFormErrors('sso-form');
     const btn = document.getElementById('sso-form-submit'); btn.disabled = true;
     try {
       const res = await apiFetch(id ? '/api/sso/'+id : '/api/sso', {
@@ -2678,13 +3019,13 @@
         body: JSON.stringify(body)
       });
       const data = await res.json().catch(()=>({}));
-      if(!res.ok){ err.textContent = data.error || t('sso.errSave'); err.style.display='block'; return; }
-      err.style.display = 'none';
+      if(!res.ok){ showFormErrors('sso-form', [{msg: data.error || t('sso.errSave')}]); return; }
+      clearFormErrors('sso-form');
       document.getElementById('sso-form').style.display = 'none';
       showToast(t('sso.saved'));
       await loadSsoProviders();
     } catch(e){
-      err.textContent = t('sso.errSave'); err.style.display='block';
+      showFormErrors('sso-form', [{msg: t('sso.errSave')}]);
     } finally { btn.disabled = false; }
   }
 
@@ -2840,27 +3181,37 @@
     const name = document.getElementById('user-name').value.trim();
     const email = document.getElementById('user-email').value.trim();
     const group = document.getElementById('user-group').value.trim();
-    if(!name || !email){ showToast('Enter a name and an e-mail'); return; }
     const role = document.querySelector('input[name="user-role"]:checked').value;
     const allAccess = role === 'rm' || role === 'admin';
     const projects = allAccess ? [] : Array.from(document.querySelectorAll('#user-projects-checks input:checked')).map(c=>c.value);
     let clientKey = null;
 
+    // Everything wrong with the form is collected and shown at once, in place.
+    const errs = [];
+    if(!name) errs.push({id:'user-name', label:t('usr.fullName'), msg:t('form.required')});
+    if(!email) errs.push({id:'user-email', label:t('usr.email'), msg:t('form.required')});
+    else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.push({id:'user-email', label:t('usr.email'), msg:t('form.badEmail')});
+
     if(role === 'client'){
-      if(!projects.length){ showToast('Select at least one client project'); return; }
-      const emailDomain = (email.split('@')[1] || '').toLowerCase();
-      const involvedClients = [...new Set(projects.map(pk => PROJECTS[pk] ? PROJECTS[pk].client : null).filter(Boolean))];
-      const badClient = involvedClients.find(ck => {
-        const c = CLIENTS.find(c=>c.key===ck);
-        return c && c.domain && emailDomain !== c.domain.toLowerCase();
-      });
-      if(badClient){
-        const c = CLIENTS.find(c=>c.key===badClient);
-        showToast('The e-mail must be from the domain „' + c.domain + '” (client: ' + c.name + ')');
-        return;
+      if(!projects.length){
+        errs.push({id:'user-projects-checks', label:t('usr.projectsAccess'), msg:t('form.pickProject')});
+      } else {
+        const emailDomain = (email.split('@')[1] || '').toLowerCase();
+        const involvedClients = [...new Set(projects.map(pk => PROJECTS[pk] ? PROJECTS[pk].client : null).filter(Boolean))];
+        const badClient = involvedClients.find(ck => {
+          const c = CLIENTS.find(c=>c.key===ck);
+          return c && c.domain && emailDomain !== c.domain.toLowerCase();
+        });
+        if(badClient){
+          const c = CLIENTS.find(c=>c.key===badClient);
+          errs.push({id:'user-email', label:t('usr.email'), msg:tf('form.wrongDomain', {domain:c.domain, client:c.name})});
+        } else {
+          clientKey = involvedClients[0] || null;
+        }
       }
-      clientKey = involvedClients[0] || null;
     }
+    if(errs.length){ showFormErrors('user-form', errs); return; }
+    clearFormErrors('user-form');
 
     if(!API_CONNECTED){ showToast('Not connected to the backend — cannot manage users'); return; }
     try {
@@ -2906,7 +3257,7 @@
     if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can manage users'); return; }
     const u = USERS[i];
     const name = u.name;
-    showAppPrompt('Archive user „' + name + '”', '', async (reason)=>{
+    showAppPrompt(tf('usr.archiveTitle', {name}), '', async (reason)=>{
       if(reason === null) return;
       try {
         await apiUserAction(u.id, 'archive', {reason: reason.trim()});
@@ -2914,7 +3265,7 @@
         await loadUsers();
         showToast('User „' + name + '” archived');
       } catch(e){ showToast('⚠ ' + (e.message || 'Could not archive the user')); }
-    }, 'Reason for archiving (optional) — e.g. „left the company”, „role change”');
+    }, t('usr.archiveSub'));
   }
 
   async function restoreUser(i){
@@ -3037,6 +3388,9 @@
     if(viewName === 'installer') renderInstallerPanel();
     if(viewName === 'deployments') renderDeploymentsTable();
     if(viewName === 'schedule') prepareScheduleDates();
+    if(viewName === 'projects') renderProjectsList();
+    if(viewName === 'newproject'){ clearFormErrors('np'); refreshNewProjectReady(); }
+    if(viewName === 'schedule'){ clearFormErrors('schedule'); setScheduleApprovable(false); }
 
     // Pull the latest server-side data for the view so changes made by other
     // users appear without a full page reload (best-effort, silent).
@@ -3072,49 +3426,163 @@
     const sel = document.getElementById('schedule-project-select');
     if(sel) sel.value = key;
     switchProject(key);
+    renderProjectsList();
     const panel = document.getElementById('project-apps-panel');
-    panel.style.display = 'block';
-    document.querySelectorAll('.project-row').forEach(r=> r.classList.toggle('project-row-active', r.dataset.key === key));
-    panel.scrollIntoView({behavior:'smooth', block:'start'});
+    if(panel) panel.style.display = 'block';
   }
 
+  // The Projects view is a tab strip, not a table: one tab per project (client
+  // name above the project name), the active one underlined, and the selected
+  // project's configuration rendered directly below. Clicking a tab opens it —
+  // there is no separate "Open" action to hunt for.
   function renderProjectsList(){
-    const tbody = document.getElementById('projects-table');
+    const tabs = document.getElementById('projects-tabs');
+    if(!tabs) return;
     const entries = Object.entries(PROJECTS);
     const active = entries.filter(([,p])=>!p.archived);
     const archived = entries.filter(([,p])=>p.archived);
-    const row = (key,p)=>{
-      const locs = p.locationsList || [];
-      const prodCount = locs.filter(t=>t.type === 'Production').length;
-      const nonProdCount = locs.filter(t=>t.type === 'Non-production').length;
-      return `
-      <tr class="project-row" data-key="${key}" onclick="openProjectFromList('${key}')" style="cursor:pointer;">
-        <td>${p.clientName}</td>
-        <td><a href="#" class="project-link" onclick="event.stopPropagation(); openProjectFromList('${key}'); return false;">${p.name}</a></td>
-        <td class="mono">${prodCount}</td>
-        <td class="mono">${nonProdCount}</td>
-        <td class="mono">${(p.apps||[]).length}</td>
-        <td style="white-space:nowrap;"><button class="mini-btn" onclick="event.stopPropagation(); openProjectFromList('${key}')">${t('proj.open')}</button>${isLoggedInAsAdmin() ? ` <button class="mini-btn mini-btn-danger" onclick="event.stopPropagation(); deleteProject('${key}')">${t('cli.delete')}</button>` : ''}</td>
-      </tr>`;
-    };
-    // Archived projects keep their deployment history; they are shown greyed at
-    // the bottom with restore / permanent-delete actions (admins only).
-    const archivedRow = (key,p)=>{
-      const depCount = DEPLOYMENTS_DATA.filter(d=>d.projectKey === key).length;
-      return `
-      <tr class="project-row" data-key="${key}" style="opacity:0.6;">
-        <td>${p.clientName}</td>
-        <td>${p.name} <span class="mono" style="font-size:10px; border:1px solid var(--line); border-radius:10px; padding:1px 7px; margin-left:4px;">${t('proj.archivedBadge')}</span></td>
-        <td class="mono" colspan="3" style="font-size:11.5px; color:var(--text-muted);">${tf('proj.archivedDeploys', {n: depCount})}</td>
-        <td style="white-space:nowrap;">${isLoggedInAsAdmin() ? `<button class="mini-btn" onclick="event.stopPropagation(); restoreProject('${key}')">${t('proj.restore')}</button> <button class="mini-btn mini-btn-danger" onclick="event.stopPropagation(); deleteProjectPermanent('${key}')">${t('proj.deletePermanent')}</button>` : '—'}</td>
-      </tr>`;
-    };
-    let html = active.map(([k,p])=>row(k,p)).join('');
-    if(archived.length){
-      html += `<tr><td colspan="6" style="padding-top:14px; font-size:11.5px; font-weight:700; color:var(--text-muted); border-bottom:none;">${t('proj.archivedSection')}</td></tr>`;
-      html += archived.map(([k,p])=>archivedRow(k,p)).join('');
+
+    // Nothing selected yet (or the selection was archived/deleted) — open the first
+    // active project so the view always shows something useful.
+    const selectable = active.map(([k])=>k);
+    if(!currentProjectKey || !PROJECTS[currentProjectKey]){
+      if(selectable.length) switchProject(selectable[0]);
     }
-    tbody.innerHTML = html;
+
+    // With a single client on the account its name on every pill is pure repetition
+    // (it is in the project header anyway), so it is only shown when it disambiguates.
+    const clientNames = new Set(entries.map(([,p])=>(p.clientName || '').trim()).filter(Boolean));
+    const showClient = clientNames.size > 1;
+
+    const tab = (key,p,isArchived)=>{
+      const cls = 'proj-tab' + (key === currentProjectKey ? ' active' : '') + (isArchived ? ' archived' : '');
+      const client = (p.clientName || '').trim();
+      const clientPart = (showClient && client)
+        ? `<span class="tab-client">${escapeHtml(client)}</span><span class="tab-sep" aria-hidden="true">/</span>`
+        : '';
+      const title = (client ? client + ' — ' : '') + (p.name || key);
+      return `<button type="button" class="${cls}" data-key="${escapeHtml(key)}" title="${escapeHtml(title)}" onclick="openProjectFromList('${escapeHtml(key)}')">
+        ${clientPart}<span>${escapeHtml(p.name || key)}</span>${isArchived ? ` <span class="tab-client">${escapeHtml(t('proj.archivedBadge'))}</span>` : ''}
+      </button>`;
+    };
+
+    let html = active.map(([k,p])=>tab(k,p,false)).join('');
+    // A hairline keeps archived projects visibly out of the working set.
+    if(archived.length) html += '<span class="proj-tabs-sep" aria-hidden="true"></span>' + archived.map(([k,p])=>tab(k,p,true)).join('');
+    // "New project" lives at the end of the strip: adding a project opens a new tab.
+    html += `<button type="button" class="proj-tab proj-tab-add" onclick="goToView('newproject')" title="${escapeHtml(t('proj.newBtn'))}">
+      <span aria-hidden="true">＋</span> <span>${escapeHtml(t('proj.newBtn'))}</span>
+    </button>`;
+    tabs.innerHTML = html;
+
+    const empty = document.getElementById('projects-empty');
+    const panel = document.getElementById('project-apps-panel');
+    const hasSelection = !!(currentProjectKey && PROJECTS[currentProjectKey]);
+    if(empty) empty.style.display = entries.length ? 'none' : 'block';
+    if(panel) panel.style.display = hasSelection ? 'block' : 'none';
+    if(hasSelection) renderProjectHeader(currentProjectKey);
+  }
+
+  // Project header: title plus the counts that used to be table columns, as boxes.
+  // Actions (delete / restore) sit top-right, level with the title.
+  function renderProjectHeader(key){
+    const p = PROJECTS[key];
+    if(!p) return;
+    const nameEl = document.getElementById('project-head-name');
+    if(nameEl){
+      nameEl.innerHTML = `${escapeHtml(p.name || key)}<span style="font-size:12.5px; font-weight:500; color:var(--text-muted);">${escapeHtml(p.clientName || '')}</span>`
+        + (p.archived ? ` <span class="mono" style="font-size:10px; font-weight:700; border:1px solid var(--line); border-radius:10px; padding:2px 8px; color:var(--text-muted);">${escapeHtml(t('proj.archivedBadge'))}</span>` : '');
+    }
+
+    const locs = p.locationsList || [];
+    const prodCount = locs.filter(l=>l.type === 'Production').length;
+    const nonProdCount = locs.filter(l=>l.type === 'Non-production').length;
+    // Only what this screen is about: what there is to deploy and where. The
+    // deployment count belongs to the Deployments tab, not to the project's setup.
+    const facts = [
+      {ic:'📦', num: (p.apps||[]).length, lbl: t('proj.thApps')},
+      {ic:'🎯', num: prodCount,    lbl: t('proj.thProd')},
+      {ic:'🧪', num: nonProdCount, lbl: t('proj.thNonProd')},
+    ];
+    const factsEl = document.getElementById('project-head-facts');
+    if(factsEl){
+      factsEl.innerHTML = facts.map(f=>`<div class="fact">
+        <div class="fact-top">
+          <span class="fact-ic" aria-hidden="true">${f.ic}</span>
+          <div class="fact-num">${f.num}</div>
+        </div>
+        <div class="fact-lbl">${escapeHtml(f.lbl)}</div>
+      </div>`).join('');
+    }
+
+    const actionsEl = document.getElementById('project-head-actions');
+    if(actionsEl){
+      const btns = [];
+      if(isLoggedInAsAdmin()){
+        if(p.archived){
+          btns.push(`<button class="mini-btn" onclick="restoreProject('${escapeHtml(key)}')">${escapeHtml(t('proj.restore'))}</button>`);
+          btns.push(`<button class="mini-btn mini-btn-danger" onclick="deleteProjectPermanent('${escapeHtml(key)}')">${escapeHtml(t('proj.deletePermanent'))}</button>`);
+        } else {
+          btns.push(`<button class="mini-btn mini-btn-danger" onclick="deleteProject('${escapeHtml(key)}')">🗑 ${escapeHtml(t('cli.delete'))}</button>`);
+        }
+      }
+      actionsEl.innerHTML = btns.join('');
+    }
+    renderProjectAccessTable(key);
+  }
+
+  // Client-side access to a project is granted here, after the project exists —
+  // the accounts are ordinary Client-role users scoped to this project.
+  function renderProjectAccessTable(key){
+    const tbody = document.getElementById('project-access-table');
+    if(!tbody) return;
+    const rows = USERS.filter(u => u.role === 'client' && (u.projects || []).includes(key) && !u.archived);
+    if(!rows.length){
+      tbody.innerHTML = `<tr><td colspan="3" style="color:var(--text-faint); font-size:11.5px;">${escapeHtml(t('proj.accessEmpty'))}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows.map(u=>`<tr>
+      <td><strong>${escapeHtml(u.name || '')}</strong></td>
+      <td class="mono" style="font-size:12px;">${escapeHtml(u.email || '')}</td>
+      <td style="text-align:right;">${isLoggedInAsAdmin() ? `<button class="mini-btn mini-btn-danger" onclick="revokeProjectAccess('${escapeHtml(String(u.id))}')">${escapeHtml(t('proj.revokeAccess'))}</button>` : ''}</td>
+    </tr>`).join('');
+  }
+
+  function openProjectAccessModal(){
+    if(!PROJECTS[currentProjectKey]) return;
+    document.getElementById('access-person-name').value = '';
+    document.getElementById('access-person-email').value = '';
+    openFormModal('access-modal-form');
+  }
+
+  async function submitProjectAccess(){
+    const p = PROJECTS[currentProjectKey];
+    if(!p) return;
+    const name = (document.getElementById('access-person-name').value || '').trim();
+    const email = (document.getElementById('access-person-email').value || '').trim();
+    const errs = [];
+    if(!name) errs.push({id:'access-person-name', label:t('usr.thName'), msg:t('form.required')});
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) errs.push({id:'access-person-email', label:t('usr.thEmail'), msg:t('auth.enterValidEmail')});
+    if(errs.length){ showFormErrors('access-modal-form', errs); return; }
+    clearFormErrors('access-modal-form');
+    closeFormModal('access-modal-form');
+    await reconcileClientPeople([{name, email}], currentProjectKey, p.client);
+    renderProjectAccessTable(currentProjectKey);
+    showToast(tf('proj.accessGranted', {name}));
+  }
+
+  async function revokeProjectAccess(userId){
+    const u = USERS.find(x => String(x.id) === String(userId));
+    if(!u) return;
+    showAppConfirm(t('proj.revokeTitle'), tf('proj.revokeBody', {name: u.name || u.email, project: (PROJECTS[currentProjectKey]||{}).name || ''}), async ()=>{
+      const projs = (u.projects || []).filter(k => k !== currentProjectKey);
+      try {
+        await apiUpdateUser(u.id, {name: u.name, role: u.role, projects: projs, clientKey: u.clientKey});
+        await loadUsers();
+      } catch(e){ showToast(e.message); return; }
+      renderProjectAccessTable(currentProjectKey);
+      showToast(tf('proj.accessRevoked', {name: u.name || u.email}));
+    });
   }
 
   // Deleting a project that has deployment history does NOT erase that history —
@@ -3264,19 +3732,21 @@
     const prodTargets = (p.locationsList||[]).filter(t=>t.type === 'Production');
     const prodCount = prodTargets.length;
     const modeBox = document.getElementById('schedule-mode-badge');
-    if(prodCount <= 1){
-      modeBox.style.background = 'var(--cyan-soft)';
-      modeBox.textContent = t('sch.badgeOne') + (p.locationName ? ' ('+p.locationName+')' : '');
-    } else {
-      modeBox.textContent = tf('sch.badgeSpread', {n: prodCount});
-    }
+    modeBox.textContent = prodCount <= 1
+      ? t('sch.badgeOne') + (p.locationName ? ' ('+p.locationName+')' : '')
+      : tf('sch.badgeSpread', {n: prodCount});
     document.getElementById('loc-count').value = prodCount;
     document.getElementById('day-count').value = prodCount <= 1 ? 1 : (p.defaultDays || 10);
-    // Pre-fill default start time from the project definition, if the fields exist.
-    const prodTimeEl = document.getElementById('time-prod');
-    if(prodTimeEl && p.defaultTime) prodTimeEl.value = p.defaultTime;
-    const testTimeEl = document.getElementById('time-test');
-    if(testTimeEl && p.defaultTime) testTimeEl.value = p.defaultTime;
+    // Pre-fill the default start time from the project definition, keeping the
+    // date part of the merged control untouched.
+    if(p.defaultTime){
+      ['dt-test','dt-prod'].forEach(id=>{
+        const el = document.getElementById(id);
+        if(!el) return;
+        const datePart = (el.value || '').split('T')[0] || todayIso();
+        el.value = datePart + 'T' + p.defaultTime.slice(0,5);
+      });
+    }
 
     renderScheduleAppsList();
     renderScheduleDeps();
@@ -3507,18 +3977,27 @@
     rebuildScheduleEnvChecklist(defaultEnvs);
   }
 
+  // The primary action of the New-deployment screen is gated on a generated
+  // schedule, so a half-filled form can never be approved by accident.
+  function setScheduleApprovable(ready){
+    const btn = document.getElementById('schedule-approve-btn');
+    if(btn) btn.disabled = !ready;
+  }
+
   function onSchedulePathChange(){
     const path = document.querySelector('input[name="schedule-path"]:checked').value;
     document.getElementById('schedule-envs-field').style.display = path === 'prod-only' ? 'none' : 'block';
-    document.getElementById('schedule-approval-notice').style.display = path === 'test-only' ? 'none' : 'block';
+    // Alerts are flex containers — restore the stylesheet default rather than
+    // forcing `block`, which would break the icon/body layout.
+    document.getElementById('schedule-approval-notice').style.display = path === 'test-only' ? 'none' : '';
 
     const isTestOnly = path === 'test-only';
     document.getElementById('schedule-rollout-fields').style.display = isTestOnly ? 'none' : 'block';
     document.getElementById('schedule-rollout-fields-2').style.display = isTestOnly ? 'none' : 'grid';
     document.getElementById('schedule-generate-btn').style.display = isTestOnly ? 'none' : 'inline-flex';
-    document.getElementById('schedule-test-only-note').style.display = isTestOnly ? 'block' : 'none';
+    document.getElementById('schedule-test-only-note').style.display = isTestOnly ? '' : 'none';
     document.getElementById('schedule-rollout-preview').style.display = isTestOnly ? 'none' : 'block';
-    document.getElementById('schedule-test-only-preview-note').style.display = isTestOnly ? 'block' : 'none';
+    document.getElementById('schedule-test-only-preview-note').style.display = isTestOnly ? '' : 'none';
     document.getElementById('schedule-test-date-fields').style.display = path === 'prod-only' ? 'none' : 'grid';
     document.getElementById('schedule-prod-date-fields').style.display = isTestOnly ? 'none' : 'grid';
   }
@@ -3537,30 +4016,47 @@
   // and bump any default/earlier value up to today.
   function prepareScheduleDates(){
     const today = todayIso();
-    ['date-test','date-prod'].forEach(id=>{
+    ['dt-test','dt-prod'].forEach(id=>{
       const el = document.getElementById(id);
       if(!el) return;
-      el.min = today;
-      if(!el.value || el.value < today) el.value = today;
+      el.min = today + 'T00:00';
+      const parts = (el.value || '').split('T');
+      if(!parts[0] || parts[0] < today) el.value = today + 'T' + (parts[1] || '20:00');
     });
+  }
+
+  // The two schedule starts are edited as one datetime-local each; everything
+  // downstream still stores a separate date and time, so split it back here.
+  function schedStart(which, fallbackDate, fallbackTime){
+    const el = document.getElementById('dt-' + which);
+    const parts = (el && el.value) ? el.value.split('T') : [];
+    return {
+      date: parts[0] || fallbackDate,
+      time: (parts[1] || fallbackTime).slice(0,5)
+    };
   }
 
   async function confirmSchedule(){
     const p = PROJECTS[currentProjectKey];
     const path = document.querySelector('input[name="schedule-path"]:checked').value;
 
+    // Everything that can be wrong is collected first and reported together as a
+    // red banner plus red fields — never as a bare "required fields missing" modal.
+    const schErrs = [];
+
     // Collect checked apps with their versions; every checked app must have a version.
     const checkedApps = Array.from(document.querySelectorAll('.schedule-app-check:checked'));
-    if(!checkedApps.length){ showToast('Select at least one application'); return; }
     const apps = [];
+    if(!checkedApps.length){
+      schErrs.push({label: t('sch.appsVersions'), msg: t('sch.errPickApp')});
+    }
     for(const cb of checkedApps){
       const row = cb.closest('div');
       const versionInput = row.querySelector('.schedule-app-version');
       const version = (versionInput.value || '').trim();
       if(!version){
-        showToast(tf('sch.enterVersion', {app: cb.value}));
-        versionInput.focus();
-        return;
+        schErrs.push({el: versionInput, label: cb.value, msg: t('sch.errVersion')});
+        continue;
       }
       apps.push({name: cb.value, version});
     }
@@ -3570,9 +4066,7 @@
     const changelog = (document.getElementById('schedule-changelog').value || '').trim();
     const changelogFiles = scheduleChangelogFiles.slice();
     if(!changelog && !changelogFiles.length){
-      showToast(t('sch.fillChangelogOrAttach'));
-      document.getElementById('schedule-changelog').focus();
-      return;
+      schErrs.push({id:'schedule-changelog', label: t('sch.changelog'), msg: t('sch.fillChangelogOrAttach')});
     }
     const fileToUpload = changelogFiles[0] || null;
     // Legacy single fields kept for back-compat; the full set is uploaded below.
@@ -3580,24 +4074,22 @@
     const installerFiles = scheduleInstallerFiles.slice();
 
     const testEnvs = Array.from(document.querySelectorAll('#schedule-envs-checks input:checked')).map(c=>c.value);
-    const testDate = document.getElementById('date-test').value || '2026-07-13';
-    const testTime = document.getElementById('time-test').value || '20:00';
-    const prodDate = document.getElementById('date-prod').value || '2026-07-20';
-    const prodTime = document.getElementById('time-prod').value || '22:00';
+    const testStart = schedStart('test', '2026-07-13', '20:00');
+    const prodStart = schedStart('prod', '2026-07-20', '22:00');
+    const testDate = testStart.date, testTime = testStart.time;
+    const prodDate = prodStart.date, prodTime = prodStart.time;
 
     // A deployment cannot start in the past. Validate the relevant start date(s)
     // for the chosen path against today.
     const todayStr = todayIso();
     if((path === 'test-only' || path === 'test-prod') && testDate < todayStr){
-      showToast(t('sch.errPastTest'));
-      document.getElementById('date-test').focus();
-      return;
+      schErrs.push({id:'dt-test', label: t('sch.startTest'), msg: t('sch.errPastTest')});
     }
     if((path === 'prod-only' || path === 'test-prod') && prodDate < todayStr){
-      showToast(t('sch.errPastProd'));
-      document.getElementById('date-prod').focus();
-      return;
+      schErrs.push({id:'dt-prod', label: t('sch.startProd'), msg: t('sch.errPastProd')});
     }
+    if(schErrs.length){ showFormErrors('schedule', schErrs); return; }
+    clearFormErrors('schedule');
 
     const days = parseInt(document.getElementById('day-count').value) || 1;
     const today = todayIso();
@@ -3894,16 +4386,16 @@
 
   function addCustomLocationField(){
     const p = PROJECTS[currentProjectKey];
-    showAppPrompt('New deployment target field', '', (name)=>{
+    showAppPrompt(t('proj.newFieldTitle'), '', (name)=>{
       if(!name) return;
       p.customLocationFields = p.customLocationFields || [];
-      if(p.customLocationFields.includes(name)){ showToast('This field already exists'); return; }
+      if(p.customLocationFields.includes(name)){ showToast(t('proj.fieldExists')); return; }
       p.customLocationFields.push(name);
       p.locationsList.forEach(loc=>{ loc.custom = loc.custom || {}; if(!(name in loc.custom)) loc.custom[name] = ''; });
       renderLocationsTable();
       persistProject(currentProjectKey);
-      showToast('Added the field „' + name + '” to all locations');
-    }, 'e.g. "Number of stations", "Region"');
+      showToast(tf('proj.fieldAdded', {field: name}));
+    }, t('proj.newFieldPh'));
   }
 
   // Remove a custom target column (e.g. a stale "Miejscowość" left over after a
@@ -3935,22 +4427,23 @@
       </div>`).join('');
   }
 
-  function toggleLocationForm(){
-    const f = document.getElementById('location-form');
-    const opening = f.style.display === 'none';
-    f.style.display = opening ? 'block' : 'none';
-    if(opening){
-      document.getElementById('location-code-input').value = '';
-      document.getElementById('location-type-input').value = 'Production';
-      renderLocationCustomFieldInputs();
-    }
+  function openLocationModal(){
+    if(!PROJECTS[currentProjectKey]) return;
+    document.getElementById('location-code-input').value = '';
+    document.getElementById('location-type-input').value = 'Production';
+    renderLocationCustomFieldInputs();
+    openFormModal('location-modal-form');
   }
 
   function addLocation(){
     const p = PROJECTS[currentProjectKey];
     const name = document.getElementById('location-code-input').value.trim();
     const type = document.getElementById('location-type-input').value;
-    if(!name){ showToast('Enter a target name'); return; }
+    if(!name){
+      showFormErrors('location-modal-form', [{id:'location-code-input', label:t('proj.thTarget'), msg:t('form.required')}]);
+      return;
+    }
+    clearFormErrors('location-modal-form');
     const custom = {};
     document.querySelectorAll('.location-custom-input').forEach(inp=>{ custom[inp.dataset.field] = inp.value; });
     p.locationsList.push({code: name, label: name, type, custom});
@@ -3959,7 +4452,7 @@
     renderLocationsTable();
     renderProjectsList();
     persistProject(currentProjectKey);
-    toggleLocationForm();
+    closeFormModal('location-modal-form');
     showToast('Target „' + name + '” added');
   }
 
@@ -4140,8 +4633,6 @@
   }
 
   function rebuildAppsTable(p){
-    // if settings are open inline, safely move the form back home before wiping rows
-    closeAppForm();
     const tbody = document.getElementById('apps-table');
     tbody.innerHTML = p.apps.map((a,i)=>{
       const last = lastDeploymentForApp(currentProjectKey, a.name);
@@ -4151,7 +4642,7 @@
       return `<tr class="app-row" data-idx="${i}" onclick="openAppSettings(${i})" style="cursor:pointer;">
         <td><strong>${a.name}</strong></td>
         <td>${lastCell}</td>
-        <td><button class="mini-btn" onclick="event.stopPropagation(); openAppSettings(${i})">${t('app.settings')}</button></td>
+        <td><button class="mini-btn" onclick="event.stopPropagation(); openAppSettings(${i})">✎ ${t('app.settings')}</button></td>
       </tr>`;
     }).join('');
   }
@@ -4162,24 +4653,7 @@
     document.getElementById('np-client-new').style.display = isNew ? 'block' : 'none';
     const wh = document.getElementById('np-client-new-webhook');
     if(wh) wh.style.display = isNew ? 'block' : 'none';
-  }
-
-  function addPersonRow(){
-    const wrap = document.getElementById('np-people');
-    const row = document.createElement('div');
-    row.className = 'person-row';
-    row.style.cssText = 'display:flex; gap:8px; margin-bottom:8px;';
-    row.innerHTML = `<input type="text" class="np-person-name" placeholder="${t('np.personNamePh')}" style="flex:1;"><input type="text" class="np-person-email mono" placeholder="${t('np.personEmailPh')}" style="flex:1;"><button class="mini-btn" onclick="removePersonRow(this)">${t('np.remove')}</button>`;
-    wrap.appendChild(row);
-    document.querySelectorAll('#np-people .mini-btn').forEach(b=> b.style.display = 'inline-block');
-  }
-  function removePersonRow(btn){
-    const rows = document.querySelectorAll('#np-people .person-row');
-    if(rows.length <= 1) return;
-    btn.closest('.person-row').remove();
-    if(document.querySelectorAll('#np-people .person-row').length === 1){
-      document.querySelector('#np-people .mini-btn').style.display = 'none';
-    }
+    refreshNewProjectReady();
   }
 
   function addAppRow(){
@@ -4187,7 +4661,7 @@
     const row = document.createElement('div');
     row.className = 'loc-row';
     row.style.cssText = 'display:flex; gap:8px; margin-bottom:8px;';
-    row.innerHTML = `<input type="text" class="np-app-input" placeholder="e.g. app-name" style="flex:1;"><button class="mini-btn" onclick="removeAppRow(this)">${t('np.remove')}</button>`;
+    row.innerHTML = `<input type="text" class="np-app-input w-medium" placeholder="e.g. app-name"><button class="mini-btn" onclick="removeAppRow(this)">${t('np.remove')}</button>`;
     wrap.appendChild(row);
   }
   function removeAppRow(btn){
@@ -4201,7 +4675,7 @@
     const row = document.createElement('div');
     row.className = 'loc-row';
     row.style.cssText = 'display:flex; gap:8px; margin-bottom:8px;';
-    row.innerHTML = `<input type="text" class="np-env-input" placeholder="e.g. Test2" style="flex:1;"><button class="mini-btn" onclick="removeEnvRow(this)">${t('np.remove')}</button>`;
+    row.innerHTML = `<input type="text" class="np-env-input w-medium" placeholder="e.g. Test2"><button class="mini-btn" onclick="removeEnvRow(this)">${t('np.remove')}</button>`;
     wrap.appendChild(row);
     document.querySelectorAll('#np-testenvs .mini-btn').forEach(b=> b.style.display = 'inline-block');
   }
@@ -4513,11 +4987,14 @@
 
   function renderManifestPreview(dayAssignments, dayLabels, testEnvs){
     testEnvs = testEnvs || [];
+    // Generating is not approving: the approve action only becomes available once a
+    // schedule actually exists to approve.
+    setScheduleApprovable(true);
     const strip = document.getElementById('manifest-strip');
     strip.innerHTML = '';
 
     if(testEnvs.length){
-      const testDateVal = document.getElementById('date-test').value;
+      const testDateVal = schedStart('test', '', '20:00').date;
       const testDateStr = testDateVal ? isoDate(new Date(testDateVal)) : '—';
       testEnvs.forEach(env=>{
         const el = document.createElement('div');
@@ -4542,13 +5019,14 @@
     manifestOrder = [].concat(...dayAssignments);
 
     const tbody = document.getElementById('manifest-table');
-    const timeVal = document.getElementById('time-prod').value || '22:00';
+    const timeVal = schedStart('prod', '2026-07-20', '22:00').time;
     let html = '';
 
     if(testEnvs.length){
-      const testDateVal = document.getElementById('date-test').value;
+      const testSt = schedStart('test', '', '20:00');
+      const testDateVal = testSt.date;
       const testDateStr = testDateVal ? isoDate(new Date(testDateVal)) : '—';
-      const testTimeVal = document.getElementById('time-test').value || '20:00';
+      const testTimeVal = testSt.time;
       testEnvs.forEach(env=>{
         html += `<tr class="manifest-row" style="background:var(--cyan-soft);">
           <td>${escapeHtml(env)}</td>
@@ -4640,7 +5118,7 @@
     const dayAssignments = assignLocationsToDays();
     const days = dayAssignments.length;
 
-    const prodDateVal = document.getElementById('date-prod').value || '2026-07-20';
+    const prodDateVal = schedStart('prod', '2026-07-20', '22:00').date;
     const startDate = new Date(prodDateVal);
     let dateCursor = new Date(startDate);
     const skipWknd = (p.skipWeekends !== false);
@@ -4703,7 +5181,7 @@
     const row = document.createElement('div');
     row.className = 'loc-row';
     row.style.cssText = 'display:flex; gap:8px; margin-bottom:8px;';
-    row.innerHTML = `<input type="text" class="np-loc-input" placeholder="${t('np.locPh')}" style="flex:1;"><button class="mini-btn" onclick="removeLocRow(this)">${t('np.remove')}</button>`;
+    row.innerHTML = `<input type="text" class="np-loc-input w-medium" placeholder="${t('np.locPh')}"><button class="mini-btn" onclick="removeLocRow(this)">${t('np.remove')}</button>`;
     wrap.appendChild(row);
     updateProjectMode();
   }
@@ -4755,7 +5233,7 @@
         const wrap = document.getElementById('np-locations');
         wrap.innerHTML = names.map(nm=>`
           <div class="loc-row" style="display:flex; gap:8px; margin-bottom:8px;">
-            <input type="text" class="np-loc-input" value="${nm.replace(/"/g,'&quot;')}" style="flex:1;">
+            <input type="text" class="np-loc-input w-medium" value="${nm.replace(/"/g,'&quot;')}">
             <button class="mini-btn" onclick="removeLocRow(this)" ${names.length>1?'':'style="display:none;"'}>${t('np.remove')}</button>
           </div>`).join('');
         updateProjectMode();
@@ -5048,19 +5526,40 @@
     );
   }
 
+  // "Create project" stays disabled until the two things that cannot be guessed
+  // are present: a project name and a client (with its name when it is new).
+  function refreshNewProjectReady(){
+    const btn = document.getElementById('np-create-btn');
+    if(!btn) return;
+    const name = (document.getElementById('np-name').value || '').trim();
+    const sel = document.getElementById('np-client-select');
+    const isNew = sel && sel.value === '__new__';
+    const newName = (document.getElementById('np-client-new').value || '').trim();
+    btn.disabled = !(name && sel && sel.value && (!isNew || newName));
+  }
+
   function createProject(){
-    const name = (document.getElementById('np-name').value || '').trim() || 'New project';
+    const name = (document.getElementById('np-name').value || '').trim();
     const clientSel = document.getElementById('np-client-select');
     let clientKey, clientName;
 
+    const errs = [];
+    if(!name) errs.push({id:'np-name', label:t('np.name'), msg:t('form.required')});
     if(clientSel.value === '__new__'){
       clientName = document.getElementById('np-client-new').value.trim();
-      if(!clientName){ showToast('Enter the name of the new client'); return; }
-      // A new client must be created together with its notification webhook.
       const whName = (document.getElementById('np-client-webhook-name').value || '').trim();
       const whUrl = (document.getElementById('np-client-webhook-url').value || '').trim();
-      if(!whName){ showToast('Enter a name for the new client\u2019s webhook'); return; }
-      if(!/^https?:\/\//i.test(whUrl)){ showToast('Enter a valid https:// webhook URL for the new client'); return; }
+      if(!clientName) errs.push({id:'np-client-new', label:t('np.clientNewPh'), msg:t('form.required')});
+      // A new client must be created together with its notification webhook.
+      if(!whName) errs.push({id:'np-client-webhook-name', label:t('np.webhookNamePh'), msg:t('form.required')});
+      if(!/^https?:\/\//i.test(whUrl)) errs.push({id:'np-client-webhook-url', label:t('np.webhookUrlPh'), msg:t('form.httpsUrl')});
+    }
+    if(errs.length){ showFormErrors('np', errs); return; }
+    clearFormErrors('np');
+
+    if(clientSel.value === '__new__'){
+      const whName = (document.getElementById('np-client-webhook-name').value || '').trim();
+      const whUrl = (document.getElementById('np-client-webhook-url').value || '').trim();
       clientKey = slugifyClientName(clientName);
       if(!CLIENTS.some(c=>c.key===clientKey)){
         // New client needs a domain for client-user e-mail validation to work.
@@ -5080,7 +5579,7 @@
       // one.) The comparison is case-insensitive and trims surrounding spaces.
       const dupKey = name.trim().toLowerCase();
       const dup = Object.values(PROJECTS).some(p => p.client === clientKey && String(p.name || '').trim().toLowerCase() === dupKey);
-      if(dup){ showToast(t('proj.dupName')); return; }
+      if(dup){ showFormErrors('np', [{id:'np-name', label:t('np.name'), msg:t('proj.dupName')}]); return; }
     }
 
     const multi = document.getElementById('np-multi-toggle').checked;
@@ -5094,11 +5593,6 @@
     // created with two apps sharing the same name.
     const appNames = Array.from(document.querySelectorAll('#np-apps .np-app-input')).map(i=>i.value.trim()).filter(Boolean)
       .filter((an, i, arr) => arr.findIndex(x => x.toLowerCase() === an.toLowerCase()) === i);
-    const people = Array.from(document.querySelectorAll('#np-people .person-row')).map(r=>({
-      name: r.querySelector('.np-person-name').value.trim(),
-      email: r.querySelector('.np-person-email').value.trim()
-    })).filter(p=>p.name && p.email);
-
     // Build a project key unique within the client.
     let base = slugifyClientName(name) || 'project';
     let projectKey = clientKey + ':' + base;
@@ -5129,10 +5623,6 @@
 
     npImportedLocationTypes = {}; // consumed — clear for the next project
 
-    // Invite the client's people as real client-role accounts (best-effort;
-    // each gets an invitation link/e-mail). Runs async and refreshes the list.
-    reconcileClientPeople(people, projectKey, clientKey);
-
     logAudit('added', 'Project', 'Created project "' + name + '"', name + ' (' + clientName + ')', 'aud.d.projectCreated', {name});
     persistProject(projectKey);
     persistClients();
@@ -5148,51 +5638,33 @@
   }
 
   let editingAppIndex = null;
-  let appFormInlineRow = null;
 
-  function closeAppForm(){
-    const f = document.getElementById('app-form');
-    f.style.display = 'none';
-    document.getElementById('app-form-home').appendChild(f);
-    if(appFormInlineRow){ appFormInlineRow.remove(); appFormInlineRow = null; }
+  // Adding and editing an application share one dialog: same fields, same layout,
+  // same Cancel/Save footer — only the title and the target record differ.
+  function openAppModal(){
+    if(!PROJECTS[currentProjectKey]) return;
     editingAppIndex = null;
-  }
-
-  function toggleAppForm(){
-    const f = document.getElementById('app-form');
-    const isOpenAsNew = f.style.display !== 'none' && editingAppIndex === null;
-    if(isOpenAsNew){ closeAppForm(); return; }
-
-    closeAppForm();
-    document.getElementById('app-form-title').textContent = 'New application';
-    document.getElementById('app-form-submit').textContent = 'Add application';
+    document.getElementById('app-modal-form-title').textContent = t('proj.newApp');
+    document.getElementById('app-modal-form-sub').textContent = t('proj.newAppSub');
     document.getElementById('app-name').value = '';
     document.getElementById('app-repo').value = '';
-    f.style.display = 'block';
+    openFormModal('app-modal-form');
   }
 
   function openAppSettings(index){
     const p = PROJECTS[currentProjectKey];
-    const a = p.apps[index];
-    closeAppForm();
+    const a = p && p.apps ? p.apps[index] : null;
+    if(!a) return;
     editingAppIndex = index;
-
-    const row = document.querySelector(`#apps-table tr[data-idx="${index}"]`);
-    const tr = document.createElement('tr');
-    const td = document.createElement('td');
-    td.colSpan = 3;
-    tr.appendChild(td);
-    row.after(tr);
-    appFormInlineRow = tr;
-
-    const f = document.getElementById('app-form');
-    td.appendChild(f);
-    document.getElementById('app-form-title').textContent = 'Application settings — ' + a.name;
-    document.getElementById('app-form-submit').textContent = 'Save changes';
+    document.getElementById('app-modal-form-title').textContent = t('app.settings') + ' — ' + a.name;
+    document.getElementById('app-modal-form-sub').textContent = t('proj.newAppSub');
     document.getElementById('app-name').value = a.name;
     document.getElementById('app-repo').value = (a.repo && a.repo !== '—') ? ('https://' + a.repo) : '';
-    f.style.display = 'block';
-    tr.scrollIntoView({behavior:'smooth', block:'center'});
+    openFormModal('app-modal-form');
+  }
+
+  function submitAppModal(){
+    addApplication();
   }
 
   function selectRadioPill(name, value){
@@ -5206,7 +5678,10 @@
   function addApplication(){
     const name = document.getElementById('app-name').value.trim();
     const repo = document.getElementById('app-repo').value.trim() || '—';
-    if(!name){ showToast('Enter an application name'); return; }
+    if(!name){
+      showFormErrors('app-modal-form', [{id:'app-name', label:t('proj.thApp'), msg:t('form.required')}]);
+      return;
+    }
     const repoDisplay = repo === '—' ? '—' : repo.replace(/^https?:\/\//,'');
     const p = PROJECTS[currentProjectKey];
 
@@ -5214,7 +5689,11 @@
     // editing, the app being edited is excluded from the comparison.
     const dupName = name.trim().toLowerCase();
     const dupApp = (p.apps || []).some((a, ai) => ai !== editingAppIndex && String(a.name || '').trim().toLowerCase() === dupName);
-    if(dupApp){ showToast(t('proj.dupApp')); return; }
+    if(dupApp){
+      showFormErrors('app-modal-form', [{id:'app-name', label:t('proj.thApp'), msg:t('proj.dupApp')}]);
+      return;
+    }
+    clearFormErrors('app-modal-form');
 
     if(editingAppIndex !== null){
       const a = p.apps[editingAppIndex];
@@ -5227,6 +5706,8 @@
       logAudit('added', 'Application', 'Added application „' + name + '”', p.name + ' (' + p.clientName + ')', 'aud.d.appAdded', {name});
       showToast('Application „' + name + '” added');
     }
+    closeFormModal('app-modal-form');
+    editingAppIndex = null;
     rebuildAppsTable(p);
     renderProjectsList();
     renderScheduleAppsList();
@@ -5672,7 +6153,7 @@
     if(showCompleted) completed.forEach(r => listRows.push(r));
 
     const headCols = [t('dep.thProject'), t('dep.thAppVer'), t('dep.thLocations'), t('dep.thEnv'), t('dep.thDate'), t('dep.thProgress'), t('client.colProdSchedule'), ''];
-    html += `<div style="overflow:auto;">
+    html += `<div class="table-scroll" style="max-height:640px; margin-top:10px;">
       <table>
         <thead><tr>${headCols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
         <tbody>
@@ -5787,6 +6268,111 @@
     if(msg && msg.style.display !== 'none'){ e.preventDefault(); closeMessageModal(); return; }
     const edit = document.getElementById('edit-dep-modal-overlay');
     if(edit && edit.style.display !== 'none'){ e.preventDefault(); closeEditDeploymentModal(false); }
+  });
+
+  // ---- Alerts -------------------------------------------------------------
+  // One banner style with four meanings — info, success, warning, error — each
+  // with its own colour and icon. Everything that informs the user in-page goes
+  // through here so a message is never styled like a control.
+  const ALERT_ICONS = {info:'ℹ', success:'✓', warning:'⚠', error:'⚠'};
+  function alertHtml(kind, title, body, items){
+    const k = ALERT_ICONS[kind] ? kind : 'info';
+    const list = (items && items.length)
+      ? '<ul>' + items.map(i=>`<li>${escapeHtml(i)}</li>`).join('') + '</ul>'
+      : '';
+    return `<div class="alert alert-${k}" role="${k === 'error' ? 'alert' : 'status'}">
+      <span class="alert-ic" aria-hidden="true">${ALERT_ICONS[k]}</span>
+      <div class="alert-body">${title ? `<div class="alert-title">${escapeHtml(title)}</div>` : ''}${body ? `<div>${escapeHtml(body)}</div>` : ''}${list}</div>
+    </div>`;
+  }
+
+  // ---- Inline form validation --------------------------------------------
+  // A failed save marks each offending field red with its own message and puts a
+  // single error banner at the top of the form listing everything that's wrong —
+  // instead of a modal that names one problem and forgets the rest.
+  //
+  // Fields are addressed by element id; `label` is what the banner lists.
+  // A form "scope" is either a real element with that id (a modal) or a logical
+  // prefix (e.g. 'np', 'schedule') that only names the banner slot `<scope>-errors`.
+  // In the latter case the whole document is searched when clearing the marks.
+  function formErrorScope(scopeId){
+    return document.getElementById(scopeId) || document;
+  }
+
+  function clearFormErrors(scopeId){
+    const scope = formErrorScope(scopeId);
+    scope.querySelectorAll('.field-error').forEach(el=> el.classList.remove('field-error'));
+    scope.querySelectorAll('.field-error-msg').forEach(el=> el.remove());
+    const banner = document.getElementById(scopeId + '-errors');
+    if(banner){ banner.innerHTML = ''; banner.style.display = 'none'; }
+  }
+
+  // errors: [{id:'np-name', label:'Project name', msg:'This field is required'}]
+  // `el` may be given instead of `id` for a control with no stable id (a table-row
+  // input). An entry with neither is listed in the banner only (cross-field rule).
+  function showFormErrors(scopeId, errors){
+    clearFormErrors(scopeId);
+    if(!errors || !errors.length) return;
+    let firstBad = null;
+    errors.forEach(err=>{
+      const el = err.el || (err.id ? document.getElementById(err.id) : null);
+      if(!el) return;
+      if(!firstBad) firstBad = el;
+      const wrap = el.closest('.field') || el.parentElement;
+      if(!wrap) return;
+      wrap.classList.add('field-error');
+      if(err.msg){
+        const msg = document.createElement('span');
+        msg.className = 'field-error-msg';
+        msg.textContent = err.msg;
+        wrap.appendChild(msg);
+      }
+    });
+    const banner = document.getElementById(scopeId + '-errors');
+    if(banner){
+      banner.innerHTML = alertHtml('error', t('form.errTitle'), t('form.errBody'),
+        errors.map(e=> e.label ? (e.label + (e.msg ? ' — ' + e.msg : '')) : (e.msg || '')));
+      banner.style.display = 'block';
+      banner.scrollIntoView({behavior:'smooth', block:'center'});
+    } else {
+      // No banner slot in this form — fall back to a toast so the user still learns why.
+      showToast('⚠ ' + (errors[0].msg || t('form.errTitle')));
+    }
+    if(firstBad){ try { firstBad.focus({preventScroll:true}); } catch(e){ firstBad.focus(); } }
+  }
+
+  // ---- Generic modal shell ------------------------------------------------
+  // Adding or editing a small record (an application, a target, a column) happens
+  // in a dialog: the list behind it stays put instead of the page reflowing.
+  // Every dialog gets the same footer — Cancel on the left, the primary action on
+  // the right — so the buttons never swap places between screens.
+  const openFormModals = [];
+  function openFormModal(id){
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.classList.add('open');
+    if(!openFormModals.includes(id)) openFormModals.push(id);
+    // Focus the first enabled control so the dialog is keyboard-usable at once.
+    const first = el.querySelector('input:not([type=hidden]):not([disabled]), select, textarea');
+    if(first) setTimeout(()=>{ try { first.focus(); first.select && first.select(); } catch(e){} }, 30);
+  }
+  function closeFormModal(id){
+    const el = document.getElementById(id);
+    if(el) el.classList.remove('open');
+    const i = openFormModals.indexOf(id);
+    if(i >= 0) openFormModals.splice(i, 1);
+    clearFormErrors(id);
+  }
+  // Escape closes the topmost form modal; a click on the backdrop does the same.
+  document.addEventListener('keydown', (e)=>{
+    if(e.key !== 'Escape' || !openFormModals.length) return;
+    e.preventDefault();
+    closeFormModal(openFormModals[openFormModals.length - 1]);
+  });
+  document.addEventListener('click', (e)=>{
+    if(e.target && e.target.classList && e.target.classList.contains('modal-overlay') && e.target.classList.contains('open')){
+      closeFormModal(e.target.id);
+    }
   });
 
   // ---- master deployments dataset, spans all clients/projects ----
@@ -6930,7 +7516,7 @@
   function saveScheduleChanges(idx){
     const d = DEPLOYMENTS_DATA[idx];
     const staged = d._pendingDayDates;
-    if(!staged || !Object.keys(staged).length){ showToast('No changes to save'); return; }
+    if(!staged || !Object.keys(staged).length){ showToast(t('dep.rowNoChanges')); return; }
     d.dayDates = d.dayDates || {};
     const changedDays = [];
     Object.keys(staged).forEach(day=>{
@@ -7305,8 +7891,10 @@
   function depWarningHtml(r){
     const s = depsStatus(r);
     if(!s.blocked) return '';
-    return `<div style="margin:8px 0; padding:8px 10px; background:var(--red-soft); border:1px solid #F3C9C9; border-radius:8px; font-size:12px; color:#A81E1E;">
-      ⚠ Blocked by a dependency — first complete: ${s.pending.map(d=>`<span class="mono" style="font-weight:700;">${d.id}</span>${d.label ? ' ('+d.label+')' : ''}`).join(', ')}.
+    const list = s.pending.map(d=>`<span class="mono" style="font-weight:700;">${d.id}</span>${d.label ? ' ('+d.label+')' : ''}`).join(', ');
+    return `<div class="alert alert-warning" style="margin:8px 0;" role="status">
+      <span class="alert-ic" aria-hidden="true">⚠</span>
+      <div class="alert-body">${t('dcard.blockedByDep')}: ${list}.</div>
     </div>`;
   }
 
@@ -7771,11 +8359,9 @@
     const corrBtn = `<button class="mini-btn" onclick="toggleInstallerCorrection(${r.idx})">${t('rep.reportCorrection')}</button>`;
     const chrome = installerActionChromeHtml(r, {showSchedule:true, showComment:true, showTimeline:true, timelineOpen:true});
     if(r.mode === 'batch'){
-      const doneBanner = reportedResults[r.idx] ? `
-        <div style="background:var(--green-soft); border:1px solid #BEE7C4; border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:12.5px;">
-          <strong style="color:#0F7A38;">${t('rep.resultSavedComplete')}</strong>
-          <div style="color:var(--text-muted); margin-top:2px;">${t('rep.allAccounted')}</div>
-        </div>` : '';
+      const doneBanner = reportedResults[r.idx]
+        ? `<div style="margin-bottom:12px;">${alertHtml('success', t('rep.resultSavedComplete'), t('rep.allAccounted'))}</div>`
+        : '';
       return `${chrome}
         ${doneBanner}
         <div style="margin-bottom:10px;">${corrBtn}</div>
@@ -7814,6 +8400,30 @@
       </div>`;
   }
 
+  // The four deployment counters, shared by the deployments list and the deployer
+  // panel. Each box carries an icon — a bare number is not legible enough on its own.
+  function deployStatsHtml(total, pending, installed, issues){
+    // A colour-coded tile at zero would draw the eye to nothing, so a count of
+    // zero falls back to the neutral grey treatment.
+    const box = (icClass, ic, num, lbl, numStyle) => {
+      const zero = !Number(num);
+      return `
+      <div class="stat">
+        <div class="stat-top">
+          <span class="stat-ic ${zero ? 'ic-zero' : icClass}" aria-hidden="true">${ic}</span>
+          <div class="num mono${zero ? ' num-zero' : ''}"${(numStyle && !zero) ? ` style="${numStyle}"` : ''}>${num}</div>
+        </div>
+        <div class="lbl">${escapeHtml(lbl)}</div>
+      </div>`;
+    };
+    return [
+      box('ic-total', '\u{1F680}', total, t('rep.total')),
+      box('ic-pending', '\u{1F551}', pending, t('rep.pending'), 'color:var(--text-muted);'),
+      box('ic-done', '\u2713', installed, t('rep.installed'), 'color:var(--green);'),
+      box('ic-issue', '\u26A0', issues, t('rep.issues'), 'color:var(--red);'),
+    ].join('');
+  }
+
   function renderInstallerStats(list){
     const stats = document.getElementById('installer-stats');
     if(!stats) return;
@@ -7827,12 +8437,7 @@
         else issues += 1;
       }
     });
-    stats.innerHTML = `
-      <div class="stat"><div class="num mono">${total}</div><div class="lbl">${t('rep.total')}</div></div>
-      <div class="stat"><div class="num mono" style="color:var(--text-muted);">${pending}</div><div class="lbl">${t('rep.pending')}</div></div>
-      <div class="stat"><div class="num mono" style="color:var(--green);">${installed}</div><div class="lbl">${t('rep.installed')}</div></div>
-      <div class="stat"><div class="num mono" style="color:var(--red);">${issues}</div><div class="lbl">${t('rep.issues')}</div></div>
-    `;
+    stats.innerHTML = deployStatsHtml(total, pending, installed, issues);
   }
 
   function renderInstallerPanel(){
@@ -7892,7 +8497,8 @@
     const bodyRows = rows.length
       ? rows.map(({r, kind}) => installerTableRowHtml(r, kind)).join('')
       : ((rows._archive && rows._archive.length) ? '' : `<tr><td colspan="${headCols.length}" style="color:var(--text-muted); font-size:13px; text-align:center; padding:16px;">${emptyMsg}</td></tr>`);
-    html += `<div style="overflow:auto;">
+    // Same framed, sticky-headed scroll pane as the Deployments list.
+    html += `<div class="table-scroll" style="max-height:640px; margin-top:10px;">
       <table>
         <thead><tr>${headCols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
         <tbody>${bodyRows}</tbody>
@@ -7903,7 +8509,7 @@
       html += `<div style="margin-top:14px;">
         <button class="mini-btn" onclick="toggleInstallerArchive()"><span id="installer-archive-label">${installerArchiveOpen ? t('rep.hideArchive') : t('rep.showArchive')} (${rows._archive.length})</span></button>
         <div id="installer-archive-box" style="display:${installerArchiveOpen ? 'block' : 'none'}; margin-top:10px;">
-          ${installerArchiveOpen ? `<div style="overflow:auto;"><table>
+          ${installerArchiveOpen ? `<div class="table-scroll" style="max-height:480px;"><table>
             <thead><tr>${headCols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
             <tbody>${rows._archive.map(r => installerTableRowHtml(r, 'completed')).join('')}</tbody>
           </table></div>` : ''}
@@ -8528,16 +9134,18 @@
 
     function approvalBadgeHtml(r){
       if(r.env !== 'Production' && !r.clientApproval) return '<td style="color:var(--text-faint); font-size:12px;">—</td>';
+      // Short labels: the full wording ("Awaiting approval") stretched the column
+      // and pushed the rest of the row out of view. The full text stays in the title.
       const map = {
-        pending:   {label:t('dep.aPending'),   bg:'#FDF1E1', color:'#8A5A05'},
-        approved:  {label:t('dep.aApproved'),  bg:'var(--green-soft)', color:'#0F7A38'},
-        commented: {label:t('dep.aCommented'), bg:'#FDF1E1', color:'#8A5A05'},
-        rejected:  {label:t('dep.aRejected'),  bg:'var(--red-soft)', color:'#A81E1E'},
+        pending:   {label:t('dep.aPendingShort'), full:t('dep.aPending'),   bg:'#FDF1E1', color:'#8A5A05'},
+        approved:  {label:t('dep.aApproved'),     full:t('dep.aApproved'),  bg:'var(--green-soft)', color:'#0F7A38'},
+        commented: {label:t('dep.aCommented'),    full:t('dep.aCommented'), bg:'#FDF1E1', color:'#8A5A05'},
+        rejected:  {label:t('dep.aRejected'),     full:t('dep.aRejected'),  bg:'var(--red-soft)', color:'#A81E1E'},
       };
       const current = r.clientApproval || 'pending';
       const st = map[current];
       const options = Object.entries(map).map(([val,m])=>`<option value="${val}" ${val===current?'selected':''}>${m.label}</option>`).join('');
-      let html = `<select onclick="event.stopPropagation();" onchange="changeClientApproval(${r.idx}, this.value)" class="mono" style="border:1px solid var(--line); border-radius:20px; padding:3px 8px; font-size:11px; font-weight:600; background:${st.bg}; color:${st.color};">${options}</select>`;
+      let html = `<select onclick="event.stopPropagation();" onchange="changeClientApproval(${r.idx}, this.value)" title="${escapeHtml(st.full)}" class="mono" style="border:1px solid var(--line); border-radius:20px; padding:3px 8px; font-size:11px; font-weight:600; background:${st.bg}; color:${st.color};">${options}</select>`;
       if(r.clientComment){
         html += `<div style="margin-top:5px; font-size:11px; color:var(--text-muted); font-style:italic;">💬 „${escapeHtml(r.clientComment.length>60?r.clientComment.slice(0,60)+'…':r.clientComment)}"</div>`;
       }
@@ -8604,11 +9212,12 @@
           <div style="max-height:180px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; margin-bottom:${hasStaged ? '8px' : '16px'};">
             <table><thead><tr><th>${t('dtl.thDay')}</th><th>${t('dtl.thDate')}</th><th>${t('dtl.thTargets')}</th><th>${t('dtl.thStatus')}</th></tr></thead><tbody>${dayPlanRows}</tbody></table>
           </div>
-          ${hasStaged ? `<div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; padding:10px 12px; background:#FDF8EE; border:1px solid #F0D9A8; border-radius:8px; flex-wrap:wrap;">
-            <span style="font-size:12px; color:#8A5A05; font-weight:600;">${t('dtl.unsaved')}</span>
-            <div style="display:flex; gap:8px; margin-left:auto;">
+          ${hasStaged ? `<div class="alert alert-warning" style="margin-bottom:16px; align-items:center;" role="status">
+            <span class="alert-ic" aria-hidden="true">⚠</span>
+            <div class="alert-body"><strong>${t('dtl.unsaved')}</strong></div>
+            <div style="display:flex; gap:8px; flex-shrink:0;">
               <button class="mini-btn" onclick="discardScheduleChanges(${r.idx})">${t('dtl.cancelChanges')}</button>
-              <button class="btn" onclick="saveScheduleChanges(${r.idx})">${t('dtl.saveNotifyAll')}</button>
+              <button class="btn small" onclick="saveScheduleChanges(${r.idx})">${t('dtl.saveNotifyAll')}</button>
             </div>
           </div>` : ''}
           <label style="margin-bottom:8px;">${tf('dtl.queueLabel', {n: queue.length})}</label>
@@ -8686,10 +9295,10 @@
         const items = r.dependsOn.map(depId=>{
           const dep = DEPLOYMENTS_DATA.find(x=>x.id===depId);
           const done = dep ? (dep.mode === 'batch' ? (dep.counts && dep.counts.scheduled === 0) : dep.status === 'installed') : false;
-          const apps = dep ? (dep.apps||[]).map(a=>a.name+' v'+a.version).join(', ') : '(does not exist)';
+          const apps = dep ? (dep.apps||[]).map(a=>a.name+' v'+a.version).join(', ') : t('dcard.depMissing');
           const badge = done
-            ? '<span class="mono" style="font-size:10px; font-weight:700; padding:1px 7px; border-radius:20px; background:var(--green-soft); color:#0F7A38;">✓ completed</span>'
-            : '<span class="mono" style="font-size:10px; font-weight:700; padding:1px 7px; border-radius:20px; background:var(--red-soft); color:#A81E1E;">⧗ in progress</span>';
+            ? `<span class="mono" style="font-size:10px; font-weight:700; padding:1px 7px; border-radius:20px; background:var(--green-soft); color:#0F7A38;">✓ ${t('dcard.depDone')}</span>`
+            : `<span class="mono" style="font-size:10px; font-weight:700; padding:1px 7px; border-radius:20px; background:#FDF1E1; color:#8A5A05;">⧗ ${t('dcard.depOpen')}</span>`;
           return `<div style="display:flex; align-items:center; gap:8px; padding:4px 0;"><span class="mono" style="font-size:11px; font-weight:700;">${depId}</span> <span style="font-size:12px; color:var(--text-muted);">${apps}</span> ${badge}</div>`;
         }).join('');
         return `<div class="field" style="margin-bottom:16px;"><label style="margin-bottom:4px;">${t('dcard.dependencies')}</label><div style="border:1px solid var(--line); border-radius:8px; padding:8px 12px;">${items}</div></div>`;
@@ -8698,10 +9307,13 @@
       // Paused state — reason stays below; resume control lives on the ID bar.
       let pauseHtml = '';
       if(r.paused){
-        pauseHtml = `<div style="margin-bottom:16px; padding:10px 12px; background:#FDF1E1; border:1px solid #F0D9A8; border-radius:8px;">
-          <div style="font-size:12.5px; color:#8A5A05; font-weight:600;">⏸ ${t('dcard.paused')}</div>
-          <div style="font-size:12px; color:var(--text-muted); margin-top:3px;">${t('dcard.reason')}: ${r.pauseReason ? '„'+r.pauseReason+'”' : '—'}</div>
-          ${r.pausedBy ? `<div style="font-size:11.5px; color:var(--text-faint); margin-top:2px;">${t('dcard.pausedBy')}: <strong>${r.pausedBy}</strong>${r.pausedAt ? ' · ' + r.pausedAt : ''}</div>` : ''}
+        pauseHtml = `<div class="alert alert-warning" style="margin-bottom:16px;" role="status">
+          <span class="alert-ic" aria-hidden="true">⏸</span>
+          <div class="alert-body">
+            <div class="alert-title">${t('dcard.paused')}</div>
+            <div>${t('dcard.reason')}: ${r.pauseReason ? '„'+escapeHtml(r.pauseReason)+'”' : '—'}</div>
+            ${r.pausedBy ? `<div style="opacity:0.8; margin-top:2px;">${t('dcard.pausedBy')}: <strong>${escapeHtml(r.pausedBy)}</strong>${r.pausedAt ? ' · ' + escapeHtml(r.pausedAt) : ''}</div>` : ''}
+          </div>
         </div>`;
       }
 
@@ -8709,7 +9321,7 @@
         <div style="padding:14px;">
           ${idHtml}
           ${detailPanels}
-          ${r.assignedTo ? `<div style="font-size:12px; color:var(--text-muted); margin:-4px 0 12px 0;">Assigned to / done by: <strong>${r.assignedTo}</strong></div>` : ''}
+          ${r.assignedTo ? `<div style="font-size:12px; color:var(--text-muted); margin:-4px 0 12px 0;">${t('dcard.assignee')}: <strong>${escapeHtml(r.assignedTo)}</strong></div>` : ''}
           ${pauseHtml}
           ${depHtml}
           ${r.paused ? '' : actionHtml}
@@ -8744,23 +9356,33 @@
         } else if(isDone){
           progressExtra = `<div style="font-size:10.5px; color:#0F7A38; margin-top:3px;">✓ ${t('dep.complete')}</div>`;
         }
+        // "Mark the rest" acts on the number right next to it, so it sits in the
+        // progress cell as an icon; a labelled button in its own column read as
+        // unrelated and widened every row.
+        const markRestBtn = `<button class="mini-btn icon-only-btn" ${(r.counts.scheduled===0 || r.paused)?'disabled':''} title="${escapeHtml(t('rep.markRest'))}" aria-label="${escapeHtml(t('rep.markRest'))}" onclick="event.stopPropagation(); markBatchInstalled(${r.idx})">✓</button>`;
         cells.push(`<td>
           <div style="display:flex; align-items:center; gap:8px;">
             <div style="width:64px; height:6px; background:var(--line); border-radius:3px; overflow:hidden;"><div style="width:${pct}%; height:100%; background:${failedN ? 'var(--amber)' : 'var(--green)'};"></div></div>
             <span class="mono" style="font-size:11.5px; color:var(--text-muted);">${r.counts.installed}/${r.totalLocations}</span>
+            ${markRestBtn}
           </div>${progressExtra}`);
         cells.push(approvalBadgeHtml(r));
-        cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();"><button class="mini-btn" ${(r.counts.scheduled===0 || r.paused)?'disabled':''} onclick="markBatchInstalled(${r.idx})">${t('rep.markRest')}</button></td>`);
+        cells.push('<td></td>');
         html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
         if(expandedBatchIdx === r.idx) html += timelinePanelHtml(r);
       } else if(editingDeployIdx === r.idx){
         const envChoices = [...PROJECTS[r.projectKey].testEnvs, 'Production'];
         cells.push(`<td onclick="event.stopPropagation();">${r.location}</td>`);
         cells.push(`<td onclick="event.stopPropagation();"><select class="edit-env">${envChoices.map(e=>`<option value="${escapeHtml(e)}" ${e===r.env?'selected':''}>${escapeHtml(envLabel(e))}</option>`).join('')}</select></td>`);
-        cells.push(`<td onclick="event.stopPropagation();"><input type="date" class="edit-date" value="${r.date}"><input type="time" class="edit-time mono" value="${r.time}" style="margin-top:4px;"></td>`);
+        // Date and time are one moment in time, so they are edited as one control
+        // instead of two fields that can drift apart.
+        const dtValue = r.date ? `${r.date}T${(r.time || '00:00').slice(0,5)}` : '';
+        cells.push(`<td onclick="event.stopPropagation();"><input type="datetime-local" class="edit-datetime mono" value="${dtValue}"></td>`);
         cells.push(`<td><span class="pill ${r.status}">${statusLabel[r.status]}</span></td>`);
         cells.push(approvalBadgeHtml(r));
-        cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();"><button class="mini-btn" onclick="saveDeploymentEdit(${r.idx})">${t('common.save')}</button> <button class="mini-btn" onclick="toggleEditDeployment(${r.idx})">${t('common.cancel')}</button></td>`);
+        // Cancel first, the confirming action last on the right — the same order as
+        // every dialog in the app.
+        cells.push(`<td style="white-space:nowrap; text-align:right;" onclick="event.stopPropagation();"><button class="mini-btn" onclick="toggleEditDeployment(${r.idx})">${t('common.cancel')}</button> <button class="btn small" onclick="saveDeploymentEdit(${r.idx})">${t('common.save')}</button></td>`);
         html += `<tr data-idx="${r.idx}">` + cells.join('') + '</tr>';
       } else {
         const colors = {scheduled:'#5B6472', installed:'#0F7A38', failed:'#A81E1E', rolledback:'#6B21A8', aborted:'#5B6472'};
@@ -8772,7 +9394,7 @@
           ${statusOptions.map(s=>`<option value="${s}" ${s===r.status?'selected':''}>${statusLabel[s]}</option>`).join('')}
         </select>${r.paused ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' — ' + r.pauseReason : ''}</div>` : ''}</td>`);
         cells.push(approvalBadgeHtml(r));
-        cells.push(`<td style="white-space:nowrap;" onclick="event.stopPropagation();"><button class="mini-btn" onclick="toggleEditDeployment(${r.idx})">${t('usr.edit')}</button></td>`);
+        cells.push(`<td style="white-space:nowrap; text-align:right;" onclick="event.stopPropagation();"><button class="mini-btn icon-btn" onclick="toggleEditDeployment(${r.idx})"><span class="mb-ic">✎</span> ${t('usr.edit')}</button></td>`);
         html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
         if(expandedBatchIdx === r.idx) html += timelinePanelHtml(r);
       }
@@ -8780,11 +9402,16 @@
     if(hiddenByRange > 0){
       const totalCols2 = cols.length;
       html += `<tr><td colspan="${totalCols2}" style="text-align:center; padding:12px; font-size:12px; color:var(--text-muted);">
-        ${hiddenByRange} older deployments hidden outside the selected range —
-        <a href="#" onclick="event.preventDefault(); document.getElementById('deploy-filter-range').value='all'; renderDeploymentsTable();" style="color:var(--cyan); text-decoration:none;">show all history</a>
+        ${tf('dep.hiddenByRange', {n: hiddenByRange})}
+        <a href="#" onclick="event.preventDefault(); document.getElementById('deploy-filter-range').value='all'; renderDeploymentsTable();" style="color:var(--cyan); text-decoration:none;">${t('dep.showAllHistory')}</a>
       </td></tr>`;
     }
+    // Re-rendering the whole body would otherwise reset the scroll pane, so the
+    // row you clicked "Edit" on jumped out of sight. Restore the offset.
+    const scrollPane = tbody.closest('.table-scroll');
+    const prevScroll = scrollPane ? scrollPane.scrollTop : 0;
     tbody.innerHTML = html;
+    if(scrollPane) scrollPane.scrollTop = prevScroll;
 
     const stats = document.getElementById('deploy-stats');
     let total = rows.length, pending = 0, installed = 0, issues = 0;
@@ -8797,12 +9424,7 @@
         else issues += 1; // failed / rolledback / aborted
       }
     });
-    stats.innerHTML = `
-      <div class="stat"><div class="num mono">${total}</div><div class="lbl">${t('rep.total')}</div></div>
-      <div class="stat"><div class="num mono" style="color:var(--text-muted);">${pending}</div><div class="lbl">${t('rep.pending')}</div></div>
-      <div class="stat"><div class="num mono" style="color:var(--green);">${installed}</div><div class="lbl">${t('rep.installed')}</div></div>
-      <div class="stat"><div class="num mono" style="color:var(--red);">${issues}</div><div class="lbl">${t('rep.issues')}</div></div>
-    `;
+    stats.innerHTML = deployStatsHtml(total, pending, installed, issues);
   }
 
   function markInstalled(idx){
@@ -8821,14 +9443,17 @@
     if(!row){ return; }
     const d = DEPLOYMENTS_DATA[idx];
     const envEl = row.querySelector('.edit-env');
-    const dateEl = row.querySelector('.edit-date');
-    const timeEl = row.querySelector('.edit-time');
+    const dtEl = row.querySelector('.edit-datetime');
+    // One datetime-local control feeds the two stored fields.
+    const dtParts = (dtEl && dtEl.value) ? dtEl.value.split('T') : null;
+    const newDate = dtParts ? dtParts[0] : null;
+    const newTime = dtParts ? (dtParts[1] || '').slice(0,5) : null;
     // Capture the previous values so the change can be recorded on the timeline
     // and in the audit log (editing a single deployment previously left no trace).
     const changes = [];
     if(envEl && envEl.value !== d.env){ changes.push('environment ' + envLabel(d.env) + ' → ' + envLabel(envEl.value)); d.env = envEl.value; }
-    if(dateEl && dateEl.value !== d.date){ changes.push('date ' + (d.date||'—') + ' → ' + (dateEl.value||'—')); d.date = dateEl.value; }
-    if(timeEl && timeEl.value !== d.time){ changes.push('time ' + (d.time||'—') + ' → ' + (timeEl.value||'—')); d.time = timeEl.value; }
+    if(newDate && newDate !== d.date){ changes.push('date ' + (d.date||'—') + ' → ' + newDate); d.date = newDate; }
+    if(newTime && newTime !== d.time){ changes.push('time ' + (d.time||'—') + ' → ' + newTime); d.time = newTime; }
     editingDeployIdx = null;
     if(changes.length){
       const _s = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
@@ -8841,7 +9466,7 @@
     persistDeployment(idx);
     renderDeploymentsTable();
     renderInstallerPanel();
-    showToast(changes.length ? 'Deployment updated' : 'No changes');
+    showToast(changes.length ? t('dep.rowSaved') : t('dep.rowNoChanges'));
   }
 
   function changeDeploymentStatus(idx, newStatus){
@@ -9012,7 +9637,7 @@
   function replyToClientComment(idx){
     const d = DEPLOYMENTS_DATA[idx];
     // RM can reply to / acknowledge the client's comment, but not edit the client's own words.
-    showAppPrompt('Reply to the client comment', d.clientReply || '', (reply)=>{
+    showAppPrompt(t('dcard.replyTitle'), d.clientReply || '', (reply)=>{
       if(reply === null) return;
       d.clientReply = reply.trim();
       d.comments = d.comments || [];
@@ -9021,7 +9646,7 @@
       persistDeployment(idx);
       renderDeploymentsTable();
       showToast('Reply saved — notification sent to the client');
-    }, 'Client comment: „' + (d.clientComment||'') + '"');
+    }, tf('dcard.replySub', {comment: d.clientComment || ''}));
   }
 
   function copyDeploymentId(id){
