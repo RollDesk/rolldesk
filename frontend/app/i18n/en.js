@@ -881,7 +881,6 @@ window.RD_I18N.en = {
   "list.exportCsv": "⬇ CSV",
   "list.csvEmpty": "No rows to export",
   "list.csvExported": "Exported {n} row(s)",
-  "rep.openDetails": "Details ▾",
   "rep.waitingNoNotes": "No additional instructions for this deployment.",
   "rep.showArchive": "Show archived deployments",
   "rep.hideArchive": "Hide archived deployments",
