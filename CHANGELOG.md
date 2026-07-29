@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 UX review pass over **Projects** and **Deployments**, with the resulting patterns applied to the rest of the app.
 
 ### Added
-- **Inline form validation.** Saving a form with problems no longer shows one toast at a time: every issue is listed in an error banner at the top of the form and the offending fields are marked in red with a message underneath. Applied to *New project*, *New deployment*, the schedule step, and the Users, Clients and SSO forms.
+- **Inline form validation.** Saving a form with problems no longer shows a dialog naming one problem at a time (this replaces the 0.11.2 validation modals): every issue is listed in an error banner at the top of the form and the offending fields are marked in red with a message underneath. Applied to *New project*, *New deployment*, the schedule step, and the Users, Clients and SSO forms.
 - **Header counters on a project.** Applications, production and non-production targets are shown as tiles — the same full-width summary row as the deployments list.
 - **Client access card on a project.** Shows which Client-role people can see the project's deployments, with granting access done there or in Users.
 - **A header on the deployer panel** (title, one-line purpose, summary tiles), matching the deployments list.
@@ -30,6 +30,15 @@ UX review pass over **Projects** and **Deployments**, with the resulting pattern
 - **Editing a deployment row no longer scrolls the table away.** The scroll position is preserved across the re-render.
 - **`index.html` is always revalidated** (`Cache-Control: no-cache`), so a version bump actually reaches the browser instead of a cached page requesting the previous version's translation bundles.
 - **Missing and duplicated UI strings.** Client access, the *New project* step headings and the hidden-history note are translated; the doubled ＋ signs and the doubled ℹ icon in the test-only note are gone. The "new target field", "archive user" and "reply to the client comment" dialogs are localized too (they were hard-coded English).
+
+## [0.11.2] - 2026-07-28
+
+### Added
+- **`SMTP_TLS_REJECT_UNAUTHORIZED`** — lets a self-hosted instance talk to an SMTP server with a self-signed certificate. Defaults to strict verification; passed through both compose files.
+
+### Fixed
+- **Validation dialogs, status webhooks, the `scheduleApproved` event and the test-environment badge** in the deployments views.
+- **i18n bundle syntax** (straight quotes introduced by an editor).
 
 ## [0.12.0] - 2026-07-25
 

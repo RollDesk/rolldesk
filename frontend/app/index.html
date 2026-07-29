@@ -2002,6 +2002,7 @@
   </div>
 </div>
 
+
 <div id="twofa-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(20,24,30,0.45); z-index:999; align-items:center; justify-content:center;">
   <div class="card" style="max-width:420px; width:90%; background:var(--paper-alt, #fff);">
     <div style="font-weight:600; font-size:14px; margin-bottom:4px;">Two-factor authentication setup</div>
@@ -2712,9 +2713,10 @@
   // Notification config: multiple email + Teams recipients, and per-event channel routing.
   // Catalogue of notifiable events.
   const NOTIF_EVENT_DEFS = [
-    {key:'created',   label:'Schedule created'},
-    {key:'approval',  label:'Approval request'},
-    {key:'decision',  label:'Client decision'},
+    {key:'created',          label:'Schedule created'},
+    {key:'approval',         label:'Approval request'},
+    {key:'scheduleApproved', label:'Schedule approved by client'},
+    {key:'decision',         label:'Client decision'},
     {key:'clientComment', label:'Client comments on a distribution'},
     {key:'started',   label:'Production deployment started'},
     {key:'paused',    label:'Distribution paused'},
@@ -5861,6 +5863,10 @@
         (rec.id ? rec.id + ' — ' : '') + projName
         + '\n' + t('notif.environment') + ': ' + envLabel(rec.env||'')
         + '\n' + t('dep.aApproved') + '\n' + tf('notif.approvedBy', {who}), true);
+      dispatchEventNotification('scheduleApproved', rec.projectKey, 'RollDesk — ' + t('ev.scheduleApproved') + ' (' + (rec.env||'') + ')',
+        (rec.id ? rec.id + ' — ' : '') + projName
+        + '\n' + t('notif.environment') + ': ' + (rec.env||'')
+        + '\n' + t('dep.aApproved') + '\n' + tf('notif.approvedBy', {who}), true);
     } else if(action === 'commented'){
       showAppPrompt(t('client.commentTitle'), '', (note)=>{
         if(note === null) return;
@@ -6258,6 +6264,7 @@
     if(!overlay || overlay.style.display === 'none') return;
     if(e.key === 'Escape') closeConfirmModal(false);
   });
+
   document.addEventListener('keydown', (e)=>{
     if(e.key !== 'Escape') return;
     const app = document.getElementById('app-modal-overlay');
@@ -8264,6 +8271,9 @@
     if(r.clientApproval === 'approved'){
       return `<td><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--green-soft); color:#0F7A38;">✓ ${t('rep.clientApproved')}</span></td>`;
     }
+    if(r.env && r.env !== 'Production' && !r.clientApproval){
+      return `<td><span class="mono" style="font-size:10.5px; padding:2px 9px; border-radius:20px; background:var(--cyan-soft); color:var(--cyan);" title="${escapeHtml(t('rep.testNoApprovalNeeded'))}">ŚT — ${t('rep.testNoApprovalNeeded')}</span></td>`;
+    }
     return `<td style="color:var(--text-faint); font-size:12px;">—</td>`;
   }
 
@@ -9428,9 +9438,23 @@
   }
 
   function markInstalled(idx){
-    DEPLOYMENTS_DATA[idx].status = 'installed';
+    const d = DEPLOYMENTS_DATA[idx];
+    d.status = 'installed';
+    const _s = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'};
+    const who = actorName();
+    d.comments = d.comments || [];
+    d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'✅', text: tf('dcard.statusChanged', {from: t('status.scheduled'), to: t('status.installed')})});
+    logAudit('changed','Deployment','Changed status of ' + (d.id||'') + ': scheduled → installed', (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.statusChanged', {id: d.id||'', from: t('status.scheduled'), to: t('status.installed')});
+    persistDeployment(idx);
     renderDeploymentsTable();
-    showToast('Marked as installed — email notification sent');
+    renderInstallerPanel();
+    const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
+    const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
+    const body = (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '')
+      + '\n' + t('notif.environment') + ': ' + (d.env||'')
+      + '\n' + t('notif.statusLine') + ': ' + t('status.installed');
+    dispatchEventNotification('completed', d.projectKey, 'RollDesk — ' + t('ev.completed') + ' (' + (d.env||'') + ')', body, true);
+    showToast(tf('dcard.statusChangedToast', {status: t('status.installed')}));
   }
 
   function toggleEditDeployment(idx){
@@ -9484,6 +9508,13 @@
     persistDeployment(idx);
     renderDeploymentsTable();
     renderInstallerPanel();
+    const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
+    const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
+    const statusBody = (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '')
+      + '\n' + t('notif.environment') + ': ' + (d.env||'')
+      + '\n' + t('notif.statusLine') + ': ' + (labels[newStatus]||newStatus);
+    const eventKey = (newStatus === 'installed') ? 'completed' : (newStatus === 'failed' ? 'failure' : 'completed');
+    dispatchEventNotification(eventKey, d.projectKey, 'RollDesk — ' + t('ev.completed') + ' (' + (d.env||'') + ')', statusBody, true);
     showToast(tf('dcard.statusChangedToast', {status: labels[newStatus]||newStatus}));
   }
 

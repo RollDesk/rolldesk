@@ -72,6 +72,7 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-RollDesk <no-reply@rolldesk.local>}
+      SMTP_TLS_REJECT_UNAUTHORIZED: ${SMTP_TLS_REJECT_UNAUTHORIZED:-true}
       # Microsoft Graph / Teams threaded notifications (optional). Secrets come
       # from the environment only and must never be committed. Posting is OFF
       # until GRAPH_ENABLED=1 (see .env.example) — falls back to webhooks.
