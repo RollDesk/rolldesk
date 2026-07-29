@@ -4,6 +4,57 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-07-29
+
+UX review pass over **Projects** and **Deployments**, with the resulting patterns applied to the rest of the app.
+
+### Added
+- **Inline form validation.** Saving a form with problems no longer shows a dialog naming one problem at a time (this replaces the 0.11.2 validation modals): every issue is listed in an error banner at the top of the form and the offending fields are marked in red with a message underneath. Applied to *New project*, *New deployment*, the schedule step, and the Users, Clients and SSO forms.
+- **Header counters on a project.** Applications, production and non-production targets are shown as tiles — the same full-width summary row as the deployments list.
+- **Client access card on a project.** Shows which Client-role people can see the project's deployments, with granting access done there or in Users.
+- **A header on the deployer panel** (title, one-line purpose, summary tiles), matching the deployments list.
+
+### Changed
+- **Projects is a switcher, not a table.** One pill per project on a single line (client name shown only when there is more than one client), archived projects separated by a hairline, "New project" at the end of the strip. The selected project's configuration renders below.
+- **Applications and targets are edited in a dialog** instead of an inline form that pushed the page around.
+- **One consistent button order and shape.** Cancel on the left, the confirming action on the right — in dialogs, in form footers and in table rows. Add buttons all use the same ＋ glyph, and section headers all use the same title/description/actions layout.
+- **One datetime field** wherever a moment in time is entered — editing a deployment row and the test/production start of a schedule (date and time were two controls that could drift apart). Cancel/Save in the standard order, and a pencil on *Edit*.
+- **Framed, sticky table headers** on every list (deployments, deployer panel, client portal, users, clients, audit) — the header stays visible while scrolling and the corners are rounded.
+- **Unified alerts.** Notes, warnings and confirmations share one alert component with a consistent icon and colour per kind.
+- **"Mark the rest" moved into the progress cell** of a batch deployment as an icon, next to the number it acts on.
+- **Shorter approval pill** (full wording in the tooltip) so it no longer stretches the column.
+- **"Filter by" labels** on the filter rows, so it is clear what the controls do.
+
+### Fixed
+- **A zero counter no longer shouts.** The *Failed* tile is grey at zero and only turns red once there is something to see.
+- **Editing a deployment row no longer scrolls the table away.** The scroll position is preserved across the re-render.
+- **`index.html` is always revalidated** (`Cache-Control: no-cache`), so a version bump actually reaches the browser instead of a cached page requesting the previous version's translation bundles.
+- **Missing and duplicated UI strings.** Client access, the *New project* step headings and the hidden-history note are translated; the doubled ＋ signs and the doubled ℹ icon in the test-only note are gone. The "new target field", "archive user" and "reply to the client comment" dialogs are localized too (they were hard-coded English).
+
+## [0.11.2] - 2026-07-28
+
+### Added
+- **`SMTP_TLS_REJECT_UNAUTHORIZED`** — lets a self-hosted instance talk to an SMTP server with a self-signed certificate. Defaults to strict verification; passed through both compose files.
+
+### Fixed
+- **Validation dialogs, status webhooks, the `scheduleApproved` event and the test-environment badge** in the deployments views.
+- **i18n bundle syntax** (straight quotes introduced by an editor).
+
+## [0.12.0] - 2026-07-25
+
+### Added
+- **Share administrator information with the client.** A per-project setting (on create and in deployment defaults) controls whether deployer/admin notes and their files also appear in the client portal. Off by default; the API strips those fields for client accounts when the setting is off.
+
+### Changed
+- **Shorter queue move buttons.** First/last queue actions show only the arrows (⇤ / ⇥); the full label stays in the button tooltip.
+- **Consistent “targets” wording.** UI labels that still said “locations” / “lok.” now use “targets” / “cele”; the redundant short unit next to the day count is gone.
+- **Tighter schedule assignment preview.** Time sits under the date; the redundant P/NP badge is omitted there (only production targets appear — the Environment column already says so). In the targets list, type is a compact **P** / **NP** badge (full label on hover; click to toggle).
+- **Post-deployment section help** moved into an info (ℹ) tooltip.
+- **Repository link placeholder** is a generic `https://…` (not GitHub-specific).
+
+### Fixed
+- **Environment “Production” is localized in the UI** (e.g. Polish „Produkcja”) in lists, filters, schedule path badges, PDF titles, CSV export and notifications. The stored value stays `Production`.
+
 ## [0.11.1] - 2026-07-24
 
 ### Added

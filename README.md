@@ -16,6 +16,7 @@ The whole thing ships as a small, runnable package: a static UI + an Express API
 - [Core concepts](#core-concepts)
 - [Roles & features](#roles--features)
 - [Architecture](#architecture)
+- [Architecture assumptions](ARCHITECTURE.md) — reusable checklist of adopted design decisions
 - [Tech stack](#tech-stack)
 - [Repository layout](#repository-layout)
 - [Getting started (local development)](#getting-started-local-development)
@@ -74,6 +75,8 @@ Cross-cutting features: schedule shifting mid-rollout, pause/resume with a reaso
 ---
 
 ## Architecture
+
+Adopted design decisions (for reuse on similar apps) are listed in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ```mermaid
 flowchart LR
