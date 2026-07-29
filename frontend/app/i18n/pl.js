@@ -881,7 +881,6 @@ window.RD_I18N.pl = {
   "list.exportCsv": "⬇ CSV",
   "list.csvEmpty": "Brak wierszy do eksportu",
   "list.csvExported": "Wyeksportowano {n} wierszy",
-  "rep.openDetails": "Szczegóły ▾",
   "rep.waitingNoNotes": "Brak dodatkowych instrukcji dla tego wdrożenia.",
   "rep.showArchive": "Pokaż zarchiwizowane wdrożenia",
   "rep.hideArchive": "Ukryj zarchiwizowane wdrożenia",

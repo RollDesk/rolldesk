@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.1] - 2026-07-29
+
+### Changed
+- **Deployer panel rows expand like the deployments list.** The trailing "Details ▾" / "Collapse ▲" column is gone — the row itself is the control, as it already was in *Deployments*, which never had that column.
+
 ## [0.13.0] - 2026-07-29
 
 UX review pass over **Projects** and **Deployments**, with the resulting patterns applied to the rest of the app.

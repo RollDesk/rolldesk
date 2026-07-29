@@ -2021,11 +2021,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.13.0"></script>
-<script src="i18n/en.js?v=0.13.0"></script>
+<script src="i18n/pl.js?v=0.13.1"></script>
+<script src="i18n/en.js?v=0.13.1"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.13.0';
+  const ROLLDESK_VERSION = '0.13.1';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -8291,15 +8291,16 @@
     cells.push(`<td class="mono">${installerDateLabel(r)}<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(r.time)}</div></td>`);
     cells.push(installerProgressCellHtml(r));
     cells.push(installerApprovalCellHtml(r, kind));
+    // No details/collapse column: the whole row is the control, exactly as in the
+    // Deployments list, and a text label pretending to be a button cost a column.
     const open = expandedInstallerIdx === r.idx;
-    cells.push(`<td style="color:var(--text-faint); font-size:12px; white-space:nowrap;">${open ? t('client.collapse') : t('rep.openDetails')}</td>`);
     let html = `<tr data-idx="${r.idx}" class="deploy-row" onclick="toggleInstallerDetails(${r.idx})" style="cursor:pointer;">${cells.join('')}</tr>`;
     if(open) html += installerDetailRowHtml(r, kind);
     return html;
   }
 
   function installerDetailRowHtml(r, kind){
-    const cols = 8;
+    const cols = 7;
     return `<tr><td colspan="${cols}" style="background:var(--paper);">
       <div style="padding:14px;" onclick="event.stopPropagation();">
         ${installerDetailBodyHtml(r, kind)}
@@ -8500,7 +8501,7 @@
     if(installerArchiveOpen && rows._archive) rows._archive.forEach(r => csvSource.push({r, kind:'completed'}));
     lastInstallerCsvRows = csvSource.map(({r}) => deploymentCsvRecord(r));
 
-    const headCols = [t('dep.thProject'), t('dep.thAppVer'), t('dep.thLocations'), t('dep.thEnv'), t('dep.thDate'), t('dep.thProgress'), t('dep.thApproval'), ''];
+    const headCols = [t('dep.thProject'), t('dep.thAppVer'), t('dep.thLocations'), t('dep.thEnv'), t('dep.thDate'), t('dep.thProgress'), t('dep.thApproval')];
     const emptyMsg = (!showWaiting && !showActive && !showCompleted)
       ? t('filter.noneSelected')
       : t(showCompleted && !showWaiting && !showActive ? 'rep.noCompleted14' : 'rep.noActive');
