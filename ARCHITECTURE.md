@@ -59,6 +59,7 @@ Adopted architectural decisions for RollDesk. Use this as a checklist when build
 - REST under `/api`; `/health` is unauthenticated (liveness + DB + migration status).
 - Domain entities: Client → Project → Apps/Targets → Deployment (single vs batch).
 - Explicit lifecycle statuses (`scheduled` / `installed` / `failed` / …); append-only audit trail.
+- Two write shapes per entity: **`PUT` replaces the whole JSONB object** (what the UI, which holds it in memory, needs) and **`PATCH` merges named fields** (what a token-authenticated script needs, without a read-modify-write round trip). `PATCH` never upserts and validates the fields it owns.
 - Event-driven notifications (email / webhook / optional Teams Graph), opt-in.
 
 ## Process & release

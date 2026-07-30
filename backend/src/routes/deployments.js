@@ -5,8 +5,22 @@ import {
   forbidClient, isClient, isInstaller, clientScope, userScope,
   projectSharesAdminInfo, stripAdminInfoFromDeployment,
 } from '../rbac.js';
+import {
+  mergeDeploymentPatch, summarizeChanges, deploymentColumns,
+} from '../deploymentPatch.js';
 
 const router = Router();
+
+// Wall-clock stamp in the `YYYY-MM-DD` / `HH:MM` shape the stored timeline and
+// the audit log use (both are human-readable strings captured at write time).
+function nowStamp() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return {
+    date: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+    time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+  };
+}
 
 // Returns the stored deployment object (JSONB) with the id attached.
 function rowToObj(r) {
@@ -84,10 +98,7 @@ router.get('/:id', async (req, res) => {
 
 // Upsert of the full deployment object (PUT by id) — used by the frontend.
 async function upsert(id, body) {
-  const projectKey = body.projectKey || body.project_key || 'unknown';
-  const env = body.env || null;
-  const status = body.status || (body.counts && body.counts.scheduled === 0 ? 'installed' : 'scheduled');
-  const internal = !!body.internal;
+  const { projectKey, env, status, internal } = deploymentColumns(body);
   const data = Object.assign({}, body);
   delete data.id; // id is kept in its own column
   const { rows } = await query(
@@ -132,10 +143,7 @@ router.post('/:id/decision', async (req, res) => {
   const by = (String(b.by || '').trim() || null);
   const commentText = String(b.commentText || '').slice(0, 2000);
 
-  const now = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  const stampDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  const stampTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const { date: stampDate, time: stampTime } = nowStamp();
 
   const data = Object.assign({}, row.data);
   data.clientApproval = decision === 'approved' ? 'approved' : 'commented';
@@ -178,6 +186,98 @@ router.post('/:id/decision', async (req, res) => {
   }
 
   res.json(await shapeForCaller(req, rowToObj({ id: row.id, data })));
+});
+
+// PATCH /api/deployments/:id — change individual fields, leaving the rest of
+// the stored object alone.
+//
+// PUT replaces the whole object, which suits the UI (it always holds the full
+// deployment in memory) but makes automation awkward: a script that only wants
+// to flip the status has to GET, mutate and PUT the entire record back, and any
+// serialization mistake on the way silently truncates the schedule, comments or
+// counts. PATCH is the endpoint for `Authorization: Bearer rd_live_…` callers.
+//
+// The merge is shallow (see deploymentPatch.js) and, unlike PUT, this route
+// will not create a deployment — patching something that does not exist is a
+// mistake worth reporting, not an upsert. Installers are limited to the
+// projects they were granted, matching what they can read.
+router.patch('/:id', forbidClient, async (req, res) => {
+  const { rows } = await query('SELECT * FROM deployments WHERE id = $1', [req.params.id]);
+  if (!rows.length) return res.status(404).json({ error: 'Not found' });
+  const row = rows[0];
+  if (isInstaller(req)) {
+    const { projects } = await userScope(req);
+    if (!projects.includes(row.project_key)) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+  }
+
+  const merged = mergeDeploymentPatch(row.data, req.body, req.params.id);
+  if (!merged.ok) return res.status(422).json({ error: merged.error });
+
+  // A patch that changes nothing is a success, not an error — an idempotent
+  // retry of "mark it installed" must not fail the second time. Return the
+  // stored object without touching updated_at or writing a history entry.
+  if (!merged.changes.length) {
+    return res.json(rowToObj(row));
+  }
+
+  const summary = summarizeChanges(merged.changes);
+  const stamp = nowStamp();
+  const actor = (req.auth && req.auth.email) || 'API';
+  const data = merged.data;
+
+  // Record the change on the deployment's own timeline, the way the UI does
+  // when someone edits a row, so the two are indistinguishable after a reload.
+  data.comments = Array.isArray(data.comments) ? data.comments : [];
+  data.comments.push({
+    date: stamp.date, time: stamp.time, author: actor, type: 'system', icon: '🔄',
+    text: `Deployment changed via the API (${summary})`,
+  });
+
+  // Derive the filterable columns from the merged object, but fall back to the
+  // stored column rather than the generic default: a deployment created through
+  // POST with only `counts` has its status in the column and not in `data`, and
+  // a patch of an unrelated field must not silently reset it.
+  const cols = deploymentColumns(Object.assign(
+    {},
+    data,
+    { projectKey: row.project_key },
+    'status' in data ? {} : { status: row.status },
+    'env' in data ? {} : { env: row.env },
+    'internal' in data ? {} : { internal: row.internal }
+  ));
+  const { rows: updated } = await query(
+    `UPDATE deployments
+        SET env = $2, status = $3, internal = $4, data = $5, updated_at = now()
+      WHERE id = $1
+      RETURNING *`,
+    [req.params.id, cols.env, cols.status, cols.internal, data]
+  );
+
+  // Append the audit entry server-side — an API caller has no UI to do it for
+  // it, and a change with no trace in the history is the thing the audit log
+  // exists to prevent. `summary` is English free text, like the summaries the
+  // UI passes for its own edits.
+  try {
+    await query(
+      `INSERT INTO audit_log (ts, actor, role, action, entity, detail, project, detail_key, detail_params)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      // An empty role rather than null: the history renders the stored value
+      // verbatim when it is not one of the known roles.
+      [`${stamp.date} ${stamp.time}`, actor, (req.auth && req.auth.role) || '',
+       'changed', 'Deployment',
+       `Changed deployment ${row.id} via the API — ${summary}`,
+       row.project_key || null,
+       'aud.d.depPatchedApi',
+       JSON.stringify({ id: row.id, summary })]
+    );
+  } catch (err) {
+    // Non-fatal: the change itself is saved even if the audit insert fails.
+    console.warn('[patch] audit insert failed:', err.message);
+  }
+
+  res.json(rowToObj(updated[0]));
 });
 
 // PUT /api/deployments/:id — create or update (the frontend uses this to save).

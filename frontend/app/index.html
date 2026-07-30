@@ -2021,11 +2021,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.13.3"></script>
-<script src="i18n/en.js?v=0.13.3"></script>
+<script src="i18n/pl.js?v=0.14.0"></script>
+<script src="i18n/en.js?v=0.14.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.13.3';
+  const ROLLDESK_VERSION = '0.14.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -5501,10 +5501,17 @@
     const body = document.getElementById('api-docs-body');
     if(!body) return;
     const c = (HELP_CONTENT[LANG] || HELP_CONTENT.pl).api;
-    const base = 'https://api.rolldesk.example/v1';
+    // The real base URL of this instance, so the examples can be copied and run
+    // as they stand. The docs used to show a fabricated api.rolldesk.example/v1
+    // host and invented endpoints, which sent integrators to URLs that 404.
+    const base = location.origin + '/api';
     const sec = (title) => `<div style="font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin:16px 0 8px 0;">${title}</div>`;
     const code = (s) => `<pre class="mono" style="background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:11.5px; line-height:1.55; overflow-x:auto; white-space:pre; margin:0 0 10px 0;">${s.replace(/</g,'&lt;')}</pre>`;
-    const colors = {GET:{bg:'var(--cyan-soft)', fg:'#0A6E7A'}, POST:{bg:'var(--green-soft)', fg:'#0F7A38'}, PATCH:{bg:'#FDF1E1', fg:'#8A5A05'}};
+    const colors = {
+      GET:{bg:'var(--cyan-soft)', fg:'#0A6E7A'}, POST:{bg:'var(--green-soft)', fg:'#0F7A38'},
+      PATCH:{bg:'#FDF1E1', fg:'#8A5A05'}, PUT:{bg:'#FDF1E1', fg:'#8A5A05'},
+      DELETE:{bg:'var(--red-soft)', fg:'#A81E1E'},
+    };
     const endpoint = (m, path, desc) => {
       const cc = colors[m] || colors.GET;
       return `<div style="border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-bottom:8px;">
@@ -5522,16 +5529,16 @@
       ${c.ep.map(([m,p,d])=>endpoint(m,p,d)).join('')}
 
       ${sec(c.ex1Title)}
-      ${code('curl -X PATCH ' + base + '/deployments/DEP-2026-0003/status \\\n  -H "Authorization: Bearer $ROLLDESK_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d \'{ "status": "installed" }\'')}
+      ${code('curl -X PATCH ' + base + '/deployments/DEP-2026-0003 \\\n  -H "Authorization: Bearer $ROLLDESK_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d \'{ "status": "installed" }\'')}
       <p style="font-size:12px; color:var(--text-muted); margin:0 0 8px 0;">${c.statusVals}</p>
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 8px 0;">${c.patchNote}</p>
 
       ${sec(c.ex2Title)}
-      ${code('curl -X POST ' + base + '/deployments/DEP-2026-0007/targets/Site-02/result \\\n  -H "Authorization: Bearer $ROLLDESK_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d \'{ "result": "failed", "reason": "..." }\'')}
+      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 8px 0;">${c.ex2Desc}</p>
+      ${code('$h = @{ Authorization = "Bearer $env:ROLLDESK_TOKEN" }\nInvoke-RestMethod -Method Patch -Headers $h -ContentType "application/json" `\n  -Uri "' + base + '/deployments/DEP-2026-0003" `\n  -Body \'{ "status": "installed" }\'')}
 
       ${sec(c.errTitle)}
       <p style="font-size:12px; color:var(--text-muted); margin:0;">${c.errDesc}</p>
-
-      <p style="font-size:11px; color:var(--text-faint); margin:16px 0 0 0;">${c.note}</p>
     `;
   }
 
