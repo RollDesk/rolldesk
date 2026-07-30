@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-07-30
+
+### Added
+- **A notification links to the deployment it is about.** `#deployments/<id>` is now a route: it opens the deployments list with that schedule's row expanded, scrolled to and briefly outlined. It widens the filters first — the default 14-day window and the status filters are the viewer's, not the sender's, so a link to an older or filtered-out deployment used to land on a list that did not contain it. On a cold load the row does not exist yet when the link is routed, so the focus is re-applied once the list arrives.
+
+### Changed
+- **The link is the deployment id, and the "Open the schedule in RollDesk" line is gone.** A notification carried a trailing instruction plus a bare URL to the list, which meant reading a sentence to get somewhere that still needed searching. The id already opens every body, so it is the link — as a Markdown link in a Teams card, `<url|id>` in Slack, an anchor in an HTML e-mail. The plain-text part of an e-mail spells the URL out under the body, since it cannot carry an anchor. A notification with no deployment id (or an instance with no `APP_BASE_URL`) still gets the generic link added in 0.14.1.
+- The link is built from `APP_BASE_URL` server-side rather than from the browser's origin: the address the person creating a schedule happens to use is not necessarily the one the recipients reach the instance on.
+
 ## [0.14.2] - 2026-07-30
 
 ### Changed

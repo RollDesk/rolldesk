@@ -2021,11 +2021,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.14.2"></script>
-<script src="i18n/en.js?v=0.14.2"></script>
+<script src="i18n/pl.js?v=0.15.0"></script>
+<script src="i18n/en.js?v=0.15.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.14.2';
+  const ROLLDESK_VERSION = '0.15.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -2780,12 +2780,10 @@
     if(webhooks.length) parts.push(webhooks.length + (webhooks.length === 1 ? ' webhook' : ' webhooks'));
     return parts.length ? parts.join(', ') : t('notif.viaNone');
   }
-  // Deep link back into the app (used in Teams/Slack notifications so the client
-  // can jump straight to the schedule). Uses the current origin the team is on.
-  function appLink(hash){
-    try { return location.origin + location.pathname + (hash || '#deployments'); }
-    catch(e){ return ''; }
-  }
+  // Links back into the app are built server-side from APP_BASE_URL (see
+  // backend/src/appLink.js): the browser's own origin is whatever the person
+  // creating the schedule happens to use, which is not necessarily the address
+  // the recipients reach the instance on.
   // Really deliver an event notification (webhooks + optional post-deploy e-mail)
   // through the backend, and surface the outcome — including partial failures.
   // Never rejects: notification delivery must not block the user's action.
@@ -2798,7 +2796,9 @@
     // endless list in a Teams channel once the changelog is appended below, and
     // these values are short enough to sit together.
     const lines = [];
-    lines.push(projName + (r.id ? ' · ' + r.id : ''));
+    // Id first, as in notifHeader(): the backend turns the first occurrence of
+    // the id into the link to that deployment, so it opens the message.
+    lines.push((r.id ? r.id + ' — ' : '') + (projName || ''));
     const appsLabel = (r.apps||[]).map(a=>a.name + (a.version ? ' v' + a.version : '')).join(', ');
     const facts = [];
     if(appsLabel) facts.push(appsLabel);
@@ -2828,7 +2828,8 @@
     let body = lines.filter(Boolean).join('\n');
     if(r.changelog) body += '\n\n' + t('notif.changelogLabel') + ':\n' + r.changelog;
     if(r.attachment) body += '\n' + t('notif.attachment') + ': ' + r.attachment;
-    body += '\n\n' + t('notif.openLink') + ': ' + appLink('#deployments');
+    // No "open the schedule in RollDesk" line: the backend links the deployment
+    // id above, which is both shorter and lands on the right row.
     return body;
   }
 
@@ -2875,7 +2876,7 @@
     const projName = (PROJECTS[rec.projectKey]||{}).name || rec.projectKey;
     dispatchEventNotification('clientComment', rec.projectKey,
       'RollDesk — ' + t('ev.clientComment'),
-      (rec.id ? rec.id + ' — ' : '') + projName + '\n' + (note || ''), false);
+      (rec.id ? rec.id + ' — ' : '') + projName + '\n' + (note || ''), false, rec.id);
   }
 
   // ---- Client-scoped webhook editor (used inside the client form) ----
@@ -3470,10 +3471,43 @@
 
   // Resolve the view from the URL hash (used on load and on Back/Forward).
   function routeFromHash(){
-    const name = decodeURIComponent((location.hash || '').replace(/^#/, '')).split('/')[0];
+    const raw = decodeURIComponent((location.hash || '').replace(/^#/, ''));
+    const parts = raw.split('/');
+    const name = parts[0];
     applyView(knownViews().has(name) ? name : 'projects');
+    // #deployments/<DEP-id> — a notification links to the deployment it is about,
+    // so the recipient lands on that row and not on a list they have to search.
+    if(name === 'deployments' && parts[1]) focusDeployment(parts[1]);
   }
   window.addEventListener('hashchange', routeFromHash);
+
+  // Open a single deployment by its business id: widen the filters enough for it
+  // to be in the list at all (a notification may be about a deployment outside
+  // the default 14-day window or with a status the viewer has filtered out),
+  // expand its timeline and scroll to it. Called again after the data arrives,
+  // because the row may not exist yet on a cold load.
+  let pendingFocusDeployId = '';
+  function focusDeployment(depId){
+    depId = String(depId || '').trim();
+    if(!depId) return;
+    pendingFocusDeployId = depId;
+    const idx = DEPLOYMENTS_DATA.findIndex(d => d && String(d.id) === depId);
+    if(idx < 0) return; // still loading — refreshDeployments() retries this
+    pendingFocusDeployId = '';
+    const range = document.getElementById('deploy-filter-range');
+    if(range && range.value !== 'all') range.value = 'all';
+    Object.keys(deployStatusFilter).forEach(k => { deployStatusFilter[k] = true; });
+    ['deploy-filter-client','deploy-filter-project','deploy-filter-app','deploy-filter-env']
+      .forEach(id => { const el = document.getElementById(id); if(el) el.value = 'all'; });
+    expandedBatchIdx = idx;
+    renderDeploymentsTable();
+    const row = document.querySelector(`#deploy-table tr[data-idx="${idx}"]`);
+    if(!row) return;
+    row.scrollIntoView({behavior:'smooth', block:'center'});
+    row.style.transition = 'box-shadow 0.3s';
+    row.style.boxShadow = 'inset 0 0 0 2px var(--cyan)';
+    setTimeout(()=>{ row.style.boxShadow = ''; }, 1600);
+  }
 
   function openProjectFromList(key){
     if(!key || !PROJECTS[key]) return;
@@ -4262,8 +4296,8 @@
       const createdRecs = DEPLOYMENTS_DATA.slice(createdIdsStart);
       const rec = createdRecs.find(x=>x.env === 'Production') || createdRecs[0] || {};
       const body = buildScheduleNotifBody(rec, projName);
-      dispatchEventNotification('created', pk, 'RollDesk — ' + t('ev.created'), body, false);
-      if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk — ' + t('ev.approval'), body, false);
+      dispatchEventNotification('created', pk, 'RollDesk — ' + t('ev.created'), body, false, rec.id);
+      if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk — ' + t('ev.approval'), body, false, rec.id);
     }
     resetScheduleForm();
     goToView('deployments');
@@ -5861,8 +5895,8 @@
 
       r.draft = false;
       const body = buildScheduleNotifBody(r, projName);
-      dispatchEventNotification('created', pk, 'RollDesk — ' + t('ev.created'), body, false);
-      if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk — ' + t('ev.approval'), body, false);
+      dispatchEventNotification('created', pk, 'RollDesk — ' + t('ev.created'), body, false, r.id);
+      if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk — ' + t('ev.approval'), body, false, r.id);
       logAudit('notified', 'Deployment', 'Notified the client about ' + (r.id||'') + ' — recipients: ' + recipients, projName + (p.clientName ? ' (' + p.clientName + ')' : ''), 'aud.d.draftNotified', {id: r.id||'', recipients});
       persistDeployment(idx);
       renderDeploymentsTable();
@@ -5888,7 +5922,7 @@
       tf('draft.remindBody', {project: projName, recipients}) + '\n\n' + tf('draft.remindChannels', {channels}),
       ()=>{
       const body = buildScheduleNotifBody(r, projName) + '\n' + t('draft.remindNote');
-      dispatchEventNotification('approval', pk, 'RollDesk — ' + t('ev.approval') + ' (' + t('draft.remindTag') + ')', body, false);
+      dispatchEventNotification('approval', pk, 'RollDesk — ' + t('ev.approval') + ' (' + t('draft.remindTag') + ')', body, false, r.id);
       logAudit('notified', 'Deployment', 'Sent an approval reminder for ' + (r.id||'') + ' — recipients: ' + recipients + ' — channels: ' + channels, projName + (p.clientName ? ' (' + p.clientName + ')' : ''), 'aud.d.approvalReminded', {id: r.id||'', recipients, channels});
       const _s = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'};
       r.comments = r.comments || [];
@@ -5921,9 +5955,9 @@
       const approvedBody = notifHeader(rec, projName)
         + '\n' + t('dep.aApproved') + ' · ' + tf('notif.approvedBy', {who});
       dispatchEventNotification('decision', rec.projectKey, 'RollDesk — ' + t('ev.decision') + ' (' + envLabel(rec.env||'') + ')',
-        approvedBody, true);
+        approvedBody, true, rec.id);
       dispatchEventNotification('scheduleApproved', rec.projectKey, 'RollDesk — ' + t('ev.scheduleApproved') + ' (' + (rec.env||'') + ')',
-        approvedBody, true);
+        approvedBody, true, rec.id);
     } else if(action === 'commented'){
       showAppPrompt(t('client.commentTitle'), '', (note)=>{
         if(note === null) return;
@@ -6842,6 +6876,9 @@
       try { renderDeploymentsTable(); } catch(e){}
       try { renderInstallerPanel(); } catch(e){}
       try { renderClientPortal(currentClientScenario); } catch(e){}
+      // A #deployments/<id> link is routed before the list is loaded, so the row
+      // it asks for only exists now.
+      if(pendingFocusDeployId){ try { focusDeployment(pendingFocusDeployId); } catch(e){} }
     } catch(e){ console.warn('Refresh deployments failed:', e.message); }
   }
   async function refreshProjectsAndClients(){
@@ -8696,7 +8733,7 @@
         highlightInstallerCard(idx);
         const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
         dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + t('ev.failure') + ' (' + envLabel(d.env||'') + ')',
-          notifHeader(d, projName) + '\n' + reason + '\n' + tf('notif.reportedByManual', {who}), true);
+          notifHeader(d, projName) + '\n' + reason + '\n' + tf('notif.reportedByManual', {who}), true, d.id);
       }, t('rep.failureReason'), true);
       return;
     }
@@ -8715,7 +8752,7 @@
       'RollDesk — ' + t('ev.completed') + ' (' + envLabel(d.env||'') + ')',
       notifHeader(d, projName)
       + '\n' + t('notif.statusLine') + ': ' + (statusLabelFull[d.status] || statusLabelFull.installed)
-      + ' · ' + tf('notif.reportedByManual', {who}), true);
+      + ' · ' + tf('notif.reportedByManual', {who}), true, d.id);
   }
 
   function filterTodayBatch(input){
@@ -8830,14 +8867,14 @@
         body += '\n' + tf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
         if(reason) body += '\n' + t('rep.correctionReason') + ': ' + reason;
       }
-      dispatchEventNotification('dayReport', d.projectKey, 'RollDesk — ' + t('ev.dayReport') + ' (' + envLabel(d.env||'') + ')', body + byLine, true);
+      dispatchEventNotification('dayReport', d.projectKey, 'RollDesk — ' + t('ev.dayReport') + ' (' + envLabel(d.env||'') + ')', body + byLine, true, d.id);
       // Guarantee a failure notification via the standard "failure" event too —
       // clients subscribe to it by default, unlike the newer per-day event.
       if(failedList.length){
         let fbody = header
           + '\n' + tf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
         if(reason) fbody += '\n' + t('rep.correctionReason') + ': ' + reason;
-        dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + t('ev.failure') + ' (' + envLabel(d.env||'') + ')', fbody + byLine, true);
+        dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + t('ev.failure') + ' (' + envLabel(d.env||'') + ')', fbody + byLine, true, d.id);
       }
     }
     renderInstallerPanel();
@@ -9510,7 +9547,7 @@
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
     const body = notifHeader(d, projName)
       + '\n' + t('notif.statusLine') + ': ' + t('status.installed');
-    dispatchEventNotification('completed', d.projectKey, 'RollDesk — ' + t('ev.completed') + ' (' + (d.env||'') + ')', body, true);
+    dispatchEventNotification('completed', d.projectKey, 'RollDesk — ' + t('ev.completed') + ' (' + (d.env||'') + ')', body, true, d.id);
     showToast(tf('dcard.statusChangedToast', {status: t('status.installed')}));
   }
 
@@ -9569,7 +9606,7 @@
     const statusBody = notifHeader(d, projName)
       + '\n' + t('notif.statusLine') + ': ' + (labels[newStatus]||newStatus);
     const eventKey = (newStatus === 'installed') ? 'completed' : (newStatus === 'failed' ? 'failure' : 'completed');
-    dispatchEventNotification(eventKey, d.projectKey, 'RollDesk — ' + t('ev.completed') + ' (' + (d.env||'') + ')', statusBody, true);
+    dispatchEventNotification(eventKey, d.projectKey, 'RollDesk — ' + t('ev.completed') + ' (' + (d.env||'') + ')', statusBody, true, d.id);
     showToast(tf('dcard.statusChangedToast', {status: labels[newStatus]||newStatus}));
   }
 
@@ -9695,7 +9732,7 @@
       const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
       dispatchEventNotification('paused', d.projectKey,
         'RollDesk — ' + t('ev.paused'),
-        (d.id ? d.id + ' — ' : '') + projName + '\n' + trimmed, false);
+        (d.id ? d.id + ' — ' : '') + projName + '\n' + trimmed, false, d.id);
       persistDeployment(idx);
       renderDeploymentsTable();
       renderInstallerPanel();
@@ -9764,7 +9801,7 @@
       notifHeader(d, projName)
       + '\n' + t('notif.statusLine') + ': ' + (statusLabelFull.installed)
       + ' · ' + tf('notif.progressLine', {done: d.counts.installed, total, left: 0})
-      + '\n' + tf('notif.reportedByManual', {who}), true);
+      + '\n' + tf('notif.reportedByManual', {who}), true, d.id);
   }
 
   initProjectSelect();

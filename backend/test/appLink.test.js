@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   appLinkText, appLinkHtml, appLinkSlack, appLinkCardAction, bodyToHtml,
   bodyToCardText, hasAppLink, isUsableAppUrl, APP_LINK_LABEL,
+  deploymentUrl, linkLabelSlack, linkLabelMarkdown,
 } from '../src/appLink.js';
 
 const URL_OK = 'http://10.6.10.6:8080';
@@ -128,4 +129,75 @@ test('hasAppLink is false when no URL is configured, whatever the body says', ()
 
 test('hasAppLink tolerates an empty or missing body', () => {
   for (const empty of ['', null, undefined]) assert.equal(hasAppLink(empty, URL_OK), false);
+});
+
+// A notification is always about one deployment, so it links to that row rather
+// than to the list — the app routes #deployments/<id> to it.
+test('deploymentUrl points at the deployment, not the list', () => {
+  assert.equal(deploymentUrl(URL_OK, 'DEP-2026-0048'), 'http://10.6.10.6:8080/#deployments/DEP-2026-0048');
+});
+
+test('deploymentUrl does not double the slash on a base URL with a trailing one', () => {
+  assert.equal(deploymentUrl('http://10.6.10.6:8080/', 'DEP-1'), 'http://10.6.10.6:8080/#deployments/DEP-1');
+});
+
+test('deploymentUrl is empty without a usable base URL or an id', () => {
+  for (const bad of ['', null, 'javascript:alert(1)']) assert.equal(deploymentUrl(bad, 'DEP-1'), '');
+  for (const noId of ['', '   ', null, undefined]) assert.equal(deploymentUrl(URL_OK, noId), '');
+});
+
+test('deploymentUrl escapes an id that would otherwise break the URL', () => {
+  assert.equal(deploymentUrl(URL_OK, 'DEP 1/2'), 'http://10.6.10.6:8080/#deployments/DEP%201%2F2');
+});
+
+// The id opens every notification body, so linking it in place is what lets the
+// message drop its trailing "open the app" line.
+test('the deployment id becomes the link in each channel markup', () => {
+  const body = 'DEP-2026-0048 — PIK_2\nKierowca v38.14.88 · Produkcja';
+  const url = deploymentUrl(URL_OK, 'DEP-2026-0048');
+  assert.equal(
+    linkLabelSlack(body, 'DEP-2026-0048', url),
+    `<${url}|DEP-2026-0048> — PIK_2\nKierowca v38.14.88 · Produkcja`
+  );
+  assert.equal(
+    linkLabelMarkdown(body, 'DEP-2026-0048', url),
+    `[DEP-2026-0048](${url}) — PIK_2\nKierowca v38.14.88 · Produkcja`
+  );
+});
+
+test('only the first occurrence of the id is linked', () => {
+  // The id repeats in a changelog often enough that linking each one is noise.
+  const out = linkLabelMarkdown('DEP-1 — proj\nsee DEP-1 again', 'DEP-1', URL_OK);
+  assert.equal(out.match(/\]\(/g).length, 1);
+  assert.ok(out.endsWith('see DEP-1 again'));
+});
+
+test('the body is returned unchanged when there is no URL or the id is absent', () => {
+  const body = 'DEP-1 — proj';
+  assert.equal(linkLabelSlack(body, 'DEP-1', ''), body);
+  assert.equal(linkLabelMarkdown(body, 'DEP-1', 'javascript:alert(1)'), body);
+  assert.equal(linkLabelMarkdown(body, 'DEP-9', URL_OK), body, 'an id not in the body must not be inserted');
+  assert.equal(linkLabelMarkdown(body, '', URL_OK), body);
+});
+
+test('bodyToHtml links the id and still escapes the rest of the body', () => {
+  const url = deploymentUrl(URL_OK, 'DEP-1');
+  const html = bodyToHtml('DEP-1 — proj\nreason: <bad> & more', { label: 'DEP-1', url });
+  assert.equal(
+    html,
+    `<p><a href="${url}">DEP-1</a> — proj<br>reason: &lt;bad&gt; &amp; more</p>`
+  );
+});
+
+test('bodyToHtml with a link ignores an id that is not in the body', () => {
+  const html = bodyToHtml('no id here', { label: 'DEP-1', url: deploymentUrl(URL_OK, 'DEP-1') });
+  assert.equal(html, '<p>no id here</p>');
+});
+
+test('bodyToHtml cannot be made to emit markup through the link label', () => {
+  // The label is escaped before it is looked up, so a body containing markup
+  // characters can never produce an unescaped tag.
+  const html = bodyToHtml('<img src=x> — proj', { label: '<img src=x>', url: URL_OK });
+  assert.ok(!html.includes('<img'), `expected the tag to stay escaped: ${html}`);
+  assert.ok(html.includes(`<a href="${URL_OK}">&lt;img src=x&gt;</a>`), html);
 });

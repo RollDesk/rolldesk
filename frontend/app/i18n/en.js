@@ -957,7 +957,6 @@ window.RD_I18N.en = {
   "notif.noWebhooks": "No webhooks — add the first one.",
   "notif.dispatched": "Notifications sent ({n})",
   "notif.changelogLabel": "Changelog",
-  "notif.openLink": "Open the schedule in RollDesk",
   "notif.environment": "Environment",
   "notif.statusLine": "Status",
   "notif.progressLine": "Progress: {done}/{total} installed, {left} remaining",
