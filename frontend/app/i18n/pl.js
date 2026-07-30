@@ -957,7 +957,6 @@ window.RD_I18N.pl = {
   "notif.noWebhooks": "Brak webhooków — dodaj pierwszy.",
   "notif.dispatched": "Powiadomienia wysłane ({n})",
   "notif.changelogLabel": "Lista zmian",
-  "notif.openLink": "Otwórz harmonogram w RollDesk",
   "notif.environment": "Środowisko",
   "notif.statusLine": "Status",
   "notif.progressLine": "Postęp: {done}/{total} zainstalowanych, pozostało {left}",

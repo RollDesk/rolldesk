@@ -11,7 +11,7 @@ import { forbidClient } from '../rbac.js';
 import * as teamsGraph from '../teamsGraph.js';
 import {
   appLinkText, appLinkHtml, appLinkSlack, appLinkCardAction, bodyToHtml,
-  bodyToCardText, hasAppLink,
+  bodyToCardText, hasAppLink, deploymentUrl, linkLabelSlack, linkLabelMarkdown,
 } from '../appLink.js';
 
 const router = Router();
@@ -63,35 +63,42 @@ async function postWebhook(url, payload, timeoutMs = 10000) {
 // simple { text }; Teams incoming webhooks expect a MessageCard. Sending the
 // wrong shape makes the target reject the request (e.g. Slack returns HTTP 400
 // "invalid_payload"), so the format is chosen from the host.
-function buildWebhookPayload(url, title, text) {
+// `deploymentId`, when given, is linked in place: the id already sits at the top
+// of every body, so the reader clicks the thing they recognise and the message
+// needs no trailing "open the app" line at all. Only when there is no id (or no
+// APP_BASE_URL) does the generic link come back.
+function buildWebhookPayload(url, title, text, deploymentId) {
   const host = (() => { try { return new URL(url).hostname; } catch { return ''; } })();
   const isSlack = /(^|\.)slack\.com$/i.test(host);
-  // Schedule notifications already carry a labelled link built by the UI; adding
-  // the generic one would put two links in the same message.
-  const ownLink = hasAppLink(text, APP_URL);
+  const depUrl = deploymentUrl(APP_URL, deploymentId);
+  // Schedule notifications may still carry a labelled link built by an older UI;
+  // adding the generic one would put two links in the same message.
+  const ownLink = !!depUrl || hasAppLink(text, APP_URL);
   if (isSlack) {
-    return { text: `${title}\n${text}` + (ownLink ? '' : appLinkSlack(APP_URL)) };
+    const body = depUrl ? linkLabelSlack(text, deploymentId, depUrl) : text;
+    return { text: `${title}\n${body}` + (ownLink ? '' : appLinkSlack(APP_URL)) };
   }
+  const linked = depUrl ? linkLabelMarkdown(text, deploymentId, depUrl) : text;
   const payload = {
     '@type': 'MessageCard',
     '@context': 'http://schema.org/extensions',
     themeColor: '0A6E7A',
     summary: title,
     title,
-    text: bodyToCardText(text),
+    text: bodyToCardText(linked),
   };
   // The card action is a button, not part of the body, so it is worth keeping
-  // even when the body mentions the URL — but not when the UI already labelled
-  // its own link, which would read as the same link twice.
+  // even when the body mentions the URL — but not when the id is already a link
+  // to the same place, which would read as the same link twice.
   const action = ownLink ? null : appLinkCardAction(APP_URL);
   if (action) payload.potentialAction = [action];
   return payload;
 }
 
 // Deliver to one webhook. Never throws — returns a normalised result.
-async function deliverWebhook(url, title, text) {
+async function deliverWebhook(url, title, text, deploymentId) {
   try {
-    const r = await postWebhook(url, buildWebhookPayload(url, title, text));
+    const r = await postWebhook(url, buildWebhookPayload(url, title, text, deploymentId));
     if (!r.ok) return { ok: false, status: r.status, error: 'HTTP ' + r.status, detail: (r.text || '').slice(0, 300) };
     return { ok: true, status: r.status };
   } catch (err) {
@@ -100,17 +107,22 @@ async function deliverWebhook(url, title, text) {
 }
 
 // Deliver to one e-mail address. Never throws — returns a normalised result.
-async function deliverEmail(to, subject, text) {
+async function deliverEmail(to, subject, text, deploymentId) {
   try {
-    // Skip the generic link when the body already links back to the app.
-    const ownLink = hasAppLink(text, APP_URL);
+    const depUrl = deploymentUrl(APP_URL, deploymentId);
+    // Skip the generic link when the id is already a link, or when the body
+    // links back to the app on its own.
+    const ownLink = !!depUrl || hasAppLink(text, APP_URL);
     const linkText = ownLink ? '' : appLinkText(APP_URL);
     const linkHtml = ownLink ? '' : appLinkHtml(APP_URL);
+    // The plain-text part cannot carry an anchor, so the deployment URL is spelled
+    // out under the body rather than being lost for text-only clients.
+    const textLink = depUrl ? `\n\n${depUrl}` : linkText;
     const result = await sendMail({
       to,
       subject,
-      text: text + linkText,
-      html: bodyToHtml(text) + linkHtml,
+      text: text + textLink,
+      html: bodyToHtml(text, depUrl ? { label: deploymentId, url: depUrl } : null) + linkHtml,
     });
     if (result.skipped) return { ok: false, error: 'E-mail sending is disabled (SMTP_HOST not set)' };
     return { ok: true, messageId: result.messageId };
@@ -187,13 +199,13 @@ router.post('/notify', async (req, res) => {
   for (const raw of emails) {
     const to = String(raw || '').trim();
     if (!EMAIL_RE.test(to)) { jobs.push(Promise.resolve({ type: 'email', target: to, ok: false, error: 'invalid e-mail address' })); continue; }
-    jobs.push(deliverEmail(to, subject, text).then((r) => ({ type: 'email', target: to, ...r })));
+    jobs.push(deliverEmail(to, subject, text, deploymentId).then((r) => ({ type: 'email', target: to, ...r })));
   }
   for (const raw of webhooks) {
     const url = String((raw && raw.url) || raw || '').trim();
     const name = (raw && raw.name) || url;
     if (!/^https?:\/\//i.test(url)) { jobs.push(Promise.resolve({ type: 'webhook', target: name, ok: false, error: 'invalid webhook URL' })); continue; }
-    jobs.push(deliverWebhook(url, subject, text).then((r) => ({ type: 'webhook', target: name, ...r })));
+    jobs.push(deliverWebhook(url, subject, text, deploymentId).then((r) => ({ type: 'webhook', target: name, ...r })));
   }
 
   if (!jobs.length) return res.status(422).json({ error: 'No recipients (emails/webhooks) provided' });

@@ -23,8 +23,22 @@ function escapeHtml(s) {
 // person typed (a failure reason, a target name), so it must be escaped rather
 // than interpolated — an `<` in a reason used to swallow the rest of the line in
 // an HTML mail client. Newlines become <br> so the layout survives.
-export function bodyToHtml(text) {
-  return `<p>${escapeHtml(String(text == null ? '' : text)).replace(/\n/g, '<br>')}</p>`;
+//
+// With `link` ({label, url}) the first occurrence of the label — the deployment
+// id, which every notification body already names — becomes the anchor. The
+// label is escaped before it is looked up, so the search happens in the escaped
+// body and the anchor is the only markup that survives.
+export function bodyToHtml(text, link) {
+  let html = escapeHtml(String(text == null ? '' : text));
+  const label = link ? escapeHtml(String(link.label || '').trim()) : '';
+  if (label && isUsableAppUrl(link.url)) {
+    const at = html.indexOf(label);
+    if (at >= 0) {
+      const href = escapeHtml(String(link.url).trim());
+      html = `${html.slice(0, at)}<a href="${href}">${label}</a>${html.slice(at + label.length)}`;
+    }
+  }
+  return `<p>${html.replace(/\n/g, '<br>')}</p>`;
 }
 
 // A plain-text body as the `text` of a Teams MessageCard.
@@ -88,4 +102,41 @@ export function appLinkCardAction(appUrl) {
 export function hasAppLink(text, appUrl) {
   if (!isUsableAppUrl(appUrl)) return false;
   return String(text == null ? '' : text).includes(String(appUrl).trim());
+}
+
+// URL of one deployment. The app routes `#deployments/<id>` to that row, so a
+// notification can point at the schedule it is about instead of at the list.
+// Returns '' when there is no usable base URL or no id.
+export function deploymentUrl(appUrl, deploymentId) {
+  const id = String(deploymentId == null ? '' : deploymentId).trim();
+  if (!id || !isUsableAppUrl(appUrl)) return '';
+  return `${String(appUrl).trim().replace(/\/+$/, '')}/#deployments/${encodeURIComponent(id)}`;
+}
+
+// Turn the first occurrence of `label` in the body into a link, in the target's
+// own markup. Every notification body already names its deployment id, so making
+// that the link means no separate "open the app" line: the id is the thing the
+// reader recognises and the thing they want to click.
+//
+// Only the first occurrence is linked — the id repeats in the changelog often
+// enough that linking every one would read as noise. Both helpers return the
+// body unchanged when there is no url or the label isn't in it.
+function linkifyFirst(text, label, url, render) {
+  const body = String(text == null ? '' : text);
+  const needle = String(label == null ? '' : label).trim();
+  if (!needle || !isUsableAppUrl(url)) return body;
+  const at = body.indexOf(needle);
+  if (at < 0) return body;
+  return body.slice(0, at) + render(needle, String(url).trim()) + body.slice(at + needle.length);
+}
+
+// Slack renders `<url|label>` inline.
+export function linkLabelSlack(text, label, url) {
+  return linkifyFirst(text, label, url, (l, u) => `<${u}|${l}>`);
+}
+
+// A Teams MessageCard renders Markdown, so `[label](url)`. The id is
+// alphanumeric with dashes, so it needs no escaping inside the brackets.
+export function linkLabelMarkdown(text, label, url) {
+  return linkifyFirst(text, label, url, (l, u) => `[${l}](${u})`);
 }

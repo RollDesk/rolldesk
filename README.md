@@ -188,7 +188,7 @@ All configuration comes from environment variables (see `.env.example`). Key one
 |----------|---------|---------|
 | `HTTP_PORT` | `8080` | Host port the frontend (nginx) listens on. |
 | `ALLOWED_IPS` | *(empty)* | Comma/space-separated IPs and CIDR ranges allowed to reach the UI + API. Empty = no restriction (**dev only**). |
-| `APP_BASE_URL` | *(empty)* | Public URL where the app is reachable (e.g. `https://rolldesk.example.com`). When set, outgoing notifications (webhooks / e-mail) include a clickable link back to RollDesk. **Required for SSO** (used to build the OIDC redirect URI). |
+| `APP_BASE_URL` | *(empty)* | Public URL where the app is reachable (e.g. `https://rolldesk.example.com`). When set, outgoing notifications (webhooks / e-mail / Teams) turn the deployment id into a link that opens that deployment (`<APP_BASE_URL>/#deployments/<id>`); a notification with no deployment gets a link to the app instead. **Required for SSO** (used to build the OIDC redirect URI). |
 | `SSO_ENC_KEY` | *(derived from `JWT_SECRET`)* | Key used to encrypt stored SSO/OIDC client secrets at rest (AES-256-GCM). Set a dedicated random value in production (`openssl rand -hex 32`). See [Single sign-on (SSO)](#single-sign-on-sso). |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `rolldesk` | Database credentials. |
 | `DATABASE_URL` | *(built from the above)* | Backend connection string. |
