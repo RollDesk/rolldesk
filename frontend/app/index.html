@@ -2021,16 +2021,19 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.13.2"></script>
-<script src="i18n/en.js?v=0.13.2"></script>
+<script src="i18n/pl.js?v=0.13.3"></script>
+<script src="i18n/en.js?v=0.13.3"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.13.2';
+  const ROLLDESK_VERSION = '0.13.3';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
-  // Populated asynchronously from the GitHub Releases API (null = not checked yet).
+  // Populated asynchronously from GET /api/version (null = not checked yet).
   let ROLLDESK_LATEST = null;
   let versionCheckState = 'idle'; // idle | checking | ok | error
+  // Why the last check failed, straight from the backend (e.g. a GitHub rate
+  // limit), so the badge tooltip can explain "latest unknown".
+  let versionCheckError = null;
 
   // ---- Version / update check ----
   function renderRollDeskVersion(){
@@ -2040,7 +2043,7 @@
     if(versionCheckState === 'checking'){
       statusHtml = '<span style="font-size:11px; color:var(--text-muted);">checking…</span>';
     } else if(versionCheckState === 'error' || !ROLLDESK_LATEST){
-      statusHtml = '<span title="Could not reach GitHub" style="font-size:11px; color:var(--text-muted);">latest unknown</span>';
+      statusHtml = `<span title="${escapeHtml(versionCheckError || 'Could not reach GitHub')}" style="font-size:11px; color:var(--text-muted);">latest unknown</span>`;
     } else if(compareVersions(ROLLDESK_VERSION, ROLLDESK_LATEST) >= 0){
       statusHtml = '<span title="You have the latest version" style="font-size:11px; color:#0F7A38;">✓ up to date</span>';
     } else {
@@ -2053,23 +2056,25 @@
       </div>`;
   }
 
-  // Query the GitHub Releases API for the newest published version and refresh
-  // the badge. Fails quietly (offline / rate-limited / no releases yet).
+  // Ask our own backend for the newest published version and refresh the badge.
+  // The backend talks to GitHub and caches the answer for an hour, so this does
+  // not consume the anonymous GitHub rate limit (60/hour per IP, shared by
+  // everyone behind the same NAT) and works without outbound access from the
+  // browser. Fails quietly; the reason lands in the badge tooltip.
   async function checkLatestVersion(){
     versionCheckState = 'checking';
     renderRollDeskVersion();
     try {
-      const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
-        headers: { 'Accept': 'application/vnd.github+json' }
-      });
-      if(!res.ok) throw new Error('GitHub API ' + res.status);
+      const res = await apiFetch('/api/version');
+      if(!res.ok) throw new Error('API ' + res.status);
       const data = await res.json();
-      const tag = (data.tag_name || data.name || '').trim();
-      ROLLDESK_LATEST = tag.replace(/^v/i, '') || null;
+      ROLLDESK_LATEST = data.latest || null;
+      versionCheckError = data.error || null;
       versionCheckState = ROLLDESK_LATEST ? 'ok' : 'error';
     } catch(err){
       versionCheckState = 'error';
       ROLLDESK_LATEST = null;
+      versionCheckError = null;
       console.info('Version check skipped:', err.message);
     }
     renderRollDeskVersion();
@@ -6922,6 +6927,10 @@
       // Load the signed-in user's personal access tokens for the profile.
       try { await loadApiTokens(); } catch(e){ console.warn('Failed to load tokens:', e.message); }
 
+      // Refresh the update badge now that we're authenticated (/api/version sits
+      // behind the session guard, so this can't run during boot).
+      checkLatestVersion();
+
       // Probe whether Teams (Graph) notifications are configured so we can post
       // (and thread) even when a client has no webhook/e-mail configured.
       try {
@@ -10208,8 +10217,9 @@
   // and reflect it in the language toggles.
   syncLanguageControls();
   if(LANG !== 'en') applyLanguage();
-  // Check for a newer published version on GitHub (fails quietly if offline).
-  checkLatestVersion();
+  // The update check needs a session (/api/version is behind the auth guard),
+  // so it runs from initApiConnection() once signed in — not here, where the
+  // login screen may still be up.
   // Surface an SSO error passed back by the backend (e.g. no account, expired).
   handleSsoErrorParam();
   // An SSO handoff (#/sso/<code>) or invitation link takes over the boot;

@@ -16,6 +16,7 @@ import tokens from './routes/tokens.js';
 import users from './routes/users.js';
 import sso from './routes/sso.js';
 import teams from './routes/teams.js';
+import version from './routes/version.js';
 
 const app = express();
 if (config.trustProxy) app.set('trust proxy', true);
@@ -35,6 +36,10 @@ app.use('/api/auth', authRouter);
 app.use('/api/tokens', requireAuth, tokens);
 // User management requires an interactive session (admin-only, enforced inside).
 app.use('/api/users', requireAuth, users);
+// Update check for the UI badge. Behind the session guard (it is only ever read
+// by a signed-in UI) but open to every role — it exposes nothing but version
+// numbers, and the outbound GitHub call is cached in-process.
+app.use('/api/version', requireAuth, version);
 // SSO provider configuration (admin-only, enforced inside). Requires an
 // interactive session — never an API token.
 app.use('/api/sso', requireAuth, sso);

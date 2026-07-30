@@ -82,6 +82,11 @@ services:
       GRAPH_CLIENT_SECRET: ${GRAPH_CLIENT_SECRET:-}
       TEAMS_TEAM_ID: ${TEAMS_TEAM_ID:-}
       TEAMS_CHANNEL_ID: ${TEAMS_CHANNEL_ID:-}
+      # Update check — the backend queries GitHub releases and caches the result.
+      # All optional; the token only raises GitHub's anonymous rate limit.
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      VERSION_CHECK_REPO: ${VERSION_CHECK_REPO:-RollDesk/rolldesk}
+      VERSION_CHECK_TTL_MS: ${VERSION_CHECK_TTL_MS:-3600000}
     volumes:
       # Dev only: makes local (git-ignored) seed data available inside the container
       # so you can run `docker compose exec backend npm run seed`.

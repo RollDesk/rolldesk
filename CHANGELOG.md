@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.3] - 2026-07-30
+
+### Changed
+- **The update check runs in the backend and is cached for an hour.** The version badge used to call `api.github.com` from every browser tab. GitHub allows 60 anonymous requests per hour *per IP*, so a few people behind one office NAT exhausted the quota and the badge showed "latest unknown" even though the release was published — and an instance behind a restrictive firewall could never check at all. The backend now asks GitHub once per hour per instance and serves the answer from `GET /api/version`; a failed check keeps the last known version and is retried after five minutes. When it does fail, the badge tooltip says why (a rate limit reads differently from no network) instead of always claiming GitHub was unreachable. `GITHUB_TOKEN` is optional and only raises the limit; `VERSION_CHECK_REPO` and `VERSION_CHECK_TTL_MS` are configurable.
+- **The browser no longer talks to any third-party host**, so the nginx `Content-Security-Policy` drops `api.github.com` from `connect-src`.
+- **Dependency and toolchain bumps.** `express-rate-limit` 7.5.1 → 8.6.0 (the auth limiters' behaviour is unchanged and covered by tests), the backend image moves from `node:20-alpine` to `node:26-alpine`, and the CI actions are updated (`actions/checkout` v7, `actions/setup-node` v7, `docker/login-action` v4, `docker/setup-buildx-action` v4, `docker/build-push-action` v7).
+
 ## [0.13.2] - 2026-07-30
 
 ### Added
