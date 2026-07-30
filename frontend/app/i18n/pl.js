@@ -180,6 +180,7 @@ window.RD_I18N.pl = {
   "aud.d.schedChanged": "Zmieniono harmonogram {id} — {summary}",
   "aud.d.assigned": "Przypisano wdrożeniowca: {name} do {id}",
   "aud.d.depChanged": "Zmieniono wdrożenie {id} — {summary}",
+  "aud.d.depPatchedApi": "Zmieniono wdrożenie {id} przez API — {summary}",
   "aud.d.statusChanged": "Zmieniono status {id}: {from} → {to}",
   "aud.d.depDeleted": "Usunięto wdrożenie {id} — {label}",
   "aud.d.depDeletedNoLabel": "Usunięto wdrożenie {id}",
@@ -1182,13 +1183,13 @@ window.RD_HELP.pl = {
   "hide": "Ukryj",
   "api": {
     "authTitle": "Bazowy URL i uwierzytelnianie",
-    "authDesc": "Wszystkie wywołania trafiają na bazowy URL poniżej. Autoryzacja odbywa się tokenem API (nagłówek Authorization). Token wygenerujesz w „Mój profil → Tokeny API\".",
+    "authDesc": "Wszystkie wywołania trafiają na bazowy URL poniżej — to adres tej instancji. Autoryzacja odbywa się tokenem API (nagłówek Authorization). Token wygenerujesz w „Mój profil → Tokeny API\".",
     "depsTitle": "Wdrożenia",
     "ep": [
       [
         "GET",
         "/deployments",
-        "Lista wdrożeń. Filtry: project, app, env, status, from, to."
+        "Lista wdrożeń. Filtry: project, env, status."
       ],
       [
         "GET",
@@ -1197,25 +1198,31 @@ window.RD_HELP.pl = {
       ],
       [
         "PATCH",
-        "/deployments/{id}/status",
-        "Aktualizacja statusu całego wdrożenia. Używane z pipeline’u CI/CD po instalacji."
+        "/deployments/{id}",
+        "Zmienia przesłane pola i nie rusza pozostałych. To jest punkt końcowy dla CI/CD po instalacji."
+      ],
+      [
+        "PUT",
+        "/deployments/{id}",
+        "Zastępuje cały obiekt wdrożenia. Tego używa sama aplikacja przy zapisie; ze skryptu lepiej użyć PATCH."
       ],
       [
         "POST",
-        "/deployments/{id}/targets/{code}/result",
-        "Wynik instalacji dla pojedynczego celu (sukces / niepowodzenie) — dla wdrożeń wsadowych."
+        "/deployments",
+        "Utworzenie wdrożenia (identyfikator z treści żądania albo wygenerowany)."
       ],
       [
-        "POST",
-        "/deployments/{id}/comments",
-        "Dodanie wpisu do osi czasu wdrożenia."
+        "DELETE",
+        "/deployments/{id}",
+        "Usunięcie wdrożenia razem z jego załącznikami."
       ]
     ],
     "ex1Title": "Przykład: aktualizacja statusu z CI/CD",
-    "statusVals": "Dozwolone wartości statusu: scheduled, installed, failed, rolledback, aborted.",
-    "ex2Title": "Przykład: wynik pojedynczego celu (wsadowe)",
+    "statusVals": "Dozwolone wartości statusu: scheduled, installed, failed, rolledback, aborted. Wstrzymanie nie jest statusem — to osobne pole paused.",
+    "patchNote": "PATCH scala: pola, których nie prześlesz, zachowują swoje wartości, a przesłany klucz zastępuje całą swoją wartość. Nie utworzy wdrożenia (nieznany identyfikator to 404), a powtórzenie tego samego żądania nic już nie zmienia. Zmiana trafia na oś czasu wdrożenia i do historii zmian, na konto właściciela tokenu.",
+    "ex2Title": "To samo wywołanie w PowerShellu",
+    "ex2Desc": "W PowerShellu curl jest aliasem na Invoke-WebRequest, które nie rozumie -H ani -d. Użyj polecenia poniżej albo wywołaj jawnie curl.exe.",
     "errTitle": "Odpowiedzi i błędy",
-    "errDesc": "Odpowiedzi w formacie JSON. Kody: 200 OK, 401 brakujący/nieprawidłowy token, 404 nieznany identyfikator, 422 nieprawidłowy status lub kod celu.",
-    "note": "API automatyzacji oparte na tokenach ma charakter poglądowy i nie jest jeszcze dostępne."
+    "errDesc": "Odpowiedzi w formacie JSON. Kody: 200 OK, 401 brakujący/nieprawidłowy token, 403 konto klienta lub adres IP spoza listy dozwolonych, 404 nieznany identyfikator, 422 nieprawidłowy status albo próba zmiany projektu."
   }
 };

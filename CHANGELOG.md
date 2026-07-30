@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-07-30
+
+### Added
+- **`PATCH /api/deployments/:id` — change one field of a deployment without resending the whole record.** The only way to update a deployment was `PUT`, which replaces the entire stored object. That is what the UI wants (it holds the full deployment in memory), but for a script or CI job holding an `rd_live_…` token it meant read-modify-write for a one-field change, and any slip on the way — a truncated `ConvertTo-Json`, a hand-written body — silently wiped the schedule, the comments or the counts, with nothing in the response to say so. `PATCH` merges the fields you send and leaves the rest alone. The merge is shallow (a key replaces that key's whole value; `null` clears it), `status` is validated against `scheduled`/`installed`/`failed`/`rolledback`/`aborted` instead of being stored as a string the UI can't render, `projectKey` is refused because moving a deployment between projects changes who may read it, an unknown id is a `404` rather than an upsert, and a patch that changes nothing returns the stored object without writing history. Client accounts are rejected as with every other write, and deployers are limited to their granted projects. The change lands on the deployment's timeline and in the change history under the token owner's e-mail, since an API caller has no UI to record it.
+
+### Fixed
+- **The in-app API documentation describes the API this instance actually serves.** *Help → API documentation* advertised a fabricated host (`https://api.rolldesk.example/v1`) and endpoints that were never implemented (`PATCH /deployments/{id}/status`, `POST /deployments/{id}/targets/{code}/result`, `POST /deployments/{id}/comments`), with a footnote at the bottom admitting the whole section was illustrative — so anyone copying the example got a `404` from a host that does not resolve, which is exactly the wrong way to learn that. It now lists the real routes, uses this instance's own origin as the base URL so the examples run as they stand, and the footnote is gone because the API is real. Added a PowerShell variant of the example: `curl` there is an alias for `Invoke-WebRequest`, which rejects `-H`/`-d` with a parameter-binding error rather than anything that hints at the actual problem.
+- **The documented list of deployment statuses no longer includes `paused`.** A paused distribution keeps its status — pausing is the separate `paused` / `pauseReason` field on the deployment — so both the README and the in-app docs described a value the app never stores.
+
 ## [0.13.3] - 2026-07-30
 
 ### Changed

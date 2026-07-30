@@ -327,6 +327,7 @@ All endpoints are under `/api` (IP-filtered). `/health` is unfiltered for monito
 | GET | `/api/deployments/:id` | session | Details of one deployment. |
 | POST | `/api/deployments` | session | Create (id from body or generated). |
 | PUT | `/api/deployments/:id` | session | Create or update the full object (used by the UI). |
+| PATCH | `/api/deployments/:id` | session (non-client) | Change individual fields, leaving the rest of the stored object alone (see [Partial updates](#partial-updates-patch)). |
 | DELETE | `/api/deployments/:id` | session | Delete (cascades to its attachments). |
 | POST | `/api/deployments/:id/attachments` | session | Upload a file (`multipart/form-data`, field `file`); returns its metadata. |
 | GET | `/api/deployments/:id/attachments` | session | List a deployment's attachment metadata (no bytes). |
@@ -345,7 +346,36 @@ All endpoints are under `/api` (IP-filtered). `/health` is unfiltered for monito
 | GET | `/api/users/assignable` | session (non-client) | Minimal roster of active deployers for the "assign deployer" dropdown. |
 | GET | `/health` | — | Liveness + DB reachability. |
 
-Deployment statuses: `scheduled`, `installed`, `failed`, `rolledback`, `aborted`, `paused`.
+Deployment statuses: `scheduled`, `installed`, `failed`, `rolledback`, `aborted`. A paused distribution is *not* a status — it is the separate boolean `paused` field (with `pauseReason`) on the deployment, so a paused rollout keeps the status it had.
+
+### Partial updates (PATCH)
+
+`PUT` replaces the **whole** stored object. That suits the UI, which always holds the full deployment in memory, but it makes automation risky: a script that only wants to flip a status has to `GET`, mutate and `PUT` the entire record back, and one serialization slip on the way silently drops the schedule, comments or counts. `PATCH` merges instead — send only the fields you want to change:
+
+```bash
+curl -X PATCH http://localhost:8080/api/deployments/DEP-2026-0032 \
+  -H "Authorization: Bearer rd_live_…" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"installed"}'
+```
+
+In PowerShell, note that `curl` is an alias for `Invoke-WebRequest`, which does not understand `-H`/`-d`. Call `curl.exe` explicitly, or use the native cmdlet:
+
+```powershell
+$h = @{ Authorization = "Bearer rd_live_…" }
+Invoke-RestMethod -Method Patch -Uri "http://localhost:8080/api/deployments/DEP-2026-0032" `
+  -Headers $h -ContentType "application/json" -Body '{"status":"installed"}'
+```
+
+Behaviour:
+
+- **The merge is shallow.** A key in the body replaces that key's whole value — `{"counts":{"scheduled":0}}` replaces `counts`, it does not merge into it. Keys you don't send are left untouched. `null` clears a field.
+- **It will not create a deployment.** Patching an unknown id is a `404`, not an upsert (use `PUT`/`POST` to create).
+- **`status` is validated** against the list above; an unknown value is a `422` rather than a stored string the UI can't render.
+- **`projectKey` cannot be changed** — moving a deployment to another project changes who may read it, which is a different operation. `422`; use `PUT`.
+- **It is idempotent.** A patch that changes nothing returns `200` with the stored object and writes no history entry.
+- **The change is recorded server-side** on the deployment's timeline and in the change history (actor = the token owner's e-mail), because an API caller has no UI to do it.
+- **Client accounts are rejected** (`403`), as with every other write.
 
 ---
 

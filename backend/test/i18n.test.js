@@ -69,6 +69,29 @@ test('the HELP documentation is present in both languages', () => {
   );
 });
 
+// The API documentation is a nested object inside HELP, so the top-level check
+// above cannot see it — a string added to one language's `api` section only
+// would render as `undefined` in the other. Compare the nested shape too, and
+// the row count of the endpoint table with it.
+test('the nested API documentation has the same shape in both languages', () => {
+  const { HELP } = loadBundles();
+  assert.deepEqual(
+    Object.keys(HELP.pl.api).sort(),
+    Object.keys(HELP.en.api).sort(),
+    'HELP_CONTENT.api pl/en expose different keys'
+  );
+  assert.equal(
+    HELP.pl.api.ep.length,
+    HELP.en.api.ep.length,
+    'the endpoint table lists a different number of endpoints per language'
+  );
+  // The method and path of each row are the API itself, not a translation.
+  HELP.pl.api.ep.forEach(([method, path], i) => {
+    assert.equal(method, HELP.en.api.ep[i][0], `endpoint ${i}: method differs between languages`);
+    assert.equal(path, HELP.en.api.ep[i][1], `endpoint ${i}: path differs between languages`);
+  });
+});
+
 test('the dictionary is non-trivial (sanity check the bundles loaded)', () => {
   const { I18N } = loadBundles();
   assert.ok(Object.keys(I18N.pl).length > 50, 'expected the pl dictionary to contain many keys');

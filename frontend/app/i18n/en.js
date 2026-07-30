@@ -180,6 +180,7 @@ window.RD_I18N.en = {
   "aud.d.schedChanged": "Changed the schedule {id} — {summary}",
   "aud.d.assigned": "Assigned deployer: {name} to {id}",
   "aud.d.depChanged": "Changed deployment {id} — {summary}",
+  "aud.d.depPatchedApi": "Changed deployment {id} via the API — {summary}",
   "aud.d.statusChanged": "Changed status of {id}: {from} → {to}",
   "aud.d.depDeleted": "Deleted deployment {id} — {label}",
   "aud.d.depDeletedNoLabel": "Deleted deployment {id}",
@@ -1182,13 +1183,13 @@ window.RD_HELP.en = {
   "hide": "Hide",
   "api": {
     "authTitle": "Base URL and authentication",
-    "authDesc": "All calls go to the base URL below. Authorization uses an API token (Authorization header). Generate one in „My profile → API tokens\".",
+    "authDesc": "All calls go to the base URL below — this instance's own address. Authorization uses an API token (Authorization header). Generate one in „My profile → API tokens\".",
     "depsTitle": "Deployments",
     "ep": [
       [
         "GET",
         "/deployments",
-        "List of deployments. Filters: project, app, env, status, from, to."
+        "List of deployments. Filters: project, env, status."
       ],
       [
         "GET",
@@ -1197,25 +1198,31 @@ window.RD_HELP.en = {
       ],
       [
         "PATCH",
-        "/deployments/{id}/status",
-        "Update the status of a whole deployment. Used from CI/CD after install."
+        "/deployments/{id}",
+        "Change the fields you send and leave the rest alone. This is the endpoint for CI/CD after an install."
+      ],
+      [
+        "PUT",
+        "/deployments/{id}",
+        "Replace the whole deployment object. This is what the app itself uses to save; from a script prefer PATCH."
       ],
       [
         "POST",
-        "/deployments/{id}/targets/{code}/result",
-        "Install result for a single target (success / failure) — for batch deployments."
+        "/deployments",
+        "Create a deployment (id from the body or generated)."
       ],
       [
-        "POST",
-        "/deployments/{id}/comments",
-        "Add an entry to the deployment timeline."
+        "DELETE",
+        "/deployments/{id}",
+        "Delete a deployment together with its attachments."
       ]
     ],
     "ex1Title": "Example: status update from CI/CD",
-    "statusVals": "Allowed status values: scheduled, installed, failed, rolledback, aborted.",
-    "ex2Title": "Example: single target result (batch)",
+    "statusVals": "Allowed status values: scheduled, installed, failed, rolledback, aborted. A pause is not a status — it is the separate paused field.",
+    "patchNote": "PATCH merges: fields you do not send keep their values, and a key you do send replaces that key's whole value. It will not create a deployment (an unknown id is a 404), and repeating the same patch changes nothing the second time. The change is recorded on the deployment timeline and in the change history under the token owner.",
+    "ex2Title": "The same call in PowerShell",
+    "ex2Desc": "In PowerShell, curl is an alias for Invoke-WebRequest, which does not understand -H or -d. Use the native cmdlet below, or call curl.exe explicitly.",
     "errTitle": "Responses and errors",
-    "errDesc": "Responses in JSON. Codes: 200 OK, 401 missing/invalid token, 404 unknown ID, 422 invalid status or target code.",
-    "note": "The token-based automation API is illustrative and not available yet."
+    "errDesc": "Responses in JSON. Codes: 200 OK, 401 missing/invalid token, 403 client account or an IP outside the allowlist, 404 unknown ID, 422 invalid status or an attempt to change the project."
   }
 };
