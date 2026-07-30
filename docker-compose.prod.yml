@@ -51,6 +51,10 @@ services:
       # Public base URL of the app — used to link back to RollDesk in
       # notifications and to build the SSO redirect URI (required for SSO).
       APP_BASE_URL: ${APP_BASE_URL:-}
+      # Zone for the timestamps written on deployment timelines and in the change
+      # history (the image itself has no zone, which would mean UTC stamps next to
+      # the browser's local ones).
+      APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Warsaw}
       # Encryption key for stored SSO/OIDC client secrets (AES-256-GCM).
       SSO_ENC_KEY: ${SSO_ENC_KEY:-}
       CLAMAV_HOST: ${CLAMAV_HOST:-clamav}

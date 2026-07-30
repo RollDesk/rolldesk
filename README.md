@@ -189,6 +189,7 @@ All configuration comes from environment variables (see `.env.example`). Key one
 | `HTTP_PORT` | `8080` | Host port the frontend (nginx) listens on. |
 | `ALLOWED_IPS` | *(empty)* | Comma/space-separated IPs and CIDR ranges allowed to reach the UI + API. Empty = no restriction (**dev only**). |
 | `APP_BASE_URL` | *(empty)* | Public URL where the app is reachable (e.g. `https://rolldesk.example.com`). When set, outgoing notifications (webhooks / e-mail / Teams) turn the deployment id into a link that opens that deployment (`<APP_BASE_URL>/#deployments/<id>`); a notification with no deployment gets a link to the app instead. **Required for SSO** (used to build the OIDC redirect URI). |
+| `APP_TIMEZONE` | `Europe/Warsaw` (in compose) | IANA zone for the timestamps the backend writes on deployment timelines and in the change history. The container image has no zone of its own, so without this those entries are stamped in UTC while the ones the browser writes use the viewer's local time — two hours apart in Polish summer, on the same timeline. An unknown zone falls back to the runtime's with a warning. |
 | `SSO_ENC_KEY` | *(derived from `JWT_SECRET`)* | Key used to encrypt stored SSO/OIDC client secrets at rest (AES-256-GCM). Set a dedicated random value in production (`openssl rand -hex 32`). See [Single sign-on (SSO)](#single-sign-on-sso). |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `rolldesk` | Database credentials. |
 | `DATABASE_URL` | *(built from the above)* | Backend connection string. |
@@ -367,15 +368,77 @@ Invoke-RestMethod -Method Patch -Uri "http://localhost:8080/api/deployments/DEP-
   -Headers $h -ContentType "application/json" -Body '{"status":"installed"}'
 ```
 
+#### Which fields to send
+
+A PATCH body uses the field names as they are stored on the deployment. `GET /api/deployments/:id` returns the whole stored object, so it is the authoritative list for a given record — you never have to guess. The ones a script sets most often:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `status` | text | Status of a **single-target** deployment: `scheduled`, `installed`, `failed`, `rolledback`, `aborted`. |
+| `counts` | object | Progress of a **multi-target** rollout: `{installed, scheduled}`. The progress bar is derived from this, not from `status`. |
+| `paused` | boolean | Pause the distribution (with `pauseReason`). A pause is not a status — the deployment keeps the one it had. |
+| `date` / `time` | `YYYY-MM-DD` / `HH:MM` | When a single-target deployment runs. |
+| `installerNotes` | text | Instructions shown to the deployer in their panel. |
+| `changelog` | text | Release description, shown on the deployment and in notifications. |
+| `assignedTo` | text | The deployer assigned to carry it out. |
+| `env` | text | `Production`, or one of the project's test environment names. |
+
+#### Multi-target ("batch") rollouts
+
+A deployment with `mode: "batch"` spreads many targets over working days and **does not display a `status`**: the UI treats it as complete when nothing is left to do, i.e. when `counts.scheduled` reaches `0`. Patching `{"status":"installed"}` on such a record therefore used to store a field nothing reads — the change appeared on the timeline and in the history while the row still showed `312/400, in progress`.
+
+Since that is plainly what the caller meant, a PATCH setting `status` to `installed` on a batch record now also **closes the rollout**: everything still in `counts.scheduled` moves to `counts.installed`, and `failedLocations`/`pendingQueue` are emptied — exactly what the UI's "mark the rest as installed" button does. The timeline entry names the progress that moved (`counts 312/400 → 400/400`), not just the status.
+
+To report *partial* progress, send the counts instead:
+
+```powershell
+$h = @{ Authorization = "Bearer rd_live_…" }
+# 312 of 400 targets installed, 88 left
+Invoke-RestMethod -Method Patch -Uri "http://localhost:8080/api/deployments/DEP-2026-0047" `
+  -Headers $h -ContentType "application/json" `
+  -Body '{"counts":{"installed":312,"scheduled":88}}'
+```
+
 Behaviour:
 
-- **The merge is shallow.** A key in the body replaces that key's whole value — `{"counts":{"scheduled":0}}` replaces `counts`, it does not merge into it. Keys you don't send are left untouched. `null` clears a field.
+- **The merge is shallow.** A key in the body replaces that key's whole value — `{"counts":{"scheduled":0}}` replaces `counts`, it does not merge into it (so send both halves of `counts`). Keys you don't send are left untouched. `null` clears a field.
 - **It will not create a deployment.** Patching an unknown id is a `404`, not an upsert (use `PUT`/`POST` to create).
 - **`status` is validated** against the list above; an unknown value is a `422` rather than a stored string the UI can't render.
 - **`projectKey` cannot be changed** — moving a deployment to another project changes who may read it, which is a different operation. `422`; use `PUT`.
 - **It is idempotent.** A patch that changes nothing returns `200` with the stored object and writes no history entry.
-- **The change is recorded server-side** on the deployment's timeline and in the change history (actor = the token owner's e-mail), because an API caller has no UI to do it.
+- **The change is recorded server-side** on the deployment's timeline and in the change history (actor = the token owner's e-mail), because an API caller has no UI to do it. The stamp is written in `APP_TIMEZONE` (see [Configuration](#configuration)) so it lines up with the entries the browser writes.
 - **Client accounts are rejected** (`403`), as with every other write.
+
+#### A ready-made script
+
+`examples/Update-RollDeskDeployment.ps1` wraps all of the above for the cases an
+installation script actually needs, so a rollout script does not have to encode
+the single-vs-batch rules itself. It reads the deployment first and sends the
+field that applies to that record, then reports what RollDesk stored.
+
+```powershell
+$env:RD_TOKEN = 'rd_live_…'   # keep the token out of the command line
+
+# Progress of a rollout: 312 of 400 done
+.\examples\Update-RollDeskDeployment.ps1 -BaseUrl https://rolldesk.example.com `
+    -Id DEP-2026-0047 -Installed 312 -Remaining 88
+
+# The last targets are done — close the rollout
+.\examples\Update-RollDeskDeployment.ps1 -BaseUrl https://rolldesk.example.com `
+    -Id DEP-2026-0047 -Complete
+
+# A single-target deployment failed
+.\examples\Update-RollDeskDeployment.ps1 -BaseUrl https://rolldesk.example.com `
+    -Id DEP-2026-0051 -Status failed
+
+# Pause with a reason
+.\examples\Update-RollDeskDeployment.ps1 -BaseUrl https://rolldesk.example.com `
+    -Id DEP-2026-0047 -Pause -Reason "Client asked to hold until Monday"
+```
+
+Also accepts `-Notes`, `-Changelog`, `-AssignedTo`, `-Resume`, and `-WhatIf` to
+print the request without sending it. `Get-Help .\examples\Update-RollDeskDeployment.ps1 -Full`
+documents every parameter. Works on Windows PowerShell 5.1 and PowerShell 7+.
 
 ---
 

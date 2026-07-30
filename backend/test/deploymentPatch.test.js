@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   mergeDeploymentPatch, summarizeChanges, deploymentColumns, DEPLOYMENT_STATUSES,
+  completeBatchRollout,
 } from '../src/deploymentPatch.js';
 
 // A deployment as it is stored in the `data` JSONB column: the full object the
@@ -157,4 +158,49 @@ test('deploymentColumns falls back for a missing project and coerces internal', 
 test('summarizeChanges is empty for no changes', () => {
   assert.equal(summarizeChanges([]), '');
   assert.equal(summarizeChanges(undefined), '');
+});
+
+// --- completing a multi-target rollout -------------------------------------
+// A batch deployment shows progress from counts.scheduled, not from `status`, so
+// patching the status alone left the row rendering as in-progress.
+
+test('completing a batch rollout empties the pending queue into installed', () => {
+  const data = {
+    mode: 'batch',
+    counts: { scheduled: 88, installed: 312 },
+    pendingQueue: ['site-313', 'site-314'],
+    failedLocations: [{ location: 'site-7', reason: 'no network' }],
+  };
+  const extra = completeBatchRollout(data);
+
+  assert.deepEqual(data.counts, { scheduled: 0, installed: 400 });
+  assert.deepEqual(data.failedLocations, []);
+  assert.deepEqual(data.pendingQueue, []);
+  assert.deepEqual(extra.map((c) => c.field), ['counts', 'failedLocations', 'pendingQueue']);
+  // The columns derived from the merged object now agree with what the UI draws.
+  assert.equal(deploymentColumns(data).status, 'installed');
+});
+
+test('completing an already-finished rollout reports no further changes', () => {
+  const data = { mode: 'batch', counts: { scheduled: 0, installed: 400 }, pendingQueue: [], failedLocations: [] };
+  assert.deepEqual(completeBatchRollout(data), []);
+  assert.deepEqual(data.counts, { scheduled: 0, installed: 400 });
+});
+
+test('completing a rollout tolerates a record with no counts', () => {
+  const data = { mode: 'single', status: 'installed' };
+  assert.deepEqual(completeBatchRollout(data), []);
+  assert.deepEqual(data, { mode: 'single', status: 'installed' });
+});
+
+test('a counts change is summarized as progress, not as a bare field name', () => {
+  const extra = completeBatchRollout({ mode: 'batch', counts: { scheduled: 88, installed: 312 } });
+  assert.equal(summarizeChanges(extra), 'counts 312/400 → 400/400');
+});
+
+test('a partially-replaced counts object is not summarized as a total', () => {
+  // The merge is shallow, so `installed` is simply gone here — reporting
+  // "0/4 → 0/0" would state a total that was never the case.
+  const r = mergeDeploymentPatch(storedDeployment(), { counts: { scheduled: 0 } }, 'DEP-1');
+  assert.equal(summarizeChanges(r.changes), 'counts');
 });

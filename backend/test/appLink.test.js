@@ -8,7 +8,7 @@ import {
   deploymentUrl, linkLabelSlack, linkLabelMarkdown,
 } from '../src/appLink.js';
 
-const URL_OK = 'http://10.6.10.6:8080';
+const URL_OK = 'http://rolldesk.example.com';
 
 test('every channel renders the link when APP_BASE_URL is set', () => {
   assert.equal(appLinkText(URL_OK), `\n\n${APP_LINK_LABEL}: ${URL_OK}`);
@@ -26,7 +26,7 @@ test('every channel renders the link when APP_BASE_URL is set', () => {
 // link vanished from the notifications people actually read.
 test('the HTML link used by e-mail and the Graph channel message is identical', () => {
   assert.equal(appLinkHtml(URL_OK), appLinkHtml(URL_OK));
-  assert.match(appLinkHtml(URL_OK), /href="http:\/\/10\.6\.10\.6:8080"/);
+  assert.match(appLinkHtml(URL_OK), /href="http:\/\/rolldesk\.example\.com"/);
   assert.notEqual(appLinkHtml(URL_OK), '', 'the Graph channel must not be the one without a link');
 });
 
@@ -41,7 +41,7 @@ test('every channel stays silent when APP_BASE_URL is unset', () => {
 
 test('a non-http(s) URL counts as not configured', () => {
   // Guards against a typo in the environment becoming a javascript: href.
-  for (const bad of ['javascript:alert(1)', 'ftp://host/app', '10.6.10.6:8080', 'mailto:a@b.c']) {
+  for (const bad of ['javascript:alert(1)', 'ftp://host/app', 'rolldesk.example.com', 'mailto:a@b.c']) {
     assert.equal(isUsableAppUrl(bad), false, `expected ${bad} to be rejected`);
     assert.equal(appLinkHtml(bad), '');
     assert.equal(appLinkText(bad), '');
@@ -134,11 +134,11 @@ test('hasAppLink tolerates an empty or missing body', () => {
 // A notification is always about one deployment, so it links to that row rather
 // than to the list — the app routes #deployments/<id> to it.
 test('deploymentUrl points at the deployment, not the list', () => {
-  assert.equal(deploymentUrl(URL_OK, 'DEP-2026-0048'), 'http://10.6.10.6:8080/#deployments/DEP-2026-0048');
+  assert.equal(deploymentUrl(URL_OK, 'DEP-2026-0048'), 'http://rolldesk.example.com/#deployments/DEP-2026-0048');
 });
 
 test('deploymentUrl does not double the slash on a base URL with a trailing one', () => {
-  assert.equal(deploymentUrl('http://10.6.10.6:8080/', 'DEP-1'), 'http://10.6.10.6:8080/#deployments/DEP-1');
+  assert.equal(deploymentUrl('http://rolldesk.example.com/', 'DEP-1'), 'http://rolldesk.example.com/#deployments/DEP-1');
 });
 
 test('deploymentUrl is empty without a usable base URL or an id', () => {
@@ -147,7 +147,7 @@ test('deploymentUrl is empty without a usable base URL or an id', () => {
 });
 
 test('deploymentUrl escapes an id that would otherwise break the URL', () => {
-  assert.equal(deploymentUrl(URL_OK, 'DEP 1/2'), 'http://10.6.10.6:8080/#deployments/DEP%201%2F2');
+  assert.equal(deploymentUrl(URL_OK, 'DEP 1/2'), 'http://rolldesk.example.com/#deployments/DEP%201%2F2');
 });
 
 // The id opens every notification body, so linking it in place is what lets the

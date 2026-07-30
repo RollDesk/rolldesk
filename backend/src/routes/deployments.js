@@ -6,20 +6,18 @@ import {
   projectSharesAdminInfo, stripAdminInfoFromDeployment,
 } from '../rbac.js';
 import {
-  mergeDeploymentPatch, summarizeChanges, deploymentColumns,
+  mergeDeploymentPatch, summarizeChanges, deploymentColumns, completeBatchRollout,
 } from '../deploymentPatch.js';
+import { formatStamp } from '../stamp.js';
+import { config } from '../config.js';
 
 const router = Router();
 
 // Wall-clock stamp in the `YYYY-MM-DD` / `HH:MM` shape the stored timeline and
-// the audit log use (both are human-readable strings captured at write time).
+// the audit log use (both are human-readable strings captured at write time),
+// in the configured zone — see stamp.js for why the zone is explicit.
 function nowStamp() {
-  const now = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  return {
-    date: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
-    time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
-  };
+  return formatStamp(new Date(), config.timeZone);
 }
 
 // Returns the stored deployment object (JSONB) with the id attached.
@@ -215,14 +213,21 @@ router.patch('/:id', forbidClient, async (req, res) => {
   const merged = mergeDeploymentPatch(row.data, req.body, req.params.id);
   if (!merged.ok) return res.status(422).json({ error: merged.error });
 
+  // Marking a multi-target rollout installed has to close its pending queue, or
+  // the record keeps rendering as in-progress (see completeBatchRollout).
+  const changes = merged.changes.slice();
+  if (req.body.status === 'installed' && merged.data.mode === 'batch') {
+    changes.push(...completeBatchRollout(merged.data));
+  }
+
   // A patch that changes nothing is a success, not an error — an idempotent
   // retry of "mark it installed" must not fail the second time. Return the
   // stored object without touching updated_at or writing a history entry.
-  if (!merged.changes.length) {
+  if (!changes.length) {
     return res.json(rowToObj(row));
   }
 
-  const summary = summarizeChanges(merged.changes);
+  const summary = summarizeChanges(changes);
   const stamp = nowStamp();
   const actor = (req.auth && req.auth.email) || 'API';
   const data = merged.data;

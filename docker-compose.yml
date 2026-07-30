@@ -56,6 +56,11 @@ services:
       # Public base URL of the app — used to link back to RollDesk in
       # notifications and to build the SSO redirect URI (required for SSO).
       APP_BASE_URL: ${APP_BASE_URL:-}
+      # Zone for the timestamps written on deployment timelines and in the change
+      # history. The image has no zone of its own, so without this the backend
+      # stamps UTC while the browser stamps local time and entries from the two
+      # interleave wrongly on the same timeline.
+      APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Warsaw}
       # Encryption key for stored SSO/OIDC client secrets (AES-256-GCM). If empty,
       # derived from JWT_SECRET; set a dedicated value in production.
       SSO_ENC_KEY: ${SSO_ENC_KEY:-}
