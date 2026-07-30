@@ -42,6 +42,16 @@ export const config = {
   //                        refuse to start if migrations are pending (apply them
   //                        with a separate `node src/migrate.js` step / CI job).
   migrateMode: (process.env.DB_MIGRATE || 'auto').toLowerCase() === 'verify' ? 'verify' : 'auto',
+  // Update check. The backend asks GitHub for the newest release and caches the
+  // answer, so the browser never calls api.github.com itself (anonymous calls
+  // are limited to 60/hour per IP — shared by everyone behind the same NAT).
+  // GITHUB_TOKEN is optional and only raises that limit.
+  versionCheck: {
+    repo: (process.env.VERSION_CHECK_REPO || 'RollDesk/rolldesk').trim(),
+    token: (process.env.GITHUB_TOKEN || '').trim(),
+    ttlMs: parseInt(process.env.VERSION_CHECK_TTL_MS || String(60 * 60 * 1000), 10),
+    timeoutMs: parseInt(process.env.VERSION_CHECK_TIMEOUT_MS || '5000', 10),
+  },
   auth: {
     jwtSecret,
     jwtSecretFromEnv: !!jwtSecretFromEnv,
