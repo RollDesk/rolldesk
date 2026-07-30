@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1] - 2026-07-30
+
+### Fixed
+- **Teams notifications sent through Microsoft Graph now carry the "Open RollDesk" link.** E-mail and webhook deliveries appended it, the Graph channel message did not — and because Graph *takes over* the per-client Teams webhooks when it is configured (so the same event isn't posted twice), the link was missing from exactly the notifications most people read. A target-failure alert arrived with the deployment id and reason but no way back into the app. The link is the instance's `APP_BASE_URL`, as in every other channel.
+- **A notification body is escaped before being put into an HTML e-mail.** Failure reasons and target names are typed by a person, and the body was interpolated into the HTML part raw, so a `<` in a reason swallowed the rest of the line in an HTML mail client (`&` was mangled too). The plain-text part was always fine.
+- **A malformed `APP_BASE_URL` is now treated as unset** rather than rendered as a link. Only `http`/`https` is accepted, so a typo cannot end up as a `javascript:` href in an e-mail or a Teams card.
+
+### Changed
+- **The per-channel link markup lives in one module** (`backend/src/appLink.js`, unit-tested) instead of being rebuilt inline for each of e-mail, Slack, Teams cards and Graph. That divergence is what let one channel quietly lose the link; it also removes a duplicated HTML-escaping helper from `teamsGraph.js`.
+
 ## [0.14.0] - 2026-07-30
 
 ### Added

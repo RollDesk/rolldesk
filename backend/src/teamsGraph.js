@@ -16,6 +16,7 @@
 // reports the error to the caller, which falls back to the existing webhooks.
 import { config } from './config.js';
 import { query } from './db.js';
+import { appLinkHtml, bodyToHtml } from './appLink.js';
 
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const LOGIN = 'https://login.microsoftonline.com';
@@ -133,11 +134,6 @@ async function saveThreadId(deploymentId, messageId) {
   );
 }
 
-// Convert the plain-text notification body into simple HTML (line breaks).
-function textToHtml(text) {
-  return escapeHtml(String(text == null ? '' : text)).replace(/\n/g, '<br>');
-}
-
 function escapeHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -150,7 +146,11 @@ function escapeHtml(s) {
 // a normalised result so the caller can fall back to webhooks on failure.
 export async function postDeploymentEvent({ deploymentId, subject, text }) {
   if (!canPost()) return { ok: false, skipped: true, error: 'Graph/Teams not configured' };
-  const html = textToHtml(text);
+  // Link back to the app, as the e-mail and webhook channels do. This channel
+  // used to be the one that posted a bare body: when Graph is configured it
+  // takes over the Teams webhooks, so the link silently disappeared from the
+  // notifications most people actually read.
+  const html = bodyToHtml(text) + appLinkHtml(config.appBaseUrl);
   try {
     if (!deploymentId) {
       const id = await postChannelMessage(subject, html);
