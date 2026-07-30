@@ -1,6 +1,7 @@
 // Configuration read from environment variables.
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
+import { isValidTimeZone } from './stamp.js';
 
 const env = process.env.NODE_ENV || 'development';
 const isProd = env === 'production';
@@ -19,6 +20,17 @@ try {
 const jwtSecretFromEnv = (process.env.JWT_SECRET || '').trim();
 const jwtSecret = jwtSecretFromEnv || (isProd ? '' : crypto.randomBytes(32).toString('hex'));
 
+// Zone the human-readable timeline/audit stamps are written in. The container
+// image has no zone of its own, so without this the backend wrote UTC while the
+// browser wrote local time and the two interleaved wrongly on the same timeline.
+// A bad value falls back to the runtime's zone rather than failing every write.
+const timeZoneFromEnv = (process.env.APP_TIMEZONE || process.env.TZ || '').trim();
+let timeZone = timeZoneFromEnv;
+if (timeZoneFromEnv && !isValidTimeZone(timeZoneFromEnv)) {
+  console.warn(`[config] APP_TIMEZONE "${timeZoneFromEnv}" is not a known IANA zone — using the system zone`);
+  timeZone = '';
+}
+
 export const config = {
   env,
   isProd,
@@ -28,6 +40,9 @@ export const config = {
   // Trailing slashes are trimmed so callers can safely append paths.
   appBaseUrl: (process.env.APP_BASE_URL || '').trim().replace(/\/+$/, ''),
   port: parseInt(process.env.PORT || '3000', 10),
+  // IANA zone for the stamps stored on the deployment timeline and in the change
+  // history (e.g. Europe/Warsaw). Empty = the runtime's own zone.
+  timeZone,
   trustProxy: process.env.TRUST_PROXY === '1',
   allowedIps: (process.env.ALLOWED_IPS || '')
     .split(',')

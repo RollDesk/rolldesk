@@ -17,10 +17,15 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ROLES = new Set(['admin', 'rm', 'installer', 'client']);
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-// GET /api/users/assignable — a minimal roster of active deployers, available to
-// any signed-in non-client (RM / installer / admin). The full directory is
-// admin-only, but release managers and deployers need this list to assign a
-// deployment to a deployer. Only non-sensitive fields are exposed.
+// GET /api/users/assignable — a minimal roster of accounts that can carry out a
+// deployment, available to any signed-in non-client (RM / installer / admin).
+// The full directory is admin-only, but release managers and deployers need this
+// list to assign a deployment. Only non-sensitive fields are exposed.
+//
+// Every non-client role is listed, not just `installer`: one account holds one
+// role, so a person who administers RollDesk and also installs on site is an
+// `admin` — filtering on `installer` made them impossible to assign. The role
+// travels with each entry so the UI can group deployers first.
 // Declared BEFORE the admin guard so non-admins can reach it.
 router.get('/assignable', (req, res, next) => {
   if (!req.auth || req.auth.role === 'client') {
@@ -29,13 +34,14 @@ router.get('/assignable', (req, res, next) => {
   next();
 }, async (_req, res) => {
   const { rows } = await query(
-    `SELECT name, email, projects
+    `SELECT name, email, role, projects
        FROM users
-      WHERE role = 'installer' AND NOT archived
+      WHERE role <> 'client' AND NOT archived
       ORDER BY name ASC NULLS LAST, email ASC`
   );
   res.json(rows.map(r => ({
     name: r.name || (r.email ? r.email.split('@')[0] : ''),
+    role: r.role,
     projects: Array.isArray(r.projects) ? r.projects : [],
   })));
 });

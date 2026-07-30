@@ -31,6 +31,46 @@ export function deploymentColumns(obj) {
   };
 }
 
+// A multi-target ("batch") deployment does not display the `status` field: the
+// UI derives "installed" from an empty pending queue (`counts.scheduled === 0`),
+// because a rollout across 400 sites is complete when nothing is left, not when
+// someone says so. A caller that patches `{"status":"installed"}` on such a
+// record therefore used to store a field nothing reads — the change showed up on
+// the timeline and in the history, but the row stayed at "312/400, scheduled".
+//
+// Completing the rollout is what the caller meant, so do exactly what the UI's
+// "mark the rest as installed" button does: move everything still pending into
+// `installed` and drop the leftovers. `failedLocations` drives the "left to
+// finish" counter and `pendingQueue` the deployer panel's per-day list; both are
+// empty once the rollout is closed.
+//
+// Returns the extra `{field, from, to}` entries so the timeline entry names what
+// else moved, rather than reporting only the status the caller sent.
+export function completeBatchRollout(data) {
+  const counts = data.counts;
+  if (!counts || typeof counts !== 'object') return [];
+
+  const extra = [];
+  const pending = Number(counts.scheduled) || 0;
+  const installed = Number(counts.installed) || 0;
+  if (pending > 0) {
+    const to = { installed: installed + pending, scheduled: 0 };
+    extra.push({ field: 'counts', from: { ...counts }, to });
+    data.counts = to;
+  }
+  // Force-completing a rollout means nothing is left to finish, so a target that
+  // failed earlier stops being counted as outstanding.
+  if (Array.isArray(data.failedLocations) && data.failedLocations.length) {
+    extra.push({ field: 'failedLocations', from: data.failedLocations, to: [] });
+    data.failedLocations = [];
+  }
+  if (Array.isArray(data.pendingQueue) && data.pendingQueue.length) {
+    extra.push({ field: 'pendingQueue', from: data.pendingQueue, to: [] });
+    data.pendingQueue = [];
+  }
+  return extra;
+}
+
 function sameValue(a, b) {
   if (a === b) return true;
   if (a === undefined || b === undefined) return false;
@@ -43,8 +83,24 @@ function sameValue(a, b) {
 // Renders a change for the audit detail / timeline entry. Objects and arrays
 // are reported by name only — a diff of a nested schedule is not readable in a
 // one-line history entry.
+// A batch progress pair with both halves present as real numbers.
+function isFullCounts(c) {
+  return !!c && typeof c === 'object'
+    && Number.isFinite(Number(c.installed)) && c.installed !== null && c.installed !== ''
+    && Number.isFinite(Number(c.scheduled)) && c.scheduled !== null && c.scheduled !== '';
+}
+
 function describe(field, from, to) {
   const scalar = (v) => (v === undefined || v === null || v === '' ? '—' : String(v));
+  // `counts` is the exception worth spelling out: it is the progress of a batch
+  // rollout, and "counts" alone tells a reader of the timeline nothing about what
+  // moved. Only when both sides carry both numbers, though — a caller replacing
+  // counts with a partial object (the merge is shallow, so the missing key is
+  // simply gone) would otherwise be reported as a confident, wrong total.
+  if (field === 'counts' && isFullCounts(from) && isFullCounts(to)) {
+    const done = (c) => `${Number(c.installed)}/${Number(c.installed) + Number(c.scheduled)}`;
+    return `counts ${done(from)} → ${done(to)}`;
+  }
   if ((from && typeof from === 'object') || (to && typeof to === 'object')) return field;
   return `${field} ${scalar(from)} → ${scalar(to)}`;
 }

@@ -359,6 +359,26 @@
   }
   td{padding:11px 12px; border-bottom:1px solid var(--line-soft);}
   tr:last-child td{border-bottom:none;}
+  /* Loading state. On a slow link the first paint used to be the *empty* state —
+     "No projects yet", an empty deployments table — which reads as "your data is
+     gone", not "still fetching". Views that load from the API show this until the
+     first response lands. */
+  .loading-note{
+    display:flex; align-items:center; justify-content:center; gap:9px;
+    padding:30px 20px; font-size:12.5px; color:var(--text-muted);
+  }
+  .spinner{
+    width:15px; height:15px; flex-shrink:0;
+    border:2px solid var(--line);
+    border-top-color:var(--cyan, #0A6E7A);
+    border-radius:50%;
+    animation:spin 0.7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  /* Respect a reduced-motion preference: keep the affordance, drop the rotation. */
+  @media (prefers-reduced-motion: reduce){
+    .spinner{animation:none; border-top-color:var(--line);}
+  }
   .pill{
     display:inline-flex; align-items:center; gap:5px;
     padding:3px 9px;
@@ -839,6 +859,12 @@
          the active one underlined, its configuration rendered below. -->
     <div class="proj-tabs" id="projects-tabs"></div>
 
+    <div id="projects-loading" style="display:none;">
+      <div class="card">
+        <div class="loading-note"><span class="spinner" aria-hidden="true"></span><span data-i18n="common.loadingProjects">Loading projects…</span></div>
+      </div>
+    </div>
+
     <div id="projects-empty" style="display:none;">
       <div class="card" style="text-align:center; padding:38px 20px;">
         <div style="font-size:28px; margin-bottom:8px;">📁</div>
@@ -1184,6 +1210,9 @@
         <div class="field">
           <label><span data-i18n="sch.changelog">Changelog</span> <span style="color:#A81E1E;">*</span> <span style="color:var(--text-faint); font-weight:400; font-size:11px;" data-i18n="sch.changelogOrFile">(or attach a file below)</span></label>
           <textarea id="schedule-changelog" data-i18n-ph="sch.changelogPh" placeholder="Describe the changes in this release (required)..."></textarea>
+          <div style="margin-top:6px;">
+            <button type="button" class="mini-btn" onclick="downloadChangelogTxt()" data-i18n-tip="sch.changelogTxtNote"><span class="mb-ic">⬇</span> <span data-i18n="sch.changelogTxt">Download as .txt</span></button>
+          </div>
         </div>
         <div class="field">
           <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.changelogAttach">Changelog attachment (optional)</span><span class="info-ic" data-i18n-tip="sch.changelogAttachNote">i</span></label>
@@ -1266,7 +1295,7 @@
         <div id="schedule-test-date-fields">
           <div class="field">
             <label data-i18n="sch.startTest">Start (test)</label>
-            <input type="datetime-local" id="dt-test" class="mono w-medium" value="2026-07-13T20:00">
+            <input type="datetime-local" id="dt-test" class="mono w-medium" value="2026-07-13T20:00" onchange="onTestStartChanged()">
           </div>
         </div>
         <div id="schedule-prod-date-fields">
@@ -1361,6 +1390,13 @@
             <option value="30" data-i18n="dep.r30">Last 30 days</option>
             <option value="90" data-i18n="dep.r90">Last 90 days</option>
             <option value="all" data-i18n="dep.rAll">Full history</option>
+          </select>
+          <span class="filter-label" data-i18n="dep.sortBy">Sort by</span>
+          <select id="deploy-sort" onchange="renderDeploymentsTable()">
+            <option value="added" selected data-i18n="dep.sortAdded">Recently added</option>
+            <option value="dateDesc" data-i18n="dep.sortDateDesc">Deployment date — newest first</option>
+            <option value="dateAsc" data-i18n="dep.sortDateAsc">Deployment date — oldest first</option>
+            <option value="project" data-i18n="dep.sortProject">Project</option>
           </select>
         </div>
         <button type="button" class="mini-btn" onclick="exportDeploymentsListCsv()" data-i18n="list.exportCsv">⬇ CSV</button>
@@ -2021,11 +2057,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.15.0"></script>
-<script src="i18n/en.js?v=0.15.0"></script>
+<script src="i18n/pl.js?v=0.16.0"></script>
+<script src="i18n/en.js?v=0.16.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.15.0';
+  const ROLLDESK_VERSION = '0.16.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -2730,6 +2766,8 @@
     {key:'decision',         label:'Client decision'},
     {key:'clientComment', label:'Client comments on a distribution'},
     {key:'started',   label:'Production deployment started'},
+    {key:'assigned',  label:'Deployer assigned to a deployment'},
+    {key:'scheduleChanged', label:'Deployment date changed for a target'},
     {key:'paused',    label:'Distribution paused'},
     {key:'failure',   label:'Failure on a target'},
     {key:'dayReport', label:'Daily installation status'},
@@ -3602,9 +3640,16 @@
     tabs.innerHTML = html;
 
     const empty = document.getElementById('projects-empty');
+    const loading = document.getElementById('projects-loading');
     const panel = document.getElementById('project-apps-panel');
     const hasSelection = !!(currentProjectKey && PROJECTS[currentProjectKey]);
-    if(empty) empty.style.display = entries.length ? 'none' : 'block';
+    // While the first load is in flight there is nothing to say about whether the
+    // account has projects, so neither the empty state nor the tab strip belongs
+    // on screen yet.
+    const pending = DATA_LOADING && !entries.length;
+    if(loading) loading.style.display = pending ? 'block' : 'none';
+    if(empty) empty.style.display = (!pending && !entries.length) ? 'block' : 'none';
+    if(pending) tabs.innerHTML = '';
     if(panel) panel.style.display = hasSelection ? 'block' : 'none';
     if(hasSelection) renderProjectHeader(currentProjectKey);
   }
@@ -4086,6 +4131,32 @@
   }
   function onChangelogFileChange(){ addScheduleFiles('changelog'); }
   function onInstallerFileChange(){ addScheduleFiles('installer'); }
+
+  // Turn the typed changelog into a .txt file, so the same text that goes to the
+  // client can be attached elsewhere without retyping it. Header carries the
+  // project and the checked applications/versions — the text alone doesn't say
+  // which release it describes.
+  function downloadChangelogTxt(){
+    const text = (document.getElementById('schedule-changelog').value || '').trim();
+    if(!text){ showToast(t('sch.changelogTxtEmpty')); return; }
+    const p = PROJECTS[currentProjectKey] || {};
+    const apps = Array.from(document.querySelectorAll('.schedule-app-check:checked')).map(cb=>{
+      const row = cb.closest('div');
+      const v = row ? (row.querySelector('.schedule-app-version') || {}).value : '';
+      return cb.value + ((v || '').trim() ? ' v' + v.trim() : '');
+    });
+    const head = [
+      (p.name || currentProjectKey || ''),
+      apps.join(', '),
+      t('notif.changelogLabel'),
+    ].filter(Boolean);
+    // CRLF: these files are opened in Notepad on the client's Windows machines.
+    const body = head.join('\r\n') + '\r\n' + '-'.repeat(60) + '\r\n' + text.replace(/\r?\n/g, '\r\n') + '\r\n';
+    const slug = String(p.name || currentProjectKey || 'changelog').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'changelog';
+    if(downloadBlob(body, slug + '-changelog-' + todayIso() + '.txt', 'text/plain;charset=utf-8')){
+      showToast(t('sch.changelogTxtSaved'));
+    }
+  }
   function pathToHtml(pathVal, envs){
     const envTags = (envs||['Test']).map(e=>envTagHtml(e)).join('<span style="color:var(--text-faint);">+</span>');
     if(pathVal === 'prod-only') return envTagHtml('Production');
@@ -4139,16 +4210,42 @@
   }
 
   // Constrain the schedule date pickers so a past start date can't be chosen,
-  // and bump any default/earlier value up to today.
+  // and bump any default/earlier value up to today. Production defaults to the
+  // next working day after the test start, never the same day: production follows
+  // a test install, so proposing one date for both was always wrong and had to be
+  // corrected by hand every time.
   function prepareScheduleDates(){
     const today = todayIso();
-    ['dt-test','dt-prod'].forEach(id=>{
-      const el = document.getElementById(id);
-      if(!el) return;
-      el.min = today + 'T00:00';
-      const parts = (el.value || '').split('T');
-      if(!parts[0] || parts[0] < today) el.value = today + 'T' + (parts[1] || '20:00');
-    });
+    const testEl = document.getElementById('dt-test');
+    const prodEl = document.getElementById('dt-prod');
+    let testDate = today;
+    if(testEl){
+      testEl.min = today + 'T00:00';
+      const parts = (testEl.value || '').split('T');
+      if(!parts[0] || parts[0] < today) testEl.value = today + 'T' + (parts[1] || '20:00');
+      testDate = (testEl.value || '').split('T')[0] || today;
+    }
+    if(prodEl){
+      prodEl.min = today + 'T00:00';
+      const parts = (prodEl.value || '').split('T');
+      const nextWorking = addWorkingDays(testDate, 1, projectSkipsWeekends(currentProjectKey));
+      if(!parts[0] || parts[0] <= testDate) prodEl.value = nextWorking + 'T' + (parts[1] || '22:00');
+    }
+  }
+
+  // Keep the production start at least one working day after the test start while
+  // the RM edits the test date. Only nudges it forward — a date the RM pushed
+  // further out on purpose is left alone.
+  function onTestStartChanged(){
+    const testEl = document.getElementById('dt-test');
+    const prodEl = document.getElementById('dt-prod');
+    if(!testEl || !prodEl) return;
+    const testDate = (testEl.value || '').split('T')[0];
+    if(!testDate) return;
+    const prodParts = (prodEl.value || '').split('T');
+    if(prodParts[0] && prodParts[0] > testDate) return;
+    const nextWorking = addWorkingDays(testDate, 1, projectSkipsWeekends(currentProjectKey));
+    prodEl.value = nextWorking + 'T' + (prodParts[1] || '22:00');
   }
 
   // The two schedule starts are edited as one datetime-local each; everything
@@ -4231,7 +4328,13 @@
     if(goesProd && isMultiTarget && dayCounts.length){
       const sumManual = dayCounts.reduce((a,b)=>a+(parseInt(b)||0),0);
       if(sumManual !== prodTargetCount){
-        showToast('Per-day breakdown: assigned ' + sumManual + ' of ' + prodTargetCount + ' targets — fix the split (the „= remainder" or „Spread evenly" button)');
+        // Report it in the same red banner as every other validation failure. A
+        // toast in the bottom-right corner is easy to miss on a tall form, and
+        // this one blocks the save.
+        showFormErrors('schedule', [{
+          label: t('sch.perDay'),
+          msg: tf('sch.errDaySplit', {sum: sumManual, total: prodTargetCount}),
+        }]);
         renderDayBreakdownSummary();
         return;
       }
@@ -4270,17 +4373,31 @@
       if(isMultiTarget){
         // Persist the manually-arranged order and day breakdown from the preview so the
         // installer panel rebuilds exactly what the RM planned (not a fresh even split).
+        //
+        // Take the split the preview actually rendered (manifestDayPlan) rather
+        // than re-running the assignment: `manifestOrder` is flat, so a re-run
+        // could not see the day boundaries the co-scheduling pass had produced
+        // and moved targets to other days than the ones that were approved.
         let dayPlan = null, pendingQueue = null;
         try {
-          if(typeof assignLocationsToDays === 'function' && manifestOrder && manifestOrder.length){
-            const dayAssignments = assignLocationsToDays();
-            dayPlan = dayAssignments.map((items, idx)=>({ day: idx+1, targets: items.map(t=>t.code) }));
-            pendingQueue = dayAssignments.reduce((acc,items)=>acc.concat(items.map(t=>t.code)), []);
+          const plan = (manifestDayPlan && manifestDayPlan.length)
+            ? manifestDayPlan
+            : ((typeof assignLocationsToDays === 'function' && manifestOrder && manifestOrder.length)
+                ? assignLocationsToDays().map(items => items.map(t => t.code))
+                : null);
+          if(plan){
+            dayPlan = plan.map((codes, idx)=>({ day: idx+1, targets: codes.slice() }));
+            pendingQueue = plan.reduce((acc, codes)=>acc.concat(codes), []);
           }
         } catch(e){ dayPlan = null; pendingQueue = null; }
+        // The plan is authoritative about how many days the rollout spans. Taking
+        // the day count from the form instead would truncate the plan (targets on
+        // the dropped days simply vanish from every per-day view) whenever the
+        // preview was generated against a different value.
+        const batchDays = (dayPlan && dayPlan.length) ? dayPlan.length : days;
         DEPLOYMENTS_DATA.push(Object.assign({
           projectKey: currentProjectKey, apps, env:'Production', mode:'batch',
-          totalLocations: prodTargetCount, days, dateRange: prodDate + ' (+' + days + ' dni roboczych)',
+          totalLocations: prodTargetCount, days: batchDays, dateRange: prodDate + ' (+' + batchDays + ' dni roboczych)',
           historyStart: prodDate, time: prodTime, createdDate: today, createdTime,
           counts:{scheduled: prodTargetCount, installed:0}, comments:[],
           dayPlan, pendingQueue,
@@ -4848,6 +4965,12 @@
     return {type, name:null};
   }
   let manifestOrder = [];
+  // The day split exactly as last previewed (array of arrays of target codes).
+  // `manifestOrder` is a flat list, so re-deriving the days from it loses the
+  // boundaries the co-scheduling pass produced — confirming the schedule then
+  // silently split a group across two days. Approve what was shown, not a
+  // recomputation of it.
+  let manifestDayPlan = null;
   let dayCounts = [];
   let dayConstraints = [];
   // Which attribute the per-day "Restrict … / Max count" limit applies to.
@@ -5036,10 +5159,34 @@
     const dayAssignments = counts.map(()=>[]);
     const typeUsedPerDay = counts.map(()=>({}));
 
+    // Co-scheduling: targets sharing a "group" label must land on the same day
+    // (e.g. a site and its branches, or a branch and its backup server). The
+    // group is therefore the unit of scheduling, not the individual target —
+    // days are filled with whole units, so a group can never be split and its
+    // members always stay adjacent in the day's listing.
+    //
+    // Moving members between days *after* an ordinary per-target fill (the
+    // earlier approach) both split groups when the schedule was re-generated
+    // from the flattened preview order and left days empty, because the vacated
+    // slots were never refilled.
+    const units = [];
+    const unitByGroup = new Map();
+    manifestOrder.forEach(loc=>{
+      const g = (loc.group || '').trim().toLowerCase();
+      if(!g){ units.push({locs: [loc], group: ''}); return; }
+      const existing = unitByGroup.get(g);
+      if(existing){ existing.locs.push(loc); return; }
+      const unit = {locs: [loc], group: g};
+      unitByGroup.set(g, unit);
+      units.push(unit);
+    });
+
     // (P2) Pin explicit locations to a day. The PM types target codes/labels,
     // separated by ";", "," or whitespace, into the "Pin locations" field. Those
     // targets are placed on that day up front (e.g. pilot locations on day 1).
-    const pinnedCodes = new Set();
+    // Pinning any member pins its whole group; the first pin encountered wins,
+    // so two members of one group pinned to different days cannot split them.
+    const pinnedUnits = new Set();
     function parsePins(s){
       return String(s || '').split(/[;,\s]+/).map(x=>x.trim().toLowerCase()).filter(Boolean);
     }
@@ -5047,8 +5194,9 @@
       const wanted = parsePins((constraints[d] || {}).pin);
       if(!wanted.length) continue;
       wanted.forEach(w=>{
-        const hit = manifestOrder.find(l => !pinnedCodes.has(l) && ((l.code||'').toLowerCase() === w || (l.label||'').toLowerCase() === w));
-        if(hit){ dayAssignments[d].push(hit); pinnedCodes.add(hit); }
+        const unit = units.find(u => !pinnedUnits.has(u)
+          && u.locs.some(l => (l.code||'').toLowerCase() === w || (l.label||'').toLowerCase() === w));
+        if(unit){ dayAssignments[d].push(...unit.locs); pinnedUnits.add(unit); }
       });
     }
 
@@ -5061,52 +5209,44 @@
       // filling up with other types before the constrained ones are reached).
       let ordered = pool;
       if(c.limitType && c.limitMax != null){
+        const matchesType = u => u.locs.some(l => attrValueOf(l) === c.limitType);
         const match = [], rest = [];
-        pool.forEach(loc => (attrValueOf(loc) === c.limitType ? match : rest).push(loc));
+        pool.forEach(u => (matchesType(u) ? match : rest).push(u));
         ordered = match.concat(rest);
       }
       for(let k=0; k<ordered.length; k++){
-        const loc = ordered[k];
-        if(dayAssignments[dayIdx].length >= cap){ leftover.push(...ordered.slice(k)); break; }
-        const av = attrValueOf(loc);
-        const matchesLimit = c.limitType && av === c.limitType;
-        if(matchesLimit){
+        const unit = ordered[k];
+        const size = unit.locs.length;
+        const room = cap - dayAssignments[dayIdx].length;
+        if(room <= 0){ leftover.push(...ordered.slice(k)); break; }
+        // A whole unit has to fit, so keep scanning past one that doesn't — a
+        // later, smaller unit can still fill the remaining slots. A unit larger
+        // than the whole day is the exception: place it on the empty day anyway,
+        // or it would never be schedulable at all.
+        if(size > room && !(dayAssignments[dayIdx].length === 0 && size > cap)){ leftover.push(unit); continue; }
+        const matching = c.limitType ? unit.locs.filter(l => attrValueOf(l) === c.limitType).length : 0;
+        if(matching){
           const used = typeUsedPerDay[dayIdx][c.limitType] || 0;
           const cap2 = c.limitMax == null ? Infinity : c.limitMax;
-          if(used >= cap2){ leftover.push(loc); continue; }
+          if(used + matching > cap2){ leftover.push(unit); continue; }
         }
-        dayAssignments[dayIdx].push(loc);
-        if(matchesLimit) typeUsedPerDay[dayIdx][c.limitType] = (typeUsedPerDay[dayIdx][c.limitType]||0) + 1;
+        dayAssignments[dayIdx].push(...unit.locs);
+        if(matching) typeUsedPerDay[dayIdx][c.limitType] = (typeUsedPerDay[dayIdx][c.limitType]||0) + matching;
       }
       return leftover;
     }
 
-    // Pinned targets already sit on their day and count against that day's cap.
-    let remaining = manifestOrder.filter(l => !pinnedCodes.has(l));
+    // Pinned units already sit on their day and count against that day's cap.
+    let remaining = units.filter(u => !pinnedUnits.has(u));
     for(let d=0; d<days; d++) remaining = tryFillDay(d, remaining);
     for(let d=0; d<days; d++){ if(dayAssignments[d].length < counts[d]) remaining = tryFillDay(d, remaining); }
-    if(remaining.length) dayAssignments[days-1] = dayAssignments[days-1].concat(remaining);
-
-    // Co-scheduling: targets sharing a "group" label must land on the same day
-    // (e.g. a branch and its backup server). Move every group member to the day
-    // where the group first appears. This runs after the day fill so it can
-    // slightly exceed a day's nominal count — grouping wins over even spread.
-    const groupDay = {};
-    for(let d=0; d<days; d++){
-      dayAssignments[d].forEach(loc=>{
-        const g = (loc.group || '').trim().toLowerCase();
-        if(g && groupDay[g] === undefined) groupDay[g] = d;
-      });
-    }
-    if(Object.keys(groupDay).length){
-      for(let d=0; d<days; d++){
-        dayAssignments[d] = dayAssignments[d].filter(loc=>{
-          const g = (loc.group || '').trim().toLowerCase();
-          if(g && groupDay[g] !== d){ dayAssignments[groupDay[g]].push(loc); return false; }
-          return true;
-        });
-      }
-    }
+    remaining.forEach(u=>{
+      // Whatever is left no longer fits any day's cap. Put it on the emptiest
+      // day rather than always the last one, so the overflow stays spread out.
+      let best = days - 1;
+      for(let d=0; d<days; d++){ if(dayAssignments[d].length < dayAssignments[best].length) best = d; }
+      dayAssignments[best].push(...u.locs);
+    });
 
     return dayAssignments;
   }
@@ -5143,6 +5283,7 @@
     });
 
     manifestOrder = [].concat(...dayAssignments);
+    manifestDayPlan = dayAssignments.map(arr => arr.map(loc => loc.code));
 
     const tbody = document.getElementById('manifest-table');
     const timeVal = schedStart('prod', '2026-07-20', '22:00').time;
@@ -5193,6 +5334,7 @@
 
   function clearManifestPreview(){
     manifestOrder = [];
+    manifestDayPlan = null;
     dayCounts = [];
     dayConstraints = [];
     const strip = document.getElementById('manifest-strip');
@@ -5634,6 +5776,21 @@
       <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 8px 0;">${c.ex2Desc}</p>
       ${code('$h = @{ Authorization = "Bearer $env:ROLLDESK_TOKEN" }\nInvoke-RestMethod -Method Patch -Headers $h -ContentType "application/json" `\n  -Uri "' + base + '/deployments/DEP-2026-0003" `\n  -Body \'{ "status": "installed" }\'')}
 
+      ${sec(c.fieldsTitle)}
+      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 8px 0;">${c.fieldsDesc}</p>
+      <div style="border:1px solid var(--line); border-radius:8px; overflow:hidden; margin-bottom:10px;">
+        ${c.fields.map(([name, type, desc], i)=>`
+          <div style="display:grid; grid-template-columns:minmax(120px,1fr) minmax(90px,0.7fr) 2fr; gap:10px; padding:8px 12px; font-size:12px; ${i ? 'border-top:1px solid var(--line-soft);' : ''}">
+            <span class="mono" style="font-weight:600;">${name}</span>
+            <span class="mono" style="color:var(--text-faint);">${type}</span>
+            <span style="color:var(--text-muted);">${desc}</span>
+          </div>`).join('')}
+      </div>
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 8px 0;">${c.batchNote}</p>
+      ${code(c.batchExampleComment + '\n' + '$h = @{ Authorization = "Bearer $env:ROLLDESK_TOKEN" }\nInvoke-RestMethod -Method Patch -Headers $h -ContentType "application/json" `\n  -Uri "' + base + '/deployments/DEP-2026-0047" `\n  -Body \'{ "counts": { "installed": 312, "scheduled": 88 } }\'')}
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 8px 0;">${c.discoverNote}</p>
+      ${code('# ' + c.discoverComment + '\nInvoke-RestMethod -Headers $h -Uri "' + base + '/deployments/DEP-2026-0047" | ConvertTo-Json -Depth 6')}
+
       ${sec(c.errTitle)}
       <p style="font-size:12px; color:var(--text-muted); margin:0;">${c.errDesc}</p>
     `;
@@ -5994,8 +6151,10 @@
         + '\n' + t('dep.aApproved') + ' · ' + tf('notif.approvedBy', {who});
       dispatchEventNotification('decision', rec.projectKey, 'RollDesk — ' + t('ev.decision') + ' (' + envLabel(rec.env||'') + ')',
         approvedBody, true, rec.id);
-      dispatchEventNotification('scheduleApproved', rec.projectKey, 'RollDesk — ' + t('ev.scheduleApproved') + ' (' + (rec.env||'') + ')',
-        approvedBody, true, rec.id);
+      // Internal only (no client e-mail): this tells the team the client agreed.
+      // The client made the decision, so mailing it back to them is noise.
+      dispatchEventNotification('scheduleApproved', rec.projectKey, 'RollDesk — ' + t('ev.scheduleApproved') + ' (' + envLabel(rec.env||'') + ')',
+        approvedBody, false, rec.id);
     } else if(action === 'commented'){
       showAppPrompt(t('client.commentTitle'), '', (note)=>{
         if(note === null) return;
@@ -6125,12 +6284,19 @@
     const scenario = scenarioKey ? CLIENT_SCENARIOS[scenarioKey] : null;
     const listWrap = document.getElementById('client-list');
     // No client-access scenario configured — show a neutral empty banner and stop.
+    // Until the first load lands there is no basis for saying so, though: the
+    // scenarios are derived from accounts and projects that have not arrived yet,
+    // and "no access yet" is alarming for a client who does have access.
     if(!scenario){
       const bn = document.getElementById('client-banner-name');
       const bs = document.getElementById('client-banner-sub');
       if(bn) bn.textContent = t('client.portalTitle');
-      if(bs) bs.textContent = t('client.noAccessYet');
-      if(listWrap) listWrap.innerHTML = '';
+      if(bs) bs.textContent = DATA_LOADING ? t('common.loading') : t('client.noAccessYet');
+      if(listWrap){
+        listWrap.innerHTML = DATA_LOADING
+          ? `<div class="card"><div class="loading-note"><span class="spinner" aria-hidden="true"></span><span>${t('common.loadingDeployments')}</span></div></div>`
+          : '';
+      }
       return;
     }
     const projectNames = scenario.projectKeys.map(k=> PROJECTS[k] ? PROJECTS[k].name : k);
@@ -6532,6 +6698,12 @@
   // ============================================================================
   const API_BASE = ''; // same origin (nginx forwards /api to the backend)
   let API_CONNECTED = false;
+  // True from the moment the app is revealed until the initial hydration from the
+  // API finishes. The lists start out genuinely empty, so on a slow link the first
+  // paint was the empty state ("No projects yet", a blank deployments table) —
+  // which reads as data loss rather than as loading. The renderers check this and
+  // draw a spinner instead. See markDataLoaded().
+  let DATA_LOADING = false;
 
   // ---- Session token ----
   const TOKEN_KEY = 'rolldesk_token';
@@ -6858,7 +7030,7 @@
       try {
         const rows = await apiListAssignableUsers();
         USERS.length = 0;
-        rows.forEach(u=>USERS.push(Object.assign({role:'installer', archived:false}, u)));
+        rows.forEach(u=>USERS.push(Object.assign({role:'installer', archived:false}, u, {assignable:true})));
         if(currentUser) applyCurrentUser(currentUser);
       } catch(e){ console.warn('Failed to load assignable users:', e.message); }
       return;
@@ -6954,8 +7126,24 @@
     } catch(e){ console.warn('Refresh audit failed:', e.message); }
   }
 
+  // Clears the loading state and redraws whichever list the user is looking at,
+  // so the spinner is replaced the moment the data (or the failure) is known.
+  function markDataLoaded(){
+    DATA_LOADING = false;
+    try { renderProjectsList(); } catch(e){}
+    try { renderDeploymentsTable(); } catch(e){}
+    try { renderInstallerPanel(); } catch(e){}
+    try { renderClientPortal(currentClientScenario); } catch(e){}
+  }
+
   // Attempt to connect to the backend and load data from the database on startup.
   async function initApiConnection(){
+    // The views are already visible at this point (the login overlay is hidden
+    // before this runs), so they need to show that data is on its way.
+    DATA_LOADING = true;
+    try { renderProjectsList(); } catch(e){}
+    try { renderDeploymentsTable(); } catch(e){}
+    try { renderInstallerPanel(); } catch(e){}
     try {
       const rows = await apiListDeployments();
       API_CONNECTED = true;
@@ -7011,6 +7199,9 @@
       });
       deploymentIdCounter = maxIdSeq;
       if(typeof deploymentSeq !== 'undefined') deploymentSeq = Math.max(deploymentSeq, maxSeq);
+      // Projects and deployments — everything the spinners stand in for — have
+      // arrived; the loads that follow (users, audit, tokens) feed other views.
+      DATA_LOADING = false;
       // Redraw the deployment-based views.
       try { renderDeploymentsTable(); } catch(e){}
       try { renderInstallerPanel(); } catch(e){}
@@ -7051,6 +7242,10 @@
     } catch(err){
       API_CONNECTED = false;
       console.warn('Failed to load data from the backend:', err.message);
+      // A spinner that never resolves is worse than the empty state it replaced,
+      // so a failed load falls back to it. (A 401 has already sent the user back
+      // to the login screen from apiFetch.)
+      markDataLoaded();
     }
   }
 
@@ -7114,6 +7309,18 @@
     // If the RM saved an explicit order in the schedule preview, honour it exactly.
     if(d.pendingQueue && d.pendingQueue.length && d.counts && d.pendingQueue.length === d.totalLocations){
       if(d.pendingQueue[i] != null) return d.pendingQueue[i];
+    }
+    // Mid-rollout the order is split in two: d.history holds the targets already
+    // done, d.pendingQueue the rest — and the queue is what day moves rewrite.
+    // Reading only the project's site list here would silently undo every move
+    // in the schedule view, which is what made a move look like a swap.
+    const installed = (d.counts && Number(d.counts.installed)) || 0;
+    const pending = (d.counts && Number(d.counts.scheduled)) || 0;
+    if(Array.isArray(d.pendingQueue) && d.pendingQueue.length === pending && pending > 0){
+      if(i >= installed && d.pendingQueue[i - installed] != null) return d.pendingQueue[i - installed];
+      if(i < installed && Array.isArray(d.history) && d.history.length === installed && d.history[i]){
+        return d.history[i].location;
+      }
     }
     // Otherwise use the project's real PRODUCTION target names (e.g. the site list); a production
     // rollout only touches production targets, so skip non-prod ones. Fall back to synthetic codes.
@@ -7216,6 +7423,17 @@
     return rows;
   }
 
+  // The full schedule is rendered once and cached in the DOM (dataset.rendered).
+  // Any change to the day distribution or the day dates has to clear that cache,
+  // otherwise the "schedule" tab keeps showing the pre-change date and weekday.
+  function invalidateFullSchedule(idx){
+    const box = document.getElementById('full-sched-' + idx);
+    if(!box) return;
+    delete box.dataset.rendered;
+    // Only re-render if it is currently open; otherwise the next open does it.
+    if(box.style.display !== 'none') ensureFullScheduleRendered(idx);
+  }
+
   function ensureFullScheduleRendered(idx){
     const box = document.getElementById('full-sched-' + idx);
     if(!box || box.dataset.rendered) return;
@@ -7265,8 +7483,19 @@
   }
 
   // XLS: Excel-compatible file (HTML table with the vnd.ms-excel type — opens as columns).
+  // A draft has not been sent to the client, so no client-facing artefact may
+  // leave the app for it. The schedule PDF/XLS is exactly that artefact — it is
+  // what gets mailed to the client — and a draft schedule is still provisional.
+  // Publish the deployment first ("Notify the client"), then export.
+  function blockedAsDraft(r){
+    if(!r || !r.draft) return false;
+    showToast(t('sch.draftNoExport'));
+    return true;
+  }
+
   function exportScheduleXls(idx){
     const r = DEPLOYMENTS_DATA[idx];
+    if(blockedAsDraft(r)) return;
     const rows = buildScheduleRows(r);
     if(!rows.length){ showToast(t('sch.noBatch')); return; }
     const customFields = scheduleCustomFieldNames(r);
@@ -7286,6 +7515,7 @@
   // PDF: opens a print view (Save as PDF). No external libraries.
   function exportSchedulePdf(idx){
     const r = DEPLOYMENTS_DATA[idx];
+    if(blockedAsDraft(r)) return;
     const rows = buildScheduleRows(r);
     if(!rows.length){ showToast(t('sch.noBatch')); return; }
     const title = scheduleTitle(r);
@@ -7682,7 +7912,16 @@
     persistDeployment(idx);
     renderDeploymentsTable();
     renderInstallerPanel();
-    showToast('Schedule changes saved — notifications sent to everyone');
+    invalidateFullSchedule(idx);
+    // The toast has always claimed this; actually dispatch it. Recipients need to
+    // know which deployment moved, which day, and to what date.
+    const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
+    const body = notifHeader(d, projName) + '\n'
+      + tf('notif.schedChangedBody', {summary})
+      + '\n' + tf('notif.changedBy', {who});
+    dispatchEventNotification('scheduleChanged', d.projectKey,
+      'RollDesk — ' + t('ev.scheduleChanged') + ' (' + envLabel(d.env||'') + ')', body, false, d.id);
+    showToast(t('dtl.schedSaved'));
   }
 
   const statusLabelFull = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
@@ -8011,8 +8250,11 @@
     if(showComment) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-comment-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'comment'${scopeArg})">💬 ${t('dcard.commentShort')}</button>`);
     if(showSchedule){
       barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-schedule-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'schedule'${scopeArg})">📅 ${t('rep.schedShort')}</button>`);
-      barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportScheduleXls(${r.idx})">${t('dtl.schedXls')}</button>`);
-      barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">${t('dtl.schedPdf')}</button>`);
+      // Drafts excluded: the export is the document the client receives.
+      if(!r.draft){
+        barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportScheduleXls(${r.idx})">${t('dtl.schedXls')}</button>`);
+        barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">${t('dtl.schedPdf')}</button>`);
+      }
     }
 
     const assigneeHtml = showAssignee ? assigneeControlHtml(r, true) : '';
@@ -8045,7 +8287,7 @@
   }
 
   function deploymentOutcome(r){
-    const failedCount = (r.failedLocations || []).length;
+    const failedCount = failedLocationsList(r).length;
     if(r.mode === 'batch'){
       if(failedCount > 0){
         // some failed but the rest went through → partial
@@ -8061,17 +8303,24 @@
     return {label:'Completed', icon:'•', color:'var(--text-muted)', bg:'#EEF0F3'};
   }
 
-  // Installers who can be assigned to a deployment (scoped to the project when possible).
+  // People who can be assigned to a deployment (scoped to the project when possible).
+  // Any non-client account qualifies, not only role 'installer': an account holds
+  // a single role, so someone who both administers RollDesk and installs on site
+  // is an 'admin' and still has to be assignable. Deployers are listed first.
   function installersForProject(projectKey){
     // Deployers scoped to this project come first (they were granted access),
     // then any other active deployer so a lead can hand a distribution to a
     // colleague who is not project-scoped. The signed-in deployer is always here.
-    const active = USERS.filter(u=>u.role === 'installer' && !u.archived);
-    const scoped = active.filter(u=>(u.projects||[]).map(String).includes(String(projectKey))).map(u=>u.name);
-    const others = active.filter(u=>!(u.projects||[]).map(String).includes(String(projectKey))).map(u=>u.name);
+    const active = USERS.filter(u=>u.role !== 'client' && !u.archived && u.name);
+    const inProject = u=>(u.projects||[]).map(String).includes(String(projectKey));
+    // Rank: project-scoped deployers, other deployers, then everyone else.
+    const rank = u=>(u.role === 'installer' ? 0 : 2) + (inProject(u) ? 0 : 1);
+    const names = active
+      .slice()
+      .sort((a,b)=> rank(a) - rank(b) || String(a.name).localeCompare(String(b.name)))
+      .map(u=>u.name);
     const me = actorName();
-    const names = scoped.sort().concat(others.sort());
-    if(currentLoggedInRole === 'installer' && me && !names.includes(me)) names.push(me);
+    if(me && !names.includes(me) && currentLoggedInRole !== 'client') names.push(me);
     return Array.from(new Set(names));
   }
 
@@ -8086,6 +8335,14 @@
       const _s = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'};
       d.comments = d.comments || [];
       d.comments.push({date:_s.date, time:_s.time, author: actorName(), type:'system', icon:'🧑‍🔧', text: name ? tf('rep.assignedTl', {who: name}) : t('rep.unassignedTl')});
+      // Tell the channel who is now responsible — the deployer needs to learn
+      // about the assignment without watching the panel.
+      const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
+      const body = notifHeader(d, projName) + '\n'
+        + (name ? tf('notif.assignedBody', {who: name, id: d.id||''}) : tf('notif.unassignedBody', {id: d.id||''}))
+        + '\n' + tf('notif.changedBy', {who: actorName()});
+      dispatchEventNotification('assigned', d.projectKey,
+        'RollDesk — ' + t('ev.assigned') + ' (' + envLabel(d.env||'') + ')', body, false, d.id);
     }
     persistDeployment(idx);
     // Update just the assignee select(s) — a full re-render here would wipe any
@@ -8339,7 +8596,7 @@
       }
     } else if(kind === 'completed'){
       if(r.mode === 'batch'){
-        const failedCount = (r.failedLocations || []).length;
+        const failedCount = failedLocationsList(r).length;
         parts.push(tf('rep.deployedCount', {done: r.counts.installed, total: r.totalLocations}));
         if(failedCount) parts.push(tf('rep.failedCount', {n: failedCount}));
       } else if(r.location){
@@ -8371,7 +8628,7 @@
   function installerProgressCellHtml(r){
     if(r.mode === 'batch'){
       const pct = Math.round((r.counts.installed / Math.max(1, r.totalLocations)) * 100);
-      const failedN = (r.failedLocations || []).length;
+      const failedN = failedLocationsList(r).length;
       const isDone = r.counts.scheduled === 0;
       let extra = '';
       if(r.paused){
@@ -8505,7 +8762,7 @@
   }
 
   function installerCompletedDetailHtml(r){
-    const failedCount = (r.failedLocations || []).length;
+    const failedCount = failedLocationsList(r).length;
     const corrBtn = `<button class="mini-btn" onclick="toggleInstallerCorrection(${r.idx})">${t('rep.reportCorrection')}</button>`;
     const chrome = installerActionChromeHtml(r, {showSchedule:true, showComment:true, showTimeline:true, timelineOpen:true});
     if(r.mode === 'batch'){
@@ -8515,7 +8772,7 @@
       return `${chrome}
         ${doneBanner}
         <div style="margin-bottom:10px;">${corrBtn}</div>
-        ${failedCount ? `<div style="margin-bottom:8px; font-size:11.5px; color:#A81E1E;">⚠ ${tf('rep.toFinish', {list: (r.failedLocations||[]).map(f=>f.location).join(', ')})}</div>` : ''}
+        ${failedCount ? `<div style="margin-bottom:8px; font-size:11.5px; color:#A81E1E;">⚠ ${tf('rep.toFinish', {list: failedLocationsList(r).map(f=>f.location).join(', ')})}</div>` : ''}
         <div id="correction-form-${r.idx}" style="display:none; margin-top:4px;">
           <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">${t('rep.correctionHint')}</p>
           <div class="grid-2">
@@ -8529,7 +8786,7 @@
               <input type="text" id="correction-reason-${r.idx}" placeholder="${t('rep.correctionReasonPh')}">
             </div>
           </div>
-          ${failedCount ? `<div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">${t('rep.currentlyFailed')}${(r.failedLocations||[]).map(f=>`<a href="#" onclick="event.preventDefault(); document.getElementById('correction-loc-${r.idx}').value='${(f.location||'').replace(/'/g,'')}';" style="color:var(--cyan); text-decoration:none; margin-right:8px;">${escapeHtml(f.location||'')}</a>`).join('')}</div>` : ''}
+          ${failedCount ? `<div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">${t('rep.currentlyFailed')}${failedLocationsList(r).map(f=>`<a href="#" onclick="event.preventDefault(); document.getElementById('correction-loc-${r.idx}').value='${(f.location||'').replace(/'/g,'')}';" style="color:var(--cyan); text-decoration:none; margin-right:8px;">${escapeHtml(f.location||'')}</a>`).join('')}</div>` : ''}
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button class="btn ghost" onclick="submitBatchCorrection(${r.idx}, 'installed')">${t('rep.changeToSuccessful')}</button>
             <button class="btn ghost" onclick="submitBatchCorrection(${r.idx}, 'failed')">${t('rep.keepFailed')}</button>
@@ -8644,9 +8901,15 @@
     const emptyMsg = (!showWaiting && !showActive && !showCompleted)
       ? t('filter.noneSelected')
       : t(showCompleted && !showWaiting && !showActive ? 'rep.noCompleted14' : 'rep.noActive');
-    const bodyRows = rows.length
-      ? rows.map(({r, kind}) => installerTableRowHtml(r, kind)).join('')
-      : ((rows._archive && rows._archive.length) ? '' : `<tr><td colspan="${headCols.length}" style="color:var(--text-muted); font-size:13px; text-align:center; padding:16px;">${emptyMsg}</td></tr>`);
+    // "Nothing to report" and "not loaded yet" look identical in an empty table.
+    const loadingRow = `<tr><td colspan="${headCols.length}" style="padding:0;">
+      <div class="loading-note"><span class="spinner" aria-hidden="true"></span><span>${t('common.loadingDeployments')}</span></div>
+    </td></tr>`;
+    const bodyRows = (DATA_LOADING && !DEPLOYMENTS_DATA.length)
+      ? loadingRow
+      : (rows.length
+        ? rows.map(({r, kind}) => installerTableRowHtml(r, kind)).join('')
+        : ((rows._archive && rows._archive.length) ? '' : `<tr><td colspan="${headCols.length}" style="color:var(--text-muted); font-size:13px; text-align:center; padding:16px;">${emptyMsg}</td></tr>`));
     // Same framed, sticky-headed scroll pane as the Deployments list.
     html += `<div class="table-scroll" style="max-height:640px; margin-top:10px;">
       <table>
@@ -8705,6 +8968,9 @@
       d.comments = d.comments || [];
       const _cs = nowStamp();
       d.comments.push({date:_cs.date, time:_cs.time, author: actorName(), type:'system', icon:'✅', text:'Correction (→ successful): „' + loc + '” — ' + reason});
+      logAudit('changed','Deployment','Correction (→ successful) ' + (d.id||'') + ' — ' + loc + ': ' + reason,
+        (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.corrSuccess', {id: d.id||'', loc, reason});
+      persistDeployment(idx);
       renderInstallerPanel();
       renderDeploymentsTable();
       showToast(tf('rep.corrToSuccess', {loc}));
@@ -8721,7 +8987,7 @@
       getBatchPendingQueue(d);
       d.counts.scheduled += 1;
       d.pendingQueue.unshift(loc);
-      d.failedLocations.push({location: loc, date: entry.date, time: entry.time, reason});
+      recordFailedLocation(d, {location: loc, date: entry.date, time: entry.time, reason});
     } else if(failedPos !== -1){
       // Already failed → just update the reason.
       d.failedLocations[failedPos].reason = reason;
@@ -8731,6 +8997,9 @@
     d.comments = d.comments || [];
     const _cf = nowStamp();
     d.comments.push({date:_cf.date, time:_cf.time, author: actorName(), type:'system', icon:'⚠️', text:'Correction (→ failed): „' + loc + '” — ' + reason});
+    logAudit('changed','Deployment','Correction (→ failed) ' + (d.id||'') + ' — ' + loc + ': ' + reason,
+      (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.corrFailed', {id: d.id||'', loc, reason});
+    persistDeployment(idx);
     renderInstallerPanel();
     renderDeploymentsTable();
     showToast(tf('rep.corrToFailed', {loc}));
@@ -8746,6 +9015,11 @@
     const label = targetStatus === 'installed' ? 'successful' : 'failed';
     const _sc = nowStamp();
     d.comments.push({date:_sc.date, time:_sc.time, author: actorName(), text: 'Correction (→ ' + label + '): ' + reason});
+    logAudit('changed','Deployment','Correction (→ ' + label + ') ' + (d.id||'') + ': ' + reason,
+      (PROJECTS[d.projectKey]||{}).name || d.projectKey,
+      targetStatus === 'installed' ? 'aud.d.corrSuccess' : 'aud.d.corrFailed',
+      {id: d.id||'', loc: d.location || '—', reason});
+    persistDeployment(idx);
     renderInstallerPanel();
     renderDeploymentsTable();
     showToast('Correction saved — marked as ' + label);
@@ -8789,10 +9063,14 @@
     // Real post-deployment notification: project e-mail + client webhooks that
     // subscribe to "completed". Stays silent when nothing is configured.
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
+    // The status belongs in the subject line too: the event is named "completed
+    // (with status)", but a Teams channel shows only the subject in its preview,
+    // so the recipient could not tell success from failure without opening it.
+    const doneStatus = statusLabelFull[d.status] || statusLabelFull.installed;
     dispatchEventNotification('completed', d.projectKey,
-      'RollDesk — ' + t('ev.completed') + ' (' + envLabel(d.env||'') + ')',
+      'RollDesk — ' + t('ev.completed') + ': ' + doneStatus + ' (' + envLabel(d.env||'') + ')',
       notifHeader(d, projName)
-      + '\n' + t('notif.statusLine') + ': ' + (statusLabelFull[d.status] || statusLabelFull.installed)
+      + '\n' + t('notif.statusLine') + ': ' + doneStatus
       + ' · ' + tf('notif.reportedByManual', {who}), true, d.id);
   }
 
@@ -8829,6 +9107,40 @@
     card.style.transition = 'box-shadow 0.3s';
     card.style.boxShadow = '0 0 0 3px var(--green)';
     setTimeout(()=>{ card.style.boxShadow = ''; }, 1200);
+  }
+
+  // The distinct targets still to finish. Records written before failures were
+  // deduplicated can hold one entry per attempt, so collapse by location on read
+  // as well — the counter must mean "locations left", never "attempts made".
+  function failedLocationsList(r){
+    const list = (r && r.failedLocations) || [];
+    const byLoc = new Map();
+    list.forEach(f=>{
+      const key = (f && f.location) || '';
+      const prev = byLoc.get(key);
+      if(!prev){ byLoc.set(key, f); return; }
+      // Keep the earliest occurrence but the most recent reason/report.
+      byLoc.set(key, Object.assign({}, prev, f, {date: prev.date || f.date, time: prev.time || f.time}));
+    });
+    return [...byLoc.values()];
+  }
+
+  // Record a failed target. d.failedLocations drives the "to finish" counter, so
+  // it holds one entry per *location*, not per attempt: a target that fails on
+  // four consecutive days is still one location left to finish. The full
+  // per-attempt history stays in the timeline comments.
+  function recordFailedLocation(d, entry){
+    d.failedLocations = d.failedLocations || [];
+    const pos = d.failedLocations.findIndex(f => f.location === entry.location);
+    if(pos === -1){ d.failedLocations.push(entry); return; }
+    // Keep the first-seen date, refresh the latest attempt's report and reason,
+    // and remember how many times this location has failed.
+    const prev = d.failedLocations[pos];
+    d.failedLocations[pos] = Object.assign({}, prev, entry, {
+      date: prev.date || entry.date,
+      time: prev.time || entry.time,
+      attempts: (Number(prev.attempts) || 1) + 1,
+    });
   }
 
   function reportBatchDayResult(idx, scope){
@@ -8873,7 +9185,7 @@
 
     if(failedList.length){
       d.failedLocations = d.failedLocations || [];
-      failedList.forEach(loc=> d.failedLocations.push({location: loc, date: dateStr, time: d.time, reportedDate: rep.date, reportedTime: rep.time, reason: reason || '—'}));
+      failedList.forEach(loc=> recordFailedLocation(d, {location: loc, date: dateStr, time: d.time, reportedDate: rep.date, reportedTime: rep.time, reason: reason || '—'}));
       // Permanent failure-reason entry per location — survives later success and
       // any force-complete (unlike d.failedLocations, which drives the counter).
       d.comments.push({date: rep.date, time: rep.time, author: who, type:'system', icon:'⚠️',
@@ -8891,6 +9203,7 @@
 
     persistDeployment(idx);
     renderDeploymentsTable();
+    invalidateFullSchedule(idx);
     if(scope === 'i'){
       reportedResults[idx] = {day: dayNum, success: successList.length, failed: failedList.length};
     }
@@ -8907,6 +9220,18 @@
       if(failedList.length){
         body += '\n' + tf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
         if(reason) body += '\n' + t('rep.correctionReason') + ': ' + reason;
+      }
+      // What happens next. The report used to end with the counts, so a reader
+      // could not tell whether the rollout continues tomorrow, is finished, or is
+      // waiting on retries — the question every recipient asked next.
+      if(d.counts.scheduled === 0){
+        const stillFailed = failedLocationsList(d).length;
+        body += '\n' + t('notif.nextLabel') + ': '
+          + (stillFailed ? tf('notif.nextToFinish', {n: stillFailed}) : t('notif.nextDone'));
+      } else {
+        const nextDay = Math.min(dayNum + 1, d.days);
+        body += '\n' + t('notif.nextLabel') + ': '
+          + tf('notif.nextDay', {day: nextDay, date: fmtDate(getDateForDay(d, nextDay)), n: d.counts.scheduled});
       }
       dispatchEventNotification('dayReport', d.projectKey, 'RollDesk — ' + t('ev.dayReport') + ' (' + envLabel(d.env||'') + ')', body + byLine, true, d.id);
       // Guarantee a failure notification via the standard "failure" event too —
@@ -9010,6 +9335,7 @@
     applyPendingByDay(d, perDay);
     persistDeployment(idx);
     renderDeploymentsTable();
+    invalidateFullSchedule(idx);
     showToast(tf('dtl.dayCountSet', {day, n: perDay[di].length}));
   }
 
@@ -9020,6 +9346,29 @@
     box.querySelectorAll('tr.queue-row').forEach(row=>{
       row.style.display = (!q || (row.dataset.loc || '').includes(q)) ? '' : 'none';
     });
+  }
+
+  // Record a target's move to another day: timeline entry, audit entry and a
+  // channel notification. A rescheduled site is a commitment to the client, so
+  // it has to be traceable and not only visible as a toast.
+  function recordLocationDayMove(idx, code, fromDay, toDay){
+    const d = DEPLOYMENTS_DATA[idx];
+    const toDate = getDateForDay(d, toDay);
+    const _s = (typeof nowStamp === 'function') ? nowStamp() : {date: todayIso(), time:'00:00'};
+    const who = actorName();
+    d.comments = d.comments || [];
+    d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'📅',
+      text: tf('dtl.locMovedTl', {loc: code, from: fromDay, to: toDay, date: fmtDate(toDate)})});
+    logAudit('changed','Deployment',
+      'Moved ' + code + ' from day ' + fromDay + ' to day ' + toDay + ' (' + toDate + ') in ' + (d.id||''),
+      (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.locMoved',
+      {loc: code, from: fromDay, to: toDay, date: toDate, id: d.id||''});
+    const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
+    const body = notifHeader(d, projName) + '\n'
+      + tf('notif.locMovedBody', {loc: code, from: fromDay, to: toDay, date: fmtDate(toDate)})
+      + '\n' + tf('notif.changedBy', {who});
+    dispatchEventNotification('scheduleChanged', d.projectKey,
+      'RollDesk — ' + t('ev.scheduleChanged') + ' (' + envLabel(d.env||'') + ')', body, false, d.id);
   }
 
   function moveBatchQueueLocation(batchIdx, queueIdx, where){
@@ -9056,8 +9405,11 @@
     if(where === 'nextDay') perDay[newDay - 1].unshift(code);
     else perDay[newDay - 1].push(code);
     applyPendingByDay(d, perDay);
+    recordLocationDayMove(batchIdx, code, curDay, newDay);
     persistDeployment(batchIdx);
     renderDeploymentsTable();
+    renderInstallerPanel();
+    invalidateFullSchedule(batchIdx);
     showToast(tf(where === 'nextDay' ? 'dtl.movedNextDay' : 'dtl.movedPrevDay', {loc: code, n: newDay}));
   }
 
@@ -9083,8 +9435,11 @@
     // Place near the front of the destination day for intuitive ordering.
     perDay[targetDay - 1].push(code);
     applyPendingByDay(d, perDay);
+    recordLocationDayMove(batchIdx, code, curDay0 + 1, targetDay);
     persistDeployment(batchIdx);
     renderDeploymentsTable();
+    renderInstallerPanel();
+    invalidateFullSchedule(batchIdx);
     showToast(tf('dtl.movedToDay', {loc: code, n: targetDay}));
   }
 
@@ -9155,9 +9510,10 @@
     if(!text) return;
     const d = DEPLOYMENTS_DATA[idx];
     d.comments = d.comments || [];
-    const author = scope === 'i' ? 'Deployer' : 'Release Manager';
+    // The real person, not their role — the timeline has to say who wrote this.
+    const author = actorName();
     const stamp = nowStamp();
-    d.comments.push({date: stamp.date, time: stamp.time, author, text});
+    d.comments.push({date: stamp.date, time: stamp.time, author, role: scope === 'i' ? 'deployer' : 'rm', text});
     persistDeployment(idx);
     renderDeploymentsTable();
     renderInstallerPanel();
@@ -9223,10 +9579,29 @@
     const rangeVal = document.getElementById('deploy-filter-range').value;
     refreshDeployStatusMsLabel();
 
+    const sortVal = (document.getElementById('deploy-sort')||{}).value || 'added';
+
     let rows = DEPLOYMENTS_DATA.map((d,i)=>Object.assign({idx:i}, d, {project:PROJECTS[d.projectKey]}));
-    // Newest-added deployments (higher _seq) float to the top so a freshly created
-    // schedule is immediately visible without scrolling.
-    rows.sort((a,b)=> (b._seq||0) - (a._seq||0));
+    // Default: newest-added deployments (higher _seq) float to the top so a
+    // freshly created schedule is immediately visible without scrolling. The
+    // other orders answer "when is this actually happening" — with dozens of
+    // records the creation order stops being useful for finding one.
+    const startIso = r => (r.mode === 'batch' ? (r.historyStart || r.createdDate) : (r.date || r.createdDate)) || '';
+    if(sortVal === 'dateDesc'){
+      rows.sort((a,b)=> String(startIso(b)).localeCompare(String(startIso(a))) || (b._seq||0) - (a._seq||0));
+    } else if(sortVal === 'dateAsc'){
+      // Records without a date sort last in both directions, not first.
+      rows.sort((a,b)=>{
+        const da = startIso(a), db = startIso(b);
+        if(!da !== !db) return da ? -1 : 1;
+        return String(da).localeCompare(String(db)) || (a._seq||0) - (b._seq||0);
+      });
+    } else if(sortVal === 'project'){
+      const label = r => ((r.project && r.project.name) || r.projectKey || '');
+      rows.sort((a,b)=> label(a).localeCompare(label(b)) || (b._seq||0) - (a._seq||0));
+    } else {
+      rows.sort((a,b)=> (b._seq||0) - (a._seq||0));
+    }
 
     // Time-range filter: by default show only the last 14 days so the list stays
     // relevant. Older records remain reachable via the "All history" option.
@@ -9280,6 +9655,13 @@
     const totalCols = cols.length;
 
     function approvalBadgeHtml(r){
+      // A draft was never sent, so it cannot be awaiting the client's approval.
+      // Defaulting the select to "pending" below made every draft read as if the
+      // schedule had gone out. Say it is a draft instead, and offer the action
+      // that actually sends it.
+      if(r.draft && !r.clientApproval){
+        return `<td onclick="event.stopPropagation();"><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:#FDF1E1; color:#8A5A05;" title="${escapeHtml(t('draft.notSentTip'))}">📝 ${t('draft.badge')}</span></td>`;
+      }
       if(r.env !== 'Production' && !r.clientApproval) return '<td style="color:var(--text-faint); font-size:12px;">—</td>';
       // Short labels: the full wording ("Awaiting approval") stretched the column
       // and pushed the rest of the row out of view. The full text stays in the title.
@@ -9413,7 +9795,8 @@
       const isActiveDep = (r.mode === 'batch' && r.counts.scheduled > 0) || (r.mode === 'single' && r.status === 'scheduled');
       const isBatch = r.mode === 'batch';
       const barBtns = [];
-      const canExportSchedule = !!(r.apps && r.apps.length);
+      // A draft's schedule must not leave the app as a client-facing document.
+      const canExportSchedule = !!(r.apps && r.apps.length) && !r.draft;
       if(instrBody) barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-instr-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'instr')">📋 ${t('rep.instrShort')}</button>`);
       if(changelogBody) barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-changelog-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'changelog')">📄 ${t('rep.changelogShort')}</button>`);
       barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-timeline-${r.idx}" aria-pressed="true" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'timeline')">🕓 ${t('dcard.timeline')}</button>`);
@@ -9493,7 +9876,7 @@
         cells.push(`<td>${envTagHtml(r.env)}</td>`);
         cells.push(`<td class="mono">${r.dateRange}<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(r.time)}</div></td>`);
         const pct = Math.round((r.counts.installed / r.totalLocations) * 100);
-        const failedN = (r.failedLocations || []).length;
+        const failedN = failedLocationsList(r).length;
         const isDone = r.counts.scheduled === 0;
         let progressExtra = '';
         if(r.paused){
@@ -9546,7 +9929,14 @@
         if(expandedBatchIdx === r.idx) html += timelinePanelHtml(r);
       }
     });
-    if(hiddenByRange > 0){
+    // Nothing loaded yet: a blank table on a slow link looks like "no deployments",
+    // so say which of the two it is.
+    if(DATA_LOADING && !DEPLOYMENTS_DATA.length){
+      html = `<tr><td colspan="${cols.length}" style="padding:0;">
+        <div class="loading-note"><span class="spinner" aria-hidden="true"></span><span>${t('common.loadingDeployments')}</span></div>
+      </td></tr>`;
+    }
+    if(hiddenByRange > 0 && !(DATA_LOADING && !DEPLOYMENTS_DATA.length)){
       const totalCols2 = cols.length;
       html += `<tr><td colspan="${totalCols2}" style="text-align:center; padding:12px; font-size:12px; color:var(--text-muted);">
         ${tf('dep.hiddenByRange', {n: hiddenByRange})}
@@ -9588,7 +9978,8 @@
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
     const body = notifHeader(d, projName)
       + '\n' + t('notif.statusLine') + ': ' + t('status.installed');
-    dispatchEventNotification('completed', d.projectKey, 'RollDesk — ' + t('ev.completed') + ' (' + (d.env||'') + ')', body, true, d.id);
+    dispatchEventNotification('completed', d.projectKey,
+      'RollDesk — ' + t('ev.completed') + ': ' + t('status.installed') + ' (' + envLabel(d.env||'') + ')', body, true, d.id);
     showToast(tf('dcard.statusChangedToast', {status: t('status.installed')}));
   }
 
@@ -9647,7 +10038,9 @@
     const statusBody = notifHeader(d, projName)
       + '\n' + t('notif.statusLine') + ': ' + (labels[newStatus]||newStatus);
     const eventKey = (newStatus === 'installed') ? 'completed' : (newStatus === 'failed' ? 'failure' : 'completed');
-    dispatchEventNotification(eventKey, d.projectKey, 'RollDesk — ' + t('ev.completed') + ' (' + (d.env||'') + ')', statusBody, true, d.id);
+    dispatchEventNotification(eventKey, d.projectKey,
+      'RollDesk — ' + t(eventKey === 'failure' ? 'ev.failure' : 'ev.completed')
+        + ': ' + (labels[newStatus]||newStatus) + ' (' + envLabel(d.env||'') + ')', statusBody, true, d.id);
     showToast(tf('dcard.statusChangedToast', {status: labels[newStatus]||newStatus}));
   }
 
@@ -9717,6 +10110,15 @@
         const projLabel = projName + ((PROJECTS[d.projectKey]||{}).clientName ? ' (' + (PROJECTS[d.projectKey]||{}).clientName + ')' : '');
         if(newStatus === 'approved'){
           logAudit('changed', 'Deployment', 'The client approved the schedule ' + (d.id||'') + ' — ' + who, projLabel, 'aud.d.clientApproved', {id: d.id||'', by: who});
+          // Announce it on the internal channel. An approval recorded here by the
+          // RM (client agreed by phone / e-mail) reached nobody, while the same
+          // approval clicked in the client portal did — so whether the team heard
+          // about it depended on which door the decision came through.
+          // Internal only: no client e-mail for a decision the client just made.
+          dispatchEventNotification('scheduleApproved', d.projectKey,
+            'RollDesk — ' + t('ev.scheduleApproved') + ' (' + envLabel(d.env||'') + ')',
+            notifHeader(d, projName) + '\n' + t('dep.aApproved') + ' · ' + tf('notif.approvedBy', {who}),
+            false, d.id);
         } else {
           logAudit('changed', 'Deployment', 'Client decision on ' + (d.id||'') + ': ' + labels[newStatus] + ' — ' + who, projLabel, 'aud.d.clientDecision', {id: d.id||'', status: labels[newStatus], by: who});
         }
@@ -9838,7 +10240,7 @@
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
     const total = d.totalLocations || d.counts.installed;
     dispatchEventNotification('completed', d.projectKey,
-      'RollDesk — ' + t('ev.completed') + ' (' + envLabel(d.env||'') + ')',
+      'RollDesk — ' + t('ev.completed') + ': ' + statusLabelFull.installed + ' (' + envLabel(d.env||'') + ')',
       notifHeader(d, projName)
       + '\n' + t('notif.statusLine') + ': ' + (statusLabelFull.installed)
       + ' · ' + tf('notif.progressLine', {done: d.counts.installed, total, left: 0})

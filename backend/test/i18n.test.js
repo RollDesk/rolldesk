@@ -92,6 +92,27 @@ test('the nested API documentation has the same shape in both languages', () => 
   });
 });
 
+// The patchable-fields table is the same shape as the endpoint table above: a
+// list of rows whose first column is the wire field name, not a translation.
+test('the patchable-fields table lists the same fields in both languages', () => {
+  const { HELP } = loadBundles();
+  assert.equal(
+    HELP.pl.api.fields.length,
+    HELP.en.api.fields.length,
+    'the field table lists a different number of fields per language'
+  );
+  HELP.pl.api.fields.forEach(([name], i) => {
+    assert.equal(name, HELP.en.api.fields[i][0], `field ${i}: name differs between languages`);
+  });
+  // A row missing its description would render as `undefined` in the table.
+  for (const lang of ['pl', 'en']) {
+    HELP[lang].api.fields.forEach((row, i) => {
+      assert.equal(row.length, 3, `${lang} field ${i}: expected [name, type, description]`);
+      row.forEach((cell) => assert.ok(cell, `${lang} field ${i}: empty cell`));
+    });
+  }
+});
+
 test('the dictionary is non-trivial (sanity check the bundles loaded)', () => {
   const { I18N } = loadBundles();
   assert.ok(Object.keys(I18N.pl).length > 50, 'expected the pl dictionary to contain many keys');
