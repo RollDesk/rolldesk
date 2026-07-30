@@ -204,4 +204,49 @@ router.post('/:id/reset-password', async (req, res) => {
   res.json({ ok: true, invite });
 });
 
+// POST /api/users/:id/reset-mfa — clear a user's authenticator enrollment so the
+// next sign-in walks them through setup again (new QR code). This is the only
+// way out when someone loses their authenticator device: the secret is never
+// recoverable, and the login flow branches on mfa_enabled alone.
+// The password is left untouched — it is still required before the MFA step, so
+// this does not by itself let anyone in. Admins reset their own authenticator
+// from the Account panel (/api/auth/mfa/reconfigure), which proves possession of
+// a current code first; keep that the path for self-service.
+router.post('/:id/reset-mfa', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid user id' });
+  if (req.auth && req.auth.sub === id) {
+    return res.status(409).json({ error: 'Reset your own two-factor authentication from the Account panel' });
+  }
+
+  const { rows } = await query(
+    `UPDATE users SET mfa_enabled = false, mfa_secret = NULL, mfa_pending_secret = NULL
+      WHERE id = $1
+      RETURNING id, email, role, name, user_group, projects, client_key, archived, archived_reason,
+                password_hash, mfa_enabled`,
+    [id]
+  );
+  const user = rows[0];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  // Tell the account owner out-of-band — an unexpected reset is a signal worth
+  // seeing. Best-effort: a dead SMTP server must not fail the reset.
+  const actor = (req.auth && req.auth.email) || 'an administrator';
+  const body = `Two-factor authentication on your RollDesk account was reset by ${actor}.\n`
+    + 'The next time you sign in you will be asked to set up an authenticator app again.\n'
+    + 'If you did not expect this, contact your administrator.';
+  try {
+    await sendMail({
+      to: user.email,
+      subject: 'RollDesk — two-factor authentication reset',
+      text: body,
+      html: `<p>${body.replace(/\n/g, '<br>')}</p>`,
+    });
+  } catch (err) {
+    console.warn('[users] MFA-reset notice not sent:', err.message);
+  }
+
+  res.json(serialize(user));
+});
+
 export default router;

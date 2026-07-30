@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.2] - 2026-07-30
+
+### Added
+- **An administrator can reset another user's two-factor authentication.** *Users* gets a "Reset 2FA" action on accounts that have an authenticator enrolled; it clears the stored secret so the account is walked through setup (a fresh QR code) on its next sign-in. This is the way out when someone loses their authenticator device — the secret is not recoverable, and until now nothing in the UI could clear it. The password is untouched (it is still required before the MFA step), the account owner is e-mailed that the reset happened, and the entry lands in the change history. Admins still reset their own authenticator from *Account*, which requires a current code first.
+
 ## [0.13.1] - 2026-07-29
 
 ### Changed
