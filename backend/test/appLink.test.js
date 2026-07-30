@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   appLinkText, appLinkHtml, appLinkSlack, appLinkCardAction, bodyToHtml,
-  isUsableAppUrl, APP_LINK_LABEL,
+  bodyToCardText, hasAppLink, isUsableAppUrl, APP_LINK_LABEL,
 } from '../src/appLink.js';
 
 const URL_OK = 'http://10.6.10.6:8080';
@@ -74,4 +74,58 @@ test('bodyToHtml handles an empty or missing body', () => {
   assert.equal(bodyToHtml(''), '<p></p>');
   assert.equal(bodyToHtml(null), '<p></p>');
   assert.equal(bodyToHtml(undefined), '<p></p>');
+});
+
+// MessageCard renders Markdown: a lone newline collapses into a space, so the
+// lines have to be joined with a hard break. Doubling every newline instead —
+// what this used to do — kept them apart but put a blank line between each one,
+// which is what made a notification carrying a changelog read as endless.
+test('bodyToCardText keeps single line breaks without inserting blank lines', () => {
+  const card = bodyToCardText('PIK_2 · DEP-2026-0046\nPojazd v52.13.32 · Produkcja\nStart: 2026-07-31');
+  assert.equal(card, 'PIK_2 · DEP-2026-0046  \nPojazd v52.13.32 · Produkcja  \nStart: 2026-07-31');
+  assert.ok(!/\n\s*\n/.test(card), 'no blank line may appear between consecutive body lines');
+});
+
+test('bodyToCardText preserves a blank line the author wrote deliberately', () => {
+  // The changelog is separated from the header by an empty line on purpose.
+  const card = bodyToCardText('header line\n\nLista zmian:\nPM21372 first\nPM21405 second');
+  assert.equal(card, 'header line\n\nLista zmian:  \nPM21372 first  \nPM21405 second');
+  assert.equal(card.split('\n\n').length, 2, 'exactly one paragraph break');
+});
+
+test('bodyToCardText collapses a run of blank lines into one paragraph break', () => {
+  assert.equal(bodyToCardText('a\n\n\n\nb'), 'a\n\nb');
+});
+
+test('bodyToCardText normalises CRLF and handles an empty body', () => {
+  assert.equal(bodyToCardText('a\r\nb'), 'a  \nb');
+  assert.equal(bodyToCardText(''), '');
+  assert.equal(bodyToCardText(null), '');
+  assert.equal(bodyToCardText(undefined), '');
+});
+
+test('bodyToCardText leaves no NUL byte in the output', () => {
+  // The first implementation used \0 as a sentinel for paragraph breaks; a body
+  // that happened to contain one would have been mangled.
+  const card = bodyToCardText('a\nb\n\nc');
+  assert.ok(!card.includes('\0'), 'the card text must not contain a NUL byte');
+});
+
+// The UI builds its own labelled link into schedule notifications; without this
+// guard every channel appended the generic one on top of it.
+test('hasAppLink detects a link the body already carries', () => {
+  const body = `Start: 2026-07-31\nOtwórz harmonogram w RollDesk: ${URL_OK}/#deployments`;
+  assert.equal(hasAppLink(body, URL_OK), true);
+  assert.equal(hasAppLink('no link here', URL_OK), false);
+});
+
+test('hasAppLink is false when no URL is configured, whatever the body says', () => {
+  // With APP_BASE_URL unset there is no generic link to suppress anyway.
+  assert.equal(hasAppLink(`see ${URL_OK}`, ''), false);
+  assert.equal(hasAppLink(`see ${URL_OK}`, null), false);
+  assert.equal(hasAppLink(`see ${URL_OK}`, 'javascript:alert(1)'), false);
+});
+
+test('hasAppLink tolerates an empty or missing body', () => {
+  for (const empty of ['', null, undefined]) assert.equal(hasAppLink(empty, URL_OK), false);
 });

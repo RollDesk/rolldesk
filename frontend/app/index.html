@@ -2021,11 +2021,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.14.1"></script>
-<script src="i18n/en.js?v=0.14.1"></script>
+<script src="i18n/pl.js?v=0.14.2"></script>
+<script src="i18n/en.js?v=0.14.2"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.14.1';
+  const ROLLDESK_VERSION = '0.14.2';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -2794,32 +2794,57 @@
   // project name. Works for both batch and single deployments.
   function buildScheduleNotifBody(r, projName){
     r = r || {};
-    const lines = [projName];
-    if(r.id) lines.push(t('notif.deployment') + ': ' + r.id);
+    // Related facts share a line, separated by "·". A label per line reads as an
+    // endless list in a Teams channel once the changelog is appended below, and
+    // these values are short enough to sit together.
+    const lines = [];
+    lines.push(projName + (r.id ? ' · ' + r.id : ''));
     const appsLabel = (r.apps||[]).map(a=>a.name + (a.version ? ' v' + a.version : '')).join(', ');
-    if(appsLabel) lines.push(t('notif.applications') + ': ' + appsLabel);
+    const facts = [];
+    if(appsLabel) facts.push(appsLabel);
     if(r.mode === 'batch'){
-      lines.push(t('notif.environment') + ': ' + envLabel(r.env || 'Production')
-        + ' · ' + tf('notif.locationsN', {n: r.totalLocations || 0})
-        + ' · ' + tf('notif.daysN', {n: r.days || 1}));
-      let startIso = r.historyStart;
-      try { if(typeof getDateForDay === 'function') startIso = getDateForDay(r, 1); } catch(e){}
-      if(startIso){
-        const dow = fmtDow(startIso);
-        lines.push(t('notif.start') + ': ' + (dow ? dow + ', ' : '') + fmtDate(startIso)
-          + (r.time ? ' ' + tf('notif.atTime', {time: fmtTime(r.time)}) : ''));
-      }
+      facts.push(envLabel(r.env || 'Production'));
+      facts.push(tf('notif.locationsN', {n: r.totalLocations || 0}));
+      facts.push(tf('notif.daysN', {n: r.days || 1}));
     } else {
-      lines.push(t('notif.environment') + ': ' + envLabel(r.env || '') + (r.location ? ' · ' + r.location : ''));
-      if(r.date) lines.push(t('notif.start') + ': ' + fmtDate(r.date)
-        + (r.time ? ' ' + tf('notif.atTime', {time: fmtTime(r.time)}) : ''));
+      facts.push(envLabel(r.env || ''));
+      if(r.location) facts.push(r.location);
     }
-    if(r.createdBy) lines.push(t('notif.createdBy') + ': ' + r.createdBy);
-    let body = lines.join('\n');
+    lines.push(facts.filter(Boolean).join(' · '));
+    let startIso = r.date;
+    if(r.mode === 'batch'){
+      startIso = r.historyStart;
+      try { if(typeof getDateForDay === 'function') startIso = getDateForDay(r, 1); } catch(e){}
+    }
+    // Start and author on one line: both answer "when, and on whose say-so".
+    const when = startIso
+      ? ((r.mode === 'batch' && fmtDow(startIso)) ? fmtDow(startIso) + ', ' : '') + fmtDate(startIso)
+        + (r.time ? ' ' + tf('notif.atTime', {time: fmtTime(r.time)}) : '')
+      : '';
+    const tail = [];
+    if(when) tail.push(t('notif.start') + ': ' + when);
+    if(r.createdBy) tail.push(t('notif.createdBy') + ': ' + r.createdBy);
+    if(tail.length) lines.push(tail.join(' · '));
+    let body = lines.filter(Boolean).join('\n');
     if(r.changelog) body += '\n\n' + t('notif.changelogLabel') + ':\n' + r.changelog;
     if(r.attachment) body += '\n' + t('notif.attachment') + ': ' + r.attachment;
     body += '\n\n' + t('notif.openLink') + ': ' + appLink('#deployments');
     return body;
+  }
+
+  // Header shared by the event notifications (failure, completed, day report,
+  // decision): deployment id, project, app versions and environment. Same
+  // reasoning as above — Teams gives every newline its own line, so a labelled
+  // fact per line turned each event into a tall form.
+  function notifHeader(d, projName){
+    d = d || {};
+    const head = (d.id ? d.id + ' — ' : '') + (projName || '');
+    const facts = [];
+    const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
+    if(appVer) facts.push(appVer);
+    const env = envLabel(d.env || '');
+    if(env) facts.push(env);
+    return facts.length ? head + '\n' + facts.join(' · ') : head;
   }
 
   async function dispatchEventNotification(eventKey, projectKey, subject, text, includeEmail, deploymentId){
@@ -5893,14 +5918,12 @@
       }).catch(err => { console.warn('Decision save failed:', err.message); showToast(t('client.saveFailed')); });
       renderClientPortal(currentClientScenario);
       showToast(t('client.approvedToast'));
+      const approvedBody = notifHeader(rec, projName)
+        + '\n' + t('dep.aApproved') + ' · ' + tf('notif.approvedBy', {who});
       dispatchEventNotification('decision', rec.projectKey, 'RollDesk — ' + t('ev.decision') + ' (' + envLabel(rec.env||'') + ')',
-        (rec.id ? rec.id + ' — ' : '') + projName
-        + '\n' + t('notif.environment') + ': ' + envLabel(rec.env||'')
-        + '\n' + t('dep.aApproved') + '\n' + tf('notif.approvedBy', {who}), true);
+        approvedBody, true);
       dispatchEventNotification('scheduleApproved', rec.projectKey, 'RollDesk — ' + t('ev.scheduleApproved') + ' (' + (rec.env||'') + ')',
-        (rec.id ? rec.id + ' — ' : '') + projName
-        + '\n' + t('notif.environment') + ': ' + (rec.env||'')
-        + '\n' + t('dep.aApproved') + '\n' + tf('notif.approvedBy', {who}), true);
+        approvedBody, true);
     } else if(action === 'commented'){
       showAppPrompt(t('client.commentTitle'), '', (note)=>{
         if(note === null) return;
@@ -8673,7 +8696,7 @@
         highlightInstallerCard(idx);
         const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
         dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + t('ev.failure') + ' (' + envLabel(d.env||'') + ')',
-          (d.id ? d.id + ' — ' : '') + projName + '\n' + t('notif.environment') + ': ' + envLabel(d.env||'') + '\n' + reason + '\n' + tf('notif.reportedByManual', {who}), true);
+          notifHeader(d, projName) + '\n' + reason + '\n' + tf('notif.reportedByManual', {who}), true);
       }, t('rep.failureReason'), true);
       return;
     }
@@ -8688,13 +8711,11 @@
     // Real post-deployment notification: project e-mail + client webhooks that
     // subscribe to "completed". Stays silent when nothing is configured.
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
-    const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
     dispatchEventNotification('completed', d.projectKey,
       'RollDesk — ' + t('ev.completed') + ' (' + envLabel(d.env||'') + ')',
-      (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '')
-      + '\n' + t('notif.environment') + ': ' + envLabel(d.env||'')
+      notifHeader(d, projName)
       + '\n' + t('notif.statusLine') + ': ' + (statusLabelFull[d.status] || statusLabelFull.installed)
-      + '\n' + tf('notif.reportedByManual', {who}), true);
+      + ' · ' + tf('notif.reportedByManual', {who}), true);
   }
 
   function filterTodayBatch(input){
@@ -8800,12 +8821,11 @@
     // per day in Teams/Slack, not only on completion. Opt-in per client/event.
     if(successList.length || failedList.length){
       const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
-      const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
-      const envLine = '\n' + t('notif.environment') + ': ' + envLabel(d.env || '');
+      const header = notifHeader(d, projName);
       const byLine = '\n' + tf('notif.reportedByManual', {who});
-      let body = (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '') + envLine
+      let body = header
         + '\n' + tf('notif.dayReportBody', {day: dayNum, ok: successList.length, failed: failedList.length})
-        + '\n' + tf('notif.progressLine', {done: d.counts.installed, total: (d.totalLocations || d.counts.installed + d.counts.scheduled), left: d.counts.scheduled});
+        + ' · ' + tf('notif.progressLine', {done: d.counts.installed, total: (d.totalLocations || d.counts.installed + d.counts.scheduled), left: d.counts.scheduled});
       if(failedList.length){
         body += '\n' + tf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
         if(reason) body += '\n' + t('rep.correctionReason') + ': ' + reason;
@@ -8814,7 +8834,7 @@
       // Guarantee a failure notification via the standard "failure" event too —
       // clients subscribe to it by default, unlike the newer per-day event.
       if(failedList.length){
-        let fbody = (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '') + envLine
+        let fbody = header
           + '\n' + tf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
         if(reason) fbody += '\n' + t('rep.correctionReason') + ': ' + reason;
         dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + t('ev.failure') + ' (' + envLabel(d.env||'') + ')', fbody + byLine, true);
@@ -9488,9 +9508,7 @@
     renderDeploymentsTable();
     renderInstallerPanel();
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
-    const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
-    const body = (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '')
-      + '\n' + t('notif.environment') + ': ' + (d.env||'')
+    const body = notifHeader(d, projName)
       + '\n' + t('notif.statusLine') + ': ' + t('status.installed');
     dispatchEventNotification('completed', d.projectKey, 'RollDesk — ' + t('ev.completed') + ' (' + (d.env||'') + ')', body, true);
     showToast(tf('dcard.statusChangedToast', {status: t('status.installed')}));
@@ -9548,9 +9566,7 @@
     renderDeploymentsTable();
     renderInstallerPanel();
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
-    const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
-    const statusBody = (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '')
-      + '\n' + t('notif.environment') + ': ' + (d.env||'')
+    const statusBody = notifHeader(d, projName)
       + '\n' + t('notif.statusLine') + ': ' + (labels[newStatus]||newStatus);
     const eventKey = (newStatus === 'installed') ? 'completed' : (newStatus === 'failed' ? 'failure' : 'completed');
     dispatchEventNotification(eventKey, d.projectKey, 'RollDesk — ' + t('ev.completed') + ' (' + (d.env||'') + ')', statusBody, true);
@@ -9742,14 +9758,12 @@
     renderInstallerPanel();
     showToast(tf('rep.markedRestN', {n}));
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
-    const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
     const total = d.totalLocations || d.counts.installed;
     dispatchEventNotification('completed', d.projectKey,
       'RollDesk — ' + t('ev.completed') + ' (' + envLabel(d.env||'') + ')',
-      (d.id ? d.id + ' — ' : '') + projName + (appVer ? '\n' + appVer : '')
-      + '\n' + t('notif.environment') + ': ' + envLabel(d.env||'')
+      notifHeader(d, projName)
       + '\n' + t('notif.statusLine') + ': ' + (statusLabelFull.installed)
-      + '\n' + tf('notif.progressLine', {done: d.counts.installed, total, left: 0})
+      + ' · ' + tf('notif.progressLine', {done: d.counts.installed, total, left: 0})
       + '\n' + tf('notif.reportedByManual', {who}), true);
   }
 

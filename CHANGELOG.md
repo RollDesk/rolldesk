@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.2] - 2026-07-30
+
+### Changed
+- **Notifications are much shorter in a Teams channel.** A Teams card renders Markdown, where a lone newline collapses into a space — the body was therefore sent with *every* newline doubled into a paragraph break, which kept the lines apart but also put a blank line between each one. A schedule notification carrying an eleven-item changelog rendered at twice its height and read as an endless wall in the channel. Single line breaks are now Markdown hard breaks, so the lines stay separate with nothing between them; a blank line the author wrote deliberately (the one before the changelog) is still a paragraph break. The changelog itself is untouched — it is the point of the notification.
+- **Related facts share a line instead of one label per line.** A schedule notification opened with six labelled lines (project, deployment, applications, environment, start, author); it now opens with three — `PIK_2 · DEP-2026-0046`, then `Pojazd v52.13.32 · Produkcja · 399 targets · 4 working days`, then start and author together. The same header (id — project, then versions · environment) is now shared by the failure, completed, day-report and decision notifications, which each built it inline and slightly differently.
+
+### Fixed
+- **A schedule notification no longer carries the link to the app twice.** The UI has always appended its own labelled link ("Open the schedule in RollDesk"), and 0.14.1 added the generic one to every delivery channel — so a Teams, Slack or e-mail notification about a schedule showed the same URL twice, once as a line and once as a card button. Each channel now suppresses its generic link when the body already contains the instance URL. Notifications the UI does not link (a target failure, a pause) are unaffected and keep the link 0.14.1 gave them.
+
 ## [0.14.1] - 2026-07-30
 
 ### Fixed

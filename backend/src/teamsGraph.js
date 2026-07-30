@@ -16,7 +16,7 @@
 // reports the error to the caller, which falls back to the existing webhooks.
 import { config } from './config.js';
 import { query } from './db.js';
-import { appLinkHtml, bodyToHtml } from './appLink.js';
+import { appLinkHtml, bodyToHtml, hasAppLink } from './appLink.js';
 
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const LOGIN = 'https://login.microsoftonline.com';
@@ -149,8 +149,10 @@ export async function postDeploymentEvent({ deploymentId, subject, text }) {
   // Link back to the app, as the e-mail and webhook channels do. This channel
   // used to be the one that posted a bare body: when Graph is configured it
   // takes over the Teams webhooks, so the link silently disappeared from the
-  // notifications most people actually read.
-  const html = bodyToHtml(text) + appLinkHtml(config.appBaseUrl);
+  // notifications most people actually read. Schedule notifications already
+  // carry a labelled link from the UI — don't add a second one.
+  const html = bodyToHtml(text)
+    + (hasAppLink(text, config.appBaseUrl) ? '' : appLinkHtml(config.appBaseUrl));
   try {
     if (!deploymentId) {
       const id = await postChannelMessage(subject, html);
