@@ -357,6 +357,23 @@
     box-shadow:inset 0 -1px 0 var(--line);
     border-bottom:none;
   }
+  /* Sortable column header. The whole header is a button so it is reachable by
+     keyboard and announced as one control; the arrow pair is always present, with
+     the active direction filled in — reserving the space stops the row from
+     shifting sideways when the sort moves to another column. */
+  th.sortable{padding:0;}
+  .sort-th-btn{
+    display:flex; align-items:center; gap:5px; width:100%;
+    background:none; border:none; cursor:pointer;
+    padding:9px 12px; margin:0;
+    font:inherit; color:inherit; text-transform:inherit; letter-spacing:inherit; text-align:left;
+  }
+  .sort-th-btn:hover{color:var(--text-muted);}
+  .sort-th-btn:focus-visible{outline:2px solid var(--cyan); outline-offset:-2px;}
+  th.sorted .sort-th-btn{color:var(--text);}
+  .sort-arrows{display:inline-flex; flex-direction:column; line-height:0.62; flex-shrink:0;}
+  .sort-arrow{font-size:7px; color:var(--line); transition:color 0.12s;}
+  .sort-arrow.on{color:var(--cyan);}
   td{padding:11px 12px; border-bottom:1px solid var(--line-soft);}
   tr:last-child td{border-bottom:none;}
   /* Loading state. On a slow link the first paint used to be the *empty* state —
@@ -1391,13 +1408,6 @@
             <option value="90" data-i18n="dep.r90">Last 90 days</option>
             <option value="all" data-i18n="dep.rAll">Full history</option>
           </select>
-          <span class="filter-label" data-i18n="dep.sortBy">Sort by</span>
-          <select id="deploy-sort" onchange="renderDeploymentsTable()">
-            <option value="added" selected data-i18n="dep.sortAdded">Recently added</option>
-            <option value="dateDesc" data-i18n="dep.sortDateDesc">Deployment date — newest first</option>
-            <option value="dateAsc" data-i18n="dep.sortDateAsc">Deployment date — oldest first</option>
-            <option value="project" data-i18n="dep.sortProject">Project</option>
-          </select>
         </div>
         <button type="button" class="mini-btn" onclick="exportDeploymentsListCsv()" data-i18n="list.exportCsv">⬇ CSV</button>
       </div>
@@ -1483,7 +1493,10 @@
     <div class="card">
       <div class="table-scroll" style="max-height:640px;">
         <table>
-          <thead><tr><th data-i18n="usr.thName">Full name</th><th data-i18n="usr.thEmail">E-mail</th><th data-i18n="usr.thRole">Role</th><th data-i18n="usr.thGroup">Group</th><th data-i18n="usr.thProjects">Projects</th><th></th></tr></thead>
+          <!-- The e-mail sits under the name rather than in its own column: it is
+               the account's identifier, not an independent attribute, and giving it
+               a column pushed Projects out of view on a laptop screen. -->
+          <thead><tr><th data-i18n="usr.thName">Full name</th><th data-i18n="usr.thRole">Role</th><th data-i18n="usr.thGroup">Group</th><th data-i18n="usr.thProjects">Projects</th><th></th></tr></thead>
           <tbody id="users-table"></tbody>
         </table>
       </div>
@@ -2181,6 +2194,109 @@
 
   // Deployments: default = all statuses; time range keeps the list to last 14 days.
   let deployStatusFilter = { scheduled: true, installed: true, failed: true, rolledback: true, aborted: true };
+
+  // Sorting is driven by clicking a column header, not by a separate dropdown —
+  // the dropdown was a second place to look for something the table itself can
+  // express, and it did not exist in the deployer panel at all. `null` means the
+  // default order: most recently added first.
+  //   key: 'project' | 'app' | 'locations' | 'env' | 'date' | 'progress' | 'approval'
+  //   dir: 'asc' | 'desc'
+  let deploySort = null;
+  let installerSort = null;
+  let clientSort = null;
+
+  // Click cycle: ascending → descending → back to the default order, so a column
+  // can be un-sorted without hunting for a "reset" control.
+  function nextSortState(current, key){
+    if(!current || current.key !== key) return {key, dir:'asc'};
+    if(current.dir === 'asc') return {key, dir:'desc'};
+    return null;
+  }
+
+  function setDeploySort(key){
+    deploySort = nextSortState(deploySort, key);
+    renderDeploymentsTable();
+  }
+  function setInstallerSort(key){
+    installerSort = nextSortState(installerSort, key);
+    renderInstallerPanel();
+  }
+  function setClientSort(key){
+    clientSort = nextSortState(clientSort, key);
+    renderClientPortal(currentClientScenario);
+  }
+
+  // A sortable header: the label plus a small arrow pair, the active one filled.
+  // Both arrows are always rendered so the column does not change width when the
+  // sort moves to it, which used to shift the whole row.
+  function sortableThHtml(label, key, state, handler){
+    const active = state && state.key === key;
+    const dir = active ? state.dir : '';
+    const arrow = (which)=>{
+      const on = active && dir === which;
+      return `<span class="sort-arrow${on ? ' on' : ''}" aria-hidden="true">${which === 'asc' ? '▲' : '▼'}</span>`;
+    };
+    const aria = active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none';
+    return `<th class="sortable${active ? ' sorted' : ''}" aria-sort="${aria}">
+      <button type="button" class="sort-th-btn" onclick="${handler}('${key}')" title="${escapeHtml(t('dep.sortHint'))}">
+        <span>${label}</span><span class="sort-arrows">${arrow('asc')}${arrow('desc')}</span>
+      </button></th>`;
+  }
+
+  // One comparator for both tables, so the deployer panel and the deployments
+  // list order a column the same way.
+  function deploymentSortValue(r, key){
+    switch(key){
+      case 'project':   return (((r.project || PROJECTS[r.projectKey] || {}).name) || r.projectKey || '').toLowerCase();
+      case 'app':       return ((r.apps || []).map(a => (a.name || '') + ' ' + (a.version || '')).join(' ')).toLowerCase();
+      // Single-target records count as one location, so the column sorts by the
+      // same thing it displays in both modes.
+      case 'locations': return r.mode === 'batch' ? (r.totalLocations || 0) : 1;
+      case 'env':       return envLabel(r.env || '').toLowerCase();
+      case 'date':      return (r.mode === 'batch' ? (r.historyStart || r.createdDate) : (r.date || r.createdDate)) || '';
+      // Progress compares completion, not the raw count: 9/10 is further along
+      // than 50/400, which is what the bar shows.
+      case 'progress':  return r.mode === 'batch'
+        ? (r.totalLocations ? (r.counts.installed || 0) / r.totalLocations : 0)
+        : (r.status === 'scheduled' ? 0 : 1);
+      case 'approval':  return r.draft ? '0' : (r.clientApproval || (r.env === 'Production' ? 'pending' : ''));
+      // The client portal's own column shows a decision-or-status badge, so it
+      // sorts by what the badge says: rows awaiting the client's decision first,
+      // since that is the column they act on.
+      case 'clientState': return (typeof clientNeedsDecision === 'function' && clientNeedsDecision(r))
+        ? '0' + (r.clientApproval || 'pending')
+        : '1' + (r.clientApproval === 'approved'
+            ? (typeof clientIsComplete === 'function' && clientIsComplete(r) ? 'installed' : 'approved')
+            : (typeof clientDeploymentStatus === 'function' ? clientDeploymentStatus(r) : ''));
+      default:          return '';
+    }
+  }
+
+  // Sorts `list` in place. Ties fall back to the default order (newest added
+  // first) so rows with an equal key keep a stable, predictable position.
+  // `pick` unwraps the deployment when the list holds row wrappers ({r, kind}),
+  // as the deployer panel's does.
+  function applyDeploymentSort(list, state, pick){
+    if(!state) return list;
+    const get = pick || (x => x);
+    const mul = state.dir === 'asc' ? 1 : -1;
+    list.sort((x,y)=>{
+      const a = get(x), b = get(y);
+      const va = deploymentSortValue(a, state.key), vb = deploymentSortValue(b, state.key);
+      let cmp;
+      if(typeof va === 'number' && typeof vb === 'number'){
+        cmp = va - vb;
+      } else {
+        // A record with no value sorts last whichever way the column is pointing,
+        // rather than leading the ascending order with a row of dashes.
+        const ea = va === '' || va == null, eb = vb === '' || vb == null;
+        if(ea !== eb) return ea ? 1 : -1;
+        cmp = String(va).localeCompare(String(vb));
+      }
+      return cmp ? cmp * mul : (b._seq||0) - (a._seq||0);
+    });
+    return list;
+  }
   function deployStatusLabelMap(){
     return {
       scheduled: t('dep.sScheduled'),
@@ -2576,9 +2692,14 @@
       const statusBadge = u.invitePending
         ? `<div style="margin-top:3px;"><span class="mono" style="font-size:10px; color:#8A5A05; background:#FDF1E1; border-radius:10px; padding:1px 7px;">${t('usr.invitePending')}</span></div>`
         : '';
+      // The e-mail is shown under the name in small type, the same pattern as the
+      // client name under the project and the app version under the app name.
+      const emailLine = u.email
+        ? `<div class="mono" style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">${escapeHtml(u.email)}</div>`
+        : '';
       const nameCell = u.archived
-        ? `${u.name} <span class="mono" style="font-size:10.5px; color:var(--text-faint); border:1px solid var(--line); border-radius:10px; padding:1px 7px; margin-left:4px;">${t('usr.archivedBadge')}</span>${u.archivedReason ? `<div style="font-size:11px; color:var(--text-muted); font-style:italic; margin-top:2px;">${t('usr.reason')}: ${u.archivedReason}</div>` : ''}`
-        : u.name + statusBadge;
+        ? `${escapeHtml(u.name||'')} <span class="mono" style="font-size:10.5px; color:var(--text-faint); border:1px solid var(--line); border-radius:10px; padding:1px 7px; margin-left:4px;">${t('usr.archivedBadge')}</span>${emailLine}${u.archivedReason ? `<div style="font-size:11px; color:var(--text-muted); font-style:italic; margin-top:2px;">${t('usr.reason')}: ${escapeHtml(u.archivedReason)}</div>` : ''}`
+        : escapeHtml(u.name||'') + emailLine + statusBadge;
       let actions;
       if(!isLoggedInAsAdmin()){
         actions = `<span style="color:var(--text-faint); font-size:11.5px;">${t('usr.noPerms')}</span>`;
@@ -2598,13 +2719,12 @@
       }
       return `<tr ${u.archived ? 'style="opacity:0.65;"' : ''}>
         <td>${nameCell}</td>
-        <td class="mono" style="font-size:12px;">${u.email}</td>
         <td><span class="mono" title="${t('roleDesc.'+u.role)}" style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:${info.bg}; color:${info.color}; cursor:help;">${t('role.'+u.role)}</span></td>
         <td style="font-size:12.5px;">${u.group ? escapeHtml(u.group) : '<span style="color:var(--text-faint);">—</span>'}</td>
         <td style="font-size:12.5px;">${projLabel}</td>
         <td style="white-space:nowrap;">${actions}</td>
       </tr>`;
-    }).join('') || `<tr><td colspan="6" style="color:var(--text-faint); font-size:13px;">${usersTab === 'archived' ? t('usr.noArchived') : t('usr.noActive')}</td></tr>`;
+    }).join('') || `<tr><td colspan="5" style="color:var(--text-faint); font-size:13px;">${usersTab === 'archived' ? t('usr.noArchived') : t('usr.noActive')}</td></tr>`;
   }
 
   let currentLoggedInRole = 'admin'; // mirrors the real signed-in user's role (set from /api/auth/me)
@@ -6452,11 +6572,21 @@
     if(showWaiting) waiting.forEach(r => listRows.push(r));
     if(showActive) active.forEach(r => listRows.push(r));
     if(showCompleted) completed.forEach(r => listRows.push(r));
+    // An explicit column sort orders the whole list, overriding the
+    // waiting → active → completed grouping.
+    applyDeploymentSort(listRows, clientSort);
 
-    const headCols = [t('dep.thProject'), t('dep.thAppVer'), t('dep.thLocations'), t('dep.thEnv'), t('dep.thDate'), t('dep.thProgress'), t('client.colProdSchedule'), ''];
+    const headKeys = [
+      ['project', t('dep.thProject')], ['app', t('dep.thAppVer')], ['locations', t('dep.thLocations')],
+      ['env', t('dep.thEnv')], ['date', t('dep.thDate')], ['progress', t('dep.thProgress')],
+      ['clientState', t('client.colProdSchedule')], [null, ''],
+    ];
+    const headCols = headKeys.map(([, label]) => label);
     html += `<div class="table-scroll" style="max-height:640px; margin-top:10px;">
       <table>
-        <thead><tr>${headCols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+        <thead><tr>${headKeys.map(([key, label]) =>
+          key ? sortableThHtml(label, key, clientSort, 'setClientSort') : `<th>${label}</th>`
+        ).join('')}</tr></thead>
         <tbody>
           ${listRows.length ? listRows.map(renderClientTableRow).join('') : `<tr><td colspan="${headCols.length}" style="color:var(--text-muted); font-size:13px; text-align:center; padding:16px;">${t('client.noMatch')}</td></tr>`}
         </tbody>
@@ -8893,11 +9023,26 @@
       }
     }
 
+    // An explicit column sort orders the whole list, overriding the waiting →
+    // paused → active → completed grouping above: once someone sorts by date they
+    // want the dates in order, not four separately-ordered blocks.
+    if(installerSort){
+      applyDeploymentSort(rows, installerSort, w => w.r);
+      if(rows._archive) applyDeploymentSort(rows._archive, installerSort);
+    }
+
     const csvSource = rows.slice();
     if(installerArchiveOpen && rows._archive) rows._archive.forEach(r => csvSource.push({r, kind:'completed'}));
     lastInstallerCsvRows = csvSource.map(({r}) => deploymentCsvRecord(r));
 
-    const headCols = [t('dep.thProject'), t('dep.thAppVer'), t('dep.thLocations'), t('dep.thEnv'), t('dep.thDate'), t('dep.thProgress'), t('dep.thApproval')];
+    const headKeys = [
+      ['project', t('dep.thProject')], ['app', t('dep.thAppVer')], ['locations', t('dep.thLocations')],
+      ['env', t('dep.thEnv')], ['date', t('dep.thDate')], ['progress', t('dep.thProgress')],
+      ['approval', t('dep.thApproval')],
+    ];
+    const headCols = headKeys.map(([, label]) => label);
+    const headHtml = '<tr>' + headKeys.map(([key, label]) =>
+      sortableThHtml(label, key, installerSort, 'setInstallerSort')).join('') + '</tr>';
     const emptyMsg = (!showWaiting && !showActive && !showCompleted)
       ? t('filter.noneSelected')
       : t(showCompleted && !showWaiting && !showActive ? 'rep.noCompleted14' : 'rep.noActive');
@@ -8913,7 +9058,7 @@
     // Same framed, sticky-headed scroll pane as the Deployments list.
     html += `<div class="table-scroll" style="max-height:640px; margin-top:10px;">
       <table>
-        <thead><tr>${headCols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+        <thead>${headHtml}</thead>
         <tbody>${bodyRows}</tbody>
       </table>
     </div>`;
@@ -8923,7 +9068,7 @@
         <button class="mini-btn" onclick="toggleInstallerArchive()"><span id="installer-archive-label">${installerArchiveOpen ? t('rep.hideArchive') : t('rep.showArchive')} (${rows._archive.length})</span></button>
         <div id="installer-archive-box" style="display:${installerArchiveOpen ? 'block' : 'none'}; margin-top:10px;">
           ${installerArchiveOpen ? `<div class="table-scroll" style="max-height:480px;"><table>
-            <thead><tr>${headCols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+            <thead>${headHtml}</thead>
             <tbody>${rows._archive.map(r => installerTableRowHtml(r, 'completed')).join('')}</tbody>
           </table></div>` : ''}
         </div>
@@ -9579,29 +9724,12 @@
     const rangeVal = document.getElementById('deploy-filter-range').value;
     refreshDeployStatusMsLabel();
 
-    const sortVal = (document.getElementById('deploy-sort')||{}).value || 'added';
-
     let rows = DEPLOYMENTS_DATA.map((d,i)=>Object.assign({idx:i}, d, {project:PROJECTS[d.projectKey]}));
     // Default: newest-added deployments (higher _seq) float to the top so a
-    // freshly created schedule is immediately visible without scrolling. The
-    // other orders answer "when is this actually happening" — with dozens of
-    // records the creation order stops being useful for finding one.
-    const startIso = r => (r.mode === 'batch' ? (r.historyStart || r.createdDate) : (r.date || r.createdDate)) || '';
-    if(sortVal === 'dateDesc'){
-      rows.sort((a,b)=> String(startIso(b)).localeCompare(String(startIso(a))) || (b._seq||0) - (a._seq||0));
-    } else if(sortVal === 'dateAsc'){
-      // Records without a date sort last in both directions, not first.
-      rows.sort((a,b)=>{
-        const da = startIso(a), db = startIso(b);
-        if(!da !== !db) return da ? -1 : 1;
-        return String(da).localeCompare(String(db)) || (a._seq||0) - (b._seq||0);
-      });
-    } else if(sortVal === 'project'){
-      const label = r => ((r.project && r.project.name) || r.projectKey || '');
-      rows.sort((a,b)=> label(a).localeCompare(label(b)) || (b._seq||0) - (a._seq||0));
-    } else {
-      rows.sort((a,b)=> (b._seq||0) - (a._seq||0));
-    }
+    // freshly created schedule is immediately visible without scrolling. Any other
+    // order comes from clicking a column header.
+    rows.sort((a,b)=> (b._seq||0) - (a._seq||0));
+    applyDeploymentSort(rows, deploySort);
 
     // Time-range filter: by default show only the last 14 days so the list stays
     // relevant. Older records remain reachable via the "All history" option.
@@ -9648,10 +9776,18 @@
     const showProjectCol = true;
 
     const head = document.getElementById('deploy-table-head');
+    // Every data column is sortable by clicking it; the trailing actions column
+    // is not (it holds no value to order by).
     const cols = [];
-    if(showProjectCol) cols.push(t('dep.thProject'));
-    cols.push(t('dep.thAppVer'),t('dep.thLocations'),t('dep.thEnv'),t('dep.thDate'),t('dep.thProgress'),t('dep.thApproval'),'');
-    head.innerHTML = '<tr>' + cols.map(c=>`<th>${c}</th>`).join('') + '</tr>';
+    if(showProjectCol) cols.push(['project', t('dep.thProject')]);
+    cols.push(
+      ['app', t('dep.thAppVer')], ['locations', t('dep.thLocations')], ['env', t('dep.thEnv')],
+      ['date', t('dep.thDate')], ['progress', t('dep.thProgress')], ['approval', t('dep.thApproval')],
+      [null, '']
+    );
+    head.innerHTML = '<tr>' + cols.map(([key, label]) =>
+      key ? sortableThHtml(label, key, deploySort, 'setDeploySort') : `<th>${label}</th>`
+    ).join('') + '</tr>';
     const totalCols = cols.length;
 
     function approvalBadgeHtml(r){
