@@ -2021,11 +2021,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.13.1"></script>
-<script src="i18n/en.js?v=0.13.1"></script>
+<script src="i18n/pl.js?v=0.13.2"></script>
+<script src="i18n/en.js?v=0.13.2"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.13.1';
+  const ROLLDESK_VERSION = '0.13.2';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from the GitHub Releases API (null = not checked yet).
@@ -2547,7 +2547,13 @@
         const pwAction = u.invitePending
           ? `<button class="mini-btn" onclick="resendInvite(${i})">${t('usr.resendInvite')}</button>`
           : `<button class="mini-btn" onclick="resetUserPassword(${i})">${t('usr.resetPass')}</button>`;
-        actions = `<button class="mini-btn" onclick="openUserEdit(${i})">${t('usr.edit')}</button> ${pwAction} <button class="mini-btn" onclick="archiveUser(${i})">${t('usr.archive')}</button>`;
+        // Only offered where it can do something: the account has an
+        // authenticator enrolled, and it isn't the signed-in admin (who resets
+        // their own from the Account panel, proving a current code first).
+        const mfaAction = (u.mfaEnabled && !(currentUser && currentUser.id === u.id))
+          ? ` <button class="mini-btn" onclick="resetUserMfa(${i})">${t('usr.resetMfa')}</button>`
+          : '';
+        actions = `<button class="mini-btn" onclick="openUserEdit(${i})">${t('usr.edit')}</button> ${pwAction}${mfaAction} <button class="mini-btn" onclick="archiveUser(${i})">${t('usr.archive')}</button>`;
       }
       return `<tr ${u.archived ? 'style="opacity:0.65;"' : ''}>
         <td>${nameCell}</td>
@@ -3253,6 +3259,22 @@
       showToast('Invitation re-issued for ' + u.email);
       showInviteLink(r.invite, u.email);
     } catch(e){ showToast('⚠ ' + (e.message || 'Could not resend the invitation')); }
+  }
+
+  // Clear another user's authenticator enrollment (admin only). Confirmed first:
+  // it locks them out of their current app and they must re-enrol on next login.
+  function resetUserMfa(i){
+    if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can reset two-factor authentication'); return; }
+    const u = USERS[i];
+    const name = u.name || u.email;
+    showAppConfirm(t('usr.resetMfaTitle'), tf('usr.resetMfaBody', {name}), async ()=>{
+      try {
+        await apiUserAction(u.id, 'reset-mfa');
+        logAudit('changed', 'User', 'Reset two-factor authentication for „' + name + '”', '—', 'aud.d.userMfaReset', {name});
+        await loadUsers();
+        showToast(tf('usr.resetMfaDone', {name}));
+      } catch(e){ showToast('⚠ ' + (e.message || 'Could not reset two-factor authentication')); }
+    }, t('usr.resetMfaOk'));
   }
 
   function archiveUser(i){
