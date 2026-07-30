@@ -11,6 +11,7 @@ import { forbidClient } from '../rbac.js';
 import * as teamsGraph from '../teamsGraph.js';
 import {
   appLinkText, appLinkHtml, appLinkSlack, appLinkCardAction, bodyToHtml,
+  bodyToCardText, hasAppLink,
 } from '../appLink.js';
 
 const router = Router();
@@ -65,21 +66,24 @@ async function postWebhook(url, payload, timeoutMs = 10000) {
 function buildWebhookPayload(url, title, text) {
   const host = (() => { try { return new URL(url).hostname; } catch { return ''; } })();
   const isSlack = /(^|\.)slack\.com$/i.test(host);
+  // Schedule notifications already carry a labelled link built by the UI; adding
+  // the generic one would put two links in the same message.
+  const ownLink = hasAppLink(text, APP_URL);
   if (isSlack) {
-    return { text: `${title}\n${text}` + appLinkSlack(APP_URL) };
+    return { text: `${title}\n${text}` + (ownLink ? '' : appLinkSlack(APP_URL)) };
   }
-  // Teams MessageCard collapses single newlines, so force a break on each line
-  // (a blank line between paragraphs) to keep the detailed body readable.
-  const teamsText = String(text == null ? '' : text).replace(/\n/g, '\n\n');
   const payload = {
     '@type': 'MessageCard',
     '@context': 'http://schema.org/extensions',
     themeColor: '0A6E7A',
     summary: title,
     title,
-    text: teamsText,
+    text: bodyToCardText(text),
   };
-  const action = appLinkCardAction(APP_URL);
+  // The card action is a button, not part of the body, so it is worth keeping
+  // even when the body mentions the URL — but not when the UI already labelled
+  // its own link, which would read as the same link twice.
+  const action = ownLink ? null : appLinkCardAction(APP_URL);
   if (action) payload.potentialAction = [action];
   return payload;
 }
@@ -98,8 +102,10 @@ async function deliverWebhook(url, title, text) {
 // Deliver to one e-mail address. Never throws — returns a normalised result.
 async function deliverEmail(to, subject, text) {
   try {
-    const linkText = appLinkText(APP_URL);
-    const linkHtml = appLinkHtml(APP_URL);
+    // Skip the generic link when the body already links back to the app.
+    const ownLink = hasAppLink(text, APP_URL);
+    const linkText = ownLink ? '' : appLinkText(APP_URL);
+    const linkHtml = ownLink ? '' : appLinkHtml(APP_URL);
     const result = await sendMail({
       to,
       subject,

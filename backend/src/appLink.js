@@ -1,4 +1,5 @@
-// The "open the app" link appended to outgoing notifications.
+// The "open the app" link appended to outgoing notifications, and the
+// per-channel formatting of a notification body.
 //
 // Every delivery channel needs the same link in its own markup — plain text for
 // e-mail, Slack's `<url|label>`, a MessageCard action for a Teams webhook, an
@@ -24,6 +25,23 @@ function escapeHtml(s) {
 // an HTML mail client. Newlines become <br> so the layout survives.
 export function bodyToHtml(text) {
   return `<p>${escapeHtml(String(text == null ? '' : text)).replace(/\n/g, '<br>')}</p>`;
+}
+
+// A plain-text body as the `text` of a Teams MessageCard.
+//
+// MessageCard renders Markdown, where a lone newline collapses into a space.
+// That used to be fixed by doubling every newline into a paragraph break, which
+// kept the lines apart but also put a blank line between every single one — a
+// notification carrying a 15-line changelog rendered at twice the height and
+// read as endless in the channel. Two trailing spaces is Markdown's hard line
+// break: the lines stay separate with no blank line between them. Runs of blank
+// lines the author wrote deliberately still separate paragraphs.
+export function bodyToCardText(text) {
+  return String(text == null ? '' : text)
+    .replace(/\r\n/g, '\n')
+    .split(/\n{2,}/)                                 // deliberate paragraph breaks
+    .map((para) => para.split('\n').join('  \n'))    // hard break, no blank line
+    .join('\n\n');
 }
 
 // Only http(s) is a usable link in an e-mail client or a Teams card, and an
@@ -61,4 +79,13 @@ export function appLinkCardAction(appUrl) {
     name: APP_LINK_LABEL,
     targets: [{ os: 'default', uri: String(appUrl).trim() }],
   };
+}
+
+// Whether the body already carries its own link back to the app, so a channel
+// must not append a second one. The UI builds a labelled link into schedule
+// notifications ("Open the schedule in RollDesk: <url>"); appending the generic
+// link on top of it put two links in the same message.
+export function hasAppLink(text, appUrl) {
+  if (!isUsableAppUrl(appUrl)) return false;
+  return String(text == null ? '' : text).includes(String(appUrl).trim());
 }

@@ -958,8 +958,6 @@ window.RD_I18N.en = {
   "notif.dispatched": "Notifications sent ({n})",
   "notif.changelogLabel": "Changelog",
   "notif.openLink": "Open the schedule in RollDesk",
-  "notif.deployment": "Deployment",
-  "notif.applications": "Applications",
   "notif.environment": "Environment",
   "notif.statusLine": "Status",
   "notif.progressLine": "Progress: {done}/{total} installed, {left} remaining",
