@@ -9,6 +9,9 @@ import { sendMail } from '../mailer.js';
 import { config } from '../config.js';
 import { forbidClient } from '../rbac.js';
 import * as teamsGraph from '../teamsGraph.js';
+import {
+  appLinkText, appLinkHtml, appLinkSlack, appLinkCardAction, bodyToHtml,
+} from '../appLink.js';
 
 const router = Router();
 
@@ -19,6 +22,9 @@ const TEST_TEXT =
   'This is a test message from RollDesk. If you can see it, the notification target is configured correctly.';
 
 // Public app URL (if configured) so notifications can link back to RollDesk.
+// One value per instance — it is also the SSO callback and the base of
+// invitation links, so a notification cannot vary it per recipient. The
+// per-channel markup lives in appLink.js so every channel agrees.
 const APP_URL = config.appBaseUrl;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -60,10 +66,7 @@ function buildWebhookPayload(url, title, text) {
   const host = (() => { try { return new URL(url).hostname; } catch { return ''; } })();
   const isSlack = /(^|\.)slack\.com$/i.test(host);
   if (isSlack) {
-    // Slack renders <url|label> as a link inside the message text.
-    return {
-      text: `${title}\n${text}` + (APP_URL ? `\n<${APP_URL}|Open RollDesk>` : ''),
-    };
+    return { text: `${title}\n${text}` + appLinkSlack(APP_URL) };
   }
   // Teams MessageCard collapses single newlines, so force a break on each line
   // (a blank line between paragraphs) to keep the detailed body readable.
@@ -76,13 +79,8 @@ function buildWebhookPayload(url, title, text) {
     title,
     text: teamsText,
   };
-  if (APP_URL) {
-    payload.potentialAction = [{
-      '@type': 'OpenUri',
-      name: 'Open RollDesk',
-      targets: [{ os: 'default', uri: APP_URL }],
-    }];
-  }
+  const action = appLinkCardAction(APP_URL);
+  if (action) payload.potentialAction = [action];
   return payload;
 }
 
@@ -100,13 +98,13 @@ async function deliverWebhook(url, title, text) {
 // Deliver to one e-mail address. Never throws — returns a normalised result.
 async function deliverEmail(to, subject, text) {
   try {
-    const linkText = APP_URL ? `\n\nOpen RollDesk: ${APP_URL}` : '';
-    const linkHtml = APP_URL ? `<p><a href="${APP_URL}">Open RollDesk</a></p>` : '';
+    const linkText = appLinkText(APP_URL);
+    const linkHtml = appLinkHtml(APP_URL);
     const result = await sendMail({
       to,
       subject,
       text: text + linkText,
-      html: `<p>${text.replace(/\n/g, '<br>')}</p>${linkHtml}`,
+      html: bodyToHtml(text) + linkHtml,
     });
     if (result.skipped) return { ok: false, error: 'E-mail sending is disabled (SMTP_HOST not set)' };
     return { ok: true, messageId: result.messageId };
