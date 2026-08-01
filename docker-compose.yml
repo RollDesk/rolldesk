@@ -61,6 +61,10 @@ services:
       # stamps UTC while the browser stamps local time and entries from the two
       # interleave wrongly on the same timeline.
       APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Warsaw}
+      # Language outgoing notifications are written in ('pl' | 'en'). Empty would
+      # mean each notification inherits the UI language of whoever triggered it,
+      # so one client could be told about deployments in two languages.
+      NOTIFY_LANG: ${NOTIFY_LANG:-pl}
       # Encryption key for stored SSO/OIDC client secrets (AES-256-GCM). If empty,
       # derived from JWT_SECRET; set a dedicated value in production.
       SSO_ENC_KEY: ${SSO_ENC_KEY:-}

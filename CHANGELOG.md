@@ -4,6 +4,37 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-08-01
+
+A UX review pass over every tab the previous releases did not touch, plus one
+instance-level setting for the language notifications go out in.
+
+### Added
+- **`NOTIFY_LANG`** pins the language of outgoing notifications (e-mail, Slack, Teams, webhooks) to the instance. Bodies are composed in the browser of whoever triggered the event, so they used to inherit *that person's* UI language — and the UI defaults to English, so the same client could be told about one deployment in English and the next in Polish. Set `pl` or `en`; anything else is ignored with a warning, and leaving it empty keeps the old behaviour. The value reaches the UI on `/api/version`, which it already calls right after sign-in.
+- **Search in Help.** The page had grown past what anyone reads top to bottom. The search box filters the topics and the role descriptions to the ones that match and highlights the term inside them; the API section, which is collapsed by default, reports how many of its endpoints match instead of hiding.
+- **Active filters are visible and removable.** Every filtered list (deployments, deployer panel, client portal, clients, change history) shows what is currently narrowing it as labelled pills with a close button, plus "Clear all". Filter controls now carry captions, and the free-text ones a magnifier, so a search box is no longer indistinguishable from a dropdown.
+- **A searchable target picker.** Correcting a batch result meant typing a target code into a plain field backed by a `<datalist>` — invisible on some browsers and unsearchable on the rest. It is now a list you can scroll, filter by typing, and drive from the keyboard.
+- **Expandable rows say so.** A chevron in the first cell marks the rows that open, and it turns when they do. Previously the only hint that a row was clickable was that clicking it worked.
+- **A title beside the date.** Deployment rows and the deployer panel now lead with what is being deployed and where (`Word v2.1 → Central branch`) instead of a bare timestamp.
+- **A per-row actions menu.** Users, clients and SSO providers keep a visible "Edit" and move the rest — reset password, resend invite, reset MFA, archive, delete, test — into a ⋯ menu, so the actions stop running off the right edge of the row.
+- **Role on the profile.** The profile header shows which role the signed-in account has; it was only inferable from which tabs were present.
+
+### Changed
+- **Log out moved out of the sidebar into the avatar menu**, next to the account it ends — it is not a place in the app — and now asks for confirmation, naming what a sign-out costs (unsaved changes, and a password plus 2FA code to get back in).
+- **Adding and editing a user, a client or an SSO provider happens in a dialog**, like every other add/edit in the app. Two of the three used to expand inline, so the same task looked like two different features depending on the tab.
+- **Multi-select masses became pills.** Granting a user their projects, or a webhook its events, was a wall of bare checkboxes; the choices are now outlined pills that fill in when selected, so what is on is readable at a glance.
+- **The client edit form has sections.** Identity and webhooks are separated with headings, each webhook has labelled name and URL fields, and "Send test" and "Remove" sit in a footer instead of trailing off the end of the row.
+- **Save buttons are right-aligned everywhere,** with the primary action last and the cancel/secondary before it — including the correction forms in the deployer panel, where "Change to successful" is now the primary and "Keep failed" the quiet alternative.
+- **A start is one control.** Editing a planned deployment offered a time field with no date; single rollouts now edit date and time together in one input, and batch rollouts keep only the shared start time, because their dates belong to the day breakdown.
+- **The profile page fits on one screen.** The name and e-mail come first, under the heading; the interface-language switch takes the width of its two pills instead of a full-page band; and security, password, tokens and sign-in history are balanced across the two columns.
+- **Help boxes share a height** within a row, so a two-sentence topic no longer sits next to a ten-sentence one in a visibly shorter card.
+- **Chat notifications post one headline, not two.** Slack and Teams render the subject above the body, which stacked "RollDesk — Approval request" over "DEP-2026-0054 — WORD". The event now folds onto the body's own first line, so the deployment id leads and can be a link — a heading field cannot carry one. E-mail keeps its subject, where it is a real envelope field.
+
+### Fixed
+- **Saving a correction with empty fields reported success.** The deployer panel's correction forms accepted a blank target code or reason and showed the success toast anyway. Both now mark the offending field and list what is missing in a banner at the top of the form, like the rest of the app.
+- **A stray project breadcrumb beside the profile controls.** The top bar rendered the `client / project` slug in its right-hand group, so opening Projects made a line appear next to the avatar and language menu, as if a breadcrumb were loading into the profile. It now sits under the title it qualifies.
+- **Table headers are grey.** A white header on top of white rows disappeared as soon as the table scrolled.
+
 ## [0.16.0] - 2026-07-30
 
 ### Added

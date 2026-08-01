@@ -16,7 +16,7 @@
 // reports the error to the caller, which falls back to the existing webhooks.
 import { config } from './config.js';
 import { query } from './db.js';
-import { appLinkHtml, bodyToHtml, hasAppLink, deploymentUrl } from './appLink.js';
+import { appLinkHtml, bodyToHtml, hasAppLink, deploymentUrl, foldSubjectIntoLead } from './appLink.js';
 
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const LOGIN = 'https://login.microsoftonline.com';
@@ -154,19 +154,26 @@ export async function postDeploymentEvent({ deploymentId, subject, text }) {
   // telling the reader to open the app. Only a notification with no id (or an
   // instance with no APP_BASE_URL) falls back to the generic link.
   const depUrl = deploymentUrl(config.appBaseUrl, deploymentId);
-  const html = bodyToHtml(text, depUrl ? { label: deploymentId, url: depUrl } : null)
-    + ((depUrl || hasAppLink(text, config.appBaseUrl)) ? '' : appLinkHtml(config.appBaseUrl));
+  // As on the webhook side, the event is folded onto the body's first line so the
+  // channel shows one headline with a clickable id instead of an <h3> naming the
+  // product above a body naming the deployment. The <h3> is dropped when that
+  // works, which is what `heading` carries below.
+  const folded = foldSubjectIntoLead(text, subject, deploymentId);
+  const body = folded || text;
+  const heading = folded ? '' : subject;
+  const html = bodyToHtml(body, depUrl ? { label: deploymentId, url: depUrl } : null)
+    + ((depUrl || hasAppLink(body, config.appBaseUrl)) ? '' : appLinkHtml(config.appBaseUrl));
   try {
     if (!deploymentId) {
-      const id = await postChannelMessage(subject, html);
+      const id = await postChannelMessage(heading, html);
       return { ok: true, messageId: id, threaded: false };
     }
     const existing = await getThreadId(deploymentId);
     if (existing) {
-      await postReply(existing, subject, html);
+      await postReply(existing, heading, html);
       return { ok: true, messageId: existing, threaded: true };
     }
-    const id = await postChannelMessage(subject, html);
+    const id = await postChannelMessage(heading, html);
     await saveThreadId(deploymentId, id);
     return { ok: true, messageId: id, threaded: false };
   } catch (err) {

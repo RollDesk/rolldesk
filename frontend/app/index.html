@@ -31,18 +31,34 @@
     --info-line: #C3D8FB;
     --info-text: #1D4FBF;
     --radius: 8px;
+    /* ---- Typography ----
+       Two families, named once. Every rule below refers to these instead of
+       repeating a stack, because the app had drifted onto three: two spellings of
+       the IBM Plex fallback plus a bare `ui-monospace` on the target-type badge,
+       which is why the numeric columns (dates, ids, counts) did not all render in
+       the same face. */
+    --font-sans: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    /* ---- Control geometry ----
+       One height for every input, select and button that sits in a form row or a
+       filter bar, so a row of mixed controls lines up on both edges. */
+    --control-h: 36px;
+    --control-h-sm: 32px;
+    /* Table headers sit on grey so they separate from the scrolling white rows
+       underneath instead of blending into them. */
+    --th-bg: #EDF0F4;
   }
   *{box-sizing:border-box;}
   body{
     margin:0;
-    font-family:'Space Grotesk', sans-serif;
+    font-family:var(--font-sans);
     background:var(--paper);
     color:var(--text);
     display:flex;
     min-height:100vh;
     font-size:14px;
   }
-  .mono{font-family:'IBM Plex Mono', monospace;}
+  .mono{font-family:var(--font-mono);}
 
   /* ---- Sidebar ---- */
   .rail{
@@ -80,7 +96,7 @@
     border-radius:var(--radius);
     padding:8px 30px 8px 10px;
     font-size:12.5px;
-    font-family:'IBM Plex Mono', monospace;
+    font-family:var(--font-mono);
     margin-bottom:18px;
     cursor:pointer;
     width:100%;
@@ -130,14 +146,31 @@
     display:flex; align-items:center; justify-content:space-between;
     padding:0 24px;
   }
-  .topbar h1{font-size:15px; font-weight:600; margin:0;}
-  .topbar .sub{color:var(--text-muted); font-size:12.5px;}
+  .topbar h1{font-size:15px; font-weight:600; margin:0; line-height:1.25;}
+  .topbar .sub{display:block; color:var(--text-muted); font-size:11.5px; line-height:1.2;}
   .avatar{
     width:28px;height:28px;border-radius:50%;
     background:var(--cyan-soft); color:var(--cyan);
     display:flex;align-items:center;justify-content:center;
-    font-size:11px; font-weight:700; font-family:'IBM Plex Mono',monospace;
+    font-size:11px; font-weight:700; font-family:var(--font-mono);
+    border:none; padding:0; cursor:pointer;
   }
+  .avatar:hover{background:var(--cyan); color:#fff;}
+  .avatar:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+  /* The profile page shows the same circle as a portrait, not a control. */
+  .avatar.static{cursor:default;}
+  .avatar.static:hover{background:var(--cyan-soft); color:var(--cyan);}
+  /* ---- Account menu ----
+     Everything about "you" hangs off the avatar: the profile, help, and logging
+     out. Logging out was a sidebar entry, which put an action among the places. */
+  .account-menu{min-width:216px;}
+  .account-menu-who{padding:8px 10px 10px 10px; border-bottom:1px solid var(--line-soft); margin-bottom:5px;}
+  .account-menu-who .am-name{font-size:13px; font-weight:600; color:var(--ink);}
+  .account-menu-who .am-mail{font-size:11px; color:var(--text-faint); margin-top:2px; word-break:break-all;}
+  .account-menu button{gap:9px;}
+  .account-menu .am-ic{width:16px; flex-shrink:0; text-align:center; font-size:12px;}
+  .account-menu button.am-danger{color:var(--red);}
+  .account-menu button.am-danger:hover{background:var(--red-soft);}
   .view{padding:24px; display:none; flex:1; overflow:auto;}
   .view.active{display:block;}
 
@@ -151,6 +184,11 @@
     padding:20px;
   }
   .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  /* ---- Profile header ----
+     Identity left, language right: the language card takes only the width of its
+     two radio pills instead of a full-page band, which is what pushed the name
+     and e-mail below the fold. */
+  .profile-head{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; align-items:start; margin-bottom:16px;}
 
   /* ---- Defensive layout (high browser zoom / small effective width) ----
      At 150% scale on a 1920px screen the effective width is ~1280px, which can
@@ -165,6 +203,7 @@
   .view table{max-width:100%;}
   @media (max-width:1100px){
     .grid-2{grid-template-columns:1fr;}
+    .profile-head{grid-template-columns:1fr;}
   }
   label{display:block; font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:5px;}
   /* One control geometry for every form field — text, e-mail, number, date, time,
@@ -174,20 +213,41 @@
   input[type=text],input[type=email],input[type=password],input[type=date],
   input[type=time],input[type=datetime-local],input[type=number],textarea{
     width:100%;
-    height:36px;
+    height:var(--control-h);
     border:1px solid var(--line);
-    border-radius:6px;
+    border-radius:8px;
     padding:8px 10px;
     font-size:13px;
-    font-family:'Space Grotesk', sans-serif;
+    font-family:var(--font-sans);
     background:#fff;
     color:var(--text);
     line-height:1.3;
   }
-  /* A native select renders its caret inside the padding box, so text can sit
-     right against it — reserve room on the right. */
-  select{padding-right:28px;}
+  /* One focus ring for every control, so a field being edited is obvious without
+     relying on the browser's own (which differs per engine). */
+  select:focus-visible,
+  input[type=text]:focus-visible,input[type=email]:focus-visible,input[type=password]:focus-visible,
+  input[type=date]:focus-visible,input[type=time]:focus-visible,input[type=datetime-local]:focus-visible,
+  input[type=number]:focus-visible,textarea:focus-visible{
+    outline:none; border-color:var(--cyan); box-shadow:0 0 0 3px var(--cyan-soft);
+  }
+  /* Every select carries the same caret. The native one is drawn by the OS and
+     differed between the sidebar's dark select, the filter bar and the forms —
+     one drawn caret makes a closed select look the same everywhere. The option
+     list itself is the browser's, which is why a filter that must look like the
+     rest of the bar uses .ms-filter instead. */
+  select{
+    appearance:none; -webkit-appearance:none;
+    padding-right:30px;
+    cursor:pointer;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%235B6472'/></svg>");
+    background-repeat:no-repeat;
+    background-position:right 11px center;
+  }
+  select:hover{border-color:var(--text-faint);}
   textarea{resize:vertical; height:auto; min-height:64px;}
+  /* A value you can only copy, styled once instead of inline per field. */
+  input[readonly]{background:var(--paper); color:var(--text-muted); cursor:default;}
   input[type=checkbox],input[type=radio],input[type=file]{height:auto;}
   input[type=file]{width:100%; padding:7px 10px; font-size:12.5px;}
   /* ---- Three field widths ----
@@ -240,23 +300,32 @@
   .lang-menu-list button.active{color:#0A6E7A; font-weight:600;}
 
   .btn{
-    display:inline-flex; align-items:center; gap:6px;
+    display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    /* Same height as an input, so a button beside a field lines up on both edges. */
+    height:var(--control-h);
     background:var(--ink);
     color:#fff;
-    border:none;
-    border-radius:7px;
-    padding:9px 16px;
+    border:1px solid var(--ink);
+    border-radius:8px;
+    padding:0 16px;
     font-size:13px;
     font-weight:600;
     cursor:pointer;
-    font-family:'Space Grotesk', sans-serif;
+    font-family:var(--font-sans);
+    white-space:nowrap;
   }
-  .btn:hover{background:var(--ink-soft);}
-  .btn.ghost{background:transparent; color:var(--text); border:1px solid var(--line);}
-  .btn.ghost:hover{background:var(--line-soft);}
+  .btn:hover{background:var(--ink-soft); border-color:var(--ink-soft);}
+  .btn:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+  .btn.ghost{background:transparent; color:var(--text); border-color:var(--line);}
+  .btn.ghost:hover{background:var(--line-soft); border-color:var(--text-faint);}
+  /* A destructive confirm is never the dark primary: red says what it costs. */
+  .btn.danger{background:var(--red); border-color:var(--red);}
+  .btn.danger:hover{background:#B91C1C; border-color:#B91C1C;}
   .btn:disabled{opacity:0.4; cursor:not-allowed;}
+  /* An icon leading the label — the glyph is decoration, the label is the action. */
+  .btn .btn-ic{font-size:13px; line-height:1;}
   /* Primary action inside a table row — same weight, sized to the row. */
-  .btn.small{padding:5px 12px; font-size:12px; border-radius:6px;}
+  .btn.small{height:var(--control-h-sm); padding:0 12px; font-size:12px; border-radius:7px;}
 
   /* manifest strip - signature element */
   .manifest{
@@ -278,7 +347,7 @@
   .manifest-day .dow{font-size:10.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-faint);}
   .manifest-day .date{font-size:11px; color:var(--text-muted); margin-top:1px;}
   .manifest-day .count{
-    font-family:'IBM Plex Mono', monospace;
+    font-family:var(--font-mono);
     font-size:26px;
     font-weight:600;
     color:var(--ink);
@@ -327,7 +396,7 @@
     display:inline-flex; align-items:center; justify-content:center;
     width:24px; height:24px; border-radius:50%;
     background:var(--ink); color:#fff;
-    font-family:'IBM Plex Mono', monospace; font-size:12px; font-weight:700;
+    font-family:var(--font-mono); font-size:12px; font-weight:700;
     flex-shrink:0;
   }
   h2.step-title:not(:first-child){margin-top:26px;}
@@ -338,22 +407,28 @@
   .card-actions.no-rule{border-top:none; padding-top:0;}
 
   table{width:100%; border-collapse:collapse; font-size:13px;}
+  /* A white header above white rows gave the header nothing to sit on: scrolled
+     rows ran into the column names. The grey band is the separation, so the rule
+     underneath can stay hairline. */
   th{
     text-align:left;
     font-size:11px;
     text-transform:uppercase;
     letter-spacing:0.05em;
-    color:var(--text-faint);
+    color:var(--text-muted);
+    background:var(--th-bg);
     padding:9px 12px;
     border-bottom:1px solid var(--line);
-    font-weight:600;
+    font-weight:700;
   }
+  th:first-child{border-top-left-radius:8px;}
+  th:last-child{border-top-right-radius:8px;}
   /* Sticky column headers for every table inside a scrolling pane (.table-scroll):
      scrolling a long target/day list keeps the column names in view. */
   .table-scroll{overflow-y:auto; overflow-x:auto; border:1px solid var(--line); border-radius:8px;}
   .table-scroll thead th{
     position:sticky; top:0; z-index:3;
-    background:var(--paper-raised);
+    background:var(--th-bg);
     box-shadow:inset 0 -1px 0 var(--line);
     border-bottom:none;
   }
@@ -376,6 +451,99 @@
   .sort-arrow.on{color:var(--cyan);}
   td{padding:11px 12px; border-bottom:1px solid var(--line-soft);}
   tr:last-child td{border-bottom:none;}
+  /* ---- Expandable row ----
+     A whole row being clickable is invisible: the cursor only says so once you are
+     already over it, and nothing says the row has more underneath. A chevron in the
+     first cell is the affordance, and it rotates to show the row is open. It lives
+     inside the first cell rather than in a column of its own, because a column of
+     chevrons costs a header for a control that has no name. */
+  .row-expand{display:flex; align-items:flex-start; gap:8px;}
+  .row-chevron{
+    flex-shrink:0; width:14px; height:14px; margin-top:1px;
+    color:var(--text-faint);
+    transition:transform 0.15s ease, color 0.15s ease;
+  }
+  tr:hover .row-chevron{color:var(--ink);}
+  tr.is-open .row-chevron{transform:rotate(90deg); color:var(--cyan);}
+  @media (prefers-reduced-motion: reduce){ .row-chevron{transition:none;} }
+  /* An open row and its detail panel read as one block, not as two rows that
+     happen to be adjacent. */
+  tr.is-open > td{background:var(--cyan-soft) !important; border-bottom-color:transparent;}
+  /* ---- Searchable picker ----
+     A <datalist> looked like a plain text field: nothing said the value came from a
+     list, and a project with 80 production targets dropped a browser-styled column
+     of them. This is the same "type to narrow it down" behaviour, but the options
+     are ours: visible, capped at a scrollable ten, and keyboard-navigable. */
+  .picker{position:relative;}
+  .picker-list{
+    position:absolute; left:0; right:0; top:calc(100% + 3px); z-index:40;
+    max-height:calc(var(--control-h) * 6.4); overflow-y:auto;
+    background:#fff; border:1px solid var(--line); border-radius:8px;
+    box-shadow:0 8px 22px rgba(16,24,40,0.14);
+  }
+  .picker-list[hidden]{display:none;}
+  .picker-opt{
+    display:block; width:100%; text-align:left; border:0; background:none; cursor:pointer;
+    padding:8px 11px; font-family:var(--font-mono); font-size:12.5px; color:var(--text);
+  }
+  .picker-opt:hover,.picker-opt.active{background:var(--cyan-soft); color:var(--ink);}
+  .picker-empty{padding:8px 11px; font-size:12px; color:var(--text-faint);}
+  /* ---- Row context menu ----
+     Four labelled buttons per row ran off the edge of the table and made the rare
+     actions as loud as the common one. Edit stays visible; everything else moves
+     behind a single ⋯ button, the pattern people already know from Teams. */
+  .row-menu{position:relative; display:inline-block;}
+  .row-menu-list{
+    position:absolute; right:0; top:calc(100% + 4px); z-index:60; min-width:200px;
+    background:#fff; border:1px solid var(--line); border-radius:9px; padding:5px;
+    box-shadow:0 10px 26px rgba(16,24,40,0.16); text-align:left;
+  }
+  .row-menu-list[hidden]{display:none;}
+  .row-menu-item{
+    display:flex; align-items:center; gap:9px; width:100%; border:0; background:none;
+    cursor:pointer; padding:8px 10px; border-radius:6px;
+    font-family:var(--font-sans); font-size:12.5px; font-weight:500; color:var(--text); text-align:left;
+  }
+  .row-menu-item:hover{background:var(--paper);}
+  .row-menu-item.danger{color:var(--red);}
+  .row-menu-item.danger:hover{background:var(--red-soft);}
+  .row-menu-item .rm-ic{width:15px; flex-shrink:0; text-align:center; font-size:12.5px;}
+  .row-menu-sep{height:1px; margin:4px 6px; background:var(--line-soft);}
+  /* ---- Selectable pill ----
+     Twenty loose checkboxes read as one grey mass: nothing but a 13px tick told you
+     which were on, and the eye had to check each one. Selection is carried by the
+     pill itself — filled and outlined when on — so the chosen set is legible at a
+     glance. The checkbox stays in the DOM (it is still the form control and the
+     thing a screen reader announces), just visually replaced by a tick. */
+  .chk-pill{
+    display:inline-flex; align-items:center; gap:7px; cursor:pointer;
+    border:1px solid var(--line); border-radius:20px; padding:5px 12px 5px 10px;
+    font-size:12.5px; font-weight:500; color:var(--text-muted);
+    background:#fff; margin:0; transition:border-color 0.12s, background 0.12s, color 0.12s;
+  }
+  .chk-pill:hover{border-color:var(--text-faint); color:var(--text);}
+  .chk-pill input{position:absolute; opacity:0; width:1px; height:1px; margin:0;}
+  .chk-pill .cp-box{
+    flex-shrink:0; width:15px; height:15px; border:1.5px solid var(--line);
+    border-radius:5px; background:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:10px; line-height:1; color:transparent;
+  }
+  .chk-pill.on{border-color:var(--cyan); background:var(--cyan-soft); color:var(--ink); font-weight:600;}
+  .chk-pill.on .cp-box{background:var(--cyan); border-color:var(--cyan); color:#fff;}
+  .chk-pill:focus-within{outline:2px solid var(--cyan); outline-offset:2px;}
+  .chk-pill.disabled{opacity:0.5; cursor:not-allowed;}
+  .pill-set{display:flex; flex-wrap:wrap; gap:7px;}
+  /* ---- Form section ----
+     A dialog that asks for two unrelated things (who the client is, where their
+     notifications go) needs to say so. A titled block with a rule under it does
+     that without nesting a card inside a card. */
+  .form-section + .form-section{margin-top:20px; padding-top:18px; border-top:1px solid var(--line-soft);}
+  .form-section-title{
+    font-size:11px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase;
+    color:var(--text-faint); margin-bottom:12px;
+  }
+  .form-hint{font-size:11.5px; color:var(--text-muted); margin:-4px 0 0 0;}
   /* Loading state. On a slow link the first paint used to be the *empty* state —
      "No projects yet", an empty deployments table — which reads as "your data is
      gone", not "still fetching". Views that load from the API show this until the
@@ -402,7 +570,7 @@
     border-radius:20px;
     font-size:11.5px;
     font-weight:600;
-    font-family:'IBM Plex Mono', monospace;
+    font-family:var(--font-mono);
   }
   .pill::before{content:''; width:6px; height:6px; border-radius:50%;}
   .pill.scheduled{background:#EEF0F3; color:var(--text-muted);}
@@ -416,7 +584,7 @@
   /* One environment style: the text already says which environment it is, so a
      second, darker treatment for production adds nothing. Grey outline for all. */
   .env-tag{
-    font-family:'IBM Plex Mono', monospace;
+    font-family:var(--font-mono);
     font-size:11px;
     padding:2px 7px;
     border-radius:5px;
@@ -430,7 +598,7 @@
     padding:5px 10px;
     font-size:11.5px;
     cursor:pointer;
-    font-family:'Space Grotesk', sans-serif;
+    font-family:var(--font-sans);
     font-weight:600;
     color:var(--text);
   }
@@ -462,17 +630,48 @@
   .mini-btn.ok{background:var(--green-soft); border-color:#BFE6CE; color:#0F7A38;}
   .mini-btn.ok:hover{background:#D6F0DF; border-color:#0F7A38;}
 
-  .toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
-  .filters{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .toolbar{display:flex; justify-content:space-between; align-items:flex-end; gap:12px; margin-bottom:14px;}
+  /* ---- Filter bar ----
+     Every control is labelled. A bare row of dropdowns reading "All projects /
+     All applications / All environments" tells you the current value but not what
+     the control filters, and once a value is picked ("WORD / WORD / Test") even
+     that is gone — the reader can no longer tell which column each one belongs to.
+     The caption above each control is the answer, and it also gives the bar a
+     baseline to align on. */
+  .filters{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
   .filter-label{font-size:11px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-muted); margin-right:2px;}
-  .filters select{width:auto; padding:6px 10px; font-size:12.5px;}
+  /* "Filter by" sits on the control baseline, not on the captions above them. */
+  .filters > .filter-label{padding-bottom:9px;}
+  .filter-field{display:flex; flex-direction:column; gap:4px; min-width:0;}
+  .filter-field > .fl-cap{
+    font-size:10px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase;
+    color:var(--text-faint); white-space:nowrap;
+  }
+  .filters select,.filters input[type=text]{width:auto; height:var(--control-h-sm); padding:6px 10px; font-size:12.5px;}
+  .filters select{padding-right:28px; background-position:right 10px center;}
+  /* Search is the only control in the bar that takes typing rather than a pick,
+     so it carries a magnifier: without one it read as another empty dropdown. */
+  .search-field{position:relative; display:inline-flex; align-items:center;}
+  .search-field .search-ic{
+    position:absolute; left:9px; top:50%; transform:translateY(-50%);
+    width:13px; height:13px; color:var(--text-faint); pointer-events:none;
+  }
+  .search-field input[type=text]{padding-left:29px;}
   /* Multi-select status filter — same footprint as a regular <select>. */
   .ms-filter{position:relative; display:inline-block; vertical-align:middle;}
   .ms-filter-btn{
     display:inline-flex; align-items:center; gap:6px; width:auto; min-width:150px; max-width:260px;
+    height:var(--control-h-sm);
     padding:6px 10px; font-size:12.5px; line-height:1.3; text-align:left;
     border:1px solid var(--line); border-radius:8px; background:var(--paper-alt, #fff);
     color:var(--ink); cursor:pointer;
+  }
+  /* A count of what is active, so a collapsed menu still says how much it hides. */
+  .ms-filter-btn .ms-count{
+    flex-shrink:0; min-width:17px; height:17px; padding:0 5px;
+    display:inline-flex; align-items:center; justify-content:center;
+    border-radius:9px; background:var(--cyan-soft); color:#0A6E7A;
+    font-family:var(--font-mono); font-size:10px; font-weight:700;
   }
   .ms-filter-btn:hover{border-color:var(--text-faint);}
   .ms-filter-btn .ms-caret{margin-left:auto; color:var(--text-faint); font-size:10px;}
@@ -489,8 +688,64 @@
   }
   .ms-filter-menu label:hover{background:var(--line-soft);}
   .ms-filter-menu input{width:auto; margin:0;}
+  /* ---- Active filters ----
+     A row of dropdowns doesn't say how narrow the table has become, so a filtered
+     list can read as an empty one. Each non-default filter gets a removable pill
+     under the bar: the pills are the record of what is being hidden, and the ✕ is
+     the shortest way back. The row is absent when nothing is filtered. */
+  .active-filters{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:10px 0 0 0;}
+  .active-filters .af-lead{font-size:11px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-faint);}
+  .af-pill{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:3px 4px 3px 10px; border-radius:999px;
+    border:1px solid var(--line); background:var(--paper-raised);
+    font-size:11.5px; color:var(--text);
+  }
+  .af-pill .af-cap{color:var(--text-faint); font-size:10px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;}
+  .af-pill .af-val{font-weight:600;}
+  .af-pill .af-x{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:17px; height:17px; border:none; border-radius:50%; padding:0;
+    background:var(--line-soft); color:var(--text-muted);
+    font-size:11px; line-height:1; cursor:pointer;
+  }
+  .af-pill .af-x:hover{background:var(--red-soft); color:#A81E1E;}
+  .af-clear{
+    border:none; background:none; padding:3px 6px; cursor:pointer;
+    font-family:var(--font-sans); font-size:11.5px; font-weight:600; color:var(--text-muted);
+    text-decoration:underline; text-underline-offset:2px;
+  }
+  .af-clear:hover{color:var(--ink);}
 
+  /* ---- Help boxes ----
+     `grid-auto-rows:1fr` is the point: a two-sentence topic and a ten-sentence one
+     used to produce visibly different cards. Every row now shares one height. */
+  .help-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); grid-auto-rows:1fr; gap:10px;}
+  .help-box{
+    display:flex; gap:11px; align-items:flex-start;
+    padding:12px 13px; border:1px solid var(--line); border-radius:10px;
+    background:var(--paper-alt, #fff);
+  }
+  .help-num{
+    flex-shrink:0; width:24px; height:24px; border-radius:7px;
+    background:var(--cyan-soft); color:#0A6E7A;
+    font-size:12px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .help-box-title{font-size:12.5px; font-weight:600; line-height:1.3;}
+  .help-box-text{font-size:12px; color:var(--text-muted); margin-top:3px; line-height:1.5;}
+  .help-role-list{display:grid; grid-auto-rows:1fr; gap:8px;}
+  mark{background:#FFF3BF; color:var(--ink); border-radius:3px; padding:0 1px;}
 
+  /* Small state pill. The colour pair is passed in by the caller, because what a
+     badge says (enabled, role, status) decides its colour, not where it sits. */
+  .badge{
+    display:inline-flex; align-items:center; gap:5px;
+    padding:2px 9px; border-radius:20px;
+    font-size:10.5px; font-weight:700; letter-spacing:0.02em;
+    white-space:nowrap;
+  }
+  .badge:empty{display:none;}
   .badge-row{display:flex; gap:8px; margin-bottom:18px;}
   .stat{
     background:var(--paper-raised);
@@ -499,7 +754,7 @@
     padding:12px 16px;
     flex:1;
   }
-  .stat .num{font-family:'IBM Plex Mono', monospace; font-size:22px; font-weight:600;}
+  .stat .num{font-family:var(--font-mono); font-size:22px; font-weight:600;}
   .stat .lbl{font-size:11.5px; color:var(--text-muted); margin-top:2px;}
   /* An icon next to the number gives the tile a second, faster read than the
      caption alone. */
@@ -534,7 +789,7 @@
     width:26px; height:26px; border-radius:8px; flex-shrink:0;
     background:var(--line-soft); color:var(--text-muted); font-size:13px;
   }
-  .fact .fact-num{font-family:'IBM Plex Mono', monospace; font-size:19px; font-weight:600; line-height:1.1;}
+  .fact .fact-num{font-family:var(--font-mono); font-size:19px; font-weight:600; line-height:1.1;}
   .fact .fact-lbl{font-size:11.5px; color:var(--text-muted); margin-top:3px;}
 
   /* ---- Project switcher (Projects view) ----
@@ -551,7 +806,7 @@
     display:inline-flex; align-items:center; gap:7px;
     border:1px solid var(--line); background:var(--paper-raised);
     padding:7px 15px; border-radius:999px;
-    font-family:'Space Grotesk', sans-serif; font-size:13px; font-weight:600;
+    font-family:var(--font-sans); font-size:13px; font-weight:600;
     color:var(--text-muted); cursor:pointer; white-space:nowrap;
     transition:background 0.12s, border-color 0.12s, color 0.12s;
   }
@@ -638,7 +893,7 @@
   .info-ic::after{content:attr(data-tip); position:absolute; left:0; top:calc(100% + 8px); width:300px; max-width:70vw; background:var(--ink,#1E242C); color:#fff; padding:9px 11px; border-radius:8px; font-size:11.5px; font-style:normal; font-weight:400; line-height:1.55; white-space:normal; text-align:left; opacity:0; visibility:hidden; transition:opacity .12s; z-index:200; box-shadow:0 6px 22px rgba(0,0,0,0.22); pointer-events:none;}
   .info-ic:hover::after{opacity:1; visibility:visible;}
   /* Compact P / NP target-type badge — hover shows the full Production / Non-production label. */
-  .type-badge{display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:18px; padding:0 4px; border-radius:4px; border:1px solid; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:9.5px; font-weight:700; letter-spacing:0.02em; flex-shrink:0; position:relative; cursor:help; vertical-align:middle; box-sizing:border-box; line-height:1; user-select:none;}
+  .type-badge{display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:18px; padding:0 4px; border-radius:4px; border:1px solid; font-family:var(--font-mono); font-size:9.5px; font-weight:700; letter-spacing:0.02em; flex-shrink:0; position:relative; cursor:help; vertical-align:middle; box-sizing:border-box; line-height:1; user-select:none;}
   .type-badge::after{content:attr(data-tip); position:absolute; left:50%; transform:translateX(-50%); top:calc(100% + 6px); width:max-content; max-width:220px; background:var(--ink,#1E242C); color:#fff; padding:5px 8px; border-radius:6px; font-size:11px; font-weight:400; letter-spacing:0; line-height:1.35; white-space:nowrap; opacity:0; visibility:hidden; transition:opacity .12s; z-index:200; box-shadow:0 4px 14px rgba(0,0,0,0.2); pointer-events:none;}
   .type-badge:hover::after{opacity:1; visibility:visible;}
   .type-badge.type-badge-click{cursor:pointer;}
@@ -842,21 +1097,23 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.5 1.5c0 1.5-2 2-2 3"/><path d="M12 17h.01"/></svg>
     <span data-i18n="nav.help">Help</span>
   </div>
-  <div class="nav-item" onclick="logout()" style="cursor:pointer;">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-    <span data-i18n="nav.logout">Log out</span>
-  </div>
+  <!-- Log out is not a place in the app, so it is not a nav item. It lives in the
+       avatar menu in the top bar, next to the account it ends. -->
 
   <div class="rail-footer" id="rolldesk-version"></div>
 </div>
 
 <div class="main">
   <div class="topbar">
-    <div>
+    <!-- The project slug belongs under the title it qualifies. It used to sit in
+         the right-hand group, so opening Projects made a „client / project" line
+         appear beside the avatar and language menu — it read as a breadcrumb
+         loading into the profile controls. -->
+    <div style="min-width:0;">
       <h1 id="topbar-title">Projects</h1>
+      <span class="sub mono" id="topbar-project-slug"></span>
     </div>
     <div style="display:flex; align-items:center; gap:12px;">
-      <span class="sub mono" id="topbar-project-slug"></span>
       <div class="lang-menu" id="topbar-lang">
         <button class="lang-menu-btn" onclick="toggleLangMenu(event)" title="Language / Język" aria-haspopup="true">
           <span id="topbar-lang-code">PL</span><span class="caret">▾</span>
@@ -866,7 +1123,19 @@
           <button data-lang="en" onclick="chooseLang('en')">English</button>
         </div>
       </div>
-      <div class="avatar" id="topbar-avatar" onclick="goToView('account')" title="My profile" style="cursor:pointer;"></div>
+      <div class="lang-menu" id="topbar-account">
+        <button class="avatar" id="topbar-avatar" onclick="toggleAccountMenu(event)" aria-haspopup="true" aria-expanded="false" data-i18n-title="nav.account" title="My profile"></button>
+        <div class="lang-menu-list account-menu" id="topbar-account-list" style="display:none;">
+          <div class="account-menu-who">
+            <div class="am-name" id="account-menu-name"></div>
+            <div class="am-mail mono" id="account-menu-email"></div>
+          </div>
+          <button onclick="closeAccountMenu(); goToView('account');"><span class="am-ic" aria-hidden="true">👤</span> <span data-i18n="nav.account">My profile</span></button>
+          <button onclick="closeAccountMenu(); goToView('help');"><span class="am-ic" aria-hidden="true">?</span> <span data-i18n="nav.help">Help</span></button>
+          <div class="row-menu-sep"></div>
+          <button class="am-danger" onclick="closeAccountMenu(); confirmLogout();"><span class="am-ic" aria-hidden="true">⏻</span> <span data-i18n="nav.logout">Log out</span></button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1378,39 +1647,58 @@
           <!-- The filter row is labelled, so a row of bare dropdowns doesn't have to
                be decoded from its option text. -->
           <span class="filter-label" data-i18n="dep.filterBy">Filter by</span>
-          <select id="deploy-filter-client" onchange="onDeployClientChange()">
-            <option value="all" data-i18n="dep.fClients">All clients</option>
-          </select>
-          <select id="deploy-filter-project" onchange="onDeployProjectChange()">
-            <option value="all" data-i18n="dep.fProjects">All projects</option>
-          </select>
-          <select id="deploy-filter-app" onchange="renderDeploymentsTable()">
-            <option value="all" data-i18n="dep.fApps">All applications</option>
-          </select>
-          <select id="deploy-filter-env" onchange="renderDeploymentsTable()">
-            <option value="all" data-i18n="dep.fEnvs">All environments</option>
-          </select>
-          <div class="ms-filter" id="deploy-filter-status" onclick="event.stopPropagation();">
-            <button type="button" class="ms-filter-btn" onclick="toggleMsFilter('deploy-filter-status', event)">
-              <span id="deploy-filter-status-label">All statuses</span><span class="ms-caret">▾</span>
-            </button>
-            <div class="ms-filter-menu">
-              <label><input type="checkbox" value="scheduled" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sScheduled">To be installed</span></label>
-              <label><input type="checkbox" value="installed" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sInstalled">Installed</span></label>
-              <label><input type="checkbox" value="failed" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sFailed">Failed</span></label>
-              <label><input type="checkbox" value="rolledback" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sRolledback">Rolled back</span></label>
-              <label><input type="checkbox" value="aborted" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sAborted">Aborted</span></label>
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capClient">Client</span>
+            <select id="deploy-filter-client" onchange="onDeployClientChange()">
+              <option value="all" data-i18n="dep.fClients">All clients</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capProject">Project</span>
+            <select id="deploy-filter-project" onchange="onDeployProjectChange()">
+              <option value="all" data-i18n="dep.fProjects">All projects</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capApp">Application</span>
+            <select id="deploy-filter-app" onchange="renderDeploymentsTable()">
+              <option value="all" data-i18n="dep.fApps">All applications</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capEnv">Environment</span>
+            <select id="deploy-filter-env" onchange="renderDeploymentsTable()">
+              <option value="all" data-i18n="dep.fEnvs">All environments</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capStatus">Status</span>
+            <div class="ms-filter" id="deploy-filter-status" onclick="event.stopPropagation();">
+              <button type="button" class="ms-filter-btn" onclick="toggleMsFilter('deploy-filter-status', event)">
+                <span id="deploy-filter-status-label">All statuses</span><span class="ms-caret">▾</span>
+              </button>
+              <div class="ms-filter-menu">
+                <label><input type="checkbox" value="scheduled" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sScheduled">To be installed</span></label>
+                <label><input type="checkbox" value="installed" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sInstalled">Installed</span></label>
+                <label><input type="checkbox" value="failed" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sFailed">Failed</span></label>
+                <label><input type="checkbox" value="rolledback" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sRolledback">Rolled back</span></label>
+                <label><input type="checkbox" value="aborted" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sAborted">Aborted</span></label>
+              </div>
             </div>
           </div>
-          <select id="deploy-filter-range" onchange="renderDeploymentsTable()">
-            <option value="14" selected data-i18n="dep.r14">Last 14 days</option>
-            <option value="30" data-i18n="dep.r30">Last 30 days</option>
-            <option value="90" data-i18n="dep.r90">Last 90 days</option>
-            <option value="all" data-i18n="dep.rAll">Full history</option>
-          </select>
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capPeriod">Period</span>
+            <select id="deploy-filter-range" onchange="renderDeploymentsTable()">
+              <option value="14" selected data-i18n="dep.r14">Last 14 days</option>
+              <option value="30" data-i18n="dep.r30">Last 30 days</option>
+              <option value="90" data-i18n="dep.r90">Last 90 days</option>
+              <option value="all" data-i18n="dep.rAll">Full history</option>
+            </select>
+          </div>
         </div>
         <button type="button" class="mini-btn" onclick="exportDeploymentsListCsv()" data-i18n="list.exportCsv">⬇ CSV</button>
       </div>
+      <div id="deploy-active-filters"></div>
       <div class="table-scroll" style="max-height:640px; margin-top:10px;">
         <table>
           <thead id="deploy-table-head"></thead>
@@ -1443,8 +1731,27 @@
       </button>
     </div>
 
-    <div class="card" id="user-form" style="display:none; margin-bottom:18px;">
-      <h3 class="sub-title" id="user-form-title" data-i18n="usr.newUser">New user</h3>
+    <div class="card">
+      <div class="table-scroll" style="max-height:640px;">
+        <table>
+          <!-- The e-mail sits under the name rather than in its own column: it is
+               the account's identifier, not an independent attribute, and giving it
+               a column pushed Projects out of view on a laptop screen. -->
+          <thead><tr><th data-i18n="usr.thName">Full name</th><th data-i18n="usr.thRole">Role</th><th data-i18n="usr.thGroup">Group</th><th data-i18n="usr.thProjects">Projects</th><th></th></tr></thead>
+          <tbody id="users-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Adding and editing a user happens in a dialog, like every other add/edit form
+       in the app — the inline card it replaced made "Edit" behave unlike the rest. -->
+  <div class="modal-overlay" id="user-modal">
+    <div class="modal-box wide" id="user-form">
+      <div class="modal-head">
+        <div class="modal-title" id="user-form-title" data-i18n="usr.newUser">New user</div>
+      </div>
+      <div class="modal-body">
       <div id="user-form-errors" style="display:none; margin-bottom:14px;"></div>
       <div class="grid-2">
         <div class="field">
@@ -1477,28 +1784,17 @@
       </div>
       <div class="field" id="user-projects-field" style="display:none;">
         <label data-i18n="usr.projectsAccess">Projects they can access</label>
-        <div id="user-projects-checks" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+        <div id="user-projects-checks" class="pill-set"></div>
         <p id="user-domain-hint" style="display:none; font-size:11.5px; color:var(--text-muted); margin:8px 0 0 0;"></p>
       </div>
       <div class="alert alert-info" id="user-invite-note" style="margin-bottom:14px;">
         <span class="alert-ic" aria-hidden="true">✉</span>
         <div class="alert-body"><span data-i18n="usr.inviteNote">You don't set a password. After the user is added, a link will be sent to their e-mail address to set their own password and configure two-factor authentication (2FA).</span></div>
       </div>
-      <div class="card-actions">
-        <button class="mini-btn" onclick="toggleUserForm()" data-i18n="common.cancel">Cancel</button>
-        <button class="btn" id="user-form-submit" onclick="addUser()" data-i18n="usr.addAndInvite">Add user and send invitation</button>
       </div>
-    </div>
-
-    <div class="card">
-      <div class="table-scroll" style="max-height:640px;">
-        <table>
-          <!-- The e-mail sits under the name rather than in its own column: it is
-               the account's identifier, not an independent attribute, and giving it
-               a column pushed Projects out of view on a laptop screen. -->
-          <thead><tr><th data-i18n="usr.thName">Full name</th><th data-i18n="usr.thRole">Role</th><th data-i18n="usr.thGroup">Group</th><th data-i18n="usr.thProjects">Projects</th><th></th></tr></thead>
-          <tbody id="users-table"></tbody>
-        </table>
+      <div class="modal-foot">
+        <button class="mini-btn" onclick="closeUserForm()" data-i18n="common.cancel">Cancel</button>
+        <button class="btn" id="user-form-submit" onclick="addUser()" data-i18n="usr.addAndInvite">Add user and send invitation</button>
       </div>
     </div>
   </div>
@@ -1515,40 +1811,53 @@
       </div>
     </div>
 
-    <div class="card" id="client-form" style="display:none; margin-bottom:18px;">
-      <h3 class="sub-title" id="client-form-title" data-i18n="cli.newClient">New client</h3>
-      <div id="client-form-errors" style="display:none; margin-bottom:14px;"></div>
-      <div class="grid-2">
-        <div class="field">
-          <label data-i18n="cli.name">Client name</label>
-          <input type="text" id="client-name-input" data-i18n-ph="cli.namePh" placeholder="e.g. ACME">
-        </div>
-        <div class="field">
-          <label data-i18n="cli.domain">E-mail domain</label>
-          <input type="text" id="client-domain-input" class="mono" data-i18n-ph="cli.domainPh" placeholder="e.g. acme.example">
-        </div>
-      </div>
-      <p style="font-size:11.5px; color:var(--text-muted); margin:-6px 0 14px 0;" data-i18n="cli.domainNote">Only people with an e-mail address in this domain can be added as users with the Client role for this client's projects — sign-in is done via the company e-mail.</p>
-
-      <div class="toolbar" style="margin:6px 0 8px 0;">
-        <label style="margin-bottom:0;" data-i18n="client.webhooks">Notification webhooks (Teams / Slack / your own system)</label>
-        <button class="mini-btn" type="button" onclick="addClientWebhook()"><span aria-hidden="true">＋</span> <span data-i18n="client.addWebhook">Add webhook</span></button>
-      </div>
-      <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 10px 0;" data-i18n="client.webhooksNote">Deployment events for this client's projects are sent to these webhooks. At least one webhook is required.</p>
-      <div id="client-webhooks-list" style="display:flex; flex-direction:column; gap:12px; margin-bottom:14px;"></div>
-
-      <div class="card-actions">
-        <button class="mini-btn" onclick="toggleClientForm()" data-i18n="common.cancel">Cancel</button>
-        <button class="btn" id="client-form-submit" onclick="saveClient()" data-i18n="cli.addClientSubmit">Add client</button>
-      </div>
-    </div>
-
     <div class="card">
       <div class="table-scroll" style="max-height:640px;">
         <table>
           <thead><tr><th data-i18n="cli.thName">Client</th><th data-i18n="cli.thDomain">E-mail domain</th><th data-i18n="cli.thProjects">Number of projects</th><th></th></tr></thead>
           <tbody id="clients-table"></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- A client is identity (name, domain) plus the webhooks their events go to. The
+       two are labelled sections in one dialog, so a long webhook list can no longer
+       push the save button out of sight the way the inline card did. -->
+  <div class="modal-overlay" id="client-modal">
+    <div class="modal-box wide" id="client-form">
+      <div class="modal-head">
+        <div class="modal-title" id="client-form-title" data-i18n="cli.newClient">New client</div>
+      </div>
+      <div class="modal-body">
+        <div id="client-form-errors" style="display:none; margin-bottom:14px;"></div>
+        <div class="form-section">
+          <div class="form-section-title" data-i18n="cli.secIdentity">Identity</div>
+          <div class="grid-2">
+            <div class="field">
+              <label data-i18n="cli.name">Client name</label>
+              <input type="text" id="client-name-input" data-i18n-ph="cli.namePh" placeholder="e.g. ACME">
+            </div>
+            <div class="field">
+              <label data-i18n="cli.domain">E-mail domain</label>
+              <input type="text" id="client-domain-input" class="mono" data-i18n-ph="cli.domainPh" placeholder="e.g. acme.example">
+            </div>
+          </div>
+          <p class="form-hint" data-i18n="cli.domainNote">Only people with an e-mail address in this domain can be added as users with the Client role for this client's projects — sign-in is done via the company e-mail.</p>
+        </div>
+
+        <div class="form-section">
+          <div class="toolbar" style="margin:0 0 6px 0;">
+            <div class="form-section-title" style="margin:0;" data-i18n="client.webhooks">Notification webhooks (Teams / Slack / your own system)</div>
+            <button class="mini-btn" type="button" onclick="addClientWebhook()"><span aria-hidden="true">＋</span> <span data-i18n="client.addWebhook">Add webhook</span></button>
+          </div>
+          <p class="form-hint" style="margin-top:0;" data-i18n="client.webhooksNote">Deployment events for this client's projects are sent to these webhooks. At least one webhook is required.</p>
+          <div id="client-webhooks-list" style="display:flex; flex-direction:column; gap:12px;"></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="mini-btn" onclick="closeClientForm()" data-i18n="common.cancel">Cancel</button>
+        <button class="btn" id="client-form-submit" onclick="saveClient()" data-i18n="cli.addClientSubmit">Add client</button>
       </div>
     </div>
   </div>
@@ -1565,8 +1874,26 @@
       </div>
     </div>
 
-    <div class="card" id="sso-form" style="display:none; margin-bottom:18px;">
-      <h3 class="sub-title" id="sso-form-title" data-i18n="sso.newTitle">New SSO domain</h3>
+    <div class="card">
+      <table>
+        <thead><tr>
+          <th data-i18n="sso.thDomain">Domain</th>
+          <th data-i18n="sso.thProvider">Provider</th>
+          <th data-i18n="sso.thStatus">Status</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="sso-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Same dialog treatment as users and clients. -->
+  <div class="modal-overlay" id="sso-modal">
+    <div class="modal-box wide" id="sso-form">
+      <div class="modal-head">
+        <div class="modal-title" id="sso-form-title" data-i18n="sso.newTitle">New SSO domain</div>
+      </div>
+      <div class="modal-body">
       <div id="sso-form-errors" style="display:none; margin-bottom:14px;"></div>
       <input type="hidden" id="sso-id">
       <div class="grid-2">
@@ -1605,27 +1932,16 @@
       <div class="field">
         <label data-i18n="sso.redirect">Redirect URI (register this in the identity provider)</label>
         <div style="display:flex; gap:8px; align-items:center;">
-          <input type="text" id="sso-redirect" class="mono" readonly style="background:var(--paper); color:var(--text-muted); flex:1;">
+          <input type="text" id="sso-redirect" class="mono" readonly style="flex:1;">
           <button type="button" class="mini-btn" onclick="copySsoRedirect()" data-i18n="sso.copy">Copy</button>
         </div>
       </div>
-      <label class="radio-pill" style="margin:4px 0 14px 0;"><input type="checkbox" id="sso-enabled" checked> <span data-i18n="sso.enabled">Enabled</span></label>
-      <div class="card-actions">
-        <button class="mini-btn" onclick="toggleSsoForm()" data-i18n="common.cancel">Cancel</button>
+      <label class="chk-pill on" style="margin:4px 0 0 0;"><input type="checkbox" id="sso-enabled" checked onclick="syncChkPill(this)"><span class="cp-box" aria-hidden="true">✓</span><span data-i18n="sso.enabled">Enabled</span></label>
+      </div>
+      <div class="modal-foot">
+        <button class="mini-btn" onclick="closeSsoForm()" data-i18n="common.cancel">Cancel</button>
         <button class="btn" id="sso-form-submit" onclick="saveSsoProvider()" data-i18n="sso.save">Save</button>
       </div>
-    </div>
-
-    <div class="card">
-      <table>
-        <thead><tr>
-          <th data-i18n="sso.thDomain">Domain</th>
-          <th data-i18n="sso.thProvider">Provider</th>
-          <th data-i18n="sso.thStatus">Status</th>
-          <th></th>
-        </tr></thead>
-        <tbody id="sso-table"></tbody>
-      </table>
     </div>
   </div>
 
@@ -1646,31 +1962,50 @@
       <div class="toolbar">
         <div class="filters" style="flex-wrap:wrap;">
           <span class="filter-label" data-i18n="dep.filterBy">Filter by</span>
-          <select id="installer-filter-project" onchange="onInstallerFilterChange('project')">
-            <option value="" data-i18n="rep.filterAllProjects">All projects</option>
-          </select>
-          <select id="installer-filter-app" onchange="onInstallerFilterChange('app')">
-            <option value="" data-i18n="rep.filterAllApps">All applications</option>
-          </select>
-          <select id="installer-filter-env" onchange="onInstallerFilterChange('env')">
-            <option value="" data-i18n="rep.filterAllEnvs">All environments</option>
-            <option value="Production" data-i18n="client.envProd">Production</option>
-            <option value="test" data-i18n="client.envTest">Test</option>
-          </select>
-          <div class="ms-filter" id="installer-filter-status" onclick="event.stopPropagation();">
-            <button type="button" class="ms-filter-btn" onclick="toggleMsFilter('installer-filter-status', event)">
-              <span id="installer-filter-status-label">Awaiting client, To report</span><span class="ms-caret">▾</span>
-            </button>
-            <div class="ms-filter-menu">
-              <label><input type="checkbox" value="waiting" checked onchange="onInstallerStatusMsChange()"> <span data-i18n="rep.filterWaiting">Awaiting client</span></label>
-              <label><input type="checkbox" value="active" checked onchange="onInstallerStatusMsChange()"> <span data-i18n="rep.filterActive">To report</span></label>
-              <label><input type="checkbox" value="completed" onchange="onInstallerStatusMsChange()"> <span data-i18n="rep.filterCompleted">Completed</span></label>
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capProject">Project</span>
+            <select id="installer-filter-project" onchange="onInstallerFilterChange('project')">
+              <option value="" data-i18n="rep.filterAllProjects">All projects</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capApp">Application</span>
+            <select id="installer-filter-app" onchange="onInstallerFilterChange('app')">
+              <option value="" data-i18n="rep.filterAllApps">All applications</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capEnv">Environment</span>
+            <select id="installer-filter-env" onchange="onInstallerFilterChange('env')">
+              <option value="" data-i18n="rep.filterAllEnvs">All environments</option>
+              <option value="Production" data-i18n="client.envProd">Production</option>
+              <option value="test" data-i18n="client.envTest">Test</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capStatus">Status</span>
+            <div class="ms-filter" id="installer-filter-status" onclick="event.stopPropagation();">
+              <button type="button" class="ms-filter-btn" onclick="toggleMsFilter('installer-filter-status', event)">
+                <span id="installer-filter-status-label">Awaiting client, To report</span><span class="ms-caret">▾</span>
+              </button>
+              <div class="ms-filter-menu">
+                <label><input type="checkbox" value="waiting" checked onchange="onInstallerStatusMsChange()"> <span data-i18n="rep.filterWaiting">Awaiting client</span></label>
+                <label><input type="checkbox" value="active" checked onchange="onInstallerStatusMsChange()"> <span data-i18n="rep.filterActive">To report</span></label>
+                <label><input type="checkbox" value="completed" onchange="onInstallerStatusMsChange()"> <span data-i18n="rep.filterCompleted">Completed</span></label>
+              </div>
             </div>
           </div>
-          <input type="text" id="installer-filter-q" data-i18n-ph="rep.searchPh" placeholder="Search ID, project, app…" style="min-width:160px; flex:1;" oninput="onInstallerFilterChange('q')">
+          <div class="filter-field" style="flex:1; min-width:180px;">
+            <span class="fl-cap" data-i18n="flt.capSearch">Search</span>
+            <span class="search-field" style="width:100%;">
+              <svg class="search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+              <input type="text" id="installer-filter-q" data-i18n-ph="rep.searchPh" placeholder="Search ID, project, app…" style="width:100%;" oninput="onInstallerFilterChange('q')">
+            </span>
+          </div>
         </div>
         <button type="button" class="mini-btn" onclick="exportInstallerListCsv()" data-i18n="list.exportCsv">⬇ CSV</button>
       </div>
+      <div id="installer-active-filters"></div>
       <div id="installer-list"></div>
     </div>
   </div>
@@ -1695,26 +2030,45 @@
       <div class="toolbar">
         <div class="filters" style="flex-wrap:wrap;">
           <span class="filter-label" data-i18n="dep.filterBy">Filter by</span>
-          <select id="client-filter-project" onchange="onClientFilterChange('project')">
-            <option value="all" data-i18n="client.fProjects">All projects</option>
-          </select>
-          <select id="client-filter-app" onchange="onClientFilterChange('app')">
-            <option value="all" data-i18n="client.fApps">All applications</option>
-          </select>
-          <select id="client-filter-env" onchange="onClientFilterChange('env')">
-            <option value="all" data-i18n="client.fEnvs">All environments</option>
-            <option value="Production" data-i18n="client.envProd">Production</option>
-            <option value="test" data-i18n="client.envTest">Test</option>
-          </select>
-          <select id="client-filter-status" onchange="onClientFilterChange('status')">
-            <option value="all" data-i18n="client.tabAll">All</option>
-            <option value="waiting" data-i18n="client.tabAwaiting">Awaiting your decision</option>
-            <option value="active" data-i18n="client.tabScheduled">Scheduled</option>
-            <option value="completed" data-i18n="client.tabCompleted">Completed</option>
-          </select>
-          <input type="text" id="client-filter-q" data-i18n-ph="client.searchPh" placeholder="Search ID, project, app…" style="min-width:160px; flex:1;" oninput="onClientFilterChange('q')">
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capProject">Project</span>
+            <select id="client-filter-project" onchange="onClientFilterChange('project')">
+              <option value="all" data-i18n="client.fProjects">All projects</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capApp">Application</span>
+            <select id="client-filter-app" onchange="onClientFilterChange('app')">
+              <option value="all" data-i18n="client.fApps">All applications</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capEnv">Environment</span>
+            <select id="client-filter-env" onchange="onClientFilterChange('env')">
+              <option value="all" data-i18n="client.fEnvs">All environments</option>
+              <option value="Production" data-i18n="client.envProd">Production</option>
+              <option value="test" data-i18n="client.envTest">Test</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capStatus">Status</span>
+            <select id="client-filter-status" onchange="onClientFilterChange('status')">
+              <option value="all" data-i18n="client.tabAll">All</option>
+              <option value="waiting" data-i18n="client.tabAwaiting">Awaiting your decision</option>
+              <option value="active" data-i18n="client.tabScheduled">Scheduled</option>
+              <option value="completed" data-i18n="client.tabCompleted">Completed</option>
+            </select>
+          </div>
+          <div class="filter-field" style="flex:1; min-width:180px;">
+            <span class="fl-cap" data-i18n="flt.capSearch">Search</span>
+            <span class="search-field" style="width:100%;">
+              <svg class="search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+              <input type="text" id="client-filter-q" data-i18n-ph="client.searchPh" placeholder="Search ID, project, app…" style="width:100%;" oninput="onClientFilterChange('q')">
+            </span>
+          </div>
         </div>
       </div>
+      <div id="client-active-filters"></div>
       <div id="client-list"></div>
     </div>
   </div>
@@ -1724,27 +2078,31 @@
     <h2 class="section-title" data-i18n="title.account">My profile</h2>
     <p class="section-desc" data-i18n="desc.account">Your account, API tokens and activity history.</p>
 
-    <div class="card" style="margin-bottom:16px;">
-      <label style="margin-bottom:8px;" data-i18n="account.language">Interface language</label>
-      <div class="radio-row">
-        <label class="radio-pill"><input type="radio" name="app-lang" value="pl" onchange="setLanguage('pl')"> Polish</label>
-        <label class="radio-pill selected"><input type="radio" name="app-lang" value="en" checked onchange="setLanguage('en')"> English</label>
+    <!-- Who you are comes first, and the language switch sits beside it rather than
+         above it in a full-width band: two radio pills never needed the whole page,
+         and pushing the name below them buried the one thing this view is about. -->
+    <div class="profile-head">
+      <div class="card">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="avatar static" id="profile-avatar" style="width:44px; height:44px; font-size:15px;"></div>
+          <div style="min-width:0;">
+            <div style="font-weight:600; font-size:15px;" id="profile-name"></div>
+            <div class="mono" style="font-size:12px; color:var(--text-muted); margin-top:2px;" id="profile-email"></div>
+          </div>
+          <span class="badge" id="profile-role" style="margin-left:auto; background:var(--cyan-soft); color:var(--cyan);"></span>
+        </div>
       </div>
-      <p style="font-size:11px; color:var(--text-muted); margin:8px 0 0 0;" data-i18n="account.languageNote">The switch translates the navigation and main headings.</p>
+      <div class="card">
+        <label style="margin-bottom:8px;" data-i18n="account.language">Interface language</label>
+        <div class="radio-row">
+          <label class="radio-pill"><input type="radio" name="app-lang" value="pl" onchange="setLanguage('pl')"> Polski</label>
+          <label class="radio-pill selected"><input type="radio" name="app-lang" value="en" checked onchange="setLanguage('en')"> English</label>
+        </div>
+      </div>
     </div>
 
     <div class="grid-2" style="align-items:start;">
       <div>
-        <div class="card" style="margin-bottom:16px;">
-          <div style="display:flex; align-items:center; gap:10px;">
-            <div class="avatar" id="profile-avatar"></div>
-            <div>
-              <div style="font-weight:600; font-size:13px;" id="profile-name"></div>
-              <div class="mono" style="font-size:11.5px; color:var(--text-muted);" id="profile-email"></div>
-            </div>
-          </div>
-        </div>
-
         <div class="card" style="margin-bottom:16px;">
           <label style="margin-bottom:8px;" data-i18n="acc.signinSecurity">Sign-in security</label>
           <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:8px;">
@@ -1755,10 +2113,12 @@
             </div>
             <span id="twofa-badge" class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--green-soft); color:#0F7A38; white-space:nowrap;" data-i18n="acc.twofaActive">✓ Active</span>
           </div>
-          <button class="mini-btn" style="margin-top:10px;" onclick="reconfigure2FA()" data-i18n="acc.reconfigure">Reconfigure 2FA</button>
+          <div class="card-actions" style="margin-top:10px;">
+            <button class="mini-btn icon-btn" onclick="reconfigure2FA()"><span class="mb-ic" aria-hidden="true">🔄</span> <span data-i18n="acc.reconfigure">Reconfigure 2FA</span></button>
+          </div>
         </div>
 
-        <div class="card" style="margin-bottom:16px;">
+        <div class="card">
           <label style="margin-bottom:8px;" data-i18n="acc.changePassword">Change password</label>
           <div class="field">
             <label data-i18n="acc.currentPass">Current password</label>
@@ -1775,10 +2135,14 @@
           </div>
           <p style="font-size:11px; color:var(--text-muted); margin:0 0 12px 0;" data-i18n="acc.strongNote">Strong password: min. 12 characters, an uppercase and lowercase letter, a digit and a special character.</p>
           <div id="chg-error" style="display:none; font-size:12px; color:#A81E1E; margin-bottom:10px;"></div>
-          <button class="btn" onclick="changePassword()" data-i18n="acc.changePassword">Change password</button>
+          <div class="card-actions">
+            <button class="btn" onclick="changePassword()" data-i18n="acc.changePassword">Change password</button>
+          </div>
         </div>
+      </div>
 
-        <div class="card">
+      <div>
+        <div class="card" style="margin-bottom:16px;">
           <div class="toolbar" style="margin-bottom:6px;">
             <label style="margin-bottom:0;" data-i18n="acc.apiTokens">API tokens</label>
             <button class="mini-btn" onclick="toggleNewTokenForm()"><span aria-hidden="true">＋</span> <span data-i18n="acc.genNewToken">Generate new token</span></button>
@@ -1794,7 +2158,9 @@
                 <label class="radio-pill"><input type="radio" name="token-expiry" value="none"> <span data-i18n="acc.noExpiry">No expiry</span></label>
               </div>
             </div>
-            <button class="btn" onclick="generateApiToken()" data-i18n="acc.generate">Generate</button>
+            <div class="card-actions">
+              <button class="btn" onclick="generateApiToken()" data-i18n="acc.generate">Generate</button>
+            </div>
           </div>
 
           <div class="card" id="token-reveal" style="display:none; background:var(--cyan-soft); border:1px solid #BEE7EB; margin-bottom:14px;">
@@ -1807,29 +2173,40 @@
             <p style="font-size:11px; color:#0A6E7A; margin:8px 0 0 0;" data-i18n="acc.saveNow">Save it now — we won't show it again.</p>
           </div>
 
-          <table>
-            <thead><tr><th data-i18n="acc.thToken">Token</th><th data-i18n="acc.thCreated">Created</th><th data-i18n="acc.thValidity">Validity</th><th data-i18n="acc.thStatus">Status</th><th></th></tr></thead>
-            <tbody id="tokens-table"></tbody>
-          </table>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th data-i18n="acc.thToken">Token</th><th data-i18n="acc.thCreated">Created</th><th data-i18n="acc.thValidity">Validity</th><th data-i18n="acc.thStatus">Status</th><th></th></tr></thead>
+              <tbody id="tokens-table"></tbody>
+            </table>
+          </div>
         </div>
-      </div>
 
-      <div>
         <div class="card">
           <label style="margin-bottom:8px;" data-i18n="acc.signinHistory">Sign-in history</label>
-          <div class="toolbar" style="margin-bottom:10px; gap:8px;">
-            <input type="text" id="login-history-search" data-i18n-ph="acc.filterIpDevice" placeholder="Filter by IP or device..." style="width:180px; padding:6px 10px; font-size:12.5px;" oninput="renderLoginHistory()">
-            <div style="display:flex; align-items:center; gap:6px;">
-              <input type="date" id="login-history-from" style="padding:6px 8px; font-size:12.5px;" onchange="renderLoginHistory()">
-              <span style="color:var(--text-faint); font-size:12px;">–</span>
-              <input type="date" id="login-history-to" style="padding:6px 8px; font-size:12.5px;" onchange="renderLoginHistory()">
-              <button class="mini-btn" onclick="clearLoginHistoryDateFilter()" data-i18n="acc.clearDates">Clear dates</button>
+          <div class="filters" style="margin-bottom:10px;">
+            <div class="filter-field">
+              <span class="fl-cap" data-i18n="flt.capSearch">Search</span>
+              <span class="search-field">
+                <svg class="search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+                <input type="text" id="login-history-search" data-i18n-ph="acc.filterIpDevice" placeholder="Filter by IP or device..." style="width:170px;" oninput="renderLoginHistory()">
+              </span>
+            </div>
+            <div class="filter-field">
+              <span class="fl-cap" data-i18n="flt.capPeriod">Period</span>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <input type="date" id="login-history-from" style="height:var(--control-h-sm); padding:6px 8px; font-size:12.5px; width:auto;" onchange="renderLoginHistory()">
+                <span style="color:var(--text-faint); font-size:12px;">–</span>
+                <input type="date" id="login-history-to" style="height:var(--control-h-sm); padding:6px 8px; font-size:12.5px; width:auto;" onchange="renderLoginHistory()">
+                <button class="mini-btn" onclick="clearLoginHistoryDateFilter()" data-i18n="acc.clearDates">Clear dates</button>
+              </div>
             </div>
           </div>
-          <table>
-            <thead><tr><th data-i18n="acc.thDate">Date</th><th data-i18n="acc.thIp">IP address</th><th data-i18n="acc.thDevice">Device</th></tr></thead>
-            <tbody id="login-history-table"></tbody>
-          </table>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th data-i18n="acc.thDate">Date</th><th data-i18n="acc.thIp">IP address</th><th data-i18n="acc.thDevice">Device</th></tr></thead>
+              <tbody id="login-history-table"></tbody>
+            </table>
+          </div>
           <div style="text-align:center; margin-top:10px;">
             <button class="mini-btn" id="login-history-more-btn" onclick="showMoreLoginHistory()" data-i18n="acc.showMore">Show more</button>
           </div>
@@ -1849,21 +2226,34 @@
       <div class="toolbar">
         <div class="filters">
           <span class="filter-label" data-i18n="dep.filterBy">Filter by</span>
-          <select id="audit-filter-action" onchange="renderAuditLog()">
-            <option value="all" data-i18n="aud.allActions">All actions</option>
-            <option value="added" data-i18n="aud.added">Addition</option>
-            <option value="removed" data-i18n="aud.removed">Removal</option>
-            <option value="changed" data-i18n="aud.changed">Change</option>
-          </select>
-          <select id="audit-filter-entity" onchange="renderAuditLog()">
-            <option value="all" data-i18n="aud.allObjects">All objects</option>
-            <option value="Deployment target" data-i18n="aud.targets">Deployment targets</option>
-            <option value="Application" data-i18n="aud.apps">Applications</option>
-            <option value="User" data-i18n="aud.users">Users</option>
-          </select>
-          <input type="text" id="audit-filter-search" data-i18n-ph="aud.searchPh" placeholder="Search in description / person..." style="width:220px; padding:6px 10px; font-size:12.5px;" oninput="renderAuditLog()">
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capAction">Action</span>
+            <select id="audit-filter-action" onchange="renderAuditLog()">
+              <option value="all" data-i18n="aud.allActions">All actions</option>
+              <option value="added" data-i18n="aud.added">Addition</option>
+              <option value="removed" data-i18n="aud.removed">Removal</option>
+              <option value="changed" data-i18n="aud.changed">Change</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capObject">Object</span>
+            <select id="audit-filter-entity" onchange="renderAuditLog()">
+              <option value="all" data-i18n="aud.allObjects">All objects</option>
+              <option value="Deployment target" data-i18n="aud.targets">Deployment targets</option>
+              <option value="Application" data-i18n="aud.apps">Applications</option>
+              <option value="User" data-i18n="aud.users">Users</option>
+            </select>
+          </div>
+          <div class="filter-field" style="flex:1; min-width:200px;">
+            <span class="fl-cap" data-i18n="flt.capSearch">Search</span>
+            <span class="search-field" style="width:100%; max-width:280px;">
+              <svg class="search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+              <input type="text" id="audit-filter-search" data-i18n-ph="aud.searchPh" placeholder="Search in description / person..." style="width:100%;" oninput="renderAuditLog()">
+            </span>
+          </div>
         </div>
       </div>
+      <div id="audit-active-filters"></div>
       <div class="table-scroll" style="max-height:640px; margin-top:10px;">
         <table>
           <thead><tr><th data-i18n="aud.thDateTime">Date and time</th><th data-i18n="aud.thWho">Who</th><th data-i18n="aud.thAction">Action</th><th data-i18n="aud.thObject">Object</th><th data-i18n="aud.thDetails">Details</th><th data-i18n="aud.thProject">Project</th></tr></thead>
@@ -1877,17 +2267,31 @@
     <h2 class="section-title" data-i18n="title.help">Help</h2>
     <p class="section-desc" id="help-intro">Key information about the application, a description of the roles and the API documentation.</p>
 
+    <div class="filters" style="margin-bottom:14px;">
+      <div class="filter-field">
+        <span class="fl-cap" data-i18n="flt.capSearch">Search</span>
+        <span class="search-field">
+          <svg class="search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+          <input type="text" id="help-search" data-i18n-ph="help.searchPh" placeholder="Search help topics, roles, endpoints..." style="width:300px;" oninput="renderHelp()">
+        </span>
+      </div>
+      <button class="af-clear" id="help-search-clear" style="display:none;" onclick="clearHelpSearch()" data-i18n="flt.clearAll">Clear all</button>
+    </div>
+
     <div id="help-basics" class="card" style="margin-bottom:16px;"></div>
     <div id="help-roles" class="card" style="margin-bottom:16px;"></div>
 
-    <div class="card">
+    <div class="card" id="help-api-card">
       <div class="toolbar" style="margin-bottom:6px;">
         <label style="margin-bottom:0;" id="help-api-title">API documentation</label>
         <button class="mini-btn" onclick="toggleApiDocs()"><span id="api-docs-toggle-label">Show</span></button>
       </div>
       <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 4px 0;" id="help-api-desc">A description of the endpoints for integration — e.g. updating a deployment status from a CI/CD pipeline.</p>
+      <p style="font-size:11.5px; color:var(--cyan); font-weight:600; margin:6px 0 0 0; display:none;" id="help-api-hits"></p>
       <div id="api-docs-body" style="display:none; margin-top:12px;"></div>
     </div>
+
+    <div class="card" id="help-no-match" style="display:none; text-align:center; color:var(--text-muted); font-size:12.5px;"></div>
   </div>
 </div>
 
@@ -1919,7 +2323,7 @@
     </div>
     <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:18px;">
       <button class="mini-btn" onclick="closeConfirmModal(false)" data-i18n="common.cancel">Cancel</button>
-      <button class="btn" id="confirm-modal-ok" style="background:#A81E1E; border-color:#A81E1E;" onclick="closeConfirmModal(true)">Delete</button>
+      <button class="btn danger" id="confirm-modal-ok" onclick="closeConfirmModal(true)">Delete</button>
     </div>
   </div>
 </div>
@@ -1952,8 +2356,11 @@
     <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:14px;" data-i18n="editdep.help">Release managers and administrators can adjust the version, start time and changelog of a deployment that has not finished yet.</div>
     <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" data-i18n="editdep.versions">Application versions</label>
     <div id="edit-dep-versions" style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;"></div>
-    <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" data-i18n="editdep.time">Start time</label>
-    <input type="time" id="edit-dep-time" style="margin-bottom:14px; box-sizing:border-box;">
+    <!-- A start is one moment, so it is one control. A batch rollout has no single
+         start date — its days live in the schedule table — so it keeps a time. -->
+    <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" id="edit-dep-start-label" data-i18n="editdep.start">Start</label>
+    <input type="datetime-local" id="edit-dep-start" class="mono" style="margin-bottom:14px; box-sizing:border-box;">
+    <input type="time" id="edit-dep-time" class="mono" style="margin-bottom:14px; box-sizing:border-box; display:none;">
     <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" data-i18n="sch.changelog">Changelog</label>
     <textarea id="edit-dep-changelog" style="width:100%; min-height:120px; box-sizing:border-box; font-size:13px; line-height:1.55;"></textarea>
     <label style="font-size:11px; color:var(--text-muted); margin:12px 0 4px 0; display:block;" data-i18n="sch.changelogAttach">Changelog attachment (optional)</label>
@@ -2070,11 +2477,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.16.0"></script>
-<script src="i18n/en.js?v=0.16.0"></script>
+<script src="i18n/pl.js?v=0.17.0"></script>
+<script src="i18n/en.js?v=0.17.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.16.0';
+  const ROLLDESK_VERSION = '0.17.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -2120,6 +2527,10 @@
       ROLLDESK_LATEST = data.latest || null;
       versionCheckError = data.error || null;
       versionCheckState = ROLLDESK_LATEST ? 'ok' : 'error';
+      // NOTIFY_LANG travels with this response (see routes/version.js): the
+      // instance decides what language its notifications go out in, regardless
+      // of the language the sender happens to be using.
+      NOTIFY_LANG = (data.notifyLang === 'pl' || data.notifyLang === 'en') ? data.notifyLang : '';
     } catch(err){
       versionCheckState = 'error';
       ROLLDESK_LATEST = null;
@@ -2139,9 +2550,33 @@
   function t(key){ return (I18N[LANG] && I18N[LANG][key]) || (I18N.pl[key]) || key; }
   // Translate + interpolate {token} placeholders, e.g. tf('client.welcome', {name:'ACME'}).
   function tf(key, params){
-    let s = t(key);
+    return interpolate(t(key), params);
+  }
+  function interpolate(s, params){
     if(params){ for(const k in params){ s = s.split('{'+k+'}').join(params[k]); } }
     return s;
+  }
+
+  // ---- Language of outgoing notifications ----
+  // Set from NOTIFY_LANG on the backend (delivered by /api/version). Empty means
+  // "use my own UI language", which is what RollDesk did before this existed.
+  //
+  // A notification is composed in the sender's browser but read by a fixed
+  // audience — the client's channel, the team's inbox. Tying its language to
+  // whoever clicked meant one rollout was announced in Polish and the next in
+  // English, and since the UI starts in English, a first-time operator sent
+  // English to a Polish-speaking client. Both dictionaries are always loaded, so
+  // composing in another language costs nothing.
+  let NOTIFY_LANG = '';
+  function notifyLang(){ return NOTIFY_LANG || LANG; }
+  // `t` / `tf` pinned to the notification language. Used for every string that
+  // ends up in a notification body or subject; on-screen text keeps t()/tf().
+  function tn(key){
+    const lang = notifyLang();
+    return (I18N[lang] && I18N[lang][key]) || (I18N.pl[key]) || key;
+  }
+  function tnf(key, params){
+    return interpolate(tn(key), params);
   }
   function escapeHtml(v){
     return String(v == null ? '' : v)
@@ -2153,6 +2588,12 @@
   function envLabel(env){
     if(!env) return '';
     if(env === 'Production') return t('proj.prod');
+    return String(env);
+  }
+  // Same, for a notification body — pinned to the notification language.
+  function envLabelNotif(env){
+    if(!env) return '';
+    if(env === 'Production') return tn('proj.prod');
     return String(env);
   }
   function envTagHtml(env){
@@ -2190,6 +2631,23 @@
     else if(vals.length === allKeys.length) lbl.textContent = t('filter.allSelected');
     else if(vals.length <= 2) lbl.textContent = vals.map(v=> labelMap[v] || v).join(', ');
     else lbl.textContent = tf('filter.nSelected', {n: vals.length});
+    // A count next to the label, so a narrowed filter is legible without opening
+    // the menu — the truncated text alone couldn't say how many were left out.
+    const btn = lbl.closest('.ms-filter-btn');
+    if(btn){
+      let badge = btn.querySelector('.ms-count');
+      const partial = vals.length && vals.length < allKeys.length;
+      if(partial){
+        if(!badge){
+          badge = document.createElement('span');
+          badge.className = 'ms-count';
+          btn.insertBefore(badge, btn.querySelector('.ms-caret'));
+        }
+        badge.textContent = String(vals.length);
+      } else if(badge){
+        badge.remove();
+      }
+    }
   }
 
   // Deployments: default = all statuses; time range keeps the list to last 14 days.
@@ -2362,6 +2820,12 @@
       const val = I18N[LANG] && I18N[LANG][el.getAttribute('data-i18n-html')];
       if(val != null) el.innerHTML = val;
     });
+    // Native tooltips on controls whose visible text is data, not a label (the
+    // avatar shows initials), so the label has nowhere else to go.
+    document.querySelectorAll('[data-i18n-title]').forEach(el=>{
+      const val = I18N[LANG] && I18N[LANG][el.getAttribute('data-i18n-title')];
+      if(val != null) el.setAttribute('title', val);
+    });
     // Hover tooltips on info (ℹ) icons — the help text lives in a popover instead
     // of a long paragraph on screen.
     document.querySelectorAll('[data-i18n-tip]').forEach(el=>{
@@ -2379,6 +2843,9 @@
     if(active && active.dataset.view) document.getElementById('topbar-title').textContent = titleFor(active.dataset.view);
     try { refreshDeployStatusMsLabel(); } catch(e){}
     try { refreshInstallerStatusMsLabel(); } catch(e){}
+    // The role badge on the profile holds a translated value, not a static key.
+    const roleBadge = document.getElementById('profile-role');
+    if(roleBadge && currentUser && currentUser.role) roleBadge.textContent = t('role.' + currentUser.role);
   }
   // Reflect the active language in every language toggle (profile + login screen).
   function syncLanguageControls(){
@@ -2411,11 +2878,43 @@
     closeLangMenu();
     setLanguage(lang);
   }
-  // Close the dropdown when clicking anywhere outside it.
+  function toggleAccountMenu(e){
+    if(e) e.stopPropagation();
+    const list = document.getElementById('topbar-account-list');
+    if(!list) return;
+    const willOpen = list.style.display === 'none';
+    list.style.display = willOpen ? 'block' : 'none';
+    const btn = document.getElementById('topbar-avatar');
+    if(btn) btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    if(willOpen){
+      // The menu names the account it acts on, so a shared machine can't log the
+      // wrong person out by accident.
+      const name = document.getElementById('account-menu-name');
+      const mail = document.getElementById('account-menu-email');
+      if(name) name.textContent = (currentUser && currentUser.name) || '';
+      if(mail) mail.textContent = (currentUser && currentUser.email) || '';
+    }
+  }
+  function closeAccountMenu(){
+    const list = document.getElementById('topbar-account-list');
+    if(list) list.style.display = 'none';
+    const btn = document.getElementById('topbar-avatar');
+    if(btn) btn.setAttribute('aria-expanded', 'false');
+  }
+  // Signing out throws away unsaved edits and costs a password plus a 2FA code to
+  // undo, so it asks first.
+  function confirmLogout(){
+    showAppConfirm(t('auth.logoutTitle'), t('auth.logoutBody'), logout, t('nav.logout'), 'neutral');
+  }
+
+  // Close the dropdowns when clicking anywhere outside them.
   document.addEventListener('click', (e)=>{
     const menu = document.getElementById('topbar-lang');
     if(menu && !menu.contains(e.target)) closeLangMenu();
+    const acct = document.getElementById('topbar-account');
+    if(acct && !acct.contains(e.target)) closeAccountMenu();
   });
+  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeAccountMenu(); });
   function setLanguage(lang){
     LANG = (lang === 'en') ? 'en' : 'pl';
     try { localStorage.setItem(LANG_KEY, LANG); } catch(e){}
@@ -2519,27 +3018,31 @@
     tbody.innerHTML = CLIENTS.map(c=>{
       const count = Object.values(PROJECTS).filter(p=>p.client === c.key).length;
       const actions = isLoggedInAsAdmin()
-        ? `<button class="mini-btn" onclick="openClientEdit('${c.key}')">${t('usr.edit')}</button> <button class="mini-btn mini-btn-danger" onclick="deleteClient('${c.key}')">${t('cli.delete')}</button>`
+        ? `<button class="mini-btn icon-btn" onclick="openClientEdit('${c.key}')"><span class="mb-ic" aria-hidden="true">✎</span> ${t('usr.edit')}</button> ${rowMenuHtml('client-menu-'+c.key, [
+            {label:t('cli.delete'), icon:'🗑', onclick:`deleteClient('${c.key}')`, danger:true}
+          ])}`
         : `<span style="color:var(--text-faint); font-size:11.5px;">${t('usr.noPerms')}</span>`;
-      return `<tr><td>${c.name}</td><td class="mono">${c.domain || '—'}</td><td class="mono">${count}</td><td style="white-space:nowrap;">${actions}</td></tr>`;
+      return `<tr><td>${c.name}</td><td class="mono">${c.domain || '—'}</td><td class="mono">${count}</td><td style="white-space:nowrap; text-align:right;">${actions}</td></tr>`;
     }).join('');
+  }
+
+  function closeClientForm(){
+    closeFormModal('client-modal');
+    clearFormErrors('client-form');
   }
 
   function toggleClientForm(){
     if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can manage clients'); return; }
-    const f = document.getElementById('client-form');
-    const opening = f.style.display === 'none';
-    f.style.display = opening ? 'block' : 'none';
-    if(opening){
-      editingClientKey = null;
-      document.getElementById('client-form-title').textContent = t('cli.newClient');
-      document.getElementById('client-form-submit').textContent = t('cli.addClientSubmit');
-      document.getElementById('client-name-input').value = '';
-      document.getElementById('client-domain-input').value = '';
-      // Start a new client with one blank webhook (at least one is required).
-      clientDraftWebhooks = [{name:'', url:'', enabled:true, events:defaultEventMap()}];
-      renderClientWebhooks();
-    }
+    editingClientKey = null;
+    clearFormErrors('client-form');
+    document.getElementById('client-form-title').textContent = t('cli.newClient');
+    document.getElementById('client-form-submit').textContent = t('cli.addClientSubmit');
+    document.getElementById('client-name-input').value = '';
+    document.getElementById('client-domain-input').value = '';
+    // Start a new client with one blank webhook (at least one is required).
+    clientDraftWebhooks = [{name:'', url:'', enabled:true, events:defaultEventMap()}];
+    renderClientWebhooks();
+    openFormModal('client-modal');
   }
 
   function openClientEdit(key){
@@ -2553,8 +3056,9 @@
     // Deep-copy the client's webhooks into the working draft.
     clientDraftWebhooks = (c.webhooks || []).map(w=>({name:w.name||'', url:w.url||'', enabled:w.enabled!==false, events:Object.assign(defaultEventMap(), w.events||{})}));
     if(!clientDraftWebhooks.length) clientDraftWebhooks = [{name:'', url:'', enabled:true, events:defaultEventMap()}];
+    clearFormErrors('client-form');
     renderClientWebhooks();
-    document.getElementById('client-form').style.display = 'block';
+    openFormModal('client-modal');
   }
 
   // Validate + normalise the draft webhooks. Returns the cleaned list, or null
@@ -2602,7 +3106,7 @@
     populateClientSelect();
     renderProjectsList();
     persistClients();
-    toggleClientForm();
+    closeClientForm();
   }
 
   function deleteClient(key){
@@ -2704,25 +3208,30 @@
       if(!isLoggedInAsAdmin()){
         actions = `<span style="color:var(--text-faint); font-size:11.5px;">${t('usr.noPerms')}</span>`;
       } else if(u.archived){
-        actions = `<button class="mini-btn" onclick="restoreUser(${i})">${t('usr.restore')}</button>`;
+        actions = `<button class="mini-btn icon-btn" onclick="restoreUser(${i})"><span class="mb-ic" aria-hidden="true">↺</span> ${t('usr.restore')}</button>`;
       } else {
-        const pwAction = u.invitePending
-          ? `<button class="mini-btn" onclick="resendInvite(${i})">${t('usr.resendInvite')}</button>`
-          : `<button class="mini-btn" onclick="resetUserPassword(${i})">${t('usr.resetPass')}</button>`;
+        // Edit is the everyday action and stays a button; the rest live behind ⋯.
+        const menu = [
+          u.invitePending
+            ? {label:t('usr.resendInvite'), icon:'✉', onclick:`resendInvite(${i})`}
+            : {label:t('usr.resetPass'), icon:'🔑', onclick:`resetUserPassword(${i})`}
+        ];
         // Only offered where it can do something: the account has an
         // authenticator enrolled, and it isn't the signed-in admin (who resets
         // their own from the Account panel, proving a current code first).
-        const mfaAction = (u.mfaEnabled && !(currentUser && currentUser.id === u.id))
-          ? ` <button class="mini-btn" onclick="resetUserMfa(${i})">${t('usr.resetMfa')}</button>`
-          : '';
-        actions = `<button class="mini-btn" onclick="openUserEdit(${i})">${t('usr.edit')}</button> ${pwAction}${mfaAction} <button class="mini-btn" onclick="archiveUser(${i})">${t('usr.archive')}</button>`;
+        if(u.mfaEnabled && !(currentUser && currentUser.id === u.id)){
+          menu.push({label:t('usr.resetMfa'), icon:'🛡', onclick:`resetUserMfa(${i})`});
+        }
+        menu.push(null);
+        menu.push({label:t('usr.archive'), icon:'🗄', onclick:`archiveUser(${i})`, danger:true});
+        actions = `<button class="mini-btn icon-btn" onclick="openUserEdit(${i})"><span class="mb-ic" aria-hidden="true">✎</span> ${t('usr.edit')}</button> ${rowMenuHtml('user-menu-'+i, menu)}`;
       }
       return `<tr ${u.archived ? 'style="opacity:0.65;"' : ''}>
         <td>${nameCell}</td>
         <td><span class="mono" title="${t('roleDesc.'+u.role)}" style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:${info.bg}; color:${info.color}; cursor:help;">${t('role.'+u.role)}</span></td>
         <td style="font-size:12.5px;">${u.group ? escapeHtml(u.group) : '<span style="color:var(--text-faint);">—</span>'}</td>
         <td style="font-size:12.5px;">${projLabel}</td>
-        <td style="white-space:nowrap;">${actions}</td>
+        <td style="white-space:nowrap; text-align:right;">${actions}</td>
       </tr>`;
     }).join('') || `<tr><td colspan="5" style="color:var(--text-faint); font-size:13px;">${usersTab === 'archived' ? t('usr.noArchived') : t('usr.noActive')}</td></tr>`;
   }
@@ -2761,6 +3270,7 @@
     setText('profile-email', email);
     setText('profile-avatar', initials);
     setText('topbar-avatar', initials);
+    setText('profile-role', me.role ? t('role.' + me.role) : '');
     // Reflect the real account in the Users list (the single bootstrapped admin)
     // instead of leaving it empty or showing demo people.
     if(email && !USERS.some(u => (u.email||'').toLowerCase() === email.toLowerCase())){
@@ -2828,12 +3338,34 @@
     }
   }
 
+  // Pill row for the change history. The search term gets one too: it is the
+  // filter most easily forgotten, because the box scrolls out of view.
+  function renderAuditActiveFilters(actionVal, entityVal, q){
+    const slot = document.getElementById('audit-active-filters');
+    if(!slot) return;
+    const label = id => selectedOptionLabel(document.getElementById(id));
+    slot.innerHTML = activeFiltersHtml([
+      {cap: t('flt.capAction'), val: actionVal !== 'all' ? label('audit-filter-action') : '', onClear: "clearAuditFilter('action')"},
+      {cap: t('flt.capObject'), val: entityVal !== 'all' ? label('audit-filter-entity') : '', onClear: "clearAuditFilter('entity')"},
+      {cap: t('flt.capSearch'), val: q || '', onClear: "clearAuditFilter('search')"},
+    ], 'clearAuditFilter("all")');
+  }
+
+  function clearAuditFilter(which){
+    const set = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
+    if(which === 'all' || which === 'action') set('audit-filter-action', 'all');
+    if(which === 'all' || which === 'entity') set('audit-filter-entity', 'all');
+    if(which === 'all' || which === 'search') set('audit-filter-search', '');
+    renderAuditLog();
+  }
+
   function renderAuditLog(){
     const tbody = document.getElementById('audit-table');
     if(!tbody) return;
     const actionVal = (document.getElementById('audit-filter-action')||{}).value || 'all';
     const entityVal = (document.getElementById('audit-filter-entity')||{}).value || 'all';
     const q = ((document.getElementById('audit-filter-search')||{}).value || '').toLowerCase().trim();
+    renderAuditActiveFilters(actionVal, entityVal, q);
 
     const actionMeta = {
       added:    {label:t('aud.added'),    color:'#0F7A38', bg:'var(--green-soft)'},
@@ -2961,11 +3493,11 @@
     const facts = [];
     if(appsLabel) facts.push(appsLabel);
     if(r.mode === 'batch'){
-      facts.push(envLabel(r.env || 'Production'));
-      facts.push(tf('notif.locationsN', {n: r.totalLocations || 0}));
-      facts.push(tf('notif.daysN', {n: r.days || 1}));
+      facts.push(envLabelNotif(r.env || 'Production'));
+      facts.push(tnf('notif.locationsN', {n: r.totalLocations || 0}));
+      facts.push(tnf('notif.daysN', {n: r.days || 1}));
     } else {
-      facts.push(envLabel(r.env || ''));
+      facts.push(envLabelNotif(r.env || ''));
       if(r.location) facts.push(r.location);
     }
     lines.push(facts.filter(Boolean).join(' · '));
@@ -2975,17 +3507,20 @@
       try { if(typeof getDateForDay === 'function') startIso = getDateForDay(r, 1); } catch(e){}
     }
     // Start and author on one line: both answer "when, and on whose say-so".
+    // The weekday used to be on the multi-day start date only, so a single-day
+    // deployment — the case a client is most often asked to approve — gave a bare
+    // ISO date.
     const when = startIso
-      ? ((r.mode === 'batch' && fmtDow(startIso)) ? fmtDow(startIso) + ', ' : '') + fmtDate(startIso)
-        + (r.time ? ' ' + tf('notif.atTime', {time: fmtTime(r.time)}) : '')
+      ? fmtDateDowNotif(startIso)
+        + (r.time ? ' ' + tnf('notif.atTime', {time: fmtTime(r.time)}) : '')
       : '';
     const tail = [];
-    if(when) tail.push(t('notif.start') + ': ' + when);
-    if(r.createdBy) tail.push(t('notif.createdBy') + ': ' + r.createdBy);
+    if(when) tail.push(tn('notif.start') + ': ' + when);
+    if(r.createdBy) tail.push(tn('notif.createdBy') + ': ' + r.createdBy);
     if(tail.length) lines.push(tail.join(' · '));
     let body = lines.filter(Boolean).join('\n');
-    if(r.changelog) body += '\n\n' + t('notif.changelogLabel') + ':\n' + r.changelog;
-    if(r.attachment) body += '\n' + t('notif.attachment') + ': ' + r.attachment;
+    if(r.changelog) body += '\n\n' + tn('notif.changelogLabel') + ':\n' + r.changelog;
+    if(r.attachment) body += '\n' + tn('notif.attachment') + ': ' + r.attachment;
     // No "open the schedule in RollDesk" line: the backend links the deployment
     // id above, which is both shorter and lands on the right row.
     return body;
@@ -3001,7 +3536,7 @@
     const facts = [];
     const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
     if(appVer) facts.push(appVer);
-    const env = envLabel(d.env || '');
+    const env = envLabelNotif(d.env || '');
     if(env) facts.push(env);
     return facts.length ? head + '\n' + facts.join(' · ') : head;
   }
@@ -3033,7 +3568,7 @@
     logAudit('notified', 'Notification', 'Client comments on ' + (rec.id||'') + ' — recipients: ' + notifySummary('clientComment', rec.projectKey, false), (PROJECTS[rec.projectKey]||{}).name || rec.projectKey, 'aud.d.notifyClientComment', {id: rec.id||'', recipients: notifySummary('clientComment', rec.projectKey, false)});
     const projName = (PROJECTS[rec.projectKey]||{}).name || rec.projectKey;
     dispatchEventNotification('clientComment', rec.projectKey,
-      'RollDesk — ' + t('ev.clientComment'),
+      'RollDesk — ' + tn('ev.clientComment'),
       (rec.id ? rec.id + ' — ' : '') + projName + '\n' + (note || ''), false, rec.id);
   }
 
@@ -3042,26 +3577,41 @@
   let clientDraftWebhooks = [];
 
   function webhookEventChecklistHtml(i, rec){
-    return NOTIF_EVENT_DEFS.map(e=>`
-      <label style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:400; border:1px solid var(--line); border-radius:6px; padding:3px 8px;">
-        <input type="checkbox" ${rec.events[e.key]?'checked':''} ${rec.enabled?'':'disabled'} onchange="clientDraftWebhooks[${i}].events['${e.key}']=this.checked" style="width:auto;"> ${t('ev.'+e.key)}
-      </label>`).join('');
+    return NOTIF_EVENT_DEFS.map(e=> chkPillHtml(
+      t('ev.' + e.key),
+      !!rec.events[e.key],
+      `${rec.enabled ? '' : 'disabled'} onchange="clientDraftWebhooks[${i}].events['${e.key}']=this.checked"`
+    )).join('');
   }
 
   function renderClientWebhooks(){
     const wrap = document.getElementById('client-webhooks-list');
     if(!wrap) return;
+    // The name, the URL and the two actions used to share one flex row, so on a
+    // laptop the URL squeezed "Send test" and "Remove" past the right edge. The
+    // fields stack now and the actions sit on their own line, aligned right like
+    // every other form footer.
     wrap.innerHTML = clientDraftWebhooks.map((rec,i)=>`
       <div style="border:1px solid var(--line); border-radius:10px; padding:12px; ${rec.enabled?'':'opacity:0.55;'}">
-        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
-          <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" ${rec.enabled?'checked':''} onchange="clientDraftWebhooks[${i}].enabled=this.checked; renderClientWebhooks();" style="width:auto;"></label>
-          <input type="text" value="${(rec.name||'').replace(/"/g,'&quot;')}" placeholder="${t('notif.teamsNamePh')}" onchange="clientDraftWebhooks[${i}].name=this.value.trim()" style="width:200px; font-size:12.5px;">
-          <input type="text" class="mono" value="${(rec.url||'').replace(/"/g,'&quot;')}" placeholder="${t('notif.webhookUrlPh')}" onchange="clientDraftWebhooks[${i}].url=this.value.trim()" style="flex:1; font-size:12.5px;">
-          <button class="mini-btn" type="button" onclick="testClientWebhook(${i})" title="${t('notif.sendTestTitle')}">${t('notif.sendTest')}</button>
-          <button class="mini-btn" type="button" onclick="removeClientWebhook(${i})">${t('notif.remove')}</button>
+        <div class="grid-2" style="margin-bottom:2px;">
+          <div class="field">
+            <label>${t('notif.whName')}</label>
+            <input type="text" value="${(rec.name||'').replace(/"/g,'&quot;')}" placeholder="${t('notif.teamsNamePh')}" onchange="clientDraftWebhooks[${i}].name=this.value.trim()">
+          </div>
+          <div class="field">
+            <label>${t('notif.whUrl')}</label>
+            <input type="text" class="mono" value="${(rec.url||'').replace(/"/g,'&quot;')}" placeholder="${t('notif.webhookUrlPh')}" onchange="clientDraftWebhooks[${i}].url=this.value.trim()">
+          </div>
         </div>
         <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">${t('notif.notifyEvents')}</div>
-        <div style="display:flex; flex-wrap:wrap; gap:6px;">${webhookEventChecklistHtml(i, rec)}</div>
+        <div class="pill-set" style="margin-bottom:10px;">${webhookEventChecklistHtml(i, rec)}</div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; border-top:1px solid var(--line-soft); padding-top:10px;">
+          ${chkPillHtml(t('notif.whEnabled'), !!rec.enabled, `onchange="clientDraftWebhooks[${i}].enabled=this.checked; renderClientWebhooks();"`)}
+          <div style="margin-left:auto; display:flex; gap:8px;">
+            <button class="mini-btn icon-btn" type="button" onclick="testClientWebhook(${i})" title="${t('notif.sendTestTitle')}"><span class="mb-ic" aria-hidden="true">✈</span> ${t('notif.sendTest')}</button>
+            <button class="mini-btn mini-btn-danger icon-btn" type="button" onclick="removeClientWebhook(${i})"><span class="mb-ic" aria-hidden="true">🗑</span> ${t('notif.remove')}</button>
+          </div>
+        </div>
       </div>`).join('') || '<span style="color:var(--text-faint); font-size:12px;">'+t('notif.noWebhooks')+'</span>';
   }
   function addClientWebhook(){ clientDraftWebhooks.push({name:'', url:'', enabled:true, events:defaultEventMap()}); renderClientWebhooks(); }
@@ -3126,9 +3676,12 @@
         <td>${escapeHtml(label)}</td>
         <td>${status}</td>
         <td style="text-align:right; white-space:nowrap;">
-          <button class="mini-btn" onclick="testSsoProvider(${p.id})" data-i18n="sso.test">Test</button>
-          <button class="mini-btn" onclick="editSsoProvider(${p.id})" data-i18n="sso.edit">Edit</button>
-          <button class="mini-btn" onclick="deleteSsoProvider(${p.id})" data-i18n="sso.delete">Delete</button>
+          <button class="mini-btn icon-btn" onclick="editSsoProvider(${p.id})"><span class="mb-ic" aria-hidden="true">✎</span> ${t('sso.edit')}</button>
+          ${rowMenuHtml('sso-menu-'+p.id, [
+            {label:t('sso.test'), icon:'✈', onclick:`testSsoProvider(${p.id})`},
+            null,
+            {label:t('sso.delete'), icon:'🗑', onclick:`deleteSsoProvider(${p.id})`, danger:true}
+          ])}
         </td>
       </tr>`;
     }).join('');
@@ -3150,27 +3703,28 @@
     document.getElementById('sso-client-id').value = '';
     document.getElementById('sso-client-secret').value = '';
     document.getElementById('sso-enabled').checked = true;
+    syncChkPills('sso-form');
     clearFormErrors('sso-form');
     document.getElementById('sso-redirect').value = SSO_REDIRECT_URI;
     document.getElementById('sso-secret-hint').textContent = t('sso.secretHintNew');
     onSsoProviderChange();
   }
 
+  function closeSsoForm(){
+    closeFormModal('sso-modal');
+    clearFormErrors('sso-form');
+  }
+
   function toggleSsoForm(){
     if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can configure SSO'); return; }
-    const f = document.getElementById('sso-form');
-    const opening = f.style.display === 'none';
-    f.style.display = opening ? 'block' : 'none';
-    if(opening){
-      resetSsoForm();
-      document.getElementById('sso-form-title').textContent = t('sso.newTitle');
-    }
+    resetSsoForm();
+    document.getElementById('sso-form-title').textContent = t('sso.newTitle');
+    openFormModal('sso-modal');
   }
 
   function editSsoProvider(id){
     const p = SSO_PROVIDERS_CACHE.find(x=>x.id === id);
     if(!p) return;
-    document.getElementById('sso-form').style.display = 'block';
     document.getElementById('sso-form-title').textContent = t('sso.editTitle');
     document.getElementById('sso-id').value = p.id;
     document.getElementById('sso-domain').value = p.domain;
@@ -3180,11 +3734,12 @@
     document.getElementById('sso-client-id').value = p.clientId || '';
     document.getElementById('sso-client-secret').value = '';
     document.getElementById('sso-enabled').checked = !!p.enabled;
+    syncChkPills('sso-form');
     clearFormErrors('sso-form');
     document.getElementById('sso-redirect').value = SSO_REDIRECT_URI;
     document.getElementById('sso-secret-hint').textContent = p.hasSecret ? t('sso.secretHintKeep') : t('sso.secretHintNew');
     onSsoProviderChange();
-    document.getElementById('sso-form').scrollIntoView({behavior:'smooth', block:'start'});
+    openFormModal('sso-modal');
   }
 
   async function saveSsoProvider(){
@@ -3217,8 +3772,7 @@
       });
       const data = await res.json().catch(()=>({}));
       if(!res.ok){ showFormErrors('sso-form', [{msg: data.error || t('sso.errSave')}]); return; }
-      clearFormErrors('sso-form');
-      document.getElementById('sso-form').style.display = 'none';
+      closeSsoForm();
       showToast(t('sso.saved'));
       await loadSsoProviders();
     } catch(e){
@@ -3255,36 +3809,38 @@
     try { navigator.clipboard.writeText(v); showToast(t('sso.copied')); } catch(e){}
   }
 
+  function closeUserForm(){
+    closeFormModal('user-modal');
+    clearFormErrors('user-form');
+  }
+
   function toggleUserForm(){
     if(!isLoggedInAsAdmin()){ showToast('Only an Administrator can manage users'); return; }
-    const f = document.getElementById('user-form');
-    const opening = f.style.display === 'none';
-    f.style.display = opening ? 'block' : 'none';
-    if(opening){
-      editingUserIndex = null;
-      document.getElementById('user-form-title').textContent = t('usr.newUser');
-      document.getElementById('user-form-submit').textContent = t('usr.addAndInvite');
-      document.getElementById('user-name').value = '';
-      document.getElementById('user-email').value = '';
-      document.getElementById('user-group').value = '';
-      document.getElementById('user-invite-note').style.display = 'flex';
-      // fresh form → role picker unlocked
-      document.querySelectorAll('input[name="user-role"]').forEach(inp=>{
-        inp.disabled = false;
-        inp.closest('.radio-pill').style.opacity = '';
-        inp.closest('.radio-pill').style.cursor = '';
-      });
-      document.getElementById('user-role-lock-note').style.display = 'none';
-      selectRadioPill('user-role', 'rm');
-      onUserRoleChange();
-    }
+    editingUserIndex = null;
+    clearFormErrors('user-form');
+    document.getElementById('user-form-title').textContent = t('usr.newUser');
+    document.getElementById('user-form-submit').textContent = t('usr.addAndInvite');
+    document.getElementById('user-name').value = '';
+    document.getElementById('user-email').value = '';
+    document.getElementById('user-group').value = '';
+    document.getElementById('user-invite-note').style.display = 'flex';
+    // fresh form → role picker unlocked
+    document.querySelectorAll('input[name="user-role"]').forEach(inp=>{
+      inp.disabled = false;
+      inp.closest('.radio-pill').style.opacity = '';
+      inp.closest('.radio-pill').style.cursor = '';
+    });
+    document.getElementById('user-role-lock-note').style.display = 'none';
+    selectRadioPill('user-role', 'rm');
+    onUserRoleChange();
+    openFormModal('user-modal');
   }
 
   function openUserEdit(i){
     if(!isLoggedInAsAdmin()) return;
     editingUserIndex = i;
+    clearFormErrors('user-form');
     const u = USERS[i];
-    const f = document.getElementById('user-form');
     document.getElementById('user-form-title').textContent = t('usr.editUser') + ' — ' + u.name;
     document.getElementById('user-form-submit').textContent = t('cli.saveChanges');
     document.getElementById('user-invite-note').style.display = 'none';
@@ -3316,9 +3872,9 @@
     }
     if(u.role !== 'rm' && u.role !== 'admin'){
       document.querySelectorAll('#user-projects-checks input').forEach(c=>{ c.checked = (u.projects||[]).includes(c.value); });
+      syncChkPills('user-projects-checks');
     }
-    f.style.display = 'block';
-    f.scrollIntoView({behavior:'smooth', block:'center'});
+    openFormModal('user-modal');
   }
 
   function onUserRoleChange(){
@@ -3344,10 +3900,8 @@
       projectsField.style.display = 'block';
       hint.style.display = 'none';
       const wrap = document.getElementById('user-projects-checks');
-      wrap.innerHTML = Object.entries(PROJECTS).map(([key,p])=>`
-        <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:400; border:1px solid var(--line); border-radius:6px; padding:5px 9px;">
-          <input type="checkbox" value="${key}" style="width:auto;"> ${p.name} (${p.clientName})
-        </label>`).join('');
+      wrap.innerHTML = Object.entries(PROJECTS)
+        .map(([key,p])=> chkPillHtml(`${p.name} (${p.clientName})`, false, `value="${key}"`)).join('');
     } else {
       // rm / admin — all access, no project or client picker
       clientField.style.display = 'none';
@@ -3362,10 +3916,8 @@
     const wrap = document.getElementById('user-projects-checks');
     wrap.innerHTML = Object.entries(PROJECTS)
       .filter(([key,p])=> p.client === clientKey)
-      .map(([key,p])=>`
-        <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:400; border:1px solid var(--line); border-radius:6px; padding:5px 9px;">
-          <input type="checkbox" value="${key}" style="width:auto;"> ${p.name}
-        </label>`).join('') || '<span style="color:var(--text-faint); font-size:12px;">This client has no projects yet.</span>';
+      .map(([key,p])=> chkPillHtml(p.name, false, `value="${key}"`)).join('')
+      || '<span style="color:var(--text-faint); font-size:12px;">This client has no projects yet.</span>';
     const c = CLIENTS.find(c=>c.key===clientKey);
     const hint = document.getElementById('user-domain-hint');
     if(c && c.domain){
@@ -3424,7 +3976,7 @@
         showInviteLink(created.invite, email);
       }
       await loadUsers();
-      toggleUserForm();
+      closeUserForm();
     } catch(e){
       showToast('⚠ ' + (e.message || 'Could not save the user'));
     }
@@ -4571,8 +5123,8 @@
       const createdRecs = DEPLOYMENTS_DATA.slice(createdIdsStart);
       const rec = createdRecs.find(x=>x.env === 'Production') || createdRecs[0] || {};
       const body = buildScheduleNotifBody(rec, projName);
-      dispatchEventNotification('created', pk, 'RollDesk — ' + t('ev.created'), body, false, rec.id);
-      if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk — ' + t('ev.approval'), body, false, rec.id);
+      dispatchEventNotification('created', pk, 'RollDesk — ' + tn('ev.created'), body, false, rec.id);
+      if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk — ' + tn('ev.approval'), body, false, rec.id);
     }
     resetScheduleForm();
     goToView('deployments');
@@ -5820,39 +6372,97 @@
   // kept for existing callers
   function renderApiDocsIfNeeded(){ renderHelp(); }
 
+  // The help page is long enough that finding the one paragraph you need meant
+  // reading all of it. The search box filters topics and roles to the matches and
+  // highlights the term inside them; the API section reports how many of its
+  // endpoints match rather than hiding, because it is collapsed by default.
+  function helpQuery(){
+    const el = document.getElementById('help-search');
+    return el ? (el.value || '').trim().toLowerCase() : '';
+  }
+  function clearHelpSearch(){
+    const el = document.getElementById('help-search');
+    if(el) el.value = '';
+    renderHelp();
+    if(el) el.focus();
+  }
+  // Escape first, then wrap the matches — highlighting before escaping would turn
+  // the <mark> we just inserted into visible text.
+  function helpMark(text, q){
+    const safe = escapeHtml(text);
+    if(!q) return safe;
+    const needle = escapeHtml(q);
+    const parts = safe.toLowerCase().split(needle);
+    if(parts.length < 2) return safe;
+    let out = '', at = 0;
+    parts.forEach((p, i)=>{
+      out += safe.substr(at, p.length);
+      at += p.length;
+      if(i < parts.length - 1){ out += '<mark>' + safe.substr(at, needle.length) + '</mark>'; at += needle.length; }
+    });
+    return out;
+  }
+  const helpMatches = (q, ...fields) => !q || fields.some(f => String(f || '').toLowerCase().includes(q));
+
   function renderHelp(){
     const c = HELP_CONTENT[LANG] || HELP_CONTENT.pl;
+    const q = helpQuery();
     const intro = document.getElementById('help-intro'); if(intro) intro.textContent = c.intro;
+    const clear = document.getElementById('help-search-clear');
+    if(clear) clear.style.display = q ? 'inline-block' : 'none';
+
     const basics = document.getElementById('help-basics');
+    const hitBasics = c.basics.map((row, i)=>({row, i})).filter(({row})=>helpMatches(q, row[0], row[1]));
     if(basics){
-      basics.innerHTML = `<label style="margin-bottom:14px;">${c.basicsTitle}</label>` +
-        `<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:10px;">` +
-        c.basics.map(([t,d],i)=>`
-          <div style="display:flex; gap:11px; align-items:flex-start; padding:12px 13px; border:1px solid var(--line); border-radius:10px; background:var(--paper-alt, #fff);">
-            <div style="flex-shrink:0; width:24px; height:24px; border-radius:7px; background:var(--cyan-soft); color:#0A6E7A; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;">${i+1}</div>
+      basics.style.display = hitBasics.length ? '' : 'none';
+      basics.innerHTML = `<label style="margin-bottom:14px;">${escapeHtml(c.basicsTitle)}</label>` +
+        `<div class="help-grid">` +
+        hitBasics.map(({row:[title,desc], i})=>`
+          <div class="help-box">
+            <div class="help-num">${i+1}</div>
             <div>
-              <div style="font-size:12.5px; font-weight:600; line-height:1.3;">${t}</div>
-              <div style="font-size:12px; color:var(--text-muted); margin-top:3px; line-height:1.5;">${d}</div>
+              <div class="help-box-title">${helpMark(title, q)}</div>
+              <div class="help-box-text">${helpMark(desc, q)}</div>
             </div>
           </div>`).join('') +
         `</div>`;
     }
+
     const roles = document.getElementById('help-roles');
+    const hitRoles = c.roles.map((row, i)=>({row, i})).filter(({row})=>helpMatches(q, row[0], row[1]));
     if(roles){
+      roles.style.display = hitRoles.length ? '' : 'none';
       const roleColors = ['#0A6E7A','#0F7A38','#8A5A05','#6B4EA8'];
       const roleBgs = ['var(--cyan-soft)','var(--green-soft)','#FDF1E1','#F1ECFA'];
-      roles.innerHTML = `<label style="margin-bottom:14px;">${c.rolesTitle}</label>` +
-        `<div style="display:flex; flex-direction:column; gap:8px;">` +
-        c.roles.map(([t,d],i)=>`
-          <div style="display:flex; gap:11px; align-items:flex-start; padding:11px 13px; border:1px solid var(--line); border-radius:10px;">
-            <span style="flex-shrink:0; font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:20px; background:${roleBgs[i%4]}; color:${roleColors[i%4]}; white-space:nowrap;">${t}</span>
-            <div style="font-size:12px; color:var(--text-muted); line-height:1.5;">${d}</div>
+      roles.innerHTML = `<label style="margin-bottom:14px;">${escapeHtml(c.rolesTitle)}</label>` +
+        `<div class="help-role-list">` +
+        hitRoles.map(({row:[title,desc], i})=>`
+          <div class="help-box" style="background:none;">
+            <span class="badge" style="background:${roleBgs[i%4]}; color:${roleColors[i%4]};">${helpMark(title, q)}</span>
+            <div class="help-box-text" style="margin-top:0;">${helpMark(desc, q)}</div>
           </div>`).join('') +
         `</div>`;
     }
+
     const apiTitle = document.getElementById('help-api-title'); if(apiTitle) apiTitle.textContent = c.apiTitle;
     const apiDesc = document.getElementById('help-api-desc'); if(apiDesc) apiDesc.textContent = c.apiDesc;
     const label = document.getElementById('api-docs-toggle-label'); if(label) label.textContent = apiDocsOpen ? c.hide : c.show;
+
+    const apiHits = q ? c.api.ep.filter(([m,p,d])=>helpMatches(q, m, p, d)).length : 0;
+    const hitsEl = document.getElementById('help-api-hits');
+    if(hitsEl){
+      hitsEl.style.display = q && apiHits ? 'block' : 'none';
+      if(apiHits) hitsEl.textContent = tf('help.apiHits', {n: apiHits});
+    }
+    const apiCard = document.getElementById('help-api-card');
+    if(apiCard) apiCard.style.display = (!q || apiHits) ? '' : 'none';
+
+    const none = document.getElementById('help-no-match');
+    if(none){
+      const empty = q && !hitBasics.length && !hitRoles.length && !apiHits;
+      none.style.display = empty ? '' : 'none';
+      if(empty) none.textContent = tf('help.noMatch', {q: q});
+    }
     if(apiDocsOpen) renderApiDocs();
   }
 
@@ -6210,8 +6820,8 @@
 
       r.draft = false;
       const body = buildScheduleNotifBody(r, projName);
-      dispatchEventNotification('created', pk, 'RollDesk — ' + t('ev.created'), body, false, r.id);
-      if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk — ' + t('ev.approval'), body, false, r.id);
+      dispatchEventNotification('created', pk, 'RollDesk — ' + tn('ev.created'), body, false, r.id);
+      if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk — ' + tn('ev.approval'), body, false, r.id);
       logAudit('notified', 'Deployment', 'Notified the client about ' + (r.id||'') + ' — recipients: ' + recipients, projName + (p.clientName ? ' (' + p.clientName + ')' : ''), 'aud.d.draftNotified', {id: r.id||'', recipients});
       persistDeployment(idx);
       renderDeploymentsTable();
@@ -6236,8 +6846,8 @@
       t('draft.remindTitle'),
       tf('draft.remindBody', {project: projName, recipients}) + '\n\n' + tf('draft.remindChannels', {channels}),
       ()=>{
-      const body = buildScheduleNotifBody(r, projName) + '\n' + t('draft.remindNote');
-      dispatchEventNotification('approval', pk, 'RollDesk — ' + t('ev.approval') + ' (' + t('draft.remindTag') + ')', body, false, r.id);
+      const body = buildScheduleNotifBody(r, projName) + '\n' + tn('draft.remindNote');
+      dispatchEventNotification('approval', pk, 'RollDesk — ' + tn('ev.approval') + ' (' + tn('draft.remindTag') + ')', body, false, r.id);
       logAudit('notified', 'Deployment', 'Sent an approval reminder for ' + (r.id||'') + ' — recipients: ' + recipients + ' — channels: ' + channels, projName + (p.clientName ? ' (' + p.clientName + ')' : ''), 'aud.d.approvalReminded', {id: r.id||'', recipients, channels});
       const _s = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'};
       r.comments = r.comments || [];
@@ -6268,12 +6878,12 @@
       renderClientPortal(currentClientScenario);
       showToast(t('client.approvedToast'));
       const approvedBody = notifHeader(rec, projName)
-        + '\n' + t('dep.aApproved') + ' · ' + tf('notif.approvedBy', {who});
-      dispatchEventNotification('decision', rec.projectKey, 'RollDesk — ' + t('ev.decision') + ' (' + envLabel(rec.env||'') + ')',
+        + '\n' + tn('dep.aApproved') + ' · ' + tnf('notif.approvedBy', {who});
+      dispatchEventNotification('decision', rec.projectKey, 'RollDesk — ' + tn('ev.decision') + ' (' + envLabelNotif(rec.env||'') + ')',
         approvedBody, true, rec.id);
       // Internal only (no client e-mail): this tells the team the client agreed.
       // The client made the decision, so mailing it back to them is noise.
-      dispatchEventNotification('scheduleApproved', rec.projectKey, 'RollDesk — ' + t('ev.scheduleApproved') + ' (' + envLabel(rec.env||'') + ')',
+      dispatchEventNotification('scheduleApproved', rec.projectKey, 'RollDesk — ' + tn('ev.scheduleApproved') + ' (' + envLabelNotif(rec.env||'') + ')',
         approvedBody, false, rec.id);
     } else if(action === 'commented'){
       showAppPrompt(t('client.commentTitle'), '', (note)=>{
@@ -6341,6 +6951,46 @@
     } else if(which === 'q'){
       clientPanelFilters.q = (qEl && qEl.value) || '';
     }
+    renderClientPortal(currentClientScenario);
+  }
+
+  // Pill row for the client portal. Same contract as the other two bars: a pill
+  // per non-default filter, each clearing itself.
+  function renderClientActiveFilters(){
+    const slot = document.getElementById('client-active-filters');
+    if(!slot) return;
+    const f = clientPanelFilters;
+    const label = id => selectedOptionLabel(document.getElementById(id));
+    slot.innerHTML = activeFiltersHtml([
+      {cap: t('flt.capProject'), val: f.project && f.project !== 'all' ? label('client-filter-project') : '', onClear: "clearClientFilter('project')"},
+      {cap: t('flt.capApp'), val: f.app && f.app !== 'all' ? label('client-filter-app') : '', onClear: "clearClientFilter('app')"},
+      {cap: t('flt.capEnv'), val: f.env && f.env !== 'all' ? label('client-filter-env') : '', onClear: "clearClientFilter('env')"},
+      {cap: t('flt.capStatus'), val: clientPanelFilter && clientPanelFilter !== 'all' ? label('client-filter-status') : '', onClear: "clearClientFilter('status')"},
+      {cap: t('flt.capSearch'), val: (f.q || '').trim(), onClear: "clearClientFilter('q')"},
+    ], 'clearClientFilter("all")');
+  }
+
+  function clearClientFilter(which){
+    const f = clientPanelFilters;
+    if(which === 'all'){
+      f.project = 'all'; f.app = 'all'; f.env = 'all'; f.q = '';
+      clientPanelFilter = 'all';
+    } else if(which === 'status'){
+      clientPanelFilter = 'all';
+    } else if(which === 'project'){
+      // Applications are listed per project, so the project releases the app.
+      f.project = 'all'; f.app = 'all';
+    } else if(which === 'q'){
+      f.q = '';
+    } else {
+      f[which] = 'all';
+    }
+    const set = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
+    set('client-filter-project', f.project);
+    set('client-filter-app', f.app);
+    set('client-filter-env', f.env);
+    set('client-filter-status', clientPanelFilter);
+    set('client-filter-q', f.q);
     renderClientPortal(currentClientScenario);
   }
 
@@ -6478,6 +7128,8 @@
     if(envFilter) envFilter.value = clientPanelFilters.env || 'all';
     if(statusFilter) statusFilter.value = clientPanelFilter || 'all';
     if(qFilter && document.activeElement !== qFilter) qFilter.value = clientPanelFilters.q || '';
+    // Once the selects hold their final values, so each pill can read its label.
+    renderClientActiveFilters();
 
     const f = clientPanelFilters;
     const q = (f.q || '').trim().toLowerCase();
@@ -6671,10 +7323,14 @@
 
   // Confirmation dialog for destructive actions (delete/remove/revoke).
   let confirmModalCallback = null;
-  function showAppConfirm(title, body, callback, okLabel){
+  // `tone` is 'danger' (the default — red, for anything that destroys data) or
+  // 'neutral' for a confirmation that only interrupts, like logging out.
+  function showAppConfirm(title, body, callback, okLabel, tone){
     document.getElementById('confirm-modal-title').textContent = title;
     document.getElementById('confirm-modal-body').textContent = body || '';
-    document.getElementById('confirm-modal-ok').textContent = okLabel || t('common.delete');
+    const ok = document.getElementById('confirm-modal-ok');
+    ok.textContent = okLabel || t('common.delete');
+    ok.classList.toggle('danger', tone !== 'neutral');
     confirmModalCallback = callback;
     document.getElementById('confirm-modal-overlay').style.display = 'flex';
   }
@@ -6701,6 +7357,40 @@
     const edit = document.getElementById('edit-dep-modal-overlay');
     if(edit && edit.style.display !== 'none'){ e.preventDefault(); closeEditDeploymentModal(false); }
   });
+
+  // ---- Active filter pills -----------------------------------------------
+  // A filter bar shows the current value of each control but not how much of the
+  // table it is hiding, so a filtered list reads as an empty one. Every filter
+  // that is not at its default becomes a removable pill under the bar.
+  //
+  // `specs` is [{cap, val, onClear}] — caption, the human value, and the JS that
+  // resets that one filter. Entries with no `val` are at their default and are
+  // dropped, so an unfiltered view renders nothing at all.
+  function activeFiltersHtml(specs, clearAllJs){
+    const on = (specs || []).filter(s => s && s.val);
+    if(!on.length) return '';
+    const pills = on.map(s=>`
+      <span class="af-pill">
+        <span class="af-cap">${escapeHtml(s.cap)}</span>
+        <span class="af-val">${escapeHtml(s.val)}</span>
+        <button type="button" class="af-x" title="${escapeHtml(t('flt.remove'))}"
+          aria-label="${escapeHtml(t('flt.remove'))}: ${escapeHtml(s.cap)}"
+          onclick="${s.onClear}">✕</button>
+      </span>`).join('');
+    // "Clear all" only earns its place once there is more than one thing to clear.
+    const clearAll = (on.length > 1 && clearAllJs)
+      ? `<button type="button" class="af-clear" onclick="${clearAllJs}">${escapeHtml(t('flt.clearAll'))}</button>`
+      : '';
+    return `<div class="active-filters"><span class="af-lead">${escapeHtml(t('flt.active'))}</span>${pills}${clearAll}</div>`;
+  }
+
+  // The label of the selected <option>, which is what the reader saw when picking
+  // it — the pill must echo that, not the value the code stores.
+  function selectedOptionLabel(el){
+    if(!el || el.selectedIndex < 0) return '';
+    const opt = el.options[el.selectedIndex];
+    return opt ? (opt.textContent || '').trim() : '';
+  }
 
   // ---- Alerts -------------------------------------------------------------
   // One banner style with four meanings — info, success, warning, error — each
@@ -6771,6 +7461,134 @@
       showToast('⚠ ' + (errors[0].msg || t('form.errTitle')));
     }
     if(firstBad){ try { firstBad.focus({preventScroll:true}); } catch(e){ firstBad.focus(); } }
+  }
+
+  // ---- Selectable pill ----------------------------------------------------
+  // A checkbox drawn as a pill that shows its own state. `attrs` carries whatever the
+  // caller needs on the input (value, onchange, disabled).
+  function chkPillHtml(label, checked, attrs){
+    return `<label class="chk-pill${checked ? ' on' : ''}${/\bdisabled\b/.test(attrs || '') ? ' disabled' : ''}">
+      <input type="checkbox" ${checked ? 'checked' : ''} ${attrs || ''} onclick="syncChkPill(this)">
+      <span class="cp-box" aria-hidden="true">✓</span>${escapeHtml(label)}
+    </label>`;
+  }
+  // Keeps the pill's look in step with its checkbox. Called from onclick so it runs
+  // before any onchange the caller attached, and stays correct if that one re-renders.
+  function syncChkPill(input){
+    const pill = input.closest('.chk-pill');
+    if(pill) pill.classList.toggle('on', input.checked);
+  }
+  // Re-syncs every pill under `scope` — needed where code sets `.checked` directly
+  // (loading a record into a form fires no event).
+  function syncChkPills(scope){
+    const root = typeof scope === 'string' ? document.getElementById(scope) : (scope || document);
+    if(!root) return;
+    root.querySelectorAll('.chk-pill input').forEach(syncChkPill);
+  }
+
+  // ---- Row context menu ---------------------------------------------------
+  // items: [{label, icon, onclick, danger}] — `null` renders a separator.
+  function rowMenuHtml(id, items){
+    const body = (items || []).map(it=>{
+      if(!it) return '<div class="row-menu-sep"></div>';
+      return `<button type="button" class="row-menu-item${it.danger ? ' danger' : ''}" onclick="closeRowMenus(); ${it.onclick}">
+        <span class="rm-ic" aria-hidden="true">${it.icon || ''}</span>${escapeHtml(it.label)}
+      </button>`;
+    }).join('');
+    return `<span class="row-menu">
+      <button type="button" class="mini-btn icon-only-btn" id="${id}-btn" aria-haspopup="true" aria-expanded="false"
+        title="${escapeHtml(t('common.moreActions'))}" aria-label="${escapeHtml(t('common.moreActions'))}"
+        onclick="event.stopPropagation(); toggleRowMenu('${id}')">⋯</button>
+      <div class="row-menu-list" id="${id}" role="menu" hidden onclick="event.stopPropagation();">${body}</div>
+    </span>`;
+  }
+  function closeRowMenus(){
+    document.querySelectorAll('.row-menu-list').forEach(el=>{
+      el.hidden = true;
+      const btn = document.getElementById(el.id + '-btn');
+      if(btn) btn.setAttribute('aria-expanded', 'false');
+    });
+  }
+  function toggleRowMenu(id){
+    const list = document.getElementById(id);
+    if(!list) return;
+    const willOpen = list.hidden;
+    closeRowMenus();
+    if(!willOpen) return;
+    list.hidden = false;
+    const btn = document.getElementById(id + '-btn');
+    if(btn) btn.setAttribute('aria-expanded', 'true');
+  }
+  // A click anywhere else, or Escape, dismisses an open menu.
+  document.addEventListener('click', (ev)=>{ if(!ev.target.closest('.row-menu')) closeRowMenus(); });
+  document.addEventListener('keydown', (ev)=>{ if(ev.key === 'Escape') closeRowMenus(); });
+
+  // ---- Searchable picker --------------------------------------------------
+  // A text input that offers its known values as you type, while still accepting a
+  // value that is not on the list (a target can be corrected before it is registered).
+  // Options are held on the element, so the markup stays a plain input.
+  function pickerHtml(id, options, placeholder, extraClass){
+    const json = escapeHtml(JSON.stringify(options || []));
+    return `<div class="picker">
+      <input type="text" id="${id}" class="${extraClass || ''}" autocomplete="off" role="combobox"
+        aria-expanded="false" aria-autocomplete="list" aria-controls="${id}-list" data-options="${json}"
+        placeholder="${escapeHtml(placeholder || '')}"
+        onfocus="openPicker('${id}')" oninput="openPicker('${id}')"
+        onkeydown="pickerKeydown(event, '${id}')" onblur="setTimeout(()=>closePicker('${id}'), 120)">
+      <div class="picker-list" id="${id}-list" role="listbox" hidden></div>
+    </div>`;
+  }
+  function pickerOptions(input){
+    try { return JSON.parse(input.getAttribute('data-options') || '[]'); } catch(e){ return []; }
+  }
+  function openPicker(id){
+    const input = document.getElementById(id);
+    const list = document.getElementById(id + '-list');
+    if(!input || !list) return;
+    const q = input.value.trim().toLowerCase();
+    const matches = pickerOptions(input).filter(o => !q || String(o).toLowerCase().includes(q));
+    list.innerHTML = matches.length
+      ? matches.map(o=>`<button type="button" class="picker-opt" role="option" onmousedown="event.preventDefault(); choosePickerOption('${id}', this.textContent)">${escapeHtml(o)}</button>`).join('')
+      : `<div class="picker-empty">${escapeHtml(t('pick.noMatch'))}</div>`;
+    list.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  }
+  function closePicker(id){
+    const list = document.getElementById(id + '-list');
+    const input = document.getElementById(id);
+    if(list) list.hidden = true;
+    if(input) input.setAttribute('aria-expanded', 'false');
+  }
+  function choosePickerOption(id, value){
+    const input = document.getElementById(id);
+    if(!input) return;
+    input.value = value;
+    closePicker(id);
+    input.focus();
+  }
+  function pickerKeydown(ev, id){
+    const list = document.getElementById(id + '-list');
+    if(!list) return;
+    const opts = Array.from(list.querySelectorAll('.picker-opt'));
+    const current = list.querySelector('.picker-opt.active');
+    if(ev.key === 'Escape'){ closePicker(id); return; }
+    if(ev.key === 'ArrowDown' || ev.key === 'ArrowUp'){
+      ev.preventDefault();
+      if(list.hidden){ openPicker(id); return; }
+      if(!opts.length) return;
+      const at = current ? opts.indexOf(current) : -1;
+      const next = ev.key === 'ArrowDown'
+        ? opts[Math.min(opts.length - 1, at + 1)]
+        : opts[Math.max(0, at <= 0 ? 0 : at - 1)];
+      opts.forEach(o=>o.classList.remove('active'));
+      next.classList.add('active');
+      next.scrollIntoView({block:'nearest'});
+      return;
+    }
+    if(ev.key === 'Enter' && current && !list.hidden){
+      ev.preventDefault();
+      choosePickerOption(id, current.textContent);
+    }
   }
 
   // ---- Generic modal shell ------------------------------------------------
@@ -7509,12 +8327,28 @@
   }
   // Localized full weekday name (e.g. "poniedziałek" / "Monday"), falling back
   // to the English full name.
-  function fmtDow(dateStr){
+  function fmtDow(dateStr, lang){
     try {
-      const arr = WEEKDAY_FULL[LANG === 'pl' ? 'pl' : 'en'];
+      const l = lang || LANG;
+      const arr = WEEKDAY_FULL[l === 'pl' ? 'pl' : 'en'];
       return arr[new Date(dateStr).getDay()] || '';
     } catch(e){ return ''; }
   }
+  // A date with its weekday in front — "piątek, 2026-07-31". Recipients of a
+  // notification read the date to decide whether it clashes with something, and
+  // a bare ISO date makes them look up which day of the week it is. Multi-day
+  // schedules already named the weekday of their start date; this is that format
+  // in one place, so every date in a notification reads the same.
+  // Falls back to the plain date when the weekday cannot be derived.
+  function fmtDateDow(v, lang){
+    // Guard the empty case explicitly: `new Date(null)` is the epoch, so a
+    // missing date would otherwise be labelled "Thursday" next to a dash.
+    if(!v) return fmtDate(v);
+    const dow = fmtDow(v, lang);
+    return dow ? dow + ', ' + fmtDate(v) : fmtDate(v);
+  }
+  // The weekday of a date inside a notification, in the notification's language.
+  function fmtDateDowNotif(v){ return fmtDateDow(v, notifyLang()); }
   // Names of the project's custom target columns (e.g. "nazwa urzędu"), so the
   // schedule/PDF/XLS can carry them alongside each target.
   function scheduleCustomFieldNames(r){
@@ -7745,6 +8579,7 @@
     return JSON.stringify({
       versions: [...document.querySelectorAll('#edit-dep-versions input[data-app-idx]')].map(i=>i.value),
       time: (document.getElementById('edit-dep-time')||{}).value || '',
+      start: (document.getElementById('edit-dep-start')||{}).value || '',
       changelog: (document.getElementById('edit-dep-changelog')||{}).value || '',
       notes: (document.getElementById('edit-dep-installer-notes')||{}).value || '',
       chExist: (editDepChangelogExisting||[]).map(a=>a.id||a.filename),
@@ -7826,7 +8661,17 @@
         <span style="font-size:12.5px; min-width:120px;">${escapeHtml(a.name)}</span>
         <input type="text" class="mono" data-app-idx="${i}" value="${escapeHtml(a.version||'')}" placeholder="1.0.0" style="flex:1; box-sizing:border-box;">
       </div>`).join('') || `<div style="font-size:12px; color:var(--text-faint);">—</div>`;
-    document.getElementById('edit-dep-time').value = r.time || '';
+    // Single rollout: date and time in one control. Batch: the dates belong to the
+    // day breakdown, so only the shared start time is editable here.
+    const isBatch = r.mode === 'batch';
+    const startEl = document.getElementById('edit-dep-start');
+    const timeEl = document.getElementById('edit-dep-time');
+    const startLabel = document.getElementById('edit-dep-start-label');
+    startEl.style.display = isBatch ? 'none' : '';
+    timeEl.style.display = isBatch ? '' : 'none';
+    if(startLabel) startLabel.textContent = isBatch ? t('editdep.time') : t('editdep.start');
+    startEl.value = (!isBatch && r.date) ? `${r.date}T${fmtTime(r.time) || '00:00'}` : '';
+    timeEl.value = r.time || '';
     document.getElementById('edit-dep-changelog').value = r.changelog || '';
     document.getElementById('edit-dep-installer-notes').value = r.installerNotes || '';
     // Seed the attachment editor from the current record (copies, not references).
@@ -7853,8 +8698,18 @@
         r.apps[i].version = v;
       }
     });
-    const newTime = document.getElementById('edit-dep-time').value;
-    if(newTime && newTime !== r.time){ changes.push(t('editdep.time') + ': ' + fmtTime(r.time) + ' → ' + fmtTime(newTime)); r.time = newTime; }
+    if(r.mode === 'batch'){
+      const newTime = document.getElementById('edit-dep-time').value;
+      if(newTime && newTime !== r.time){ changes.push(t('editdep.time') + ': ' + fmtTime(r.time) + ' → ' + fmtTime(newTime)); r.time = newTime; }
+    } else {
+      const raw = document.getElementById('edit-dep-start').value;
+      const [newDate, newTime] = raw ? raw.split('T') : ['', ''];
+      if(newDate && newTime && (newDate !== r.date || newTime !== r.time)){
+        const before = [fmtDate(r.date), fmtTime(r.time)].filter(Boolean).join(' ');
+        changes.push(t('editdep.start') + ': ' + before + ' → ' + fmtDate(newDate) + ' ' + fmtTime(newTime));
+        r.date = newDate; r.time = newTime;
+      }
+    }
     const newChangelog = document.getElementById('edit-dep-changelog').value;
     if(newChangelog !== (r.changelog||'')){ changes.push(t('sch.changelog')); r.changelog = newChangelog; }
     const newInstallerNotes = document.getElementById('edit-dep-installer-notes').value;
@@ -8036,7 +8891,12 @@
     const _s = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
     const who = actorName();
     d.comments = d.comments || [];
-    const summary = changedDays.sort((a,b)=>a-b).map(day=>`${tf('dtl.day', {n: day})} → ${fmtDate(d.dayDates[day])}`).join(', ');
+    const movedDays = changedDays.sort((a,b)=>a-b);
+    const summary = movedDays.map(day=>`${tf('dtl.day', {n: day})} → ${fmtDate(d.dayDates[day])}`).join(', ');
+    // The notification names the weekday of each new date; the timeline and the
+    // audit entry keep the bare dates, since they sit next to a stamped date
+    // already and are read as a record rather than as a plan.
+    const notifSummary = movedDays.map(day=>`${tnf('dtl.day', {n: day})} → ${fmtDateDowNotif(d.dayDates[day])}`).join(', ');
     d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'📅', text: tf('dtl.scheduleChanged', {summary})});
     logAudit('changed','Deployment','Changed the schedule ' + (d.id||'') + ' — ' + summary, (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.schedChanged', {id: d.id||'', summary});
     persistDeployment(idx);
@@ -8047,14 +8907,21 @@
     // know which deployment moved, which day, and to what date.
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
     const body = notifHeader(d, projName) + '\n'
-      + tf('notif.schedChangedBody', {summary})
-      + '\n' + tf('notif.changedBy', {who});
+      + tnf('notif.schedChangedBody', {summary: notifSummary})
+      + '\n' + tnf('notif.changedBy', {who});
     dispatchEventNotification('scheduleChanged', d.projectKey,
-      'RollDesk — ' + t('ev.scheduleChanged') + ' (' + envLabel(d.env||'') + ')', body, false, d.id);
+      'RollDesk — ' + tn('ev.scheduleChanged') + ' (' + envLabelNotif(d.env||'') + ')', body, false, d.id);
     showToast(t('dtl.schedSaved'));
   }
 
   const statusLabelFull = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
+  // The same labels for a notification. A function, not a constant: the object
+  // above is built once at load time, so it freezes whatever language the UI
+  // started in — and NOTIFY_LANG only arrives once /api/version has answered.
+  function statusLabelNotif(status){
+    const key = 'status.' + (status || 'installed');
+    return tn(key);
+  }
 
   function getClientTimeline(d, proj){
     // Client-facing timeline for a full deployment record (same shape as DEPLOYMENTS_DATA).
@@ -8180,6 +9047,13 @@
 
   // SVG copy icon (reused wherever an ID can be copied).
   const COPY_ICON = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+
+  // Wraps the first cell's content so an expandable row shows a chevron. Without
+  // one, the only hint that a row opens is the cursor once you are over it.
+  const ROW_CHEVRON = '<svg class="row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+  function expandableCell(inner){
+    return `<div class="row-expand">${ROW_CHEVRON}<div style="min-width:0;">${inner}</div></div>`;
+  }
 
   // Small inline badge showing the deployment's API ID, with a copy icon.
   function deployIdBadge(r){
@@ -8316,7 +9190,9 @@
     prefix = prefix || 'dep';
     // Empty string is allowed for schedule (filled lazily on open).
     if(bodyHtml == null || (bodyHtml === '' && kind !== 'schedule')) return '';
-    return `<div id="${prefix}-panel-${kind}-${idx}" style="display:${openByDefault ? 'block' : 'none'}; margin:0 0 12px 0; padding:10px 12px; background:var(--paper); border:1px solid var(--line); border-radius:8px; font-size:12.5px;">${bodyHtml}</div>`;
+    // White, not --paper: the panel sits inside an already tinted detail row, and
+    // grey-on-grey lost the edge between the two.
+    return `<div id="${prefix}-panel-${kind}-${idx}" style="display:${openByDefault ? 'block' : 'none'}; margin:0 0 12px 0; padding:10px 12px; background:#fff; border:1px solid var(--line); border-radius:8px; font-size:12.5px;">${bodyHtml}</div>`;
   }
 
   // Compact timeline for the deployer panel so comments the deployer adds (and
@@ -8360,14 +9236,23 @@
       ? `<div class="field" style="margin:0;">
           <label>${t('dcard.addComment')}</label>
           <textarea id="new-comment-i-${r.idx}" placeholder="${t('dcard.addCommentPh')}"></textarea>
-          <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'i'); renderInstallerPanel();">${t('dcard.saveComment')}</button>
+          <div class="card-actions" style="margin-top:6px;"><button class="btn small" onclick="addDeploymentComment(${r.idx}, 'i'); renderInstallerPanel();">${t('dcard.saveComment')}</button></div>
         </div>`
       : null;
     const scheduleBody = showSchedule
       ? `<div id="full-sched-${r.idx}" style="max-height:240px; overflow-y:auto;"></div>`
       : null;
 
+    // Instructions used to be pinned open in every tab, so the same block was
+    // re-read on the waiting, active and paused views. It is an action in the bar
+    // now, open by default only where the deployer is actually working.
+    const instrPanelBody = instrBody
+      ? `<div style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px;">📋 ${t('rep.deployerInstr')}</div>${instrBody}`
+      : null;
+    const instrOpen = !!instrBody && showSchedule;
+
     const panels = [
+      depDetailPanelHtml(r.idx, 'instr', instrPanelBody, instrOpen, prefix),
       depDetailPanelHtml(r.idx, 'changelog', changelogBody, false, prefix),
       showTimeline ? depDetailPanelHtml(r.idx, 'timeline', timelineBody, timelineOpen, prefix) : '',
       showComment ? depDetailPanelHtml(r.idx, 'comment', commentBody, false, prefix) : '',
@@ -8375,6 +9260,7 @@
     ].join('');
 
     const barBtns = [];
+    if(instrPanelBody) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-instr-${r.idx}" aria-pressed="${instrOpen ? 'true' : 'false'}" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'instr'${scopeArg})">📋 ${t('rep.instrShort')}</button>`);
     if(changelogBody) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-changelog-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'changelog'${scopeArg})">📄 ${t('rep.changelogShort')}</button>`);
     if(showTimeline) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-timeline-${r.idx}" aria-pressed="${timelineOpen ? 'true' : 'false'}" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'timeline'${scopeArg})">🕓 ${t('dcard.timeline')}</button>`);
     if(showComment) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-comment-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'comment'${scopeArg})">💬 ${t('dcard.commentShort')}</button>`);
@@ -8388,21 +9274,15 @@
     }
 
     const assigneeHtml = showAssignee ? assigneeControlHtml(r, true) : '';
-    const instrAlways = instrBody
-      ? `<div style="margin:0 0 12px 0; padding:10px 12px; background:var(--paper); border:1px solid var(--line); border-left:3px solid var(--cyan); border-radius:8px; font-size:12.5px;">
-          <div style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px;">📋 ${t('rep.deployerInstr')}</div>
-          ${instrBody}
-        </div>`
-      : '';
 
     return `
-      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px;">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; background:#fff; border:1px solid var(--line); border-radius:8px;">
         <span class="mono" style="font-size:13px; font-weight:700;">${r.id || '—'}</span>
         <button class="mini-btn" title="${t('dcard.copyId')}" style="padding:4px 7px; display:inline-flex; align-items:center;" onclick="event.stopPropagation(); copyDeploymentId('${r.id||''}')">${COPY_ICON}</button>
+        <span style="font-size:13px; font-weight:600;">${escapeHtml(deploymentTitle(r))}</span>
         ${assigneeHtml}
         ${barBtns.length ? `<div style="margin-left:auto; display:flex; gap:6px; flex-wrap:wrap;">${barBtns.join('')}</div>` : ''}
       </div>
-      ${instrAlways}
       ${panels}`;
   }
 
@@ -8469,10 +9349,10 @@
       // about the assignment without watching the panel.
       const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
       const body = notifHeader(d, projName) + '\n'
-        + (name ? tf('notif.assignedBody', {who: name, id: d.id||''}) : tf('notif.unassignedBody', {id: d.id||''}))
-        + '\n' + tf('notif.changedBy', {who: actorName()});
+        + (name ? tnf('notif.assignedBody', {who: name, id: d.id||''}) : tnf('notif.unassignedBody', {id: d.id||''}))
+        + '\n' + tnf('notif.changedBy', {who: actorName()});
       dispatchEventNotification('assigned', d.projectKey,
-        'RollDesk — ' + t('ev.assigned') + ' (' + envLabel(d.env||'') + ')', body, false, d.id);
+        'RollDesk — ' + tn('ev.assigned') + ' (' + envLabelNotif(d.env||'') + ')', body, false, d.id);
     }
     persistDeployment(idx);
     // Update just the assignee select(s) — a full re-render here would wipe any
@@ -8685,6 +9565,56 @@
     });
   }
 
+  // The pill row under the deployer-panel filter bar. Each clear resets one filter
+  // and re-renders, so the pills are also the controls that undo themselves.
+  function renderInstallerActiveFilters(){
+    const slot = document.getElementById('installer-active-filters');
+    if(!slot) return;
+    const f = installerPanelFilters;
+    const statusMap = installerStatusLabelMap();
+    const statusKeys = Object.keys(statusMap);
+    const onStatuses = statusKeys.filter(k => installerPanelStatuses[k]);
+    // The status filter starts at waiting+active, so a pill only appears once the
+    // reader has moved away from that default — never for the state they inherited.
+    const statusChanged = !(onStatuses.length === 2 && installerPanelStatuses.waiting && installerPanelStatuses.active);
+    // The pill echoes the option label the reader picked, not the key stored in
+    // state — the project filter's value is an internal key like "pwpw:word".
+    const label = id => selectedOptionLabel(document.getElementById(id));
+    slot.innerHTML = activeFiltersHtml([
+      {cap: t('flt.capProject'), val: f.project ? label('installer-filter-project') : '', onClear: "clearInstallerFilter('project')"},
+      {cap: t('flt.capApp'), val: f.app || '', onClear: "clearInstallerFilter('app')"},
+      {cap: t('flt.capEnv'), val: f.env ? label('installer-filter-env') : '', onClear: "clearInstallerFilter('env')"},
+      {cap: t('flt.capStatus'), val: statusChanged ? (onStatuses.length ? onStatuses.map(k=>statusMap[k]).join(', ') : t('filter.noneSelected')) : '', onClear: "clearInstallerFilter('status')"},
+      {cap: t('flt.capSearch'), val: (f.q || '').trim(), onClear: "clearInstallerFilter('q')"},
+    ], 'clearInstallerFilter("all")');
+  }
+
+  function clearInstallerFilter(which){
+    const f = installerPanelFilters;
+    if(which === 'all'){
+      f.project = ''; f.app = ''; f.env = ''; f.q = '';
+      installerPanelStatuses = { waiting: true, active: true, completed: false };
+    } else if(which === 'status'){
+      installerPanelStatuses = { waiting: true, active: true, completed: false };
+    } else if(which === 'project'){
+      // The application list is scoped to the project, so an app picked inside it
+      // cannot outlive it.
+      f.project = ''; f.app = '';
+    } else {
+      f[which] = '';
+    }
+    // Push the state back onto the controls: the selects and the search box hold
+    // their own value, and clearing only the state would leave them contradicting
+    // the table.
+    const setVal = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
+    setVal('installer-filter-project', f.project);
+    setVal('installer-filter-app', f.app);
+    setVal('installer-filter-env', f.env);
+    setVal('installer-filter-q', f.q);
+    refreshInstallerStatusMsLabel();
+    renderInstallerPanel();
+  }
+
   function installerAppsLabel(r){
     return (r.apps||[]).map(a=> a.name + (a.version ? ' v'+a.version : '')).join(', ');
   }
@@ -8743,6 +9673,16 @@
   function toggleInstallerDetails(idx){
     expandedInstallerIdx = (expandedInstallerIdx === idx) ? null : idx;
     renderInstallerPanel();
+  }
+
+  // A deployment has no title of its own, and an id alone ("RD-2026-0142") does not
+  // say what the reader just opened. Compose one from what identifies it in practice:
+  // the apps being installed and where they are going.
+  function deploymentTitle(r){
+    const apps = (r.apps || []).map(a=>[a.name, a.version ? 'v' + a.version : ''].filter(Boolean).join(' ')).filter(Boolean);
+    const what = apps.length ? apps.join(', ') : (r.project && r.project.name) || r.projectKey || '';
+    const where = r.mode === 'batch' ? tf('rep.locationsN', {n: r.totalLocations}) : (r.location || '');
+    return [what, where].filter(Boolean).join(' → ');
   }
 
   function installerDateLabel(r){
@@ -8806,7 +9746,7 @@
   function installerTableRowHtml(r, kind){
     const clientLabel = (r.project && r.project.clientName) ? r.project.clientName : '';
     const cells = [];
-    cells.push(`<td><div style="font-size:13px;">${escapeHtml(r.project.name || r.projectKey || '')}</div>${clientLabel ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${escapeHtml(clientLabel)}</div>` : ''}</td>`);
+    cells.push(`<td>${expandableCell(`<div style="font-size:13px;">${escapeHtml(r.project.name || r.projectKey || '')}</div>${clientLabel ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${escapeHtml(clientLabel)}</div>` : ''}`)}</td>`);
     cells.push(`<td style="max-width:150px;">${(r.apps||[]).map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${escapeHtml(a.name)}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${escapeHtml(a.version||'')}</div></div>`).join('')}${internalBadge(r)}</td>`);
     if(r.mode === 'batch'){
       cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})} <span style="color:var(--text-faint);">· ${tf('notif.daysN', {n: r.days})}</span></td>`);
@@ -8820,7 +9760,7 @@
     // No details/collapse column: the whole row is the control, exactly as in the
     // Deployments list, and a text label pretending to be a button cost a column.
     const open = expandedInstallerIdx === r.idx;
-    let html = `<tr data-idx="${r.idx}" class="deploy-row" onclick="toggleInstallerDetails(${r.idx})" style="cursor:pointer;">${cells.join('')}</tr>`;
+    let html = `<tr data-idx="${r.idx}" class="deploy-row${open ? ' is-open' : ''}" onclick="toggleInstallerDetails(${r.idx})" style="cursor:pointer;" aria-expanded="${open}">${cells.join('')}</tr>`;
     if(open) html += installerDetailRowHtml(r, kind);
     return html;
   }
@@ -8891,6 +9831,14 @@
       </div>`;
   }
 
+  // Production target labels for the correction picker — a correction only ever
+  // applies to a production target, which is what the deployer was sent to.
+  function targetCodesForProject(projectKey){
+    const p = PROJECTS[projectKey];
+    if(!p || !p.locationsList) return [];
+    return p.locationsList.filter(x=>x.type === 'Production').map(x=>x.label || x.code).filter(Boolean);
+  }
+
   function installerCompletedDetailHtml(r){
     const failedCount = failedLocationsList(r).length;
     const corrBtn = `<button class="mini-btn" onclick="toggleInstallerCorrection(${r.idx})">${t('rep.reportCorrection')}</button>`;
@@ -8905,11 +9853,11 @@
         ${failedCount ? `<div style="margin-bottom:8px; font-size:11.5px; color:#A81E1E;">⚠ ${tf('rep.toFinish', {list: failedLocationsList(r).map(f=>f.location).join(', ')})}</div>` : ''}
         <div id="correction-form-${r.idx}" style="display:none; margin-top:4px;">
           <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">${t('rep.correctionHint')}</p>
+          <div id="correction-${r.idx}-errors" style="display:none; margin-bottom:10px;"></div>
           <div class="grid-2">
             <div class="field">
-              <label>${t('rep.targetCode')}</label>
-              <input type="text" id="correction-loc-${r.idx}" class="mono" list="correction-targets-${r.idx}" placeholder="${t('rep.targetCodePh')}">
-              <datalist id="correction-targets-${r.idx}">${(PROJECTS[r.projectKey] && PROJECTS[r.projectKey].locationsList ? PROJECTS[r.projectKey].locationsList.filter(t=>t.type==='Production').map(t=>`<option value="${(t.label||t.code).replace(/"/g,'&quot;')}"></option>`).join('') : '')}</datalist>
+              <label>${t('rep.targetCode')} <span style="color:#A81E1E;">*</span></label>
+              ${pickerHtml(`correction-loc-${r.idx}`, targetCodesForProject(r.projectKey), t('rep.targetCodePh'), 'mono')}
             </div>
             <div class="field">
               <label>${t('rep.correctionReason')} <span style="color:#A81E1E;">*</span></label>
@@ -8917,23 +9865,26 @@
             </div>
           </div>
           ${failedCount ? `<div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">${t('rep.currentlyFailed')}${failedLocationsList(r).map(f=>`<a href="#" onclick="event.preventDefault(); document.getElementById('correction-loc-${r.idx}').value='${(f.location||'').replace(/'/g,'')}';" style="color:var(--cyan); text-decoration:none; margin-right:8px;">${escapeHtml(f.location||'')}</a>`).join('')}</div>` : ''}
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn ghost" onclick="submitBatchCorrection(${r.idx}, 'installed')">${t('rep.changeToSuccessful')}</button>
+          <div class="card-actions">
             <button class="btn ghost" onclick="submitBatchCorrection(${r.idx}, 'failed')">${t('rep.keepFailed')}</button>
+            <button class="btn" onclick="submitBatchCorrection(${r.idx}, 'installed')">${t('rep.changeToSuccessful')}</button>
           </div>
         </div>`;
     }
     return `${chrome}
       <div style="margin-bottom:10px;">${corrBtn}</div>
       <div id="correction-form-${r.idx}" style="display:none; margin-top:4px;">
+        <div id="correction-${r.idx}-errors" style="display:none; margin-bottom:10px;"></div>
         <div class="field">
           <label>${t('rep.correctionReason')} <span style="color:#A81E1E;">*</span></label>
           <input type="text" id="correction-reason-${r.idx}" placeholder="${t('rep.correctionReasonPh')}">
         </div>
-        ${r.status === 'installed'
-          ? `<button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'failed')">${t('rep.changeToFailed')}</button>`
-          : `<button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'installed')">${t('rep.changeToSuccessful')}</button>
-             <button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'failed')">${t('rep.keepFailed')}</button>`}
+        <div class="card-actions">
+          ${r.status === 'installed'
+            ? `<button class="btn danger" onclick="submitSingleCorrection(${r.idx}, 'failed')">${t('rep.changeToFailed')}</button>`
+            : `<button class="btn ghost" onclick="submitSingleCorrection(${r.idx}, 'failed')">${t('rep.keepFailed')}</button>
+               <button class="btn" onclick="submitSingleCorrection(${r.idx}, 'installed')">${t('rep.changeToSuccessful')}</button>`}
+        </div>
       </div>`;
   }
 
@@ -8982,6 +9933,8 @@
     if(!wrap) return;
     const scoped = installerScopedDeployments();
     populateInstallerFilterOptions(scoped);
+    // After the options exist, so a pill can read the selected option's label.
+    renderInstallerActiveFilters();
     let all = applyInstallerFilters(scoped);
     renderInstallerStats(all);
     function needsApprovalGate(r){
@@ -9093,8 +10046,13 @@
     const d = DEPLOYMENTS_DATA[idx];
     const loc = document.getElementById('correction-loc-' + idx).value.trim();
     const reason = document.getElementById('correction-reason-' + idx).value.trim();
-    if(!loc){ showToast(t('rep.enterLocation')); return; }
-    if(!reason){ showToast(t('rep.enterReason')); return; }
+    // Both fields are required, and both are reported at once: a save used to show a
+    // success toast even with the form empty.
+    const errors = [];
+    if(!loc) errors.push({id:'correction-loc-' + idx, label:t('rep.targetCode'), msg:t('rep.enterLocation')});
+    if(!reason) errors.push({id:'correction-reason-' + idx, label:t('rep.correctionReason'), msg:t('rep.enterReason')});
+    if(errors.length){ showFormErrors('correction-' + idx, errors); return; }
+    clearFormErrors('correction-' + idx);
     d.failedLocations = d.failedLocations || [];
     // The deployer explicitly picks the outcome (like single deployments): either
     // this location actually succeeded, or it stays a failure with a new reason.
@@ -9153,7 +10111,11 @@
   function submitSingleCorrection(idx, targetStatus){
     const d = DEPLOYMENTS_DATA[idx];
     const reason = document.getElementById('correction-reason-' + idx).value.trim();
-    if(!reason){ showToast('Enter the correction reason'); return; }
+    if(!reason){
+      showFormErrors('correction-' + idx, [{id:'correction-reason-' + idx, label:t('rep.correctionReason'), msg:t('rep.enterReason')}]);
+      return;
+    }
+    clearFormErrors('correction-' + idx);
     targetStatus = targetStatus || 'failed';
     d.status = targetStatus;
     d.comments = d.comments || [];
@@ -9192,8 +10154,8 @@
         showToast('Marked as failed — moved to completed, notification sent to the release manager');
         highlightInstallerCard(idx);
         const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
-        dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + t('ev.failure') + ' (' + envLabel(d.env||'') + ')',
-          notifHeader(d, projName) + '\n' + reason + '\n' + tf('notif.reportedByManual', {who}), true, d.id);
+        dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + tn('ev.failure') + ' (' + envLabelNotif(d.env||'') + ')',
+          notifHeader(d, projName) + '\n' + reason + '\n' + tnf('notif.reportedByManual', {who}), true, d.id);
       }, t('rep.failureReason'), true);
       return;
     }
@@ -9211,12 +10173,12 @@
     // The status belongs in the subject line too: the event is named "completed
     // (with status)", but a Teams channel shows only the subject in its preview,
     // so the recipient could not tell success from failure without opening it.
-    const doneStatus = statusLabelFull[d.status] || statusLabelFull.installed;
+    const doneStatus = statusLabelNotif(d.status);
     dispatchEventNotification('completed', d.projectKey,
-      'RollDesk — ' + t('ev.completed') + ': ' + doneStatus + ' (' + envLabel(d.env||'') + ')',
+      'RollDesk — ' + tn('ev.completed') + ': ' + doneStatus + ' (' + envLabelNotif(d.env||'') + ')',
       notifHeader(d, projName)
-      + '\n' + t('notif.statusLine') + ': ' + doneStatus
-      + ' · ' + tf('notif.reportedByManual', {who}), true, d.id);
+      + '\n' + tn('notif.statusLine') + ': ' + doneStatus
+      + ' · ' + tnf('notif.reportedByManual', {who}), true, d.id);
   }
 
   function filterTodayBatch(input){
@@ -9358,34 +10320,34 @@
     if(successList.length || failedList.length){
       const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
       const header = notifHeader(d, projName);
-      const byLine = '\n' + tf('notif.reportedByManual', {who});
+      const byLine = '\n' + tnf('notif.reportedByManual', {who});
       let body = header
-        + '\n' + tf('notif.dayReportBody', {day: dayNum, ok: successList.length, failed: failedList.length})
-        + ' · ' + tf('notif.progressLine', {done: d.counts.installed, total: (d.totalLocations || d.counts.installed + d.counts.scheduled), left: d.counts.scheduled});
+        + '\n' + tnf('notif.dayReportBody', {day: dayNum, ok: successList.length, failed: failedList.length})
+        + ' · ' + tnf('notif.progressLine', {done: d.counts.installed, total: (d.totalLocations || d.counts.installed + d.counts.scheduled), left: d.counts.scheduled});
       if(failedList.length){
-        body += '\n' + tf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
-        if(reason) body += '\n' + t('rep.correctionReason') + ': ' + reason;
+        body += '\n' + tnf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
+        if(reason) body += '\n' + tn('rep.correctionReason') + ': ' + reason;
       }
       // What happens next. The report used to end with the counts, so a reader
       // could not tell whether the rollout continues tomorrow, is finished, or is
       // waiting on retries — the question every recipient asked next.
       if(d.counts.scheduled === 0){
         const stillFailed = failedLocationsList(d).length;
-        body += '\n' + t('notif.nextLabel') + ': '
-          + (stillFailed ? tf('notif.nextToFinish', {n: stillFailed}) : t('notif.nextDone'));
+        body += '\n' + tn('notif.nextLabel') + ': '
+          + (stillFailed ? tnf('notif.nextToFinish', {n: stillFailed}) : tn('notif.nextDone'));
       } else {
         const nextDay = Math.min(dayNum + 1, d.days);
-        body += '\n' + t('notif.nextLabel') + ': '
-          + tf('notif.nextDay', {day: nextDay, date: fmtDate(getDateForDay(d, nextDay)), n: d.counts.scheduled});
+        body += '\n' + tn('notif.nextLabel') + ': '
+          + tnf('notif.nextDay', {day: nextDay, date: fmtDateDowNotif(getDateForDay(d, nextDay)), n: d.counts.scheduled});
       }
-      dispatchEventNotification('dayReport', d.projectKey, 'RollDesk — ' + t('ev.dayReport') + ' (' + envLabel(d.env||'') + ')', body + byLine, true, d.id);
+      dispatchEventNotification('dayReport', d.projectKey, 'RollDesk — ' + tn('ev.dayReport') + ' (' + envLabelNotif(d.env||'') + ')', body + byLine, true, d.id);
       // Guarantee a failure notification via the standard "failure" event too —
       // clients subscribe to it by default, unlike the newer per-day event.
       if(failedList.length){
         let fbody = header
-          + '\n' + tf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
-        if(reason) fbody += '\n' + t('rep.correctionReason') + ': ' + reason;
-        dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + t('ev.failure') + ' (' + envLabel(d.env||'') + ')', fbody + byLine, true, d.id);
+          + '\n' + tnf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
+        if(reason) fbody += '\n' + tn('rep.correctionReason') + ': ' + reason;
+        dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + tn('ev.failure') + ' (' + envLabelNotif(d.env||'') + ')', fbody + byLine, true, d.id);
       }
     }
     renderInstallerPanel();
@@ -9510,10 +10472,10 @@
       {loc: code, from: fromDay, to: toDay, date: toDate, id: d.id||''});
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
     const body = notifHeader(d, projName) + '\n'
-      + tf('notif.locMovedBody', {loc: code, from: fromDay, to: toDay, date: fmtDate(toDate)})
-      + '\n' + tf('notif.changedBy', {who});
+      + tnf('notif.locMovedBody', {loc: code, from: fromDay, to: toDay, date: fmtDateDowNotif(toDate)})
+      + '\n' + tnf('notif.changedBy', {who});
     dispatchEventNotification('scheduleChanged', d.projectKey,
-      'RollDesk — ' + t('ev.scheduleChanged') + ' (' + envLabel(d.env||'') + ')', body, false, d.id);
+      'RollDesk — ' + tn('ev.scheduleChanged') + ' (' + envLabelNotif(d.env||'') + ')', body, false, d.id);
   }
 
   function moveBatchQueueLocation(batchIdx, queueIdx, where){
@@ -9716,6 +10678,59 @@
     renderDeploymentsTable();
   }
 
+  // Pill row for the deployments list. This view keeps its filter state in the
+  // controls themselves, so clearing one is a matter of resetting that control.
+  function renderDeployActiveFilters(){
+    const slot = document.getElementById('deploy-active-filters');
+    if(!slot) return;
+    const val = id => (document.getElementById(id) || {}).value || 'all';
+    const label = id => selectedOptionLabel(document.getElementById(id));
+    const statusMap = deployStatusLabelMap();
+    const statusKeys = Object.keys(statusMap);
+    const on = statusKeys.filter(k => deployStatusFilter[k]);
+    // "All statuses" and the default 14-day window are the state the view opens
+    // in, so neither earns a pill until the reader changes it.
+    const rangeVal = val('deploy-filter-range');
+    slot.innerHTML = activeFiltersHtml([
+      {cap: t('flt.capClient'), val: val('deploy-filter-client') !== 'all' ? label('deploy-filter-client') : '', onClear: "clearDeployFilter('client')"},
+      {cap: t('flt.capProject'), val: val('deploy-filter-project') !== 'all' ? label('deploy-filter-project') : '', onClear: "clearDeployFilter('project')"},
+      {cap: t('flt.capApp'), val: val('deploy-filter-app') !== 'all' ? label('deploy-filter-app') : '', onClear: "clearDeployFilter('app')"},
+      {cap: t('flt.capEnv'), val: val('deploy-filter-env') !== 'all' ? label('deploy-filter-env') : '', onClear: "clearDeployFilter('env')"},
+      {cap: t('flt.capStatus'), val: on.length < statusKeys.length ? (on.length ? on.map(k=>statusMap[k]).join(', ') : t('filter.noneSelected')) : '', onClear: "clearDeployFilter('status')"},
+      {cap: t('flt.capPeriod'), val: rangeVal !== '14' ? label('deploy-filter-range') : '', onClear: "clearDeployFilter('range')"},
+    ], 'clearDeployFilter("all")');
+  }
+
+  function clearDeployFilter(which){
+    const set = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
+    const resetStatus = () => {
+      deployStatusFilter = { scheduled: true, installed: true, failed: true, rolledback: true, aborted: true };
+      refreshDeployStatusMsLabel();
+    };
+    if(which === 'all'){
+      ['client','project','app','env'].forEach(k => set('deploy-filter-' + k, 'all'));
+      set('deploy-filter-range', '14');
+      resetStatus();
+    } else if(which === 'status'){
+      resetStatus();
+    } else if(which === 'range'){
+      set('deploy-filter-range', '14');
+    } else if(which === 'client' || which === 'project'){
+      // Project and application options are scoped to the level above them, so
+      // clearing a client releases the project too — and both release the app.
+      if(which === 'client') set('deploy-filter-client', 'all');
+      set('deploy-filter-project', 'all');
+      set('deploy-filter-app', 'all');
+      // These two have their own change handlers that repopulate the dependent
+      // lists; calling one is what keeps the options in step.
+      if(which === 'client'){ onDeployClientChange(); return; }
+      onDeployProjectChange(); return;
+    } else {
+      set('deploy-filter-' + which, 'all');
+    }
+    renderDeploymentsTable();
+  }
+
   function renderDeploymentsTable(){
     const clientVal = document.getElementById('deploy-filter-client').value;
     const projectVal = document.getElementById('deploy-filter-project').value;
@@ -9723,6 +10738,7 @@
     const envVal = document.getElementById('deploy-filter-env').value;
     const rangeVal = document.getElementById('deploy-filter-range').value;
     refreshDeployStatusMsLabel();
+    renderDeployActiveFilters();
 
     let rows = DEPLOYMENTS_DATA.map((d,i)=>Object.assign({idx:i}, d, {project:PROJECTS[d.projectKey]}));
     // Default: newest-added deployments (higher _seq) float to the top so a
@@ -10001,11 +11017,17 @@
     let html = '';
     rows.forEach(r=>{
       const cells = [];
+      // Every row but the one being edited inline opens a detail panel, so it gets
+      // the chevron in its first cell.
+      const isEditing = editingDeployIdx === r.idx;
+      const open = expandedBatchIdx === r.idx;
+      const lead = html => (isEditing ? html : expandableCell(html));
       if(showProjectCol){
         const clientLabel = (r.project && r.project.clientName) ? r.project.clientName : '';
-        cells.push(`<td><div style="font-size:13px;">${escapeHtml(r.project.name || r.projectKey || '')}</div>${clientLabel ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${escapeHtml(clientLabel)}</div>` : ''}</td>`);
+        cells.push(`<td>${lead(`<div style="font-size:13px;">${escapeHtml(r.project.name || r.projectKey || '')}</div>${clientLabel ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${escapeHtml(clientLabel)}</div>` : ''}`)}</td>`);
       }
-      cells.push(`<td style="max-width:150px;">${r.apps.map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${a.name}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${a.version}</div></div>`).join('')}${r.internal ? '<div>'+internalBadge(r)+'</div>' : ''}</td>`);
+      const appsCell = `${r.apps.map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${a.name}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${a.version}</div></div>`).join('')}${r.internal ? '<div>'+internalBadge(r)+'</div>' : ''}`;
+      cells.push(`<td style="max-width:150px;">${showProjectCol ? appsCell : lead(appsCell)}</td>`);
 
       if(r.mode === 'batch'){
         cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})} <span style="color:var(--text-faint);">· ${tf('notif.daysN', {n: r.days})}</span></td>`);
@@ -10034,9 +11056,9 @@
           </div>${progressExtra}`);
         cells.push(approvalBadgeHtml(r));
         cells.push('<td></td>');
-        html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
+        html += `<tr data-idx="${r.idx}" class="deploy-row${open ? ' is-open' : ''}" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;" aria-expanded="${open}">` + cells.join('') + '</tr>';
         if(expandedBatchIdx === r.idx) html += timelinePanelHtml(r);
-      } else if(editingDeployIdx === r.idx){
+      } else if(isEditing){
         const envChoices = [...PROJECTS[r.projectKey].testEnvs, 'Production'];
         cells.push(`<td onclick="event.stopPropagation();">${r.location}</td>`);
         cells.push(`<td onclick="event.stopPropagation();"><select class="edit-env">${envChoices.map(e=>`<option value="${escapeHtml(e)}" ${e===r.env?'selected':''}>${escapeHtml(envLabel(e))}</option>`).join('')}</select></td>`);
@@ -10061,7 +11083,7 @@
         </select>${r.paused ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' — ' + r.pauseReason : ''}</div>` : ''}</td>`);
         cells.push(approvalBadgeHtml(r));
         cells.push(`<td style="white-space:nowrap; text-align:right;" onclick="event.stopPropagation();"><button class="mini-btn icon-btn" onclick="toggleEditDeployment(${r.idx})"><span class="mb-ic">✎</span> ${t('usr.edit')}</button></td>`);
-        html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
+        html += `<tr data-idx="${r.idx}" class="deploy-row${open ? ' is-open' : ''}" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;" aria-expanded="${open}">` + cells.join('') + '</tr>';
         if(expandedBatchIdx === r.idx) html += timelinePanelHtml(r);
       }
     });
@@ -10113,9 +11135,9 @@
     renderInstallerPanel();
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
     const body = notifHeader(d, projName)
-      + '\n' + t('notif.statusLine') + ': ' + t('status.installed');
+      + '\n' + tn('notif.statusLine') + ': ' + tn('status.installed');
     dispatchEventNotification('completed', d.projectKey,
-      'RollDesk — ' + t('ev.completed') + ': ' + t('status.installed') + ' (' + envLabel(d.env||'') + ')', body, true, d.id);
+      'RollDesk — ' + tn('ev.completed') + ': ' + tn('status.installed') + ' (' + envLabelNotif(d.env||'') + ')', body, true, d.id);
     showToast(tf('dcard.statusChangedToast', {status: t('status.installed')}));
   }
 
@@ -10171,12 +11193,13 @@
     renderDeploymentsTable();
     renderInstallerPanel();
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
+    const notifStatus = statusLabelNotif(newStatus);
     const statusBody = notifHeader(d, projName)
-      + '\n' + t('notif.statusLine') + ': ' + (labels[newStatus]||newStatus);
+      + '\n' + tn('notif.statusLine') + ': ' + notifStatus;
     const eventKey = (newStatus === 'installed') ? 'completed' : (newStatus === 'failed' ? 'failure' : 'completed');
     dispatchEventNotification(eventKey, d.projectKey,
-      'RollDesk — ' + t(eventKey === 'failure' ? 'ev.failure' : 'ev.completed')
-        + ': ' + (labels[newStatus]||newStatus) + ' (' + envLabel(d.env||'') + ')', statusBody, true, d.id);
+      'RollDesk — ' + tn(eventKey === 'failure' ? 'ev.failure' : 'ev.completed')
+        + ': ' + notifStatus + ' (' + envLabelNotif(d.env||'') + ')', statusBody, true, d.id);
     showToast(tf('dcard.statusChangedToast', {status: labels[newStatus]||newStatus}));
   }
 
@@ -10252,8 +11275,8 @@
           // about it depended on which door the decision came through.
           // Internal only: no client e-mail for a decision the client just made.
           dispatchEventNotification('scheduleApproved', d.projectKey,
-            'RollDesk — ' + t('ev.scheduleApproved') + ' (' + envLabel(d.env||'') + ')',
-            notifHeader(d, projName) + '\n' + t('dep.aApproved') + ' · ' + tf('notif.approvedBy', {who}),
+            'RollDesk — ' + tn('ev.scheduleApproved') + ' (' + envLabelNotif(d.env||'') + ')',
+            notifHeader(d, projName) + '\n' + tn('dep.aApproved') + ' · ' + tnf('notif.approvedBy', {who}),
             false, d.id);
         } else {
           logAudit('changed', 'Deployment', 'Client decision on ' + (d.id||'') + ': ' + labels[newStatus] + ' — ' + who, projLabel, 'aud.d.clientDecision', {id: d.id||'', status: labels[newStatus], by: who});
@@ -10310,7 +11333,7 @@
       logAudit('notified', 'Notification', 'Pause ' + (d.id||'') + ' — recipients: ' + notifySummary('paused', d.projectKey, clientSees), (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.notifyPause', {id: d.id||'', recipients: notifySummary('paused', d.projectKey, clientSees)});
       const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
       dispatchEventNotification('paused', d.projectKey,
-        'RollDesk — ' + t('ev.paused'),
+        'RollDesk — ' + tn('ev.paused'),
         (d.id ? d.id + ' — ' : '') + projName + '\n' + trimmed, false, d.id);
       persistDeployment(idx);
       renderDeploymentsTable();
@@ -10376,11 +11399,11 @@
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
     const total = d.totalLocations || d.counts.installed;
     dispatchEventNotification('completed', d.projectKey,
-      'RollDesk — ' + t('ev.completed') + ': ' + statusLabelFull.installed + ' (' + envLabel(d.env||'') + ')',
+      'RollDesk — ' + tn('ev.completed') + ': ' + statusLabelNotif('installed') + ' (' + envLabelNotif(d.env||'') + ')',
       notifHeader(d, projName)
-      + '\n' + t('notif.statusLine') + ': ' + (statusLabelFull.installed)
-      + ' · ' + tf('notif.progressLine', {done: d.counts.installed, total, left: 0})
-      + '\n' + tf('notif.reportedByManual', {who}), true, d.id);
+      + '\n' + tn('notif.statusLine') + ': ' + statusLabelNotif('installed')
+      + ' · ' + tnf('notif.progressLine', {done: d.counts.installed, total, left: 0})
+      + '\n' + tnf('notif.reportedByManual', {who}), true, d.id);
   }
 
   initProjectSelect();
