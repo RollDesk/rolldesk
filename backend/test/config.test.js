@@ -43,3 +43,28 @@ test('port falls back to 3000 when PORT is unset', async () => {
   const config = await loadConfig({ PORT: '' });
   assert.equal(config.port, 3000);
 });
+
+test('NOTIFY_LANG accepts pl/en and ignores case and padding', async () => {
+  assert.equal((await loadConfig({ NOTIFY_LANG: 'pl' })).notifyLang, 'pl');
+  assert.equal((await loadConfig({ NOTIFY_LANG: ' EN ' })).notifyLang, 'en');
+});
+
+// An unset value must stay unset rather than defaulting to a language: it means
+// "compose in the UI language of whoever triggered the event", which is what an
+// instance upgrading from before this variable existed already does.
+test('an unset NOTIFY_LANG leaves the sender\'s UI language in charge', async () => {
+  for (const empty of ['', '   ']) assert.equal((await loadConfig({ NOTIFY_LANG: empty })).notifyLang, '');
+});
+
+test('an unsupported NOTIFY_LANG warns and falls back instead of failing startup', async () => {
+  const warn = console.warn;
+  const warnings = [];
+  console.warn = (msg) => warnings.push(String(msg));
+  try {
+    assert.equal((await loadConfig({ NOTIFY_LANG: 'de' })).notifyLang, '');
+  } finally {
+    console.warn = warn;
+  }
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /NOTIFY_LANG "de"/);
+});

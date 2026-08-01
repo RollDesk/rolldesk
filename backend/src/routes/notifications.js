@@ -12,6 +12,7 @@ import * as teamsGraph from '../teamsGraph.js';
 import {
   appLinkText, appLinkHtml, appLinkSlack, appLinkCardAction, bodyToHtml,
   bodyToCardText, hasAppLink, deploymentUrl, linkLabelSlack, linkLabelMarkdown,
+  foldSubjectIntoLead,
 } from '../appLink.js';
 
 const router = Router();
@@ -67,6 +68,11 @@ async function postWebhook(url, payload, timeoutMs = 10000) {
 // of every body, so the reader clicks the thing they recognise and the message
 // needs no trailing "open the app" line at all. Only when there is no id (or no
 // APP_BASE_URL) does the generic link come back.
+//
+// A chat channel also folds the event onto that first line rather than stacking
+// it above the body as a separate heading — see foldSubjectIntoLead(). When the
+// fold succeeds the channel's own title is dropped, so the event appears once,
+// on the line whose id is the link.
 function buildWebhookPayload(url, title, text, deploymentId) {
   const host = (() => { try { return new URL(url).hostname; } catch { return ''; } })();
   const isSlack = /(^|\.)slack\.com$/i.test(host);
@@ -74,19 +80,24 @@ function buildWebhookPayload(url, title, text, deploymentId) {
   // Schedule notifications may still carry a labelled link built by an older UI;
   // adding the generic one would put two links in the same message.
   const ownLink = !!depUrl || hasAppLink(text, APP_URL);
+  const folded = foldSubjectIntoLead(text, title, deploymentId);
+  const body = folded || text;
   if (isSlack) {
-    const body = depUrl ? linkLabelSlack(text, deploymentId, depUrl) : text;
-    return { text: `${title}\n${body}` + (ownLink ? '' : appLinkSlack(APP_URL)) };
+    const slackBody = depUrl ? linkLabelSlack(body, deploymentId, depUrl) : body;
+    const message = folded ? slackBody : `${title}\n${slackBody}`;
+    return { text: message + (ownLink ? '' : appLinkSlack(APP_URL)) };
   }
-  const linked = depUrl ? linkLabelMarkdown(text, deploymentId, depUrl) : text;
+  const linked = depUrl ? linkLabelMarkdown(body, deploymentId, depUrl) : body;
   const payload = {
     '@type': 'MessageCard',
     '@context': 'http://schema.org/extensions',
     themeColor: '0A6E7A',
+    // `summary` is the notification preview, shown instead of the card rather
+    // than beside it, so it keeps the full subject either way.
     summary: title,
-    title,
     text: bodyToCardText(linked),
   };
+  if (!folded) payload.title = title;
   // The card action is a button, not part of the body, so it is worth keeping
   // even when the body mentions the URL — but not when the id is already a link
   // to the same place, which would read as the same link twice.

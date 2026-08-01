@@ -16,6 +16,11 @@ router.get('/', async (_req, res) => {
     version: config.version,
     latest: state.latest,
     checkedAt: state.checkedAt,
+    // Language the UI must compose outgoing notifications in, so a notification
+    // does not inherit the language of whoever happened to trigger it. Empty
+    // means "follow my own UI language". This endpoint carries it because the UI
+    // already calls it right after sign-in, before any event can be dispatched.
+    notifyLang: config.notifyLang || undefined,
     // Present only when the last attempt failed; the UI turns this into a
     // tooltip so "latest unknown" says why (rate limit vs. no network).
     error: state.error || undefined,

@@ -6,6 +6,7 @@ import {
   appLinkText, appLinkHtml, appLinkSlack, appLinkCardAction, bodyToHtml,
   bodyToCardText, hasAppLink, isUsableAppUrl, APP_LINK_LABEL,
   deploymentUrl, linkLabelSlack, linkLabelMarkdown,
+  subjectEvent, foldSubjectIntoLead,
 } from '../src/appLink.js';
 
 const URL_OK = 'http://rolldesk.example.com';
@@ -200,4 +201,65 @@ test('bodyToHtml cannot be made to emit markup through the link label', () => {
   const html = bodyToHtml('<img src=x> — proj', { label: '<img src=x>', url: URL_OK });
   assert.ok(!html.includes('<img'), `expected the tag to stay escaped: ${html}`);
   assert.ok(html.includes(`<a href="${URL_OK}">&lt;img src=x&gt;</a>`), html);
+});
+
+// --- The chat-channel headline (Slack / Teams) ------------------------------
+// The regression: a chat channel renders the subject as a heading above the body,
+// so an approval request arrived as "RollDesk — Prośba o akceptację" over
+// "DEP-2026-0054 — WORD" — the product name in bold, the deployment underneath.
+
+test('subjectEvent drops the product prefix and keeps the event', () => {
+  assert.equal(subjectEvent('RollDesk — Prośba o akceptację'), 'Prośba o akceptację');
+  assert.equal(subjectEvent('RollDesk - Wdrożenie zakończone: Zainstalowano'), 'Wdrożenie zakończone: Zainstalowano');
+  assert.equal(subjectEvent('RollDesk – Awaria'), 'Awaria', 'an en dash is a prefix too');
+  assert.equal(subjectEvent('Prośba o akceptację'), 'Prośba o akceptację', 'no prefix to strip');
+  for (const empty of ['', '   ', null, undefined]) assert.equal(subjectEvent(empty), '');
+});
+
+test('the event is folded onto the first line, after the deployment id', () => {
+  const body = 'DEP-2026-0054 — WORD\nPojazd v52.13.32 · Produkcja';
+  assert.equal(
+    foldSubjectIntoLead(body, 'RollDesk — Prośba o akceptację', 'DEP-2026-0054'),
+    'DEP-2026-0054 — WORD - Prośba o akceptację\nPojazd v52.13.32 · Produkcja'
+  );
+});
+
+test('the folded line is what carries the link, so the id stays linkable', () => {
+  // A subject field cannot carry an anchor; the body can. That is the whole
+  // reason the event moves into the body rather than the id moving into the title.
+  const folded = foldSubjectIntoLead('DEP-1 — proj\nfacts', 'RollDesk — Awaria', 'DEP-1');
+  const url = deploymentUrl(URL_OK, 'DEP-1');
+  assert.equal(
+    linkLabelMarkdown(folded, 'DEP-1', url),
+    `[DEP-1](${url}) — proj - Awaria\nfacts`
+  );
+});
+
+test('a one-line body is folded without gaining a newline', () => {
+  assert.equal(foldSubjectIntoLead('DEP-1 — proj', 'RollDesk — Wstrzymano', 'DEP-1'), 'DEP-1 — proj - Wstrzymano');
+});
+
+test('the fold is declined when the first line does not open with the id', () => {
+  // Returning null (not a guess) is what makes the channel keep its own title:
+  // without a leading id there is nothing to make the headline out of.
+  assert.equal(foldSubjectIntoLead('Some heading\nDEP-1 — proj', 'RollDesk — Awaria', 'DEP-1'), null);
+  assert.equal(foldSubjectIntoLead('DEP-1 — proj', 'RollDesk — Awaria', ''), null, 'no id at all');
+  assert.equal(foldSubjectIntoLead('DEP-1 — proj', 'RollDesk —', 'DEP-1'), null, 'prefix only, no event');
+  assert.equal(foldSubjectIntoLead('DEP-1 — proj', '', 'DEP-1'), null);
+  for (const empty of ['', null, undefined]) {
+    assert.equal(foldSubjectIntoLead(empty, 'RollDesk — Awaria', 'DEP-1'), null);
+  }
+});
+
+test('an event the body already names is not appended twice', () => {
+  const body = 'DEP-1 — proj - Awaria\nfacts';
+  assert.equal(foldSubjectIntoLead(body, 'RollDesk — Awaria', 'DEP-1'), body);
+});
+
+test('the changelog paragraph break survives the fold', () => {
+  // bodyToCardText relies on the blank line to keep the changelog a paragraph;
+  // folding must not touch anything past the first line.
+  const folded = foldSubjectIntoLead('DEP-1 — proj\nfacts\n\nLista zmian:\nPM1 first', 'RollDesk — Nowy harmonogram', 'DEP-1');
+  assert.equal(folded, 'DEP-1 — proj - Nowy harmonogram\nfacts\n\nLista zmian:\nPM1 first');
+  assert.equal(bodyToCardText(folded).split('\n\n').length, 2, 'still exactly one paragraph break');
 });

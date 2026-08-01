@@ -33,7 +33,7 @@ function loadBundles() {
 
 function usedKeys(html) {
   return new Set(
-    [...html.matchAll(/data-i18n(?:-ph|-html)?="([^"]+)"/g)].map((m) => m[1])
+    [...html.matchAll(/data-i18n(?:-ph|-html|-title|-tip)?="([^"]+)"/g)].map((m) => m[1])
   );
 }
 

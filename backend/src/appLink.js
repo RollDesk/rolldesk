@@ -140,3 +140,48 @@ export function linkLabelSlack(text, label, url) {
 export function linkLabelMarkdown(text, label, url) {
   return linkifyFirst(text, label, url, (l, u) => `[${l}](${u})`);
 }
+
+// --- Chat-channel headline (Slack / Teams only) -----------------------------
+//
+// A chat channel renders the subject as a heading *above* the body, so an event
+// arrived as two stacked lines — "RollDesk — Prośba o akceptację" over
+// "DEP-2026-0054 — WORD" — where the product name is the only thing in bold and
+// the deployment, the thing the reader is looking for, sits underneath. Folding
+// the event onto the body's own first line gives one headline,
+// "DEP-2026-0054 — WORD - Prośba o akceptację", and because it lives in the body
+// the id in it can be a link — a subject/heading field cannot carry one.
+//
+// E-mail keeps the subject as a separate header: there it is a real envelope
+// field, not a line rendered next to the body, so nothing is duplicated.
+
+// The product prefix every subject carries. It names the instance, not the
+// event, and the channel itself already says which app posted — so it goes when
+// the subject is folded into the body.
+const SUBJECT_PREFIX = /^\s*RollDesk\s*(?:—|-|–)\s*/;
+
+export function subjectEvent(subject) {
+  return String(subject == null ? '' : subject).replace(SUBJECT_PREFIX, '').trim();
+}
+
+// Fold the subject's event onto the body's first line and return the new body,
+// or null when it does not apply — in which case the channel keeps rendering
+// its own title above the body as before.
+//
+// It applies only when the body's first line opens with the deployment id, which
+// is what makes the merged line a headline the id can be linked in. A body with
+// no id (or a first line that starts with something else) is left alone rather
+// than guessed at.
+export function foldSubjectIntoLead(text, subject, deploymentId) {
+  const body = String(text == null ? '' : text);
+  const id = String(deploymentId == null ? '' : deploymentId).trim();
+  const event = subjectEvent(subject);
+  if (!id || !event) return null;
+  const nl = body.indexOf('\n');
+  const lead = nl < 0 ? body : body.slice(0, nl);
+  if (!lead.trimStart().startsWith(id)) return null;
+  // Nothing to add when the lead already ends with the event — a body built by a
+  // future UI that names the event itself must not get it twice.
+  if (lead.trimEnd().endsWith(event)) return body;
+  const rest = nl < 0 ? '' : body.slice(nl);
+  return `${lead.trimEnd()} - ${event}${rest}`;
+}

@@ -61,6 +61,7 @@ Adopted architectural decisions for RollDesk. Use this as a checklist when build
 - Explicit lifecycle statuses (`scheduled` / `installed` / `failed` / …); append-only audit trail.
 - Two write shapes per entity: **`PUT` replaces the whole JSONB object** (what the UI, which holds it in memory, needs) and **`PATCH` merges named fields** (what a token-authenticated script needs, without a read-modify-write round trip). `PATCH` never upserts and validates the fields it owns.
 - Event-driven notifications (email / webhook / optional Teams Graph), opt-in.
+- Notification bodies are composed in the browser, so their language is pinned to the instance (`NOTIFY_LANG`, delivered to the UI by `/api/version`) rather than inherited from whoever triggered the event.
 
 ## Process & release
 

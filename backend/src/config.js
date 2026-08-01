@@ -31,6 +31,27 @@ if (timeZoneFromEnv && !isValidTimeZone(timeZoneFromEnv)) {
   timeZone = '';
 }
 
+// Language outgoing notifications are written in.
+//
+// A notification is composed in the browser of whoever triggered the event, so
+// it used to inherit *that person's* UI language — and the UI defaults to English
+// until someone picks otherwise. One deployment could therefore be announced to
+// the client in English and the next in Polish, depending on who clicked. The
+// recipients are a fixed audience per instance, so the language belongs to the
+// instance, not to the operator.
+//
+// Empty means "whatever the operator's UI is set to" — the previous behaviour,
+// kept so an existing deployment does not change language on upgrade.
+const NOTIFY_LANGS = ['pl', 'en'];
+const notifyLangFromEnv = (process.env.NOTIFY_LANG || '').trim().toLowerCase();
+let notifyLang = notifyLangFromEnv;
+if (notifyLangFromEnv && !NOTIFY_LANGS.includes(notifyLangFromEnv)) {
+  console.warn(
+    `[config] NOTIFY_LANG "${notifyLangFromEnv}" is not one of ${NOTIFY_LANGS.join('/')} — using the sender's UI language`
+  );
+  notifyLang = '';
+}
+
 export const config = {
   env,
   isProd,
@@ -43,6 +64,9 @@ export const config = {
   // IANA zone for the stamps stored on the deployment timeline and in the change
   // history (e.g. Europe/Warsaw). Empty = the runtime's own zone.
   timeZone,
+  // Language outgoing notifications are composed in ('pl' | 'en'). Empty = follow
+  // the UI language of whoever triggered the event (the historical behaviour).
+  notifyLang,
   trustProxy: process.env.TRUST_PROXY === '1',
   allowedIps: (process.env.ALLOWED_IPS || '')
     .split(',')
