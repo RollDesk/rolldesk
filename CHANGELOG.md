@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.1] - 2026-08-06
+
+### Fixed
+- **`IMAGE_PREFIX` pointed at a placeholder.** `.env.example` and `docker-compose.prod.yml` both defaulted to `ghcr.io/your-org/rolldesk`, so a server following the documented production path pulled from a registry that does not exist. Both now default to `ghcr.io/rolldesk/rolldesk` — the prefix CI actually publishes to — and the compose header spells out the `docker login ghcr.io` the private packages need, plus the `pull` / `up -d` rollout.
+
 ## [0.18.0] - 2026-08-06
 
 The review notes from 6 August: two paths through "New deployment" could not be

@@ -1,7 +1,13 @@
-# Production compose file — runs pre-built images pulled from a container registry
-# (e.g. GitHub Container Registry). This file is copied to the target server by the
-# GitHub Actions deploy workflow. IMAGE_PREFIX and TAG come from the server .env
-# (or are exported by the deploy step).
+# Production compose file — runs pre-built images pulled from GitHub Container
+# Registry instead of building on the server. IMAGE_PREFIX and TAG come from the
+# server .env; the defaults below point at this project's own published images, so
+# the server only has to choose a tag.
+#
+# The packages are private, so authenticate once on the server:
+#   docker login ghcr.io -u <github-user> --password-stdin   # token with read:packages
+# Then roll out with:
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
 services:
   db:
     image: postgres:18
@@ -33,7 +39,7 @@ services:
       start_period: 300s
 
   backend:
-    image: ${IMAGE_PREFIX:-ghcr.io/your-org/rolldesk}-backend:${TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/rolldesk/rolldesk}-backend:${TAG:-latest}
     restart: unless-stopped
     depends_on:
       db:
@@ -85,7 +91,7 @@ services:
       VERSION_CHECK_TTL_MS: ${VERSION_CHECK_TTL_MS:-3600000}
 
   frontend:
-    image: ${IMAGE_PREFIX:-ghcr.io/your-org/rolldesk}-frontend:${TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/rolldesk/rolldesk}-frontend:${TAG:-latest}
     restart: unless-stopped
     depends_on:
       - backend
