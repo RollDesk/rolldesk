@@ -199,7 +199,11 @@
   .topbar h1, .topbar .sub{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .topbar > div{min-width:0;}
   .view{overflow-x:hidden;}
-  .card{overflow-wrap:anywhere;}
+  /* `anywhere` — unlike `break-word` — also shrinks the element's min-content
+     width to a single character, which let table cells collapse until a header
+     like „DZIEŃ" was set one letter per line. `break-word` still breaks a long
+     unbreakable string (a URL, a token) but leaves normal words intact. */
+  .card{overflow-wrap:break-word;}
   .view table{max-width:100%;}
   @media (max-width:1100px){
     .grid-2{grid-template-columns:1fr;}
@@ -1312,10 +1316,13 @@
   <!-- ============ VIEW: NEW PROJECT ============ -->
   <div class="view" id="view-newproject">
     <!-- Two explicit, numbered steps so the amount of work ahead is visible at a
-         glance, and the primary action sits top-right level with the title. -->
+         glance, and the primary action sits top-right in the header row.
+         No in-view <h2>: the top bar already renders the view name for every
+         screen (titleFor()), so a heading here printed the same words twice, one
+         under the other. The description is the page's lead line instead — the
+         same applies to every other view. -->
     <div class="section-head" style="margin-bottom:6px;">
       <div>
-        <h2 class="section-title" style="margin-bottom:4px;" data-i18n="title.newproject">New project</h2>
         <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.newproject">The deployment schedule for this project will be adjusted automatically to the number of locations — you set it once, here.</p>
       </div>
       <div class="section-actions">
@@ -1464,7 +1471,6 @@
          repeatable step further down — generating is not approving. -->
     <div class="section-head">
       <div>
-        <h2 class="section-title" style="margin-bottom:4px;" data-i18n="title.schedule">New deployment</h2>
         <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.schedule">Choose a version and how it's spread over time. The system will calculate the split into working days automatically.</p>
       </div>
       <div class="section-actions">
@@ -1516,6 +1522,16 @@
           <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.deps">Dependencies — must be deployed earlier (optional)</span><span class="info-ic" data-i18n-tip="sch.depsNote">i</span></label>
           <div id="schedule-deps-list" style="display:flex; flex-direction:column; gap:6px;"></div>
         </div>
+        <!-- Whether a release carries a legal obligation decides how a deployer
+             treats a failure — a statutory deadline cannot simply be rescheduled
+             to next week. It is the first thing the deployer panel shows. -->
+        <div class="field">
+          <label data-i18n="sch.legal">Is this a legally required change?</label>
+          <div class="radio-row">
+            <label class="radio-pill selected"><input type="radio" name="schedule-legal" value="no" checked onchange="selectRadioPill('schedule-legal', this.value)"> <span data-i18n="sch.legalNo">No — a regular change</span></label>
+            <label class="radio-pill"><input type="radio" name="schedule-legal" value="yes" onchange="selectRadioPill('schedule-legal', this.value)"> <span data-i18n="sch.legalYes">Yes — required by law</span></label>
+          </div>
+        </div>
         <div class="field">
           <label data-i18n="sch.path">Deployment path — set for this specific deployment</label>
           <div class="radio-row">
@@ -1545,9 +1561,30 @@
           <span class="alert-ic" aria-hidden="true">&#8505;</span>
           <div class="alert-body"><span data-i18n="sch.testOnlyNote">A test environment is a single instance — one installation to the selected test environment(s) is enough, with no spreading across multiple locations and days. The split across locations applies to production only.</span></div>
         </div>
+        <!-- Not every release goes to the whole estate: a fix for one WORD is a
+             normal request. The covered-target count below is derived, so without
+             this the only rollout possible was "all production targets". -->
+        <div class="field" id="schedule-targets-field">
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;">
+            <input type="checkbox" id="schedule-limit-targets" style="width:auto;" onchange="onScheduleLimitTargetsChange()">
+            <span data-i18n="sch.limitTargets">Deploy to selected production targets only</span>
+            <span class="info-ic" data-i18n-tip="sch.limitTargetsNote">i</span>
+          </label>
+          <div id="schedule-targets-pick" style="display:none; margin-top:8px;">
+            <div class="toolbar" style="margin-bottom:6px;">
+              <input type="text" id="schedule-targets-search" class="w-medium" data-i18n-ph="sch.searchTargets" placeholder="Search targets..." oninput="renderScheduleTargetPicker()">
+              <span style="margin-left:auto; display:inline-flex; gap:6px;">
+                <button type="button" class="mini-btn" onclick="setAllScheduleTargets(true)" data-i18n="sch.pickAll">Select all</button>
+                <button type="button" class="mini-btn" onclick="setAllScheduleTargets(false)" data-i18n="sch.pickNone">Clear</button>
+              </span>
+            </div>
+            <div id="schedule-targets-list" style="max-height:180px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:8px; display:flex; flex-wrap:wrap; gap:6px;"></div>
+            <div id="schedule-targets-count" style="font-size:11.5px; color:var(--text-muted); margin-top:6px;"></div>
+          </div>
+        </div>
         <div class="grid-2" id="schedule-rollout-fields-2">
           <div class="field">
-            <label data-i18n="sch.locsCovered">Number of locations covered</label>
+            <label style="display:flex; align-items:center;"><span data-i18n="sch.locsCovered">Number of locations covered</span><span class="info-ic" data-i18n-tip="sch.locsCoveredNote">i</span></label>
             <input type="number" id="loc-count" value="400" class="mono w-small" disabled style="background:var(--paper); color:var(--text-muted);">
           </div>
           <div class="field">
@@ -1631,7 +1668,6 @@
   <div class="view" id="view-deployments">
     <div class="section-head">
       <div>
-        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.deployments">Deployments</h2>
         <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.deployments">A list of all deployments and their statuses. Pick a client to see deployments across all their projects.</p>
       </div>
       <div class="section-actions">
@@ -1712,7 +1748,6 @@
   <div class="view" id="view-users">
     <div class="section-head">
       <div>
-        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.users">Users</h2>
         <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.users">Who has access to the system and in what role. Only an Administrator can add and edit users.</p>
       </div>
       <div class="section-actions">
@@ -1803,7 +1838,6 @@
   <div class="view" id="view-clients">
     <div class="section-head">
       <div>
-        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.clients">Clients</h2>
         <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.clients">Companies for which projects are delivered. Only an Administrator can add and edit clients.</p>
       </div>
       <div class="section-actions">
@@ -1866,7 +1900,6 @@
   <div class="view" id="view-sso">
     <div class="section-head">
       <div>
-        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.sso">Single sign-on (SSO)</h2>
         <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.sso">Let users of a given e-mail domain sign in through their company identity provider (Microsoft Entra ID / Azure AD, Google, or any OpenID Connect provider) instead of a password. Accounts must already exist — users are added by an Administrator. Only an Administrator can configure SSO.</p>
       </div>
       <div class="section-actions">
@@ -1951,7 +1984,6 @@
          the stat row — the two views are read one after the other. -->
     <div class="section-head">
       <div>
-        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.installer">Deployer panel</h2>
         <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.installer">Here you report what succeeded and what failed, and add notes — without access to changing the schedule, target order, or client approval.</p>
       </div>
     </div>
@@ -2075,7 +2107,6 @@
 
   <!-- ============ VIEW: MY PROFILE ============ -->
   <div class="view" id="view-account">
-    <h2 class="section-title" data-i18n="title.account">My profile</h2>
     <p class="section-desc" data-i18n="desc.account">Your account, API tokens and activity history.</p>
 
     <!-- Who you are comes first, and the language switch sits beside it rather than
@@ -2218,7 +2249,6 @@
   <div class="view" id="view-audit">
     <div class="section-head">
       <div>
-        <h2 class="section-title" style="margin-bottom:2px;" data-i18n="title.audit">Change history</h2>
         <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.audit">Who changed what and when — additions, removals and modifications of targets, applications and users.</p>
       </div>
     </div>
@@ -2264,7 +2294,6 @@
   </div>
 
   <div class="view" id="view-help">
-    <h2 class="section-title" data-i18n="title.help">Help</h2>
     <p class="section-desc" id="help-intro">Key information about the application, a description of the roles and the API documentation.</p>
 
     <div class="filters" style="margin-bottom:14px;">
@@ -2477,11 +2506,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.17.0"></script>
-<script src="i18n/en.js?v=0.17.0"></script>
+<script src="i18n/pl.js?v=0.18.0"></script>
+<script src="i18n/en.js?v=0.18.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.17.0';
+  const ROLLDESK_VERSION = '0.18.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -3417,11 +3446,13 @@
     {key:'scheduleApproved', label:'Schedule approved by client'},
     {key:'decision',         label:'Client decision'},
     {key:'clientComment', label:'Client comments on a distribution'},
+    {key:'comment',   label:'Comment added to a deployment'},
     {key:'started',   label:'Production deployment started'},
     {key:'assigned',  label:'Deployer assigned to a deployment'},
     {key:'scheduleChanged', label:'Deployment date changed for a target'},
     {key:'paused',    label:'Distribution paused'},
     {key:'failure',   label:'Failure on a target'},
+    {key:'correction', label:'Installation status corrected'},
     {key:'dayReport', label:'Daily installation status'},
     {key:'completed', label:'Deployment completed (with status)'},
   ];
@@ -4572,12 +4603,16 @@
     if(weekendNoteEl) weekendNoteEl.textContent = t(p.skipWeekends !== false ? 'sch.weekendsNote' : 'sch.weekendsNoteIncluded');
 
     // Schedule view — count only Production targets, matching what confirmSchedule saves.
+    // A per-deployment target subset belongs to the project it was picked in, so
+    // switching project drops it.
+    scheduleTargetPick = null;
+    const limitCb = document.getElementById('schedule-limit-targets');
+    if(limitCb) limitCb.checked = false;
+    const limitBox = document.getElementById('schedule-targets-pick');
+    if(limitBox) limitBox.style.display = 'none';
     const prodTargets = (p.locationsList||[]).filter(t=>t.type === 'Production');
     const prodCount = prodTargets.length;
-    const modeBox = document.getElementById('schedule-mode-badge');
-    modeBox.textContent = prodCount <= 1
-      ? t('sch.badgeOne') + (p.locationName ? ' ('+p.locationName+')' : '')
-      : tf('sch.badgeSpread', {n: prodCount});
+    refreshScheduleModeBadge(prodCount);
     document.getElementById('loc-count').value = prodCount;
     document.getElementById('day-count').value = prodCount <= 1 ? 1 : (p.defaultDays || 10);
     // Pre-fill the default start time from the project definition, keeping the
@@ -4855,6 +4890,11 @@
 
   function onSchedulePathChange(){
     const path = document.querySelector('input[name="schedule-path"]:checked').value;
+    // A test-only deployment has no rollout to generate, so gating "Approve" on a
+    // generated schedule left it permanently disabled — the path could be chosen
+    // but never confirmed. There is nothing to spread across days here: the form
+    // itself is the whole plan, so it is approvable as soon as this path is set.
+    if(path === 'test-only') setScheduleApprovable(true);
     document.getElementById('schedule-envs-field').style.display = path === 'prod-only' ? 'none' : 'block';
     // Alerts are flex containers — restore the stylesheet default rather than
     // forcing `block`, which would break the icon/body layout.
@@ -4990,8 +5030,11 @@
     const today = todayIso();
     // Real wall-clock time the schedule was created, shown on the timeline.
     const createdTime = (function(){ const d = new Date(); const p = n => String(n).padStart(2,'0'); return p(d.getHours()) + ':' + p(d.getMinutes()); })();
-    const prodTargetCount = p.locationsList.filter(t=>t.type === 'Production').length;
+    // Scope: every production target, or only the subset the RM picked.
+    const scopedProdTargets = scheduleProdTargets();
+    const prodTargetCount = scopedProdTargets.length;
     const isMultiTarget = prodTargetCount > 1;
+    const targetScope = scheduleTargetPick ? scopedProdTargets.map(l=>l.code) : null;
 
     // If the RM manually spread the targets across days, the sum must match the number of targets —
     // otherwise an inconsistent plan would result (e.g. 20 assigned out of 384 targets).
@@ -5017,14 +5060,21 @@
     const isInternal = document.getElementById('schedule-internal').checked;
     const draftEl = document.getElementById('schedule-draft');
     const isDraft = !!(draftEl && draftEl.checked) && !isInternal;
-    const commonMeta = {changelog, attachment, createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, installerNotes: installerNotes || undefined, internal: isInternal || undefined, draft: isDraft || undefined};
+    const legalEl = document.querySelector('input[name="schedule-legal"]:checked');
+    const isLegal = !!legalEl && legalEl.value === 'yes';
+    const commonMeta = {changelog, attachment, createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, installerNotes: installerNotes || undefined, internal: isInternal || undefined, draft: isDraft || undefined, legal: isLegal || undefined};
 
     const created = [];
     const createdIdsStart = DEPLOYMENTS_DATA.length;
 
     // Test-environment deployments (one single-install record per selected env).
     // When the project opts in, test deployments also wait for client approval.
-    const testNeedsApproval = !isInternal && !!p.testNeedsApproval && approvalPolicyFor(p) !== 'none';
+    // A draft has not been sent to anyone, so it cannot already be awaiting a
+    // decision: `clientApproval` is left unset here and minted when the draft is
+    // published (see notifyClientOfDraft). Setting it at creation made every
+    // draft read „Oczekuje na akceptację" in the approval column while the row
+    // still carried the „Szkic" badge — two contradictory states at once.
+    const testNeedsApproval = !isInternal && !isDraft && !!p.testNeedsApproval && approvalPolicyFor(p) !== 'none';
     if(path === 'test-only' || path === 'test-prod'){
       const envs = testEnvs.length ? testEnvs : (p.testEnvs.length ? [p.testEnvs[0]] : ['Test']);
       envs.forEach(env=>{
@@ -5041,7 +5091,7 @@
 
     // Production deployment
     if(path === 'prod-only' || path === 'test-prod'){
-      const needsApproval = !isInternal && approvalPolicyFor(p) !== 'none';
+      const needsApproval = !isInternal && !isDraft && approvalPolicyFor(p) !== 'none';
       if(isMultiTarget){
         // Persist the manually-arranged order and day breakdown from the preview so the
         // installer panel rebuilds exactly what the RM planned (not a fresh even split).
@@ -5072,14 +5122,20 @@
           totalLocations: prodTargetCount, days: batchDays, dateRange: prodDate + ' (+' + batchDays + ' dni roboczych)',
           historyStart: prodDate, time: prodTime, createdDate: today, createdTime,
           counts:{scheduled: prodTargetCount, installed:0}, comments:[],
-          dayPlan, pendingQueue,
+          dayPlan, pendingQueue, targetScope: targetScope || undefined,
           clientApproval: needsApproval ? 'pending' : undefined, id: nextDeploymentId(), _seq: ++deploymentSeq
         }, commonMeta));
       } else {
+        // One target: name the target that was actually picked rather than the
+        // project's main office, or a single-WORD rollout would claim to go
+        // somewhere it never went.
+        const onlyTarget = scopedProdTargets[0];
         DEPLOYMENTS_DATA.push(Object.assign({
           projectKey: currentProjectKey, apps, env:'Production', mode:'single',
-          location: p.locationName || 'Main office', date: prodDate, time: prodTime,
+          location: (onlyTarget && (onlyTarget.label || onlyTarget.code)) || p.locationName || 'Main office',
+          date: prodDate, time: prodTime,
           createdDate: today, createdTime, status:'scheduled', comments:[],
+          targetScope: targetScope || undefined,
           clientApproval: needsApproval ? 'pending' : undefined, id: nextDeploymentId(), _seq: ++deploymentSeq
         }, commonMeta));
       }
@@ -5152,7 +5208,112 @@
     const cfw = document.getElementById('constraint-field-wrap'); if(cfw) cfw.innerHTML = '';
     const bt = document.getElementById('day-breakdown-table'); if(bt) bt.innerHTML = '';
     const sum = document.getElementById('day-breakdown-summary'); if(sum) sum.remove();
+    selectRadioPill('schedule-legal', 'no');
+    // A target subset applies to the one deployment it was picked for.
+    scheduleTargetPick = null;
+    const limitCb = document.getElementById('schedule-limit-targets');
+    if(limitCb) limitCb.checked = false;
+    const limitBox = document.getElementById('schedule-targets-pick');
+    if(limitBox) limitBox.style.display = 'none';
+    const tSearch = document.getElementById('schedule-targets-search');
+    if(tSearch) tSearch.value = '';
+    refreshScheduleTargetCount();
   }
+  // ---- Production-target subset for one deployment ----
+  // Codes the RM ticked, or null while the whole estate is in scope. Kept as a
+  // Set of codes rather than indices so it survives a target being added to the
+  // project between opening the form and saving.
+  let scheduleTargetPick = null;
+
+  // The production targets this deployment covers: the ticked subset when one is
+  // active, otherwise every production target of the project. Everything that
+  // counts, spreads or previews targets goes through here, so limiting the scope
+  // is one decision rather than a special case in each of them.
+  function scheduleProdTargets(){
+    const p = PROJECTS[currentProjectKey] || {};
+    const all = (p.locationsList || []).filter(l => l.type === 'Production');
+    if(!scheduleTargetPick) return all;
+    return all.filter(l => scheduleTargetPick.has(l.code));
+  }
+
+  function onScheduleLimitTargetsChange(){
+    const on = !!(document.getElementById('schedule-limit-targets') || {}).checked;
+    const box = document.getElementById('schedule-targets-pick');
+    if(box) box.style.display = on ? 'block' : 'none';
+    if(on){
+      // Start from the full estate: ticking the box narrows a scope the RM then
+      // reduces, rather than emptying the deployment and demanding a rebuild.
+      const p = PROJECTS[currentProjectKey] || {};
+      if(!scheduleTargetPick){
+        scheduleTargetPick = new Set((p.locationsList||[]).filter(l=>l.type==='Production').map(l=>l.code));
+      }
+      renderScheduleTargetPicker();
+    } else {
+      scheduleTargetPick = null;
+    }
+    // The covered-target count, the day split and the preview all derive from the
+    // scope, so none of them may survive a change to it.
+    clearManifestPreview();
+    refreshScheduleTargetCount();
+  }
+
+  function toggleScheduleTarget(code, on){
+    if(!scheduleTargetPick) scheduleTargetPick = new Set();
+    if(on) scheduleTargetPick.add(code); else scheduleTargetPick.delete(code);
+    clearManifestPreview();
+    refreshScheduleTargetCount();
+  }
+
+  function setAllScheduleTargets(on){
+    const p = PROJECTS[currentProjectKey] || {};
+    const codes = (p.locationsList||[]).filter(l=>l.type==='Production').map(l=>l.code);
+    scheduleTargetPick = on ? new Set(codes) : new Set();
+    renderScheduleTargetPicker();
+    clearManifestPreview();
+    refreshScheduleTargetCount();
+  }
+
+  function renderScheduleTargetPicker(){
+    const wrap = document.getElementById('schedule-targets-list');
+    if(!wrap) return;
+    const p = PROJECTS[currentProjectKey] || {};
+    const q = ((document.getElementById('schedule-targets-search')||{}).value || '').trim().toLowerCase();
+    const prod = (p.locationsList||[]).filter(l => l.type === 'Production');
+    const shown = q ? prod.filter(l => (l.label || l.code || '').toLowerCase().includes(q)) : prod;
+    wrap.innerHTML = shown.length
+      ? shown.map(l => chkPillHtml(
+          l.label || l.code,
+          !!(scheduleTargetPick && scheduleTargetPick.has(l.code)),
+          `onchange="toggleScheduleTarget('${String(l.code).replace(/'/g, "\\'")}', this.checked)"`
+        )).join('')
+      : `<span style="font-size:12px; color:var(--text-faint);">${t('sch.noTargetsMatch')}</span>`;
+    refreshScheduleTargetCount();
+  }
+
+  // The "one date / spread across days" banner. It reports the scope of *this*
+  // deployment, not the size of the project: a three-target release out of 400 is
+  // a one-day job, and a banner announcing 400 would contradict the form below it.
+  function refreshScheduleModeBadge(n){
+    const p = PROJECTS[currentProjectKey] || {};
+    const modeBox = document.getElementById('schedule-mode-badge');
+    if(!modeBox) return;
+    modeBox.textContent = n <= 1
+      ? t('sch.badgeOne') + (p.locationName ? ' ('+p.locationName+')' : '')
+      : tf('sch.badgeSpread', {n});
+  }
+
+  // Keeps the derived count and the day-count default in step with the scope.
+  function refreshScheduleTargetCount(){
+    const n = scheduleProdTargets().length;
+    const locEl = document.getElementById('loc-count');
+    if(locEl) locEl.value = n;
+    const cnt = document.getElementById('schedule-targets-count');
+    if(cnt) cnt.textContent = tf('sch.targetsPicked', {n});
+    const dayEl = document.getElementById('day-count');
+    if(dayEl && n <= 1) dayEl.value = 1;
+    refreshScheduleModeBadge(n);
+  }
+
   function rebuildScheduleEnvChecklist(checkedEnvs){
     const p = PROJECTS[currentProjectKey];
     const wrap = document.getElementById('schedule-envs-checks');
@@ -5727,7 +5888,10 @@
           </select>
         </td>
         <td><input type="number" class="mono" placeholder="—" value="${(dayConstraints[i]&&dayConstraints[i].limitMax!=null)?dayConstraints[i].limitMax:''}" style="width:60px;" onchange="updateDayConstraint(${i}, 'limitMax', this.value !== '' ? parseInt(this.value) : null)"></td>
-        <td><input type="text" placeholder="${t('sch.pinPh')}" value="${(dayConstraints[i]&&dayConstraints[i].pin)?String(dayConstraints[i].pin).replace(/"/g,'&quot;'):''}" style="width:180px;" onchange="updateDayConstraint(${i}, 'pin', this.value)"></td>
+        <!-- The pin field takes whatever width is left instead of a fixed 180px:
+             with five fixed-width columns the table was wider than its card and
+             the whole breakdown sat behind a horizontal scrollbar. -->
+        <td style="min-width:130px;"><input type="text" placeholder="${t('sch.pinPh')}" value="${(dayConstraints[i]&&dayConstraints[i].pin)?String(dayConstraints[i].pin).replace(/"/g,'&quot;'):''}" onchange="updateDayConstraint(${i}, 'pin', this.value)"></td>
       </tr>`).join('');
     renderDayBreakdownSummary();
   }
@@ -6015,6 +6179,12 @@
     if(tbody) tbody.innerHTML = '';
     const bt = document.getElementById('day-breakdown-table');
     if(bt) bt.innerHTML = '';
+    const sum = document.getElementById('day-breakdown-summary');
+    if(sum) sum.remove();
+    // The preview is gone, so there is nothing left to approve. Test-only keeps
+    // its approvable state — that path has no preview to begin with.
+    const pathEl = document.querySelector('input[name="schedule-path"]:checked');
+    if(!pathEl || pathEl.value !== 'test-only') setScheduleApprovable(false);
   }
 
   function generateManifest(silent){
@@ -6038,8 +6208,9 @@
 
     // (re)build the ordered location list only if the location count changed —
     // this preserves any manual reordering / day breakdown when just tweaking other fields.
-    // Only Production targets go into the production rollout (matches confirmSchedule).
-    const prodTargets = p.locationsList.filter(loc => loc.type === 'Production');
+    // Only Production targets go into the production rollout (matches confirmSchedule),
+    // narrowed to the picked subset when this deployment covers only part of the estate.
+    const prodTargets = scheduleProdTargets();
     if(manifestOrder.length !== prodTargets.length){
       manifestOrder = prodTargets.map(loc => ({code: loc.code, type: loc.type, label: loc.label, group: loc.group || '', custom: loc.custom || {}}));
       // Only discard a manual day breakdown when it no longer fits the target
@@ -6814,11 +6985,20 @@
     const pk = r.projectKey;
     const p = PROJECTS[pk] || {};
     const projName = p.name || pk;
-    const needsApproval = !!r.clientApproval && r.clientApproval !== 'approved';
+    // A draft carries no approval state (nothing was sent), so whether it needs
+    // one is decided by the same rules as at creation: the project's policy, and
+    // for a test environment its opt-in. An approval already recorded by hand is
+    // respected.
+    const needsApproval = r.clientApproval
+      ? r.clientApproval !== 'approved'
+      : (approvalPolicyFor(p) !== 'none' && (r.env === 'Production' || !!p.testNeedsApproval));
     const recipients = notifySummary(needsApproval ? 'approval' : 'created', pk, true);
     showAppConfirm(t('draft.notifyTitle'), tf('draft.notifyBody', {project: projName, recipients}), ()=>{
 
       r.draft = false;
+      // Publishing is what puts the schedule in front of the client, so this is
+      // where it starts awaiting their decision.
+      if(needsApproval && !r.clientApproval) r.clientApproval = 'pending';
       const body = buildScheduleNotifBody(r, projName);
       dispatchEventNotification('created', pk, 'RollDesk — ' + tn('ev.created'), body, false, r.id);
       if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk — ' + tn('ev.approval'), body, false, r.id);
@@ -8215,7 +8395,12 @@
     if(d.mode !== 'batch') return;
     const p = PROJECTS[d.projectKey];
     if(!p || !p.locationsList) return;
-    const prodCount = p.locationsList.filter(t=>t.type === 'Production').length;
+    // A deployment that covers only part of the estate keeps its own count: the
+    // reconciliation below exists to repair a stale total, and applied to a
+    // scoped rollout it would silently widen a 3-target release to all 384.
+    const prodCount = Array.isArray(d.targetScope)
+      ? d.targetScope.length
+      : p.locationsList.filter(t=>t.type === 'Production').length;
     if(!prodCount || d.totalLocations === prodCount) return;
     const installed = Math.min(d.counts ? d.counts.installed : 0, prodCount);
     d.totalLocations = prodCount;
@@ -8274,7 +8459,14 @@
     // rollout only touches production targets, so skip non-prod ones. Fall back to synthetic codes.
     const p = PROJECTS[d.projectKey];
     if(p && p.locationsList){
-      const prodTargets = p.locationsList.filter(t=>t.type === 'Production');
+      let prodTargets = p.locationsList.filter(t=>t.type === 'Production');
+      // A scoped deployment only ever names the targets it was planned for, in the
+      // order they were picked — otherwise position 0 of a 3-target release would
+      // resolve to the first site of the whole estate.
+      if(Array.isArray(d.targetScope)){
+        const byCode = new Map(prodTargets.map(t=>[t.code, t]));
+        prodTargets = d.targetScope.map(c=>byCode.get(c)).filter(Boolean);
+      }
       if(prodTargets[i]){
         const t = prodTargets[i];
         return t.label || t.code;
@@ -9280,6 +9472,7 @@
         <span class="mono" style="font-size:13px; font-weight:700;">${r.id || '—'}</span>
         <button class="mini-btn" title="${t('dcard.copyId')}" style="padding:4px 7px; display:inline-flex; align-items:center;" onclick="event.stopPropagation(); copyDeploymentId('${r.id||''}')">${COPY_ICON}</button>
         <span style="font-size:13px; font-weight:600;">${escapeHtml(deploymentTitle(r))}</span>
+        ${legalBadge(r)}
         ${assigneeHtml}
         ${barBtns.length ? `<div style="margin-left:auto; display:flex; gap:6px; flex-wrap:wrap;">${barBtns.join('')}</div>` : ''}
       </div>
@@ -9367,6 +9560,13 @@
 
   function internalBadge(r){
     return r.internal ? ' <span class="mono" style="font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; background:#EDE7F6; color:#5B3EA6; vertical-align:middle;">🔒 INTERNAL</span>' : '';
+  }
+
+  // A legally required change cannot simply be moved to next week when something
+  // goes wrong, so the deployer has to see it before deciding how to handle a
+  // failure — in the list and again in the open record, not buried in the notes.
+  function legalBadge(r){
+    return r.legal ? ' <span class="mono" style="font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; background:#FDE7E7; color:#A81E1E; vertical-align:middle;" title="' + escapeHtml(t('rep.legalTip')) + '">§ ' + escapeHtml(t('rep.legalShort')) + '</span>' : '';
   }
 
   // Small badge making the client's approval state explicit in the deployer
@@ -9747,7 +9947,7 @@
     const clientLabel = (r.project && r.project.clientName) ? r.project.clientName : '';
     const cells = [];
     cells.push(`<td>${expandableCell(`<div style="font-size:13px;">${escapeHtml(r.project.name || r.projectKey || '')}</div>${clientLabel ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${escapeHtml(clientLabel)}</div>` : ''}`)}</td>`);
-    cells.push(`<td style="max-width:150px;">${(r.apps||[]).map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${escapeHtml(a.name)}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${escapeHtml(a.version||'')}</div></div>`).join('')}${internalBadge(r)}</td>`);
+    cells.push(`<td style="max-width:150px;">${(r.apps||[]).map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${escapeHtml(a.name)}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${escapeHtml(a.version||'')}</div></div>`).join('')}${internalBadge(r)}${legalBadge(r)}</td>`);
     if(r.mode === 'batch'){
       cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})} <span style="color:var(--text-faint);">· ${tf('notif.daysN', {n: r.days})}</span></td>`);
     } else {
@@ -9820,7 +10020,9 @@
           </label>`).join('')}
         </div>
         <textarea id="today-fail-reason-i-${r.idx}" placeholder="${t('rep.failureReasonUnchecked')}"></textarea>
-        <button class="btn" style="margin-top:8px;" onclick="reportBatchDayResult(${r.idx}, 'i')">${t('rep.saveResult')}</button>`;
+        <button class="btn" style="margin-top:8px;" onclick="reportBatchDayResult(${r.idx}, 'i')">${t('rep.saveResult')}</button>
+        <hr style="border:none; border-top:1px solid var(--line); margin:14px 0 12px 0;">
+        ${batchCorrectionBlockHtml(r, true)}`;
     }
     return `${installerActionChromeHtml(r, {showSchedule:true, showComment:true, showTimeline:true, timelineOpen:true, showAssignee:true})}
       ${depWarningHtml(r)}
@@ -9833,14 +10035,53 @@
 
   // Production target labels for the correction picker — a correction only ever
   // applies to a production target, which is what the deployer was sent to.
-  function targetCodesForProject(projectKey){
+  // `scoped` is the deployment record when the picker belongs to one: a rollout
+  // planned for three WORDs can only be corrected on those three, so offering the
+  // whole estate would invite a correction against a target it never touched.
+  function targetCodesForProject(projectKey, scoped){
     const p = PROJECTS[projectKey];
     if(!p || !p.locationsList) return [];
-    return p.locationsList.filter(x=>x.type === 'Production').map(x=>x.label || x.code).filter(Boolean);
+    let prod = p.locationsList.filter(x=>x.type === 'Production');
+    if(scoped && Array.isArray(scoped.targetScope)){
+      const codes = new Set(scoped.targetScope);
+      prod = prod.filter(x=>codes.has(x.code));
+    }
+    return prod.map(x=>x.label || x.code).filter(Boolean);
+  }
+
+  // The correction block for a batch rollout — the button plus the collapsed
+  // form. Shared by the completed and the still-running detail views: a mistake
+  // on day 1 has to be fixable on day 2, not only after the last day is closed,
+  // so the same block is rendered in both places (`inProgress` only changes the
+  // hint text; the ids are per-idx and one row is expanded at a time).
+  function batchCorrectionBlockHtml(r, inProgress){
+    const failed = failedLocationsList(r);
+    const corrBtn = `<button class="mini-btn" onclick="toggleInstallerCorrection(${r.idx})">${t('rep.reportCorrection')}</button>`;
+    return `
+      <div style="margin-bottom:10px;">${corrBtn}</div>
+      ${failed.length ? `<div style="margin-bottom:8px; font-size:11.5px; color:#A81E1E;">⚠ ${tf('rep.toFinish', {list: failed.map(f=>f.location).join(', ')})}</div>` : ''}
+      <div id="correction-form-${r.idx}" style="display:none; margin-top:4px;">
+        <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">${inProgress ? t('rep.correctionHintActive') : t('rep.correctionHint')}</p>
+        <div id="correction-${r.idx}-errors" style="display:none; margin-bottom:10px;"></div>
+        <div class="grid-2">
+          <div class="field">
+            <label>${t('rep.targetCode')} <span style="color:#A81E1E;">*</span></label>
+            ${pickerHtml(`correction-loc-${r.idx}`, targetCodesForProject(r.projectKey, r), t('rep.targetCodePh'), 'mono')}
+          </div>
+          <div class="field">
+            <label>${t('rep.correctionReason')} <span style="color:#A81E1E;">*</span></label>
+            <input type="text" id="correction-reason-${r.idx}" placeholder="${t('rep.correctionReasonPh')}">
+          </div>
+        </div>
+        ${failed.length ? `<div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">${t('rep.currentlyFailed')}${failed.map(f=>`<a href="#" onclick="event.preventDefault(); document.getElementById('correction-loc-${r.idx}').value='${(f.location||'').replace(/'/g,'')}';" style="color:var(--cyan); text-decoration:none; margin-right:8px;">${escapeHtml(f.location||'')}</a>`).join('')}</div>` : ''}
+        <div class="card-actions">
+          <button class="btn ghost" onclick="submitBatchCorrection(${r.idx}, 'failed')">${t('rep.keepFailed')}</button>
+          <button class="btn" onclick="submitBatchCorrection(${r.idx}, 'installed')">${t('rep.changeToSuccessful')}</button>
+        </div>
+      </div>`;
   }
 
   function installerCompletedDetailHtml(r){
-    const failedCount = failedLocationsList(r).length;
     const corrBtn = `<button class="mini-btn" onclick="toggleInstallerCorrection(${r.idx})">${t('rep.reportCorrection')}</button>`;
     const chrome = installerActionChromeHtml(r, {showSchedule:true, showComment:true, showTimeline:true, timelineOpen:true});
     if(r.mode === 'batch'){
@@ -9849,27 +10090,7 @@
         : '';
       return `${chrome}
         ${doneBanner}
-        <div style="margin-bottom:10px;">${corrBtn}</div>
-        ${failedCount ? `<div style="margin-bottom:8px; font-size:11.5px; color:#A81E1E;">⚠ ${tf('rep.toFinish', {list: failedLocationsList(r).map(f=>f.location).join(', ')})}</div>` : ''}
-        <div id="correction-form-${r.idx}" style="display:none; margin-top:4px;">
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">${t('rep.correctionHint')}</p>
-          <div id="correction-${r.idx}-errors" style="display:none; margin-bottom:10px;"></div>
-          <div class="grid-2">
-            <div class="field">
-              <label>${t('rep.targetCode')} <span style="color:#A81E1E;">*</span></label>
-              ${pickerHtml(`correction-loc-${r.idx}`, targetCodesForProject(r.projectKey), t('rep.targetCodePh'), 'mono')}
-            </div>
-            <div class="field">
-              <label>${t('rep.correctionReason')} <span style="color:#A81E1E;">*</span></label>
-              <input type="text" id="correction-reason-${r.idx}" placeholder="${t('rep.correctionReasonPh')}">
-            </div>
-          </div>
-          ${failedCount ? `<div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">${t('rep.currentlyFailed')}${failedLocationsList(r).map(f=>`<a href="#" onclick="event.preventDefault(); document.getElementById('correction-loc-${r.idx}').value='${(f.location||'').replace(/'/g,'')}';" style="color:var(--cyan); text-decoration:none; margin-right:8px;">${escapeHtml(f.location||'')}</a>`).join('')}</div>` : ''}
-          <div class="card-actions">
-            <button class="btn ghost" onclick="submitBatchCorrection(${r.idx}, 'failed')">${t('rep.keepFailed')}</button>
-            <button class="btn" onclick="submitBatchCorrection(${r.idx}, 'installed')">${t('rep.changeToSuccessful')}</button>
-          </div>
-        </div>`;
+        ${batchCorrectionBlockHtml(r, false)}`;
     }
     return `${chrome}
       <div style="margin-bottom:10px;">${corrBtn}</div>
@@ -10042,6 +10263,29 @@
     f.style.display = f.style.display === 'none' ? 'block' : 'none';
   }
 
+  // A correction reverses a result that has already been announced: whoever was
+  // told „installed" on day 1 has to be told it is now „failed", or their picture
+  // of the rollout is silently wrong. Same channel as the original report, hence
+  // e-mail too, and it applies to both PROD and a test environment — the env is
+  // in the subject so the recipient can tell which one moved.
+  function notifyCorrection(d, loc, targetStatus, reason){
+    const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
+    const statusTxt = statusLabelNotif(targetStatus);
+    let body = notifHeader(d, projName)
+      + '\n' + tnf('notif.correctionBody', {loc: loc || d.location || '—', status: statusTxt})
+      + '\n' + tn('dcard.reason') + ': ' + reason
+      + '\n' + tnf('notif.changedBy', {who: actorName()});
+    if(d.mode === 'batch' && d.counts){
+      body += '\n' + tnf('notif.progressLine', {
+        done: d.counts.installed, total: d.totalLocations || (d.counts.installed + d.counts.scheduled),
+        left: d.counts.scheduled
+      });
+    }
+    dispatchEventNotification('correction', d.projectKey,
+      'RollDesk — ' + tn('ev.correction') + ': ' + statusTxt + ' (' + envLabelNotif(d.env||'') + ')',
+      body, true, d.id);
+  }
+
   function submitBatchCorrection(idx, targetStatus){
     const d = DEPLOYMENTS_DATA[idx];
     const loc = document.getElementById('correction-loc-' + idx).value.trim();
@@ -10060,6 +10304,20 @@
     const failedPos = d.failedLocations.findIndex(f => f.location === loc);
     if(!targetStatus) targetStatus = failedPos !== -1 ? 'installed' : 'failed';
 
+    // A correction revises a result that was already reported. Now that the form
+    // is reachable mid-rollout it can also reach a target from a day that has not
+    // run yet, and marking that one „installed" would not be a correction — it
+    // would be reporting an installation that never happened, and it would pull a
+    // target out of its planned day. Reporting the day's work is the other button.
+    if(targetStatus === 'installed' && failedPos === -1){
+      getBatchHistoryRows(d);
+      const known = (d.history || []).some(h => h.location === loc);
+      if(!known){
+        showFormErrors('correction-' + idx, [{id:'correction-loc-' + idx, label:t('rep.targetCode'), msg:tf('rep.corrNotReportedYet', {loc})}]);
+        return;
+      }
+    }
+
     if(targetStatus === 'installed'){
       if(failedPos !== -1) d.failedLocations.splice(failedPos, 1);
       getBatchPendingQueue(d);
@@ -10077,6 +10335,7 @@
       renderInstallerPanel();
       renderDeploymentsTable();
       showToast(tf('rep.corrToSuccess', {loc}));
+      notifyCorrection(d, loc, 'installed', reason);
       return;
     }
 
@@ -10106,6 +10365,7 @@
     renderInstallerPanel();
     renderDeploymentsTable();
     showToast(tf('rep.corrToFailed', {loc}));
+    notifyCorrection(d, loc, 'failed', reason);
   }
 
   function submitSingleCorrection(idx, targetStatus){
@@ -10130,6 +10390,7 @@
     renderInstallerPanel();
     renderDeploymentsTable();
     showToast('Correction saved — marked as ' + label);
+    notifyCorrection(d, d.location, targetStatus, reason);
   }
 
   function installerMarkSingle(idx, status){
@@ -10625,6 +10886,14 @@
     renderDeploymentsTable();
     renderInstallerPanel();
     showToast('Comment added to the timeline');
+    // A comment is how the deployer and the RM talk to each other about a live
+    // rollout, and it only reached whoever happened to open the record. Internal
+    // channel only — the note is a working remark, not a client-facing update.
+    const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
+    dispatchEventNotification('comment', d.projectKey,
+      'RollDesk — ' + tn('ev.comment') + ' (' + envLabelNotif(d.env||'') + ')',
+      notifHeader(d, projName) + '\n' + tnf('notif.commentBy', {who: author}) + '\n' + text,
+      false, d.id);
   }
 
   function populateDeployAppFilter(){
@@ -11026,7 +11295,7 @@
         const clientLabel = (r.project && r.project.clientName) ? r.project.clientName : '';
         cells.push(`<td>${lead(`<div style="font-size:13px;">${escapeHtml(r.project.name || r.projectKey || '')}</div>${clientLabel ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${escapeHtml(clientLabel)}</div>` : ''}`)}</td>`);
       }
-      const appsCell = `${r.apps.map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${a.name}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${a.version}</div></div>`).join('')}${r.internal ? '<div>'+internalBadge(r)+'</div>' : ''}`;
+      const appsCell = `${r.apps.map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${a.name}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${a.version}</div></div>`).join('')}${r.internal ? '<div>'+internalBadge(r)+'</div>' : ''}${r.legal ? '<div>'+legalBadge(r)+'</div>' : ''}`;
       cells.push(`<td style="max-width:150px;">${showProjectCol ? appsCell : lead(appsCell)}</td>`);
 
       if(r.mode === 'batch'){

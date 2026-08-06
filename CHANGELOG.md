@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-08-06
+
+The review notes from 6 August: two paths through "New deployment" could not be
+completed at all, the deployer panel was missing the two events it most needed to
+send, and a correction could not be made until the whole rollout was over.
+
+### Added
+- **A deployment can cover part of the estate.** "Number of targets covered" is derived from the project's production targets and therefore read-only, which left no way to release to a single WORD — the only production rollout possible was "all of them". Tick *Deploy to selected production targets only* and pick the targets: the count, the day split, the preview, the per-day breakdown and the saved record all follow the subset. A one-target rollout now also names the target that was picked instead of the project's main office.
+- **Whether a change is required by law is part of the plan.** New deployments ask it explicitly, and the answer rides with the record: the deployer panel marks such a rollout with a red **§ LEGAL** badge in the list and in the open record, because a statutory deadline is what decides whether a failure can simply be moved to next week.
+- **Two webhook events that were missing.** *Comment added to a deployment* and *Installation status corrected* now dispatch like every other event — a correction on PROD or on a test environment, and a note between the release manager and the deployer, used to reach only whoever happened to open the record. Both are enabled by default on existing webhooks as well as new ones, so nothing needs reconfiguring.
+
+### Fixed
+- **A test-only deployment can be approved.** "Approve schedule" only ever became enabled by generating a schedule, and the test-only path has no rollout to generate, so the path could be chosen but never confirmed — the deployment was unreachable. It is approvable as soon as the path is set; discarding a generated preview no longer un-approves it either.
+- **A correction can be made while the rollout is still running.** The correction form was rendered only for a finished deployment, so a mistake on day 1 had to wait until the last planned day had closed. It now sits under the day report for a running batch too, restricted to the targets that deployment covers, and refuses to mark a target from a day that has not run yet as installed — that is reporting, not correcting.
+- **A draft no longer claims to be awaiting approval.** Typing a comment on a draft showed *Awaiting approval* in the approval column while the row still carried the *Draft* badge. A draft has not been sent to anyone, so it carries no approval state; the state is minted when the draft is published.
+- **Table headers no longer wrap one letter per line.** `overflow-wrap: anywhere` shrinks an element's minimum width to a single character, which let the day-breakdown columns collapse until „DZIEŃ" read *D/Z/I/E/Ń*. Long unbreakable strings still break; ordinary words do not. The per-day pin field also gave up its fixed width, which had pushed the whole table behind a horizontal scrollbar.
+- **The view name is printed once.** Every screen repeated its own title under the one in the top bar — *New deployment* directly above *New deployment*. The in-view heading is gone; the description is the lead line.
+
 ## [0.17.0] - 2026-08-01
 
 A UX review pass over every tab the previous releases did not touch, plus one
