@@ -846,6 +846,7 @@ window.RD_I18N.pl = {
   "rep.pending": "W trakcie / do zainstalowania",
   "rep.installed": "Zainstalowane",
   "rep.issues": "Nieudane / wycofane / przerwane",
+  "rep.appsDeployed": "Aplikacje do wdrożenia",
   "rep.noActive": "Brak aktywnych wdrożeń do zaraportowania.",
   "rep.completedNote": "Te wdrożenia zniknęły z listy „Do zaraportowania\", ponieważ są już ukończone. Jeśli to pomyłka, popraw to tutaj.",
   "rep.toReport": "Do zaraportowania",

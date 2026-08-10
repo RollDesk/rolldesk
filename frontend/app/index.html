@@ -772,6 +772,9 @@
   .stat .stat-ic.ic-pending{background:#EEF0F3; color:var(--text-muted);}
   .stat .stat-ic.ic-done{background:var(--green-soft); color:#0F7A38;}
   .stat .stat-ic.ic-issue{background:var(--red-soft); color:#A81E1E;}
+  /* Applications covered — a scope figure, not a progress one, so it takes the
+     neutral accent rather than the green/red of the outcome tiles. */
+  .stat .stat-ic.ic-apps{background:var(--cyan-soft); color:#0A6E7A;}
   /* A counter at zero carries no signal, so it must not shout: an empty
      "Failed" tile stays grey and only turns red once there is something to see. */
   .stat .stat-ic.ic-zero{background:#EEF0F3; color:var(--text-faint);}
@@ -2506,11 +2509,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.18.1"></script>
-<script src="i18n/en.js?v=0.18.1"></script>
+<script src="i18n/pl.js?v=0.19.0"></script>
+<script src="i18n/en.js?v=0.19.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.18.1';
+  const ROLLDESK_VERSION = '0.19.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -9654,11 +9657,67 @@
       t('rep.assignee')
     ];
   }
+  // The deployer panel exports one row per application per target: a release of
+  // five applications to three sites is fifteen installations to carry out, and
+  // that is the sheet the deployer works from. The Deployments list keeps the
+  // one-row-per-record export above — it is a register, not a worklist.
+  function installerCsvRecords(r){
+    const p = r.project || PROJECTS[r.projectKey] || {};
+    // A record with no application still has targets to visit, so it must not
+    // vanish from the export — emit it once with an empty application.
+    const apps = (r.apps && r.apps.length) ? r.apps : [{name:'', version:''}];
+    const labels = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
+    // Per-target status. In a batch the schedule keeps the already-installed
+    // targets at the front (same invariant targetCodeAt relies on), so the
+    // position decides "done"; anything still on the failed list is a retry.
+    const installedCount = (r.mode === 'batch' && r.counts) ? (Number(r.counts.installed) || 0) : 0;
+    const failedSet = new Set((r.mode === 'batch' ? failedLocationsList(r) : []).map(f => f && f.location));
+    const timePart = r.time ? ' ' + r.time : '';
+    const out = [];
+    buildScheduleRows(r).forEach((x, pos) => {
+      const st = r.mode !== 'batch'
+        ? (r.status || 'scheduled')
+        : (pos < installedCount ? 'installed' : (failedSet.has(x.code) ? 'failed' : 'scheduled'));
+      apps.forEach(a => {
+        out.push([
+          r.id || '',
+          p.name || r.projectKey || '',
+          p.clientName || '',
+          a.name || '',
+          a.version || '',
+          x.code || '',
+          envLabel(r.env) || '',
+          x.date ? x.date + timePart : '',
+          labels[st] || st,
+          r.clientApproval || '',
+          r.paused ? (r.pauseReason || t('pause.badge')) : '',
+          r.assignedTo || ''
+        ]);
+      });
+    });
+    return out;
+  }
+  function installerCsvHeaders(){
+    return [
+      'ID',
+      t('dep.thProject'),
+      t('proj.thClient'),
+      t('rep.scheduleAppHdr'),
+      t('rep.scheduleVerHdr'),
+      t('rep.scheduleCodeHdr'),
+      t('dep.thEnv'),
+      t('dep.thDate'),
+      t('dtl.thStatus'),
+      t('dep.thApproval'),
+      t('pause.badge'),
+      t('rep.assignee')
+    ];
+  }
   function exportDeploymentsListCsv(){
     downloadListCsv('rolldesk-deployments.csv', deploymentCsvHeaders(), lastDeploymentsCsvRows);
   }
   function exportInstallerListCsv(){
-    downloadListCsv('rolldesk-installer.csv', deploymentCsvHeaders(), lastInstallerCsvRows);
+    downloadListCsv('rolldesk-installer.csv', installerCsvHeaders(), lastInstallerCsvRows);
   }
 
   // Deployments visible in the deployer panel: scoped to the deployer's granted
@@ -10109,14 +10168,11 @@
       </div>`;
   }
 
-  // The four deployment counters, shared by the deployments list and the deployer
-  // panel. Each box carries an icon — a bare number is not legible enough on its own.
-  function deployStatsHtml(total, pending, installed, issues){
-    // A colour-coded tile at zero would draw the eye to nothing, so a count of
-    // zero falls back to the neutral grey treatment.
-    const box = (icClass, ic, num, lbl, numStyle) => {
-      const zero = !Number(num);
-      return `
+  // One counter tile. A colour-coded tile at zero would draw the eye to nothing,
+  // so a count of zero falls back to the neutral grey treatment.
+  function statTileHtml(icClass, ic, num, lbl, numStyle){
+    const zero = !Number(num);
+    return `
       <div class="stat">
         <div class="stat-top">
           <span class="stat-ic ${zero ? 'ic-zero' : icClass}" aria-hidden="true">${ic}</span>
@@ -10124,13 +10180,29 @@
         </div>
         <div class="lbl">${escapeHtml(lbl)}</div>
       </div>`;
-    };
+  }
+
+  // The four deployment counters, shared by the deployments list and the deployer
+  // panel. Each box carries an icon — a bare number is not legible enough on its own.
+  function deployStatsHtml(total, pending, installed, issues){
+    const box = statTileHtml;
     return [
       box('ic-total', '\u{1F680}', total, t('rep.total')),
       box('ic-pending', '\u{1F551}', pending, t('rep.pending'), 'color:var(--text-muted);'),
       box('ic-done', '\u2713', installed, t('rep.installed'), 'color:var(--green);'),
       box('ic-issue', '\u26A0', issues, t('rep.issues'), 'color:var(--red);'),
     ].join('');
+  }
+
+  // Distinct applications the visible rollouts cover. A record carries several
+  // applications and each one has to be installed on every target, so a count of
+  // deployments understates the actual work — the same reason this panel's CSV is
+  // one row per application per target. Counted per name, not per record: the
+  // same application in two rollouts is still one application to deploy.
+  function installerAppCount(list){
+    const names = new Set();
+    list.forEach(r => (r.apps || []).forEach(a => { if(a && a.name) names.add(a.name); }));
+    return names.size;
   }
 
   function renderInstallerStats(list){
@@ -10146,7 +10218,8 @@
         else issues += 1;
       }
     });
-    stats.innerHTML = deployStatsHtml(total, pending, installed, issues);
+    stats.innerHTML = deployStatsHtml(total, pending, installed, issues)
+      + statTileHtml('ic-apps', '\u{1F4E6}', installerAppCount(list), t('rep.appsDeployed'));
   }
 
   function renderInstallerPanel(){
@@ -10207,7 +10280,8 @@
 
     const csvSource = rows.slice();
     if(installerArchiveOpen && rows._archive) rows._archive.forEach(r => csvSource.push({r, kind:'completed'}));
-    lastInstallerCsvRows = csvSource.map(({r}) => deploymentCsvRecord(r));
+    lastInstallerCsvRows = [];
+    csvSource.forEach(({r}) => { installerCsvRecords(r).forEach(rec => lastInstallerCsvRows.push(rec)); });
 
     const headKeys = [
       ['project', t('dep.thProject')], ['app', t('dep.thAppVer')], ['locations', t('dep.thLocations')],
