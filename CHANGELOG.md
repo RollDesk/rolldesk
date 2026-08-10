@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] - 2026-08-10
+
+### Added
+- **The deployer panel counts the applications it has to deploy.** The counter row reported deployments, days and targets, but never how many applications the visible rollouts actually cover — and a single record can carry five of them. A fifth tile now shows the distinct applications across the filtered list, counted per name, so an application appearing in two rollouts is still one application to install.
+
+### Changed
+- **The deployer panel's CSV is one row per application per target.** It exported one row per deployment record, which collapsed the whole rollout into a single line: a release of 5 applications to 3 targets came out as one row instead of the 15 installations it describes. The export now enumerates every application × target pair, with the target code, its scheduled date and its own status (installed / failed / scheduled), which is the worklist a deployer actually works from. The Deployments list export is unchanged — it is a register of records, not a worklist.
+
 ## [0.18.1] - 2026-08-06
 
 ### Fixed

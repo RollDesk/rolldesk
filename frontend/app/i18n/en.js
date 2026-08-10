@@ -846,6 +846,7 @@ window.RD_I18N.en = {
   "rep.pending": "In progress / to install",
   "rep.installed": "Installed",
   "rep.issues": "Failed / rolled back / aborted",
+  "rep.appsDeployed": "Applications to deploy",
   "rep.noActive": "No active deployments to report.",
   "rep.completedNote": "These deployments disappeared from the \"To report\" list because they are already completed. If a mistake occurred, fix it here.",
   "rep.toReport": "To report",
