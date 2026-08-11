@@ -1106,6 +1106,8 @@ window.RD_I18N.pl = {
   "dtl.schedSaved": "Zapisano zmiany harmonogramu — powiadomienia wysłane",
   "dtl.schedXls": "⬇ XLS",
   "dtl.schedPdf": "⬇ PDF",
+  "dtl.schedCsv": "⬇ CSV",
+  "dtl.schedCsvTip": "Pobierz to wdrożenie jako CSV — jeden wiersz na aplikację i cel",
   "rep.resultSavedDay": "Wynik zapisany — Dzień {day} zamknięty",
   "rep.installedLc": "zainstalowano",
   "rep.failedCarried": "nieudane (przeniesione)",

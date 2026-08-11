@@ -2509,11 +2509,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.19.0"></script>
-<script src="i18n/en.js?v=0.19.0"></script>
+<script src="i18n/pl.js?v=0.20.0"></script>
+<script src="i18n/en.js?v=0.20.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.19.0';
+  const ROLLDESK_VERSION = '0.20.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -9465,6 +9465,7 @@
       if(!r.draft){
         barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportScheduleXls(${r.idx})">${t('dtl.schedXls')}</button>`);
         barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">${t('dtl.schedPdf')}</button>`);
+        barBtns.push(`<button class="mini-btn" title="${escapeHtml(t('dtl.schedCsvTip'))}" onclick="event.stopPropagation(); exportDeploymentCsv(${r.idx})">${t('dtl.schedCsv')}</button>`);
       }
     }
 
@@ -9718,6 +9719,17 @@
   }
   function exportInstallerListCsv(){
     downloadListCsv('rolldesk-installer.csv', installerCsvHeaders(), lastInstallerCsvRows);
+  }
+  // A single record's worklist, next to its XLS and PDF. The list-level CSV covers
+  // everything currently filtered, which is the wrong sheet to hand to someone
+  // working one rollout — so the same application × target rows are downloadable
+  // per deployment. Draft-gated like the other two exports.
+  function exportDeploymentCsv(idx){
+    const r = DEPLOYMENTS_DATA[idx];
+    if(blockedAsDraft(r)) return;
+    const rows = installerCsvRecords(r);
+    if(!rows.length){ showToast(t('list.csvEmpty')); return; }
+    downloadListCsv(scheduleFileBase(r) + '.csv', installerCsvHeaders(), rows);
   }
 
   // Deployments visible in the deployer panel: scoped to the deployer's granted
@@ -11298,6 +11310,7 @@
       barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-comment-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'comment')">💬 ${t('dcard.commentShort')}</button>`);
       if(canExportSchedule) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportScheduleXls(${r.idx})">${t('dtl.schedXls')}</button>`);
       if(canExportSchedule) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">${t('dtl.schedPdf')}</button>`);
+      if(canExportSchedule) barBtns.push(`<button class="mini-btn" title="${escapeHtml(t('dtl.schedCsvTip'))}" onclick="event.stopPropagation(); exportDeploymentCsv(${r.idx})">${t('dtl.schedCsv')}</button>`);
       if(isActiveDep) barBtns.push(`<button class="mini-btn icon-btn accent" onclick="event.stopPropagation(); generateEndUserMessage(${r.idx})"><span class="mb-ic">✉</span> ${t('dcard.genMessage')}</button>`);
       if(isActiveDep && !r.paused) barBtns.push(`<button class="mini-btn icon-btn warn" onclick="event.stopPropagation(); pauseDeployment(${r.idx})"><span class="mb-ic">⏸</span> ${t('dcard.pause')}</button>`);
       if(isActiveDep && r.paused) barBtns.push(`<button class="mini-btn icon-btn ok" onclick="event.stopPropagation(); resumeDeployment(${r.idx})"><span class="mb-ic">▶</span> ${t('dcard.resume')}</button>`);
