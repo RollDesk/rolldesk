@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.0] - 2026-08-11
+
+### Added
+- **A single deployment can be downloaded as CSV.** An open record offered its schedule as XLS and PDF, but the only CSV was the list-level one covering everything currently filtered — the wrong sheet to hand to someone working one rollout. A **⬇ CSV** button now sits next to XLS and PDF in both the deployer panel and the Deployments list, exporting that record's application × target rows under its own file name. Drafts are excluded, like the other two exports.
+
 ## [0.19.0] - 2026-08-10
 
 ### Added

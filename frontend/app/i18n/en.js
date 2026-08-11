@@ -1106,6 +1106,8 @@ window.RD_I18N.en = {
   "dtl.schedSaved": "Schedule changes saved — notifications sent",
   "dtl.schedXls": "⬇ XLS",
   "dtl.schedPdf": "⬇ PDF",
+  "dtl.schedCsv": "⬇ CSV",
+  "dtl.schedCsvTip": "Download this deployment as CSV — one row per application per target",
   "rep.resultSavedDay": "Result saved — Day {day} closed",
   "rep.installedLc": "installed",
   "rep.failedCarried": "failed (carried over)",
