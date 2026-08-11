@@ -1065,6 +1065,12 @@
     <span data-i18n="nav.deployments">Deployments</span>
   </div>
 
+  <div class="nav-group-label" data-i18n="grp.tester">Test team</div>
+  <div class="nav-item" data-view="packages">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v8l-9 5-9-5V8l9-5 9 5Z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>
+    <span data-i18n="nav.packages">Release packages</span>
+  </div>
+
   <div class="nav-group-label" data-i18n="grp.installer">Deployer</div>
   <div class="nav-item" data-view="installer">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 1 5.4-5.4z"/></svg>
@@ -1498,6 +1504,14 @@
           <label data-i18n="sch.project">Project</label>
           <select id="schedule-project-select" class="mono w-long" onchange="switchProject(this.value)"></select>
         </div>
+        <!-- The versions and the changelog are the test team's output, so they are
+             picked here rather than retyped: a package fills both in, and the
+             deployment keeps a reference to it. -->
+        <div class="field" id="schedule-package-field">
+          <label style="display:flex; align-items:center;"><span data-i18n="sch.package">Release package</span><span class="info-ic" data-i18n-tip="sch.packageNote">i</span></label>
+          <select id="schedule-package-select" class="mono w-long" onchange="applyPackageToSchedule(this.value)"></select>
+          <div id="schedule-package-summary" style="font-size:11.5px; color:var(--text-muted); margin-top:6px;"></div>
+        </div>
         <div class="field">
           <label style="display:flex; align-items:center;"><span data-i18n="sch.appsVersions">Applications and versions included in this deployment</span><span class="info-ic" data-i18n-tip="sch.appsVersionsNote">i</span></label>
           <div id="schedule-apps-list" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;"></div>
@@ -1746,6 +1760,123 @@
     </div>
   </div>
 
+  <!-- ============ VIEW: RELEASE PACKAGES ============ -->
+  <!-- What the test team hands over: the versions that were tested together and
+       the issues they fix. A release manager picks a package when planning a
+       deployment instead of retyping versions and a changelog. -->
+  <div class="view" id="view-packages">
+    <div class="section-head">
+      <div>
+        <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.packages">Packages prepared by the test team: the application versions tested together and the issues they fix. A release manager picks a ready package when planning a deployment.</p>
+      </div>
+      <div class="section-actions">
+        <button class="btn" id="add-package-btn" onclick="openPackageEditor()"><span aria-hidden="true">＋</span> <span data-i18n="pkg.add">New package</span></button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <div class="filters" style="flex-wrap:wrap;">
+          <span class="filter-label" data-i18n="dep.filterBy">Filter by</span>
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capProject">Project</span>
+            <select id="package-filter-project" onchange="renderPackagesTable()">
+              <option value="all" data-i18n="dep.fProjects">All projects</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capStatus">Status</span>
+            <select id="package-filter-status" onchange="renderPackagesTable()">
+              <option value="all" data-i18n="client.tabAll">All</option>
+              <option value="ready" data-i18n="pkg.stReady">Ready</option>
+              <option value="draft" data-i18n="pkg.stDraft">Draft</option>
+            </select>
+          </div>
+          <div class="filter-field" style="flex:1; min-width:180px;">
+            <span class="fl-cap" data-i18n="flt.capSearch">Search</span>
+            <span class="search-field" style="width:100%;">
+              <svg class="search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+              <input type="text" id="package-filter-q" data-i18n-ph="pkg.searchPh" placeholder="Search ID, application, issue…" style="width:100%;" oninput="renderPackagesTable()">
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="table-scroll" style="max-height:640px;">
+        <table>
+          <thead><tr>
+            <th data-i18n="pkg.thId">ID</th>
+            <th data-i18n="pkg.thProject">Project</th>
+            <th data-i18n="pkg.thApps">Applications and versions</th>
+            <th data-i18n="pkg.thIssues">Fixed issues</th>
+            <th data-i18n="pkg.thStatus">Status</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="packages-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- A package is versions + the issues they fix, so both are labelled sections
+       of one dialog: the tester fills them in the order they test. -->
+  <div class="modal-overlay" id="package-modal">
+    <div class="modal-box wide" id="package-form">
+      <div class="modal-head">
+        <div class="modal-title" id="package-form-title" data-i18n="pkg.newTitle">New release package</div>
+        <div class="modal-sub" id="package-form-sub"></div>
+      </div>
+      <div class="modal-body">
+        <div id="package-form-errors" style="display:none; margin-bottom:14px;"></div>
+        <div class="form-section">
+          <div class="form-section-title" data-i18n="pkg.secWhat">What is being released</div>
+          <div class="grid-2">
+            <div class="field">
+              <label data-i18n="sch.project">Project</label>
+              <select id="package-project-select" class="mono" onchange="onPackageProjectChange()"></select>
+            </div>
+            <div class="field">
+              <label data-i18n="pkg.name">Package name (optional)</label>
+              <input type="text" id="package-name-input" data-i18n-ph="pkg.namePh" placeholder="e.g. August hotfix">
+            </div>
+          </div>
+          <div class="toolbar" style="margin:0 0 6px 0;">
+            <div class="form-section-title" style="margin:0;" data-i18n="pkg.apps">Applications and versions</div>
+            <button class="mini-btn" type="button" onclick="addPackageApp()"><span aria-hidden="true">＋</span> <span data-i18n="pkg.addApp">Add application</span></button>
+          </div>
+          <div id="package-apps-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+
+        <div class="form-section">
+          <div class="toolbar" style="margin:0 0 6px 0;">
+            <div class="form-section-title" style="margin:0;" data-i18n="pkg.issues">Fixed issues</div>
+            <button class="mini-btn" type="button" onclick="addPackageIssue()"><span aria-hidden="true">＋</span> <span data-i18n="pkg.addIssue">Add issue</span></button>
+          </div>
+          <p class="form-hint" style="margin-top:0;" data-i18n="pkg.issuesNote">Type the issue id exactly as it appears in the tracker, and describe what changed. This list is what the client reads about the release, so it is written for them.</p>
+          <div id="package-issues-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title" data-i18n="pkg.secHandover">Handover</div>
+          <div class="field">
+            <label data-i18n="pkg.status">Status</label>
+            <div class="radio-row">
+              <label class="radio-pill selected"><input type="radio" name="package-status" value="draft" checked onchange="selectRadioPill('package-status', this.value)"> <span data-i18n="pkg.stDraftLong">Draft — still being assembled</span></label>
+              <label class="radio-pill"><input type="radio" name="package-status" value="ready" onchange="selectRadioPill('package-status', this.value)"> <span data-i18n="pkg.stReadyLong">Ready — a release manager may use it</span></label>
+            </div>
+          </div>
+          <div class="field">
+            <label data-i18n="pkg.notes">Notes for the release manager (optional)</label>
+            <textarea id="package-notes-input" data-i18n-ph="pkg.notesPh" placeholder="Anything the release manager should know before scheduling..."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="mini-btn" onclick="closePackageEditor()" data-i18n="common.cancel">Cancel</button>
+        <button class="btn" id="package-form-submit" onclick="savePackage()" data-i18n="pkg.save">Save package</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ VIEW: USERS & ROLES ============ -->
   <div class="view" id="view-users">
     <div class="section-head">
@@ -1808,6 +1939,7 @@
         <label data-i18n="usr.role">Role</label>
         <div class="radio-row">
           <label class="radio-pill selected"><input type="radio" name="user-role" value="rm" checked onchange="onUserRoleChange()"> <span data-i18n="role.rm">Release Manager</span></label>
+          <label class="radio-pill"><input type="radio" name="user-role" value="tester" onchange="onUserRoleChange()"> <span data-i18n="role.tester">Tester</span></label>
           <label class="radio-pill"><input type="radio" name="user-role" value="installer" onchange="onUserRoleChange()"> <span data-i18n="role.installer">Deployer</span></label>
           <label class="radio-pill"><input type="radio" name="user-role" value="client" onchange="onUserRoleChange()"> <span data-i18n="role.client">Client</span></label>
           <label class="radio-pill"><input type="radio" name="user-role" value="admin" onchange="onUserRoleChange()"> <span data-i18n="role.admin">Administrator</span></label>
@@ -2507,11 +2639,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.21.1"></script>
-<script src="i18n/en.js?v=0.21.1"></script>
+<script src="i18n/pl.js?v=0.22.0"></script>
+<script src="i18n/en.js?v=0.22.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.21.1';
+  const ROLLDESK_VERSION = '0.22.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -2561,6 +2693,20 @@
       // instance decides what language its notifications go out in, regardless
       // of the language the sender happens to be using.
       NOTIFY_LANG = (data.notifyLang === 'pl' || data.notifyLang === 'en') ? data.notifyLang : '';
+      // Issue-tracker link pattern (ISSUE_TRACKER_URL), same trip: the ids on a
+      // release package are only links where the operator configured a tracker.
+      const trackerBefore = ISSUE_TRACKER_URL;
+      ISSUE_TRACKER_URL = (typeof data.issueTrackerUrl === 'string' && data.issueTrackerUrl.includes('{id}'))
+        ? data.issueTrackerUrl : '';
+      // This answer arrives after the package-bearing lists have been drawn once,
+      // so learning the pattern here has to redraw them — otherwise the ids stay
+      // plain text until the next unrelated render.
+      if(ISSUE_TRACKER_URL !== trackerBefore && RELEASE_PACKAGES.length){
+        try { renderPackagesTable(); } catch(e){}
+        try { renderDeploymentsTable(); } catch(e){}
+        try { renderInstallerPanel(); } catch(e){}
+        try { renderClientPortal(currentClientScenario); } catch(e){}
+      }
     } catch(err){
       versionCheckState = 'error';
       ROLLDESK_LATEST = null;
@@ -3174,6 +3320,7 @@
   const CAPABILITIES = {
     admin:     {canManageSystem:true,  canPlan:true,  canApprove:true,  canDeploy:true,  canView:true},
     rm:        {canManageSystem:false, canPlan:true,  canApprove:false, canDeploy:false, canView:true},
+    tester:    {canManageSystem:false, canPlan:false, canApprove:false, canDeploy:false, canView:true},
     installer: {canManageSystem:false, canPlan:false, canApprove:false, canDeploy:true,  canView:true},
     client:    {canManageSystem:false, canPlan:false, canApprove:true,  canDeploy:false, canView:true},
   };
@@ -3191,6 +3338,7 @@
   const ROLE_INFO = {
     admin:     {label:'Administrator',   desc:'Manages the whole system and defines permissions — the only role that can add and edit users.', color:'#6B21A8', bg:'#F1E9FB'},
     rm:        {label:'Release Manager', desc:'Plans and changes schedules, manages projects and applications.', color:'#0A6E7A', bg:'var(--cyan-soft)'},
+    tester:    {label:'Tester',          desc:'Assembles release packages — the tested versions and the issues they fix — without changing schedules.', color:'#1F4FA8', bg:'#E8EEFB'},
     installer: {label:'Deployer',        desc:'Marks what succeeded / failed and adds comments — without editing the schedule.', color:'#8A5A05', bg:'#FDF1E1'},
     client:    {label:'Client',          desc:'Approves, proposes reschedules and sees the deployment status of their projects.', color:'#0F7A38', bg:'var(--green-soft)'},
   };
@@ -3273,7 +3421,7 @@
   // targets, apps and users are traceable (important for regulated clients).
   // Audit entries accumulate at runtime from real actions — no seed history.
   const AUDIT_LOG = [];
-  const ROLE_SHORT = {admin:'Administrator', rm:'Release Manager', installer:'Deployer', client:'Client'};
+  const ROLE_SHORT = {admin:'Administrator', rm:'Release Manager', tester:'Tester', installer:'Deployer', client:'Client'};
 
   // The signed-in user (from GET /api/auth/me); drives the profile card and the
   // "actor" attributed to audit entries and comments.
@@ -3412,6 +3560,7 @@
       'Deployment':        t('aud.entityDeployment'),
       'Client':            t('aud.entityClient'),
       'Message template':  t('aud.entityMsgTemplate'),
+      'Package':           t('aud.entityPackage'),
       'Notification':      t('aud.entityNotification'),
     };
     // Render an entry's detail in the current language when a key is present,
@@ -3927,7 +4076,9 @@
       hint.style.display = 'block';
       hint.textContent = 'The e-mail must come from the selected client\'s domain — sign-in is done via the company e-mail address.';
       onUserClientChange();
-    } else if(role === 'installer'){
+    } else if(role === 'installer' || role === 'tester'){
+      // Both are scoped roles: a deployer reports on the projects they were
+      // granted, a tester assembles packages for them.
       clientField.style.display = 'none';
       projectsField.style.display = 'block';
       hint.style.display = 'none';
@@ -4108,14 +4259,15 @@
     schedule:    ['admin','rm'],
     apps:        ['admin','rm'],
     deployments: ['admin','rm'],
+    packages:    ['admin','rm','tester'],
     installer:   ['admin','installer'],
     client:      ['admin','client'],
     users:       ['admin'],
     clients:     ['admin'],
     sso:         ['admin'],
     audit:       ['admin','rm'],
-    account:     ['admin','rm','installer','client'],
-    help:        ['admin','rm','installer','client'],
+    account:     ['admin','rm','tester','installer','client'],
+    help:        ['admin','rm','tester','installer','client'],
   };
   function viewAllowedForRole(view, role){
     const allowed = VIEW_ROLES[view];
@@ -4124,6 +4276,7 @@
   function defaultViewForRole(role){
     if(role === 'client') return 'client';
     if(role === 'installer') return 'installer';
+    if(role === 'tester') return 'packages';
     return 'projects';
   }
   // Show/hide navigation entries (and their group labels) for the current role.
@@ -4182,6 +4335,7 @@
     if(viewName === 'account') renderRollDeskVersion();
     if(viewName === 'help') renderApiDocsIfNeeded();
     if(viewName === 'client') openClientPortal();
+    if(viewName === 'packages') renderPackagesTable();
     if(viewName === 'installer') renderInstallerPanel();
     if(viewName === 'deployments') renderDeploymentsTable();
     if(viewName === 'schedule') prepareScheduleDates();
@@ -4196,6 +4350,7 @@
       else if(viewName === 'projects') refreshProjectsAndClients();
       else if(viewName === 'clients') refreshProjectsAndClients();
       else if(viewName === 'audit') refreshAudit();
+      else if(viewName === 'packages') loadPackages();
       else if(viewName === 'users') { try { loadUsers(); } catch(e){} }
     }
   }
@@ -4629,6 +4784,7 @@
 
     renderScheduleAppsList();
     renderScheduleDeps();
+    renderSchedulePackageSelect();
     updateScheduleTemplateOptions();
 
     clearManifestPreview();
@@ -4773,6 +4929,410 @@
       </label>`;
     }).join('');
   }
+
+  // ---- Release packages ----------------------------------------------------
+  // A package is the test team's handover: the application versions that were
+  // tested together plus the issues those versions fix. The release manager picks
+  // one when planning a deployment, and the deployment keeps only a reference
+  // (`packageId`) — never a copy of the issue list. A package stays editable
+  // afterwards, so a fix that lands late still reaches the client who reads it.
+  const RELEASE_PACKAGES = [];
+  // URL pattern with {id} from the backend (ISSUE_TRACKER_URL). Empty = the ids
+  // are shown as plain text, which is also what an unconfigured instance gets.
+  let ISSUE_TRACKER_URL = '';
+  let editingPackageId = null;
+  // The editor works on drafts rather than the stored object, so cancelling
+  // leaves the loaded package untouched.
+  let packageDraftApps = [];
+  let packageDraftIssues = [];
+
+  function canEditPackages(){
+    const role = currentLoggedInRole || 'admin';
+    return role === 'admin' || role === 'rm' || role === 'tester';
+  }
+
+  async function loadPackages(){
+    if(!API_CONNECTED) return;
+    try {
+      const rows = await apiListPackages();
+      RELEASE_PACKAGES.length = 0;
+      if(Array.isArray(rows)) rows.forEach(p=>RELEASE_PACKAGES.push(p));
+    } catch(e){ console.warn('Failed to load packages:', e.message); return; }
+    try { populatePackageProjectFilter(); } catch(e){}
+    try { renderPackagesTable(); } catch(e){}
+    try { renderSchedulePackageSelect(); } catch(e){}
+    // The issue list is part of what a deployment shows, so the lists that render
+    // it need a redraw once the packages are in.
+    try { renderDeploymentsTable(); } catch(e){}
+    try { renderInstallerPanel(); } catch(e){}
+    try { renderClientPortal(currentClientScenario); } catch(e){}
+  }
+
+  function packageById(id){
+    if(!id) return null;
+    return RELEASE_PACKAGES.find(p => p && p.id === id) || null;
+  }
+  function packageApps(pkg){ return (pkg && Array.isArray(pkg.apps)) ? pkg.apps : []; }
+  function packageIssues(pkg){ return (pkg && Array.isArray(pkg.issues)) ? pkg.issues : []; }
+  function packageAppsLabel(pkg){
+    return packageApps(pkg).map(a=>`${a.name} v${a.version}`).join(', ');
+  }
+  // The changelog text a picked package fills in: one issue per line, exactly what
+  // a reader of the deployment wants, so nobody retypes it and the two drift.
+  function packageChangelogText(pkg){
+    return packageIssues(pkg)
+      .map(i => i.description ? `${i.id} — ${i.description}` : i.id)
+      .join('\n');
+  }
+  // The tracker id, linked when a pattern is configured. The id is never parsed
+  // or reformatted — it is stored exactly as the tester typed it.
+  function issueIdHtml(issueId){
+    const label = `<span class="mono" style="font-size:11.5px; font-weight:700;">${escapeHtml(issueId)}</span>`;
+    if(!ISSUE_TRACKER_URL || !issueId) return label;
+    const url = ISSUE_TRACKER_URL.split('{id}').join(encodeURIComponent(issueId));
+    return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="color:var(--cyan); text-decoration:none;">${label}</a>`;
+  }
+  function packageStatusBadgeHtml(status){
+    const ready = status === 'ready';
+    const color = ready ? '#0F7A38' : 'var(--text-muted)';
+    const bg = ready ? 'var(--green-soft)' : '#EEF0F3';
+    return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:12px; color:${color}; background:${bg};">${t(ready ? 'pkg.stReady' : 'pkg.stDraft')}</span>`;
+  }
+
+  // The fixed-issue list as it appears on a deployment. Read live from the
+  // package (not copied onto the deployment) so a late fix shows up everywhere.
+  function packageIssuesBlockHtml(r){
+    const pkg = packageById(r && r.packageId);
+    const issues = packageIssues(pkg);
+    if(!issues.length) return '';
+    const rows = issues.map(i=>`
+      <div style="display:flex; gap:8px; padding:4px 0; border-bottom:1px solid var(--line-soft);">
+        <div style="flex-shrink:0; min-width:96px;">${issueIdHtml(i.id)}</div>
+        <div style="flex:1;">${i.description ? escapeHtml(i.description) : '<span style="color:var(--text-faint);">—</span>'}</div>
+      </div>`).join('');
+    return `<div style="margin-top:10px;">
+      <div style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px;">🐞 ${t('pkg.fixedIssues')} <span class="mono" style="font-weight:400;">${escapeHtml(pkg.id)}</span></div>
+      ${rows}
+    </div>`;
+  }
+
+  function populatePackageProjectFilter(){
+    const sel = document.getElementById('package-filter-project');
+    if(!sel) return;
+    const current = sel.value;
+    const keys = Array.from(new Set(RELEASE_PACKAGES.map(p=>p.projectKey).filter(Boolean)));
+    sel.innerHTML = `<option value="all">${t('dep.fProjects')}</option>` +
+      keys.map(k=>`<option value="${escapeHtml(k)}">${escapeHtml(PROJECTS[k] ? PROJECTS[k].name : k)}</option>`).join('');
+    if(current && (current === 'all' || keys.includes(current))) sel.value = current;
+  }
+
+  function renderPackagesTable(){
+    const tbody = document.getElementById('packages-table');
+    if(!tbody) return;
+    const projSel = document.getElementById('package-filter-project');
+    const statusSel = document.getElementById('package-filter-status');
+    const qEl = document.getElementById('package-filter-q');
+    const proj = projSel ? projSel.value : 'all';
+    const status = statusSel ? statusSel.value : 'all';
+    const q = (qEl ? qEl.value : '').trim().toLowerCase();
+
+    const visible = RELEASE_PACKAGES.filter(p=>{
+      if(proj !== 'all' && p.projectKey !== proj) return false;
+      if(status !== 'all' && p.status !== status) return false;
+      if(!q) return true;
+      const hay = [p.id, p.name, p.projectKey, packageAppsLabel(p),
+        packageIssues(p).map(i=>i.id + ' ' + (i.description||'')).join(' ')].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+
+    const addBtn = document.getElementById('add-package-btn');
+    if(addBtn) addBtn.style.display = canEditPackages() ? '' : 'none';
+
+    tbody.innerHTML = visible.map(p=>{
+      const projName = PROJECTS[p.projectKey] ? PROJECTS[p.projectKey].name : (p.projectKey || '—');
+      const issues = packageIssues(p);
+      const issueCell = issues.length
+        ? issues.slice(0, 3).map(i=>issueIdHtml(i.id)).join(' ') +
+          (issues.length > 3 ? ` <span style="font-size:11px; color:var(--text-muted);">${tf('pkg.andMore', {n: issues.length - 3})}</span>` : '')
+        : '<span style="color:var(--text-faint);">—</span>';
+      const usedBy = DEPLOYMENTS_DATA.filter(d=>d && d.packageId === p.id).length;
+      const usedLine = usedBy
+        ? `<div style="font-size:11px; color:var(--text-muted); margin-top:3px;">${tf('pkg.usedBy', {n: usedBy})}</div>`
+        : '';
+      const actions = canEditPackages()
+        ? `<button class="mini-btn icon-btn" onclick="openPackageEditor('${escapeHtml(p.id)}')"><span class="mb-ic" aria-hidden="true">✎</span> ${t('usr.edit')}</button> ${rowMenuHtml('pkg-menu-'+p.id, [
+            {label:t('pkg.delete'), icon:'🗑', onclick:`deletePackage('${escapeHtml(p.id)}')`, danger:true}
+          ])}`
+        : `<span style="color:var(--text-faint); font-size:11.5px;">${t('usr.noPerms')}</span>`;
+      return `<tr>
+        <td><span class="mono" style="font-size:12px; font-weight:700;">${escapeHtml(p.id)}</span>${p.name ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">${escapeHtml(p.name)}</div>` : ''}${usedLine}</td>
+        <td style="font-size:12.5px;">${escapeHtml(projName)}</td>
+        <td style="font-size:12.5px;">${escapeHtml(packageAppsLabel(p)) || '<span style="color:var(--text-faint);">—</span>'}</td>
+        <td>${issueCell}</td>
+        <td>${packageStatusBadgeHtml(p.status)}</td>
+        <td style="white-space:nowrap; text-align:right;">${actions}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="6" style="color:var(--text-faint); font-size:13px;">${RELEASE_PACKAGES.length ? t('pkg.noneMatch') : t('pkg.none')}</td></tr>`;
+  }
+
+  // ---- Package editor ----
+  function packageProjectOptions(){
+    // A tester only holds the projects they were granted, and the backend refuses
+    // a package outside them — so the picker offers exactly what it will accept.
+    const mine = (currentUser && Array.isArray(currentUser.projects)) ? currentUser.projects.map(String) : [];
+    const scoped = (currentLoggedInRole === 'tester') && mine.length;
+    return Object.entries(PROJECTS)
+      .filter(([key,p])=> !p.archived && (!scoped || mine.includes(key)))
+      .map(([key,p])=>({key, label: `${p.name} (${p.clientName})`}));
+  }
+
+  function openPackageEditor(id){
+    if(!canEditPackages()){ showToast(t('pkg.noPerm')); return; }
+    const pkg = id ? packageById(id) : null;
+    editingPackageId = pkg ? pkg.id : null;
+    clearFormErrors('package-form');
+
+    const opts = packageProjectOptions();
+    const sel = document.getElementById('package-project-select');
+    sel.innerHTML = opts.map(o=>`<option value="${escapeHtml(o.key)}">${escapeHtml(o.label)}</option>`).join('')
+      || `<option value="">${t('pkg.noProjects')}</option>`;
+    sel.value = (pkg && pkg.projectKey) || currentProjectKey || (opts[0] ? opts[0].key : '');
+
+    document.getElementById('package-form-title').textContent = pkg ? t('pkg.editTitle') : t('pkg.newTitle');
+    document.getElementById('package-form-sub').textContent = pkg ? pkg.id : '';
+    document.getElementById('package-name-input').value = (pkg && pkg.name) || '';
+    document.getElementById('package-notes-input').value = (pkg && pkg.notes) || '';
+    selectRadioPill('package-status', (pkg && pkg.status === 'ready') ? 'ready' : 'draft');
+
+    packageDraftApps = pkg ? packageApps(pkg).map(a=>({name:a.name, version:a.version})) : [];
+    packageDraftIssues = pkg ? packageIssues(pkg).map(i=>({id:i.id, description:i.description||''})) : [];
+    if(!packageDraftApps.length) packageDraftApps = [{name:'', version:''}];
+    if(!packageDraftIssues.length) packageDraftIssues = [{id:'', description:''}];
+    renderPackageApps();
+    renderPackageIssues();
+    openFormModal('package-modal');
+  }
+
+  function closePackageEditor(){
+    closeFormModal('package-modal');
+    clearFormErrors('package-form');
+  }
+
+  // Which applications the project defines, so a tester picks a known name
+  // instead of retyping it (a typo here means the deployment names a different
+  // application than the one that was tested).
+  function packageAppNameOptions(){
+    const key = document.getElementById('package-project-select');
+    const p = key ? PROJECTS[key.value] : null;
+    return (p && Array.isArray(p.apps)) ? p.apps.map(a=>a.name) : [];
+  }
+
+  function onPackageProjectChange(){ renderPackageApps(); }
+
+  function renderPackageApps(){
+    const wrap = document.getElementById('package-apps-list');
+    if(!wrap) return;
+    const names = packageAppNameOptions();
+    wrap.innerHTML = packageDraftApps.map((a,i)=>{
+      const options = names.length
+        ? `<select class="pkg-app-name mono" style="flex:1; font-size:12.5px;" onchange="setPackageApp(${i}, 'name', this.value)">
+             <option value="">${t('pkg.pickApp')}</option>
+             ${names.map(n=>`<option value="${escapeHtml(n)}" ${n === a.name ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}
+             ${(a.name && !names.includes(a.name)) ? `<option value="${escapeHtml(a.name)}" selected>${escapeHtml(a.name)}</option>` : ''}
+           </select>`
+        : `<input type="text" class="pkg-app-name mono" value="${escapeHtml(a.name)}" placeholder="${t('pkg.appNamePh')}" style="flex:1; font-size:12.5px;" oninput="setPackageApp(${i}, 'name', this.value)">`;
+      return `<div style="display:flex; gap:8px; align-items:center;">
+        ${options}
+        <input type="text" class="pkg-app-version mono" value="${escapeHtml(a.version)}" placeholder="${t('pkg.versionPh')}" style="width:150px; font-size:12.5px;" oninput="setPackageApp(${i}, 'version', this.value)">
+        <button type="button" class="mini-btn" title="${t('pkg.removeRow')}" onclick="removePackageApp(${i})">✕</button>
+      </div>`;
+    }).join('');
+  }
+
+  function renderPackageIssues(){
+    const wrap = document.getElementById('package-issues-list');
+    if(!wrap) return;
+    wrap.innerHTML = packageDraftIssues.map((issue,i)=>`
+      <div style="display:flex; gap:8px; align-items:flex-start;">
+        <input type="text" class="mono" value="${escapeHtml(issue.id)}" placeholder="${t('pkg.issueIdPh')}" style="width:150px; font-size:12.5px;" oninput="setPackageIssue(${i}, 'id', this.value)">
+        <textarea style="flex:1; min-height:44px; font-size:12.5px;" placeholder="${t('pkg.issueDescPh')}" oninput="setPackageIssue(${i}, 'description', this.value)">${escapeHtml(issue.description)}</textarea>
+        <button type="button" class="mini-btn" title="${t('pkg.removeRow')}" onclick="removePackageIssue(${i})">✕</button>
+      </div>`).join('');
+  }
+
+  function setPackageApp(i, field, value){ if(packageDraftApps[i]) packageDraftApps[i][field] = value; }
+  function setPackageIssue(i, field, value){ if(packageDraftIssues[i]) packageDraftIssues[i][field] = value; }
+  function addPackageApp(){ packageDraftApps.push({name:'', version:''}); renderPackageApps(); }
+  function addPackageIssue(){ packageDraftIssues.push({id:'', description:''}); renderPackageIssues(); }
+  function removePackageApp(i){
+    packageDraftApps.splice(i, 1);
+    if(!packageDraftApps.length) packageDraftApps = [{name:'', version:''}];
+    renderPackageApps();
+  }
+  function removePackageIssue(i){
+    packageDraftIssues.splice(i, 1);
+    if(!packageDraftIssues.length) packageDraftIssues = [{id:'', description:''}];
+    renderPackageIssues();
+  }
+
+  async function savePackage(){
+    if(!canEditPackages()){ showToast(t('pkg.noPerm')); return; }
+    const projectKey = document.getElementById('package-project-select').value;
+    const statusEl = document.querySelector('input[name="package-status"]:checked');
+    const status = statusEl ? statusEl.value : 'draft';
+    const apps = packageDraftApps
+      .map(a=>({name:(a.name||'').trim(), version:(a.version||'').trim()}))
+      .filter(a=>a.name || a.version);
+    const issues = packageDraftIssues
+      .map(i=>({id:(i.id||'').trim(), description:(i.description||'').trim()}))
+      .filter(i=>i.id || i.description);
+
+    const errs = [];
+    if(!projectKey) errs.push({id:'package-project-select', label:t('sch.project'), msg:t('form.required')});
+    if(!apps.length) errs.push({label:t('pkg.apps'), msg:t('pkg.errNeedApp')});
+    if(apps.some(a=>!a.name || !a.version)) errs.push({label:t('pkg.apps'), msg:t('pkg.errAppVersion')});
+    if(issues.some(i=>!i.id)) errs.push({label:t('pkg.issues'), msg:t('pkg.errIssueId')});
+    // The backend refuses this too; catching it here says which field to fix.
+    if(status === 'ready' && !issues.length) errs.push({label:t('pkg.issues'), msg:t('pkg.errReadyNoIssues')});
+    if(errs.length){ showFormErrors('package-form', errs); return; }
+    clearFormErrors('package-form');
+
+    const payload = {
+      projectKey,
+      name: (document.getElementById('package-name-input').value || '').trim() || undefined,
+      status,
+      apps,
+      issues,
+      notes: (document.getElementById('package-notes-input').value || '').trim() || undefined,
+    };
+
+    if(!API_CONNECTED){ showToast(t('pkg.needApi')); return; }
+    try {
+      const saved = editingPackageId
+        ? await apiSavePackage(editingPackageId, payload)
+        : await apiCreatePackage(payload);
+      const i = RELEASE_PACKAGES.findIndex(p=>p.id === saved.id);
+      if(i >= 0) RELEASE_PACKAGES[i] = saved; else RELEASE_PACKAGES.push(saved);
+      logAudit(editingPackageId ? 'changed' : 'added', 'Package',
+        (editingPackageId ? 'Updated release package ' : 'Created release package ') + saved.id,
+        PROJECTS[projectKey] ? PROJECTS[projectKey].name : projectKey,
+        editingPackageId ? 'aud.d.pkgUpdated' : 'aud.d.pkgCreated', {id: saved.id});
+      showToast(tf(editingPackageId ? 'pkg.updated' : 'pkg.created', {id: saved.id}));
+      editingPackageId = null;
+      populatePackageProjectFilter();
+      renderPackagesTable();
+      renderSchedulePackageSelect();
+      closePackageEditor();
+    } catch(e){
+      showFormErrors('package-form', [{label: t('pkg.saveFailed'), msg: e.message}]);
+    }
+  }
+
+  function deletePackage(id){
+    if(!canEditPackages()){ showToast(t('pkg.noPerm')); return; }
+    const pkg = packageById(id);
+    if(!pkg) return;
+    showAppConfirm(t('pkg.deleteTitle') + ' — ' + pkg.id, t('pkg.deleteBody'), async ()=>{
+      try {
+        await apiDeletePackage(id);
+      } catch(e){
+        // 409: a deployment still refers to it. Naming those deployments is the
+        // only useful answer — the release manager has to unpick it there first.
+        showToast(e.deployments && e.deployments.length
+          ? tf('pkg.inUse', {deployments: e.deployments.join(', ')})
+          : tf('pkg.deleteFailed', {msg: e.message}));
+        return;
+      }
+      const i = RELEASE_PACKAGES.findIndex(p=>p.id === id);
+      if(i >= 0) RELEASE_PACKAGES.splice(i, 1);
+      logAudit('removed', 'Package', 'Deleted release package ' + id, '—', 'aud.d.pkgDeleted', {id});
+      populatePackageProjectFilter();
+      renderPackagesTable();
+      renderSchedulePackageSelect();
+      showToast(tf('pkg.deleted', {id}));
+    });
+  }
+
+  // ---- Picking a package while planning a deployment ----
+  function renderSchedulePackageSelect(){
+    const sel = document.getElementById('schedule-package-select');
+    if(!sel) return;
+    const prev = sel.value;
+    // Only handed-over packages of the project being planned: a draft is still
+    // being assembled, and its version list is not something to schedule against.
+    const usable = RELEASE_PACKAGES.filter(p => p.status === 'ready' && p.projectKey === currentProjectKey);
+    sel.innerHTML = `<option value="">${t('sch.packageNone')}</option>` +
+      usable.map(p=>{
+        const label = `${p.id}${p.name ? ' — ' + p.name : ''} (${packageAppsLabel(p) || '—'})`;
+        return `<option value="${escapeHtml(p.id)}">${escapeHtml(label)}</option>`;
+      }).join('');
+    sel.disabled = !usable.length;
+    if(prev && usable.some(p=>p.id === prev)) sel.value = prev;
+    else schedulePackageId = '';
+    updateSchedulePackageSummary();
+  }
+
+  // The package a new deployment is being planned from (empty = versions and
+  // changelog were typed by hand, which stays possible).
+  let schedulePackageId = '';
+
+  function updateSchedulePackageSummary(){
+    const box = document.getElementById('schedule-package-summary');
+    if(!box) return;
+    const pkg = packageById(schedulePackageId);
+    if(!pkg){
+      const anyReady = RELEASE_PACKAGES.some(p=>p.status === 'ready' && p.projectKey === currentProjectKey);
+      box.textContent = anyReady ? t('sch.packageHint') : t('sch.packageNoneAvailable');
+      return;
+    }
+    box.textContent = tf('sch.packageSummary', {
+      apps: packageAppsLabel(pkg) || '—',
+      n: packageIssues(pkg).length,
+    });
+  }
+
+  // Picking a package fills in the applications, their versions and the changelog
+  // — the three things the test team already decided. Everything stays editable
+  // afterwards: the release manager owns the deployment, not the package.
+  function applyPackageToSchedule(id){
+    schedulePackageId = id || '';
+    const pkg = packageById(schedulePackageId);
+    updateSchedulePackageSummary();
+    if(!pkg) return;
+
+    const apps = packageApps(pkg);
+    const known = new Set(apps.map(a=>a.name));
+    let missing = [];
+    document.querySelectorAll('.schedule-app-check').forEach(cb=>{
+      const inPkg = known.has(cb.value);
+      cb.checked = inPkg;
+      onScheduleAppToggle(cb);
+      if(!inPkg) return;
+      const row = cb.closest('div');
+      const versionInput = row.querySelector('.schedule-app-version');
+      const app = apps.find(a=>a.name === cb.value);
+      if(versionInput && app){ versionInput.value = app.version; onScheduleVersionInput(versionInput); }
+    });
+    // An application in the package that the project does not define cannot be
+    // ticked here — say so rather than silently dropping it from the deployment.
+    const listed = new Set(Array.from(document.querySelectorAll('.schedule-app-check')).map(cb=>cb.value));
+    missing = apps.filter(a=>!listed.has(a.name)).map(a=>a.name);
+
+    const changelogEl = document.getElementById('schedule-changelog');
+    const text = packageChangelogText(pkg);
+    if(changelogEl && text){
+      const current = (changelogEl.value || '').trim();
+      // Never overwrite something the release manager typed themselves.
+      if(!current || current === schedulePackageChangelogPrev) changelogEl.value = text;
+      schedulePackageChangelogPrev = text;
+    }
+    showToast(missing.length
+      ? tf('sch.packageAppliedMissing', {id: pkg.id, apps: missing.join(', ')})
+      : tf('sch.packageApplied', {id: pkg.id}));
+  }
+  // The changelog text the last picked package wrote, so switching packages
+  // replaces it while hand-typed notes are left alone.
+  let schedulePackageChangelogPrev = '';
 
   function onScheduleAppToggle(cb){
     const row = cb.closest('div');
@@ -5063,7 +5623,11 @@
     const isDraft = !!(draftEl && draftEl.checked) && !isInternal;
     const legalEl = document.querySelector('input[name="schedule-legal"]:checked');
     const isLegal = !!legalEl && legalEl.value === 'yes';
-    const commonMeta = {changelog, attachment, createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, installerNotes: installerNotes || undefined, internal: isInternal || undefined, draft: isDraft || undefined, legal: isLegal || undefined};
+    // Only the reference is stored, never a copy of the issue list: the package
+    // stays editable, and a deployment that copied the list would go stale the
+    // moment a late fix was added to it.
+    const packageId = schedulePackageId || undefined;
+    const commonMeta = {changelog, attachment, createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, installerNotes: installerNotes || undefined, internal: isInternal || undefined, draft: isDraft || undefined, legal: isLegal || undefined, packageId};
 
     const created = [];
     const createdIdsStart = DEPLOYMENTS_DATA.length;
@@ -5218,6 +5782,12 @@
     if(limitBox) limitBox.style.display = 'none';
     const tSearch = document.getElementById('schedule-targets-search');
     if(tSearch) tSearch.value = '';
+    // The package belonged to the deployment just created; the next one picks its own.
+    schedulePackageId = '';
+    schedulePackageChangelogPrev = '';
+    const pkgSel = document.getElementById('schedule-package-select');
+    if(pkgSel) pkgSel.value = '';
+    updateSchedulePackageSummary();
     refreshScheduleTargetCount();
   }
   // ---- Production-target subset for one deployment ----
@@ -7380,9 +7950,7 @@
         if(r.paused){
           body += `<div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">${t('dcard.reason')}: ${r.pauseReason ? '„'+escapeHtml(r.pauseReason)+'”' : '—'}</div>`;
         }
-        if(r.changelog || (r.attachments && r.attachments.length) || r.attachment){
-          body += changelogCollapsibleHtml(r, rowKey);
-        }
+        body += changelogCollapsibleHtml(r, rowKey);
         body += clientAdminInfoHtml(r);
         body += `<div style="margin-top:4px;">
           <div style="color:var(--text-muted); font-size:12.5px; margin-bottom:8px; font-weight:600;">${t('client.timeline')}</div>
@@ -7996,6 +8564,49 @@
     return true;
   }
 
+  // ---- Release packages ----
+  // The test team's handover: the versions tested together and the issues they
+  // fix. Kept in its own table (not the deployment JSONB) because a package is
+  // assembled before any deployment exists and can be picked by more than one.
+  async function apiListPackages(){
+    const res = await apiFetch('/api/packages');
+    if(!res.ok) throw new Error('GET /api/packages ' + res.status);
+    return res.json();
+  }
+  async function apiCreatePackage(obj){
+    const res = await apiFetch('/api/packages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(obj)
+    });
+    if(!res.ok) throw await apiError(res, 'POST /api/packages');
+    return res.json();
+  }
+  async function apiSavePackage(id, obj){
+    const res = await apiFetch('/api/packages/' + encodeURIComponent(id), {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(obj)
+    });
+    if(!res.ok) throw await apiError(res, 'PUT /api/packages');
+    return res.json();
+  }
+  async function apiDeletePackage(id){
+    const res = await apiFetch('/api/packages/' + encodeURIComponent(id), {method:'DELETE'});
+    if(!res.ok && res.status !== 404) throw await apiError(res, 'DELETE /api/packages');
+    return true;
+  }
+  // The package endpoints answer with a reason (422 validation, 409 in use by a
+  // deployment), and that reason is what the user needs to see — not "HTTP 409".
+  async function apiError(res, label){
+    let info = {};
+    try { info = await res.json(); } catch(e){}
+    const err = new Error(info.error || (label + ' ' + res.status));
+    err.status = res.status;
+    err.deployments = info.deployments || null;
+    return err;
+  }
+
   // ---- Audit log + shared collections (roster / clients / notifications) ----
   async function apiListAudit(){
     const res = await apiFetch('/api/audit');
@@ -8341,6 +8952,11 @@
 
       // Load the user directory (real accounts) from the backend.
       try { await loadUsers(); } catch(e){ console.warn('Failed to load users:', e.message); }
+
+      // Release packages. Needed before the lists finish rendering: a deployment
+      // shows the issues its package fixes, and the schedule form offers the
+      // ready ones. loadPackages() redraws those lists once they are in.
+      try { await loadPackages(); } catch(e){ console.warn('Failed to load packages:', e.message); }
 
       // Load the persisted audit log (change history).
       try {
@@ -9384,10 +10000,15 @@
     const clAtts = (Array.isArray(r.attachments) && r.attachments.length)
       ? r.attachments
       : (r.attachment ? [{id: r.attachmentId, filename: r.attachment}] : []);
-    if(!r.changelog && !clAtts.length) return '';
+    // The fixed-issue list of the picked package belongs with the changelog: it is
+    // the same question ("what is in this release?") answered per issue, and it is
+    // shown to everyone who can read the deployment, the client included.
+    const issuesBlock = packageIssuesBlockHtml(r);
+    if(!r.changelog && !clAtts.length && !issuesBlock) return '';
     const bodyParts = [];
     if(r.changelog) bodyParts.push(`<div style="white-space:pre-line; line-height:1.55; color:var(--ink);">${escapeHtml(r.changelog)}</div>`);
     if(clAtts.length) bodyParts.push(`<div style="display:flex; flex-direction:column; gap:6px;${r.changelog ? ' margin-top:8px;' : ''}">${clAtts.map(a=>attachmentLinkHtml(a.filename, a.id)).join('')}</div>`);
+    if(issuesBlock) bodyParts.push(issuesBlock);
     return bodyParts.join('');
   }
 

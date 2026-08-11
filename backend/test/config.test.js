@@ -68,3 +68,30 @@ test('an unsupported NOTIFY_LANG warns and falls back instead of failing startup
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /NOTIFY_LANG "de"/);
 });
+
+// The issue ids on a release package are stored exactly as the testers type
+// them, so linking them needs a pattern saying where the id belongs — a base URL
+// would only work for trackers that happen to put it last in the path.
+test('ISSUE_TRACKER_URL is taken as-is when it carries the {id} placeholder', async () => {
+  const config = await loadConfig({ ISSUE_TRACKER_URL: '  https://tracker.example.com/t?id={id}  ' });
+  assert.equal(config.issueTrackerUrl, 'https://tracker.example.com/t?id={id}');
+});
+
+// A pattern without {id} would link every issue to the same page, which reads as
+// a working link and isn't one. Dropping it shows the ids as plain text instead.
+test('an ISSUE_TRACKER_URL without {id} warns and is dropped rather than linking every id to one page', async () => {
+  const warn = console.warn;
+  const warnings = [];
+  console.warn = (msg) => warnings.push(String(msg));
+  try {
+    assert.equal((await loadConfig({ ISSUE_TRACKER_URL: 'https://tracker.example.com/tickets' })).issueTrackerUrl, '');
+  } finally {
+    console.warn = warn;
+  }
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /ISSUE_TRACKER_URL/);
+});
+
+test('an unset ISSUE_TRACKER_URL leaves the issue ids as plain text', async () => {
+  for (const empty of ['', '   ']) assert.equal((await loadConfig({ ISSUE_TRACKER_URL: empty })).issueTrackerUrl, '');
+});

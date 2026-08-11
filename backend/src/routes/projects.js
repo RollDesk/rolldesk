@@ -1,7 +1,7 @@
 // Project endpoints (with apps stored in the JSONB data column).
 import { Router } from 'express';
 import { query } from '../db.js';
-import { forbidClient, isClient, clientScope } from '../rbac.js';
+import { requireWriteRole, isClient, clientScope } from '../rbac.js';
 
 const router = Router();
 
@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
   res.json(list);
 });
 
-router.put('/:key', forbidClient, async (req, res) => {
+router.put('/:key', requireWriteRole, async (req, res) => {
   const b = req.body || {};
   const data = Object.assign({}, b);
   ['key','clientName','name','defaultDays','defaultTime','clientVisible'].forEach(k=>delete data[k]);
@@ -46,7 +46,7 @@ router.put('/:key', forbidClient, async (req, res) => {
 });
 
 // DELETE /api/projects/:key — remove a project and its deployments. Team only.
-router.delete('/:key', forbidClient, async (req, res) => {
+router.delete('/:key', requireWriteRole, async (req, res) => {
   const key = req.params.key;
   await query('DELETE FROM deployments WHERE project_key = $1', [key]);
   const { rowCount } = await query('DELETE FROM projects WHERE key = $1', [key]);

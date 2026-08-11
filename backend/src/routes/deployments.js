@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import {
-  forbidClient, isClient, isInstaller, clientScope, userScope,
+  requireWriteRole, isClient, isInstaller, isScopedRole, clientScope, userScope,
   projectSharesAdminInfo, stripAdminInfoFromDeployment,
 } from '../rbac.js';
 import {
@@ -48,8 +48,8 @@ router.get('/', async (req, res) => {
     params.push(projects);
     clauses.push(`project_key = ANY($${params.length}::text[])`);
     clauses.push('internal = false');
-  } else if (isInstaller(req)) {
-    // A Deployer only gets deployments of the projects they were granted.
+  } else if (isScopedRole(req)) {
+    // Deployers and testers only get deployments of the projects they were granted.
     const { projects } = await userScope(req);
     if (!projects.length) return res.json([]);
     params.push(projects);
@@ -85,7 +85,7 @@ router.get('/:id', async (req, res) => {
     if (row.internal || !projects.includes(row.project_key)) {
       return res.status(404).json({ error: 'Not found' });
     }
-  } else if (isInstaller(req)) {
+  } else if (isScopedRole(req)) {
     const { projects } = await userScope(req);
     if (!projects.includes(row.project_key)) {
       return res.status(404).json({ error: 'Not found' });
@@ -116,7 +116,7 @@ async function upsert(id, body) {
 }
 
 // POST /api/deployments/:id/decision — record a client's schedule decision.
-// This is deliberately NOT behind forbidClient: approving/commenting on a
+// This is deliberately NOT behind requireWriteRole: approving/commenting on a
 // schedule is the client's own action. It merges the decision into the stored
 // deployment and appends an audit-log entry server-side (clients can't write the
 // audit log directly), so the change history and timeline are consistent for
@@ -199,7 +199,7 @@ router.post('/:id/decision', async (req, res) => {
 // will not create a deployment — patching something that does not exist is a
 // mistake worth reporting, not an upsert. Installers are limited to the
 // projects they were granted, matching what they can read.
-router.patch('/:id', forbidClient, async (req, res) => {
+router.patch('/:id', requireWriteRole, async (req, res) => {
   const { rows } = await query('SELECT * FROM deployments WHERE id = $1', [req.params.id]);
   if (!rows.length) return res.status(404).json({ error: 'Not found' });
   const row = rows[0];
@@ -286,7 +286,7 @@ router.patch('/:id', forbidClient, async (req, res) => {
 });
 
 // PUT /api/deployments/:id — create or update (the frontend uses this to save).
-router.put('/:id', forbidClient, async (req, res) => {
+router.put('/:id', requireWriteRole, async (req, res) => {
   const body = req.body || {};
   if (!body.projectKey && !body.project_key) {
     return res.status(422).json({ error: 'Required field: projectKey' });
@@ -296,7 +296,7 @@ router.put('/:id', forbidClient, async (req, res) => {
 });
 
 // POST /api/deployments — create (id from the body or generated).
-router.post('/', forbidClient, async (req, res) => {
+router.post('/', requireWriteRole, async (req, res) => {
   const body = req.body || {};
   const id = body.id || ('DEP-' + new Date().getFullYear() + '-' + Date.now().toString().slice(-4));
   const obj = await upsert(id, body);
@@ -304,7 +304,7 @@ router.post('/', forbidClient, async (req, res) => {
 });
 
 // DELETE /api/deployments/:id
-router.delete('/:id', forbidClient, async (req, res) => {
+router.delete('/:id', requireWriteRole, async (req, res) => {
   await query('DELETE FROM deployments WHERE id = $1', [req.params.id]);
   res.json({ deleted: true, id: req.params.id });
 });
