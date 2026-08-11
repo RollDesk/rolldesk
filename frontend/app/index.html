@@ -2507,11 +2507,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.21.0"></script>
-<script src="i18n/en.js?v=0.21.0"></script>
+<script src="i18n/pl.js?v=0.21.1"></script>
+<script src="i18n/en.js?v=0.21.1"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.21.0';
+  const ROLLDESK_VERSION = '0.21.1';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -7426,7 +7426,7 @@
       </table>
     </div>`;
 
-    listWrap.innerHTML = html;
+    preserveTableScroll(listWrap, ()=>{ listWrap.innerHTML = html; });
   }
   function showToast(text){
     const t = document.getElementById('toast');
@@ -9284,6 +9284,21 @@
     return `<div class="row-expand">${ROW_CHEVRON}<div style="min-width:0;">${inner}</div></div>`;
   }
 
+  // Expanding a row re-renders the list that contains it, and a render that
+  // replaces the whole wrapper builds a brand-new scrolling pane — whose offset
+  // starts at zero. Opening the last of forty deployments therefore threw the
+  // reader back to the first one, every time. Capture each pane's offset and put
+  // it back on the pane that takes its place; they are matched by position
+  // because the nodes themselves are new. (The Deployments table swaps only its
+  // <tbody> and restores the offset inline, so it never had this.)
+  function preserveTableScroll(wrap, render){
+    const panes = () => Array.from(wrap.querySelectorAll('.table-scroll'));
+    const before = panes().map(p => p.scrollTop);
+    render();
+    if(!before.some(Boolean)) return;
+    panes().forEach((p, i) => { if(before[i]) p.scrollTop = before[i]; });
+  }
+
   // Small inline badge showing the deployment's API ID, with a copy icon.
   function deployIdBadge(r){
     if(!r.id) return '';
@@ -10231,7 +10246,7 @@
       </div>`;
     }
 
-    wrap.innerHTML = html;
+    preserveTableScroll(wrap, ()=>{ wrap.innerHTML = html; });
   }
 
   let installerArchiveOpen = false;

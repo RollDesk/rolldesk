@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.1] - 2026-08-11
+
+### Fixed
+- **Opening a deployment in the deployer panel jumped the list back to the top.** Expanding a row re-renders the list, and that render replaces the whole wrapper — including the scrolling pane, whose offset starts at zero on the new node. Opening the last of forty deployments therefore threw the reader back to the first one and the list had to be scrolled down again. The offset is now carried over to the pane that replaces it. The client portal's list was affected in the same way and is fixed with it; the Deployments table swaps only its rows and never had the problem.
+
 ## [0.21.0] - 2026-08-11
 
 ### Changed
