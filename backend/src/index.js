@@ -17,6 +17,7 @@ import users from './routes/users.js';
 import sso from './routes/sso.js';
 import teams from './routes/teams.js';
 import version from './routes/version.js';
+import releasePackages from './routes/releasePackages.js';
 
 const app = express();
 if (config.trustProxy) app.set('trust proxy', true);
@@ -54,6 +55,10 @@ app.use('/api/notifications', requireApiAuth, notifications);
 app.use('/api/teams', requireApiAuth, teams);
 app.use('/api/deployments', requireApiAuth, deployments);
 app.use('/api/projects', requireApiAuth, projects);
+// Release packages: readable by every role (a client sees which issues a ready
+// package fixes), writable only by the test team and release managers — the
+// router guards its own writes.
+app.use('/api/packages', requireApiAuth, releasePackages);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown endpoint' }));
 
 // Central error handler. Express 5 forwards rejected async handlers here, so a

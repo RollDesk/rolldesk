@@ -52,6 +52,18 @@ if (notifyLangFromEnv && !NOTIFY_LANGS.includes(notifyLangFromEnv)) {
   notifyLang = '';
 }
 
+// URL pattern of the issue tracker the test team files fixes in, with `{id}`
+// standing for the ticket id (e.g. https://haloitsm.example.com/tickets?id={id}).
+// A pattern rather than a base URL because trackers differ in where the id goes,
+// and the ids themselves are stored verbatim as the testers type them. Empty =
+// issue ids are shown as plain text.
+const issueTrackerUrl = (process.env.ISSUE_TRACKER_URL || '').trim();
+if (issueTrackerUrl && !issueTrackerUrl.includes('{id}')) {
+  console.warn(
+    '[config] ISSUE_TRACKER_URL has no {id} placeholder — issue ids will be shown as plain text'
+  );
+}
+
 export const config = {
   env,
   isProd,
@@ -67,6 +79,8 @@ export const config = {
   // Language outgoing notifications are composed in ('pl' | 'en'). Empty = follow
   // the UI language of whoever triggered the event (the historical behaviour).
   notifyLang,
+  // Issue-tracker link pattern containing {id}; empty = no links.
+  issueTrackerUrl: issueTrackerUrl.includes('{id}') ? issueTrackerUrl : '',
   trustProxy: process.env.TRUST_PROXY === '1',
   allowedIps: (process.env.ALLOWED_IPS || '')
     .split(',')

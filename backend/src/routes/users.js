@@ -14,7 +14,9 @@ import { generateInviteToken } from '../auth.js';
 const router = Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const ROLES = new Set(['admin', 'rm', 'installer', 'client']);
+// `tester` assembles release packages for the projects they were granted; it has
+// no write access to projects or deployments (see rbac.js requireWriteRole).
+const ROLES = new Set(['admin', 'rm', 'tester', 'installer', 'client']);
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 // GET /api/users/assignable — a minimal roster of accounts that can carry out a

@@ -54,6 +54,7 @@ RollDesk models exactly that: a **deployment** carries its schedule, target list
 | **Project** | A deliverable belonging to a client (e.g. `acme:core`). Defines its **applications**, **test environments**, and default scheduling (days/time). |
 | **Application** | A deployable unit within a project (a service/repo), with tracked deployed versions. |
 | **Deployment target** | A destination a project deploys to — a non-production (test) environment or a named production location. |
+| **Release package** | What the test team hands over: the application versions tested together plus the issues they fix (tracker id + description). A deployment references one instead of restating its versions and changelog. |
 | **Deployment** | One rollout record: which project/apps/versions, to which environment(s), on what schedule, its status, assignee, client approval, and results. |
 | **Status** | Lifecycle of a deployment: `scheduled` → `installed`, or `failed` / `rolledback` / `aborted`; a rollout can also be `paused`. |
 | **Mode** | A deployment is either a **test-only** install (installed once, manually) or a **batch** rollout (spread across many production targets over several days). |
@@ -65,12 +66,13 @@ RollDesk models exactly that: a **deployment** carries its schedule, target list
 The UI is organised around the people involved in a release:
 
 - **Release Manager** — defines projects (apps, targets, post-deployment notifications), schedules new deployments, and monitors the deployments board.
+- **Tester** — assembles release packages for the projects they were granted: the application versions tested together and the issues they fix. No access to schedules, targets or client decisions.
 - **Deployer** — a focused panel to carry out the assigned installs and report results.
 - **Client** — a read-oriented view of the schedule and status for the projects they can see, with approval/notes.
 - **Administrator** — manages users, clients, notification rules (email/Teams), and reviews the change history (audit log).
 - **Account** — profile, help, and sign-out.
 
-Cross-cutting features: schedule shifting mid-rollout, pause/resume with a reason, per-event notifications, an append-only audit trail, and IP-restricted access.
+Cross-cutting features: release packages handed over from testing to release management, schedule shifting mid-rollout, pause/resume with a reason, per-event notifications, an append-only audit trail, and IP-restricted access.
 
 ---
 
@@ -191,6 +193,7 @@ All configuration comes from environment variables (see `.env.example`). Key one
 | `APP_BASE_URL` | *(empty)* | Public URL where the app is reachable (e.g. `https://rolldesk.example.com`). When set, outgoing notifications (webhooks / e-mail / Teams) turn the deployment id into a link that opens that deployment (`<APP_BASE_URL>/#deployments/<id>`); a notification with no deployment gets a link to the app instead. **Required for SSO** (used to build the OIDC redirect URI). |
 | `APP_TIMEZONE` | `Europe/Warsaw` (in compose) | IANA zone for the timestamps the backend writes on deployment timelines and in the change history. The container image has no zone of its own, so without this those entries are stamped in UTC while the ones the browser writes use the viewer's local time — two hours apart in Polish summer, on the same timeline. An unknown zone falls back to the runtime's with a warning. |
 | `NOTIFY_LANG` | `pl` (in compose) | Language outgoing notifications (e-mail, Slack, Teams, webhooks) are written in — `pl` or `en`. A notification is composed in the browser of whoever triggered the event, so leaving this empty means it inherits *that person's* UI language, and the UI defaults to English: the same client could be told about one deployment in English and the next in Polish. Anything other than `pl`/`en` is ignored with a warning. |
+| `ISSUE_TRACKER_URL` | *(empty)* | URL pattern of the issue tracker the test team files fixes in, used to turn the issue ids on a release package into links (also for the client, who sees what a rollout closes). `{id}` marks where the ticket id goes — e.g. `https://haloitsm.example.com/tickets?id={id}` — because trackers differ in where the id belongs and the ids are stored exactly as they were typed. A value without `{id}` is ignored with a warning; empty means the ids stay plain text. |
 | `SSO_ENC_KEY` | *(derived from `JWT_SECRET`)* | Key used to encrypt stored SSO/OIDC client secrets at rest (AES-256-GCM). Set a dedicated random value in production (`openssl rand -hex 32`). See [Single sign-on (SSO)](#single-sign-on-sso). |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `rolldesk` | Database credentials. |
 | `DATABASE_URL` | *(built from the above)* | Backend connection string. |
@@ -327,16 +330,21 @@ All endpoints are under `/api` (IP-filtered). `/health` is unfiltered for monito
 | GET | `/api/auth/me` | session | Current user (`{ id, email, role }`). |
 | GET | `/api/deployments` | session | List (filters: `project`, `env`, `status`). |
 | GET | `/api/deployments/:id` | session | Details of one deployment. |
-| POST | `/api/deployments` | session | Create (id from body or generated). |
-| PUT | `/api/deployments/:id` | session | Create or update the full object (used by the UI). |
-| PATCH | `/api/deployments/:id` | session (non-client) | Change individual fields, leaving the rest of the stored object alone (see [Partial updates](#partial-updates-patch)). |
-| DELETE | `/api/deployments/:id` | session | Delete (cascades to its attachments). |
+| POST | `/api/deployments` | session (admin/rm/deployer) | Create (id from body or generated). |
+| PUT | `/api/deployments/:id` | session (admin/rm/deployer) | Create or update the full object (used by the UI). |
+| PATCH | `/api/deployments/:id` | session (admin/rm/deployer) | Change individual fields, leaving the rest of the stored object alone (see [Partial updates](#partial-updates-patch)). |
+| DELETE | `/api/deployments/:id` | session (admin/rm/deployer) | Delete (cascades to its attachments). |
 | POST | `/api/deployments/:id/attachments` | session | Upload a file (`multipart/form-data`, field `file`); returns its metadata. |
 | GET | `/api/deployments/:id/attachments` | session | List a deployment's attachment metadata (no bytes). |
 | GET | `/api/attachments/:id` | session | Download the stored file bytes. |
 | DELETE | `/api/attachments/:id` | session | Delete a single attachment. |
 | GET | `/api/projects` | session | List projects (with default days/time and apps). |
-| PUT | `/api/projects/:key` | session | Create or update a project. |
+| PUT | `/api/projects/:key` | session (admin/rm/deployer) | Create or update a project. |
+| GET | `/api/packages` | session | Release packages (filters: `project`, `status`). Scoped to the caller's projects; clients only see `ready` ones. |
+| GET | `/api/packages/:id` | session | One release package. `404` when it is out of the caller's scope. |
+| POST | `/api/packages` | session (admin/rm/tester) | Create a package (id generated, e.g. `PKG-2026-0007`). |
+| PUT | `/api/packages/:id` | session (admin/rm/tester) | Replace a package. |
+| DELETE | `/api/packages/:id` | session (admin/rm/tester) | Delete a package. `409`, naming the deployments, when one still refers to it. |
 | GET | `/api/audit` | session | Change-history entries, newest first. |
 | POST | `/api/audit` | session | Append one change-history entry. |
 | GET | `/api/state/:key` | session | Read a shared collection (`roster`, `clients`, `notifications`). |

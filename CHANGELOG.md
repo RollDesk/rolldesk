@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.0] - 2026-08-11
+
+### Added
+- **Release packages, assembled by the test team.** What is being released and what it fixes was decided in the schedule form by whoever happened to be planning the rollout: the release manager typed the version out of a chat message and wrote the changelog from memory, while the people who actually tested the build had nowhere in the app to say what they had signed off. A new **Release packages** view lets the test team record the application versions that were tested together and the issues fixed in them — the tracker id as it is written in the tracker, plus a description of the change — and mark the package **ready**. Planning a deployment then means picking that package: the applications, their versions and the changelog fill in from it and stay editable, and the deployment stores only a reference, so an issue description corrected a week later also corrects what the client is reading. Packages stay editable at all times, deliberately; deleting one that a deployment points at is refused and names the deployments.
+- **A `tester` role.** Testers manage packages for the projects they are assigned to and nothing else — no schedules, no targets, no client decisions — and their landing view is the package list. Projects are picked per account exactly as for a deployer.
+- **The fixed-issue list is shown to the client.** A deployment built from a package carries its issues into the changelog block in the client portal, the deployer panel and the Deployments list, so "what is in this release" is answered where the release is read rather than in a separate mail.
+- **`ISSUE_TRACKER_URL` turns issue ids into links.** A URL pattern with an `{id}` placeholder (e.g. `https://tracker.example.com/tickets?id={id}`) — a pattern rather than a base URL, because trackers differ in where the id belongs and the ids are stored exactly as the testers type them. Left empty, or given without `{id}`, the ids stay plain text.
+
+### Changed
+- **Write access to deployments and projects is now an allow-list.** The guard on those routes only ever rejected the `client` role, so every role that is not a client inherited release-manager write access — and the new `tester` role would have silently done the same. The six write routes (deployment `POST`/`PUT`/`PATCH`/`DELETE`, project `PUT`/`DELETE`) now name the roles allowed through, which also means the next role added is locked out until someone decides otherwise. The client's own approval endpoint is deliberately outside this guard.
+
 ## [0.21.1] - 2026-08-11
 
 ### Fixed

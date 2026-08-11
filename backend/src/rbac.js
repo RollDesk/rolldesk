@@ -37,6 +37,50 @@ export function isInstaller(req) {
   return !!(req.auth && req.auth.role === 'installer');
 }
 
+export function isTester(req) {
+  return !!(req.auth && req.auth.role === 'tester');
+}
+
+// Roles whose reach is the list of projects granted on their account, rather
+// than everything (admin/rm) or a client's own non-internal records. Read
+// endpoints must narrow to `userScope` for these, or a tester assigned to one
+// project would read every other project's deployments.
+const SCOPED_ROLES = new Set(['installer', 'tester']);
+
+export function isScopedRole(req) {
+  return SCOPED_ROLES.has((req.auth && req.auth.role) || '');
+}
+
+// Roles allowed to change projects and deployments. `forbidClient` only ever
+// rejected clients, so every role added since inherited a release manager's
+// write access by default — a tester, whose whole job is assembling release
+// packages, could have created and deleted deployments through the API. Guard
+// write routes with this instead: it names who may write rather than who may
+// not, so the next role added is locked out until someone decides otherwise.
+const WRITE_ROLES = new Set(['admin', 'rm', 'installer']);
+
+// Reject callers who may read the data API but must not change deployments or
+// projects. Use in place of / alongside forbidClient on write endpoints.
+export function requireWriteRole(req, res, next) {
+  const role = (req.auth && req.auth.role) || '';
+  if (!WRITE_ROLES.has(role)) {
+    return res.status(403).json({ error: 'Not permitted for this role' });
+  }
+  next();
+}
+
+// Roles allowed to assemble release packages: the test team plus the people who
+// plan the releases they feed into.
+const PACKAGE_ROLES = new Set(['admin', 'rm', 'tester']);
+
+export function requirePackageRole(req, res, next) {
+  const role = (req.auth && req.auth.role) || '';
+  if (!PACKAGE_ROLES.has(role)) {
+    return res.status(403).json({ error: 'Not permitted for this role' });
+  }
+  next();
+}
+
 // Project scope for the signed-in account (from the users table). Works for any
 // role; clients and installers are limited to their granted projects, while
 // admins / release managers see everything. Cached per request.
@@ -64,7 +108,7 @@ export async function canReadDeployment(req, dep) {
   if (role === 'admin' || role === 'rm') return true;
   const { projects } = await userScope(req);
   if (role === 'client') return !dep.internal && projects.includes(dep.project_key);
-  return projects.includes(dep.project_key); // installer (and any other scoped role)
+  return projects.includes(dep.project_key); // installer/tester (and any other scoped role)
 }
 
 // Project policy: when true, deployer/admin notes on deployments are also
