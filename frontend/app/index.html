@@ -1735,7 +1735,6 @@
             </select>
           </div>
         </div>
-        <button type="button" class="mini-btn" onclick="exportDeploymentsListCsv()" data-i18n="list.exportCsv">⬇ CSV</button>
       </div>
       <div id="deploy-active-filters"></div>
       <div class="table-scroll" style="max-height:640px; margin-top:10px;">
@@ -2038,7 +2037,6 @@
             </span>
           </div>
         </div>
-        <button type="button" class="mini-btn" onclick="exportInstallerListCsv()" data-i18n="list.exportCsv">⬇ CSV</button>
       </div>
       <div id="installer-active-filters"></div>
       <div id="installer-list"></div>
@@ -2509,11 +2507,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.20.0"></script>
-<script src="i18n/en.js?v=0.20.0"></script>
+<script src="i18n/pl.js?v=0.21.0"></script>
+<script src="i18n/en.js?v=0.21.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.20.0';
+  const ROLLDESK_VERSION = '0.21.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -8556,9 +8554,14 @@
     const loc = p.locationsList.find(t => (t.label || t.code) === code || t.code === code);
     return (loc && loc.custom) || {};
   }
-  function buildScheduleRows(r){
-    const appsLabel = (r.apps||[]).map(a=>a.name).join(' / ');
-    const verLabel = (r.apps||[]).map(a=>a.version).join(' / ');
+  // `app` narrows the schedule to a single application. Without it every
+  // application collapses into one cell ("A / B / C"), which is right for the
+  // on-screen table but not for the deployer's XLS: one sheet per application is
+  // one worklist per thing actually being installed.
+  function buildScheduleRows(r, app){
+    const apps = app ? [app] : (r.apps||[]);
+    const appsLabel = apps.map(a=>a.name).join(' / ');
+    const verLabel = apps.map(a=>a.version).join(' / ');
     const p = PROJECTS[r.projectKey] || {};
     const rows = [];
     // Single deployment: a one-row schedule (one target/location).
@@ -8635,9 +8638,12 @@
     return tf('sch.docTitle', {project: p.name || r.projectKey, client: p.clientName || '', apps, env: envLabel(r.env)});
   }
 
-  function scheduleFileBase(r){
+  // `app` names a single application (per-application export); without it the
+  // name covers every application in the record.
+  function scheduleFileBase(r, app){
     const idPart = String(r.id || 'deployment').replace(/[^\w.-]+/g, '_');
-    const appPart = (r.apps||[]).map(a=>a.name).join('_').replace(/[^\w.-]+/g, '') || 'application';
+    const apps = app ? [app] : (r.apps||[]);
+    const appPart = apps.map(a=>a.name).join('_').replace(/[^\w.-]+/g, '') || 'application';
     return idPart + '-' + appPart;
   }
 
@@ -8652,23 +8658,51 @@
     return true;
   }
 
-  function exportScheduleXls(idx){
-    const r = DEPLOYMENTS_DATA[idx];
-    if(blockedAsDraft(r)) return;
-    const rows = buildScheduleRows(r);
-    if(!rows.length){ showToast(t('sch.noBatch')); return; }
+  function scheduleXlsDoc(r, rows){
     const customFields = scheduleCustomFieldNames(r);
     const head = [t('rep.scheduleAppHdr'), t('rep.scheduleVerHdr'), t('rep.scheduleCodeHdr'), ...customFields, t('rep.scheduleDateHdr'), t('rep.scheduleDayHdr')];
     // Force text format on the version and code cells, otherwise Excel (esp. the
     // Polish locale) turns "1.2.3" into a date like 01.02.2003.
     const txt = "mso-number-format:'\\@';";
     const body = rows.map(x=>`<tr><td>${escapeHtml(x.app)}</td><td style="${txt}">${escapeHtml(String(x.version))}</td><td style="${txt}">${escapeHtml(String(x.code))}</td>${customFields.map(f=>`<td>${escapeHtml((x.custom&&x.custom[f])||'')}</td>`).join('')}<td>${escapeHtml(x.date)}</td><td>${escapeHtml(x.dow)}</td></tr>`).join('');
-    const htmlDoc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+    return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head><meta charset="utf-8"></head><body>
       <table border="1"><thead><tr>${head.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>
       </body></html>`;
-    if(downloadBlob(htmlDoc, scheduleFileBase(r) + '.xls', 'application/vnd.ms-excel'))
-      showToast(tf('sch.xlsExported', {n: rows.length}));
+  }
+
+  // One workbook per application: a deployment covering five applications yields
+  // five schedules, each naming only its own application. A deployer installs one
+  // application at a time, and a single sheet with "A / B / C" in every row is not
+  // a worklist for any of them.
+  function exportScheduleXls(idx){
+    const r = DEPLOYMENTS_DATA[idx];
+    if(blockedAsDraft(r)) return;
+    // A record with no application still has targets to visit, so it exports as
+    // one file rather than none.
+    const apps = (r.apps && r.apps.length) ? r.apps : [null];
+    const jobs = [];
+    apps.forEach(a => {
+      const rows = buildScheduleRows(r, a);
+      if(rows.length) jobs.push({app: a, rows});
+    });
+    if(!jobs.length){ showToast(t('sch.noBatch')); return; }
+    let written = 0, failed = false;
+    // Staggered: browsers drop all but the first of a burst of downloads started
+    // in the same tick, so the fifth application's sheet would silently go missing.
+    jobs.forEach((job, i) => {
+      setTimeout(()=>{
+        // One failure means the environment cannot download at all; stop rather
+        // than repeat the same toast once per application.
+        if(failed) return;
+        if(downloadBlob(scheduleXlsDoc(r, job.rows), scheduleFileBase(r, job.app) + '.xls', 'application/vnd.ms-excel')) written++;
+        else { failed = true; return; }
+        if(i !== jobs.length - 1) return;
+        showToast(written > 1
+          ? tf('sch.xlsExportedApps', {files: written, n: job.rows.length})
+          : tf('sch.xlsExported', {n: job.rows.length}));
+      }, i * 350);
+    });
   }
 
   // PDF: opens a print view (Save as PDF). No external libraries.
@@ -9462,11 +9496,10 @@
     if(showSchedule){
       barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-schedule-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'schedule'${scopeArg})">📅 ${t('rep.schedShort')}</button>`);
       // Drafts excluded: the export is the document the client receives.
-      if(!r.draft){
-        barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportScheduleXls(${r.idx})">${t('dtl.schedXls')}</button>`);
-        barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">${t('dtl.schedPdf')}</button>`);
-        barBtns.push(`<button class="mini-btn" title="${escapeHtml(t('dtl.schedCsvTip'))}" onclick="event.stopPropagation(); exportDeploymentCsv(${r.idx})">${t('dtl.schedCsv')}</button>`);
-      }
+      // One export only — the XLS worklist, one file per application. A deployer
+      // installs applications one at a time, so the PDF and the CSV were two more
+      // renderings of the same rows with no separate use.
+      if(!r.draft) barBtns.push(`<button class="mini-btn" title="${escapeHtml(t('dtl.schedXlsTip'))}" onclick="event.stopPropagation(); exportScheduleXls(${r.idx})">${t('dtl.schedXls')}</button>`);
     }
 
     const assigneeHtml = showAssignee ? assigneeControlHtml(r, true) : '';
@@ -9598,138 +9631,6 @@
       </select>
       <button class="mini-btn" style="font-size:10.5px;" onclick="assignToMe(${r.idx})">${t('rep.assignToMe')}</button>
     </div>`;
-  }
-
-  // ---- List CSV export (deployments + installer; not client portal) ----
-  let lastDeploymentsCsvRows = [];
-  let lastInstallerCsvRows = [];
-  function csvCell(v){
-    v = String(v == null ? '' : v);
-    return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
-  }
-  function downloadListCsv(filename, headers, rows){
-    if(!rows.length){ showToast(t('list.csvEmpty')); return false; }
-    const lines = [headers.map(csvCell).join(';')].concat(rows.map(cols => cols.map(csvCell).join(';')));
-    const csv = '\uFEFF' + lines.join('\r\n');
-    if(downloadBlob(csv, filename, 'text/csv;charset=utf-8')){
-      showToast(tf('list.csvExported', {n: rows.length}));
-      return true;
-    }
-    return false;
-  }
-  function deploymentCsvRecord(r){
-    const p = r.project || PROJECTS[r.projectKey] || {};
-    const apps = (r.apps || []).map(a => a.name + (a.version ? ' v' + a.version : '')).join(', ');
-    const locations = r.mode === 'batch'
-      ? String(r.totalLocations != null ? r.totalLocations : '')
-      : (r.location || '');
-    const date = r.mode === 'batch'
-      ? (r.dateRange || '')
-      : ((r.date || '') + (r.time ? ' ' + r.time : ''));
-    const progress = r.mode === 'batch'
-      ? (((r.counts && r.counts.installed) || 0) + '/' + (r.totalLocations || 0))
-      : (r.status || '');
-    return [
-      r.id || '',
-      p.name || r.projectKey || '',
-      p.clientName || '',
-      apps,
-      locations,
-      envLabel(r.env) || '',
-      date,
-      progress,
-      r.clientApproval || '',
-      r.paused ? (r.pauseReason || t('pause.badge')) : '',
-      r.assignedTo || ''
-    ];
-  }
-  function deploymentCsvHeaders(){
-    return [
-      'ID',
-      t('dep.thProject'),
-      t('proj.thClient'),
-      t('dep.thAppVer'),
-      t('dep.thLocations'),
-      t('dep.thEnv'),
-      t('dep.thDate'),
-      t('dep.thProgress'),
-      t('dep.thApproval'),
-      t('pause.badge'),
-      t('rep.assignee')
-    ];
-  }
-  // The deployer panel exports one row per application per target: a release of
-  // five applications to three sites is fifteen installations to carry out, and
-  // that is the sheet the deployer works from. The Deployments list keeps the
-  // one-row-per-record export above — it is a register, not a worklist.
-  function installerCsvRecords(r){
-    const p = r.project || PROJECTS[r.projectKey] || {};
-    // A record with no application still has targets to visit, so it must not
-    // vanish from the export — emit it once with an empty application.
-    const apps = (r.apps && r.apps.length) ? r.apps : [{name:'', version:''}];
-    const labels = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
-    // Per-target status. In a batch the schedule keeps the already-installed
-    // targets at the front (same invariant targetCodeAt relies on), so the
-    // position decides "done"; anything still on the failed list is a retry.
-    const installedCount = (r.mode === 'batch' && r.counts) ? (Number(r.counts.installed) || 0) : 0;
-    const failedSet = new Set((r.mode === 'batch' ? failedLocationsList(r) : []).map(f => f && f.location));
-    const timePart = r.time ? ' ' + r.time : '';
-    const out = [];
-    buildScheduleRows(r).forEach((x, pos) => {
-      const st = r.mode !== 'batch'
-        ? (r.status || 'scheduled')
-        : (pos < installedCount ? 'installed' : (failedSet.has(x.code) ? 'failed' : 'scheduled'));
-      apps.forEach(a => {
-        out.push([
-          r.id || '',
-          p.name || r.projectKey || '',
-          p.clientName || '',
-          a.name || '',
-          a.version || '',
-          x.code || '',
-          envLabel(r.env) || '',
-          x.date ? x.date + timePart : '',
-          labels[st] || st,
-          r.clientApproval || '',
-          r.paused ? (r.pauseReason || t('pause.badge')) : '',
-          r.assignedTo || ''
-        ]);
-      });
-    });
-    return out;
-  }
-  function installerCsvHeaders(){
-    return [
-      'ID',
-      t('dep.thProject'),
-      t('proj.thClient'),
-      t('rep.scheduleAppHdr'),
-      t('rep.scheduleVerHdr'),
-      t('rep.scheduleCodeHdr'),
-      t('dep.thEnv'),
-      t('dep.thDate'),
-      t('dtl.thStatus'),
-      t('dep.thApproval'),
-      t('pause.badge'),
-      t('rep.assignee')
-    ];
-  }
-  function exportDeploymentsListCsv(){
-    downloadListCsv('rolldesk-deployments.csv', deploymentCsvHeaders(), lastDeploymentsCsvRows);
-  }
-  function exportInstallerListCsv(){
-    downloadListCsv('rolldesk-installer.csv', installerCsvHeaders(), lastInstallerCsvRows);
-  }
-  // A single record's worklist, next to its XLS and PDF. The list-level CSV covers
-  // everything currently filtered, which is the wrong sheet to hand to someone
-  // working one rollout — so the same application × target rows are downloadable
-  // per deployment. Draft-gated like the other two exports.
-  function exportDeploymentCsv(idx){
-    const r = DEPLOYMENTS_DATA[idx];
-    if(blockedAsDraft(r)) return;
-    const rows = installerCsvRecords(r);
-    if(!rows.length){ showToast(t('list.csvEmpty')); return; }
-    downloadListCsv(scheduleFileBase(r) + '.csv', installerCsvHeaders(), rows);
   }
 
   // Deployments visible in the deployer panel: scoped to the deployer's granted
@@ -10208,8 +10109,8 @@
 
   // Distinct applications the visible rollouts cover. A record carries several
   // applications and each one has to be installed on every target, so a count of
-  // deployments understates the actual work — the same reason this panel's CSV is
-  // one row per application per target. Counted per name, not per record: the
+  // deployments understates the actual work — the same reason this panel's XLS
+  // export is one file per application. Counted per name, not per record: the
   // same application in two rollouts is still one application to deploy.
   function installerAppCount(list){
     const names = new Set();
@@ -10289,11 +10190,6 @@
       applyDeploymentSort(rows, installerSort, w => w.r);
       if(rows._archive) applyDeploymentSort(rows._archive, installerSort);
     }
-
-    const csvSource = rows.slice();
-    if(installerArchiveOpen && rows._archive) rows._archive.forEach(r => csvSource.push({r, kind:'completed'}));
-    lastInstallerCsvRows = [];
-    csvSource.forEach(({r}) => { installerCsvRecords(r).forEach(rec => lastInstallerCsvRows.push(rec)); });
 
     const headKeys = [
       ['project', t('dep.thProject')], ['app', t('dep.thAppVer')], ['locations', t('dep.thLocations')],
@@ -11139,7 +11035,6 @@
         return statusSelected.includes(st);
       });
     }
-    lastDeploymentsCsvRows = rows.map(r => deploymentCsvRecord(r));
 
     // Project column always shown (client name sits under it in small type —
     // same pattern as app version under the application name). No separate
@@ -11308,9 +11203,10 @@
       if(changelogBody) barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-changelog-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'changelog')">📄 ${t('rep.changelogShort')}</button>`);
       barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-timeline-${r.idx}" aria-pressed="true" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'timeline')">🕓 ${t('dcard.timeline')}</button>`);
       barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-comment-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'comment')">💬 ${t('dcard.commentShort')}</button>`);
-      if(canExportSchedule) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportScheduleXls(${r.idx})">${t('dtl.schedXls')}</button>`);
+      // PDF only. The XLS is the deployers' worklist and lives in their panel;
+      // the spreadsheet exports here duplicated it for readers who plan rather
+      // than install, which is what the on-screen schedule tab already shows.
       if(canExportSchedule) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">${t('dtl.schedPdf')}</button>`);
-      if(canExportSchedule) barBtns.push(`<button class="mini-btn" title="${escapeHtml(t('dtl.schedCsvTip'))}" onclick="event.stopPropagation(); exportDeploymentCsv(${r.idx})">${t('dtl.schedCsv')}</button>`);
       if(isActiveDep) barBtns.push(`<button class="mini-btn icon-btn accent" onclick="event.stopPropagation(); generateEndUserMessage(${r.idx})"><span class="mb-ic">✉</span> ${t('dcard.genMessage')}</button>`);
       if(isActiveDep && !r.paused) barBtns.push(`<button class="mini-btn icon-btn warn" onclick="event.stopPropagation(); pauseDeployment(${r.idx})"><span class="mb-ic">⏸</span> ${t('dcard.pause')}</button>`);
       if(isActiveDep && r.paused) barBtns.push(`<button class="mini-btn icon-btn ok" onclick="event.stopPropagation(); resumeDeployment(${r.idx})"><span class="mb-ic">▶</span> ${t('dcard.resume')}</button>`);
@@ -11644,10 +11540,62 @@
       }, t('dec.pickOrType'), false, people);
       return;
     }
-    d.clientApproval = newStatus;
-    persistDeployment(idx);
+    // Back to "pending" is the one transition that takes a decision away rather
+    // than recording one, and it used to be the only one that saved silently: no
+    // audit entry, no timeline note, and the previous decision's stamp left in
+    // place. That produced records reading "pending" while still carrying
+    // „approved by X on <date>", with nothing in the change history to say who
+    // undid it — and a deployment that had dropped out of the deployers' reach
+    // without anyone being told. It is a bare <select>, so a stray scroll over it
+    // was enough. Confirm first, then clear the stamp and log it like any other
+    // decision.
+    const prevStatus = d.clientApproval;
+    if(!prevStatus){
+      // Nothing recorded yet — the select is already showing "pending".
+      d.clientApproval = newStatus;
+      persistDeployment(idx);
+      renderDeploymentsTable();
+      return;
+    }
+    const stampedWhen = [d.clientApprovalDate ? fmtDate(d.clientApprovalDate) : '', d.clientApprovalTime || ''].filter(Boolean).join(' ');
+    const stampNote = (prevStatus === 'approved' && stampedWhen)
+      ? '\n\n' + tf('dec.clearBodyApproved', {when: stampedWhen, by: who ? ' (' + who + ')' : ''})
+      : '';
+    // Redraw before asking: the <select> already shows "pending" because the
+    // reader just picked it, and the confirmation can be dismissed. Rebuilding
+    // from the stored value now means a cancel leaves the control showing the
+    // decision that is actually recorded, instead of a withdrawal that never
+    // happened.
     renderDeploymentsTable();
-    showToast(tf('dec.savedManually', {status: labels[newStatus]}));
+    showAppConfirm(
+      t('dec.clearTitle'),
+      tf('dec.clearBody', {id: d.id || ''}) + stampNote,
+      ()=>{
+        d.clientApproval = newStatus;
+        // The stamp described the decision that was just withdrawn; keeping it
+        // is what created the contradictory "pending, approved by X" records.
+        delete d.clientApprovalBy;
+        delete d.clientApprovalDate;
+        delete d.clientApprovalTime;
+        const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
+        const projLabel = projName + ((PROJECTS[d.projectKey]||{}).clientName ? ' (' + (PROJECTS[d.projectKey]||{}).clientName + ')' : '');
+        const prevLabel = labels[prevStatus] || prevStatus;
+        logAudit('changed', 'Deployment',
+          'Withdrew the client decision on ' + (d.id||'') + ' (was: ' + prevLabel + (who ? ' — ' + who : '') + ')',
+          projLabel, 'aud.d.approvalCleared', {id: d.id||'', prev: prevLabel, by: who ? ' — ' + who : ''});
+        const stamp = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'};
+        d.comments = d.comments || [];
+        d.comments.push({date:stamp.date, time:stamp.time, author: actorName(), type:'system', icon:'↩️',
+          text: tf('dtl.approvalCleared', {who: actorName()})});
+        persistDeployment(idx);
+        renderDeploymentsTable();
+        // The record moves from the deployers' active list to "awaiting client",
+        // so the panel has to be redrawn too.
+        renderInstallerPanel();
+        showToast(t('dec.cleared'));
+      },
+      t('dec.clearBtn')
+    );
   }
 
   function deleteDeployment(idx){

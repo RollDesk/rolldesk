@@ -52,6 +52,10 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-rolldesk}:${POSTGRES_PASSWORD:-rolldesk}@db:5432/${POSTGRES_DB:-rolldesk}
       # REQUIRED: the backend refuses to start in production without a JWT secret.
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required in production}
+      # How long a session lasts before password + TOTP are needed again. A
+      # session token cannot be revoked before it expires, so lower this where
+      # that matters more than not signing in every morning.
+      SESSION_TTL: ${SESSION_TTL:-30d}
       ALLOWED_IPS: ${ALLOWED_IPS:-}
       TRUST_PROXY: "1"
       # Public base URL of the app — used to link back to RollDesk in

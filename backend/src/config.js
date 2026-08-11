@@ -96,7 +96,17 @@ export const config = {
     jwtSecretFromEnv: !!jwtSecretFromEnv,
     // Session token lifetime, and the short-lived lifetime for the pending
     // MFA setup/login stage tokens.
-    sessionTtl: process.env.SESSION_TTL || '12h',
+    //
+    // 30 days, not 12 hours: a 12h session expired overnight, so everyone
+    // re-entered a password *and* a TOTP code every morning to read a rollout
+    // schedule. That is friction with no security return here — the app is
+    // already behind an IP allowlist at two layers, and the tax fell on the
+    // people using it hourly, which is what pushes them to keep the password
+    // somewhere convenient. Note there is no server-side revocation: a session
+    // JWT stays valid for its full lifetime, so archiving an account does not
+    // end a session already in progress (see the note in README). Shorten this
+    // for a deployment where that matters.
+    sessionTtl: process.env.SESSION_TTL || '30d',
     stageTtl: process.env.MFA_STAGE_TTL || '10m',
     // Issuer/label shown in the user's authenticator app.
     mfaIssuer: process.env.MFA_ISSUER || 'RollDesk',

@@ -195,7 +195,7 @@ All configuration comes from environment variables (see `.env.example`). Key one
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `rolldesk` | Database credentials. |
 | `DATABASE_URL` | *(built from the above)* | Backend connection string. |
 | `JWT_SECRET` | *(dev: ephemeral)* | Secret used to sign session tokens. **Required in production** — the backend refuses to start without it. Generate with `openssl rand -hex 32`. In dev, if unset, an ephemeral secret is used (sessions reset on restart). |
-| `SESSION_TTL` / `MFA_STAGE_TTL` | `12h` / `10m` | Lifetime of a session token, and of the short-lived token carried between login and the MFA step. |
+| `SESSION_TTL` / `MFA_STAGE_TTL` | `30d` / `10m` | Lifetime of a session token, and of the short-lived token carried between login and the MFA step. A session token carries no server-side state and **cannot be revoked**: it stays valid for its full lifetime, so archiving an account ends its *next* login, not a session already in progress. Lower this where that matters more than signing in again. |
 | `MFA_ISSUER` | `RollDesk` | Label shown for the account in the user's authenticator app. |
 | `TRUST_PROXY` | `1` (in compose) | Trust `X-Forwarded-For` for the real client IP behind a proxy. |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | *(empty)* | SMTP for email notifications; if `SMTP_HOST` is unset, sending is skipped. |
@@ -450,7 +450,7 @@ RollDesk ships with **no default account** and stays locked until one is created
 1. **First run — setup wizard.** `GET /api/auth/status` reports `configured: false`, so the UI shows a wizard to create the initial admin (`POST /api/auth/setup`). Passwords are hashed with bcrypt.
 2. **Login.** `POST /api/auth/login` verifies the password and returns a short-lived *stage* token indicating the next step.
 3. **Mandatory MFA.** On the admin's first login, MFA enrollment is forced: the UI shows a QR code (from `POST /api/auth/mfa/setup`) to scan with an authenticator app, and `POST /api/auth/mfa/verify` confirms the first code and enables MFA. Later logins require the 6-digit code via `POST /api/auth/mfa/login`.
-4. **Session.** A successful MFA step returns a session JWT (signed with `JWT_SECRET`, `SESSION_TTL` lifetime). The UI stores it in `localStorage` and sends it as `Authorization: Bearer` on every `/api` call. A `401` clears the token and returns to the login screen.
+4. **Session.** A successful MFA step returns a session JWT (signed with `JWT_SECRET`, `SESSION_TTL` lifetime — 30 days by default). The UI stores it in `localStorage` and sends it as `Authorization: Bearer` on every `/api` call. A `401` clears the token and returns to the login screen. The token is self-contained: there is no server-side session list, so it cannot be revoked before it expires — archiving an account blocks the next login, not a session already open. Logging out discards the browser's copy.
 
 TOTP MFA uses [`otplib`](https://www.npmjs.com/package/otplib); QR codes are rendered with [`qrcode`](https://www.npmjs.com/package/qrcode); tokens use [`jsonwebtoken`](https://www.npmjs.com/package/jsonwebtoken).
 
