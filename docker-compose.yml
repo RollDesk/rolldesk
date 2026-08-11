@@ -49,6 +49,10 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-rolldesk}:${POSTGRES_PASSWORD:-rolldesk}@db:5432/${POSTGRES_DB:-rolldesk}
       # Secret for signing session tokens. Change this in production!
       JWT_SECRET: ${JWT_SECRET:-dev-insecure-change-me}
+      # How long a session lasts before password + TOTP are needed again. A
+      # session token cannot be revoked before it expires, so lower this where
+      # that matters more than not signing in every morning.
+      SESSION_TTL: ${SESSION_TTL:-30d}
       # List of allowed IPs / subnets (CIDR) — comma-separated.
       # Empty = no restriction at the backend layer (nginx filters anyway).
       ALLOWED_IPS: ${ALLOWED_IPS:-}

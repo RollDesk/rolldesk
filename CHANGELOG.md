@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.0] - 2026-08-11
+
+### Changed
+- **The deployer panel's schedule export is one XLS per application.** A deployment carrying five applications produced a single sheet with `A / B / C / D / E` in every application cell — a document about five rollouts that is a worklist for none of them. **⬇ XLS** now downloads one file per application, each naming only its own application and version and covering that application's targets and dates, under a file name of `<deployment id>-<application>.xls`. The files are written a fraction of a second apart, because browsers drop all but the first of a burst of downloads started in the same instant. Drafts stay excluded, as before.
+- **A session lasts 30 days instead of 12 hours.** The default put everyone through password + TOTP every morning, since a session started during one working day always expired before the next. `SESSION_TTL` still overrides it, and both compose files now pass the variable through — previously setting it in `.env` had no effect on a containerised install. Note that a session token cannot be revoked server-side, so a longer window is also a longer period in which an archived account's open session keeps working; lower it where that matters more.
+
+### Removed
+- **CSV exports.** The Deployments tab and the deployer panel each offered a list-level **⬇ CSV** next to the filters plus a per-record one in the row's action bar, all of them re-renderings of rows already on screen or already in the XLS. The deployer panel keeps the XLS only; the Deployments tab keeps the PDF, which is the client-facing schedule document.
+
+### Fixed
+- **Withdrawing a client's approval was a silent, one-click action.** Setting the approval column back to "Awaiting approval" was the only decision change that saved without an audit entry, without a timeline note, and without clearing the previous decision's stamp — so a record could read "awaiting approval" while still carrying „approved by X on <date>", with nothing in the change history to say who undid it or when. Because the column is a bare drop-down, a stray scroll over it was enough to do this, and the deployment silently left the deployer panel's working list (it is filtered to approved records) with no one being told. The transition now asks for confirmation naming the deployment and the approval about to be discarded, clears the stale stamp, writes an audit entry and a timeline note, and redraws the deployer panel. Dismissing the confirmation leaves the control showing the decision that is actually recorded.
+
 ## [0.20.0] - 2026-08-11
 
 ### Added
