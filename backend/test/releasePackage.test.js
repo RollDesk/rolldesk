@@ -35,6 +35,32 @@ test('a well-formed package is accepted and shaped', () => {
   assert.equal(r.data.data.changes, 'The login loop after a session timeout is gone.');
 });
 
+// Where the build for a version is. A deployer works from the version and then
+// has to find the file, so the address is typed on the package that names it.
+test('an application keeps the address of its build', () => {
+  const r = normalizePackage(body({
+    apps: [{ name: 'core', version: '3.2.0', url: '  https://builds.example.com/core-3.2.0.msi  ' }],
+  }));
+  assert.deepEqual(r.data.data.apps, [
+    { name: 'core', version: '3.2.0', url: 'https://builds.example.com/core-3.2.0.msi' },
+  ]);
+  // A UNC share is as common as a URL here and is stored exactly as typed — this
+  // is an address to hand to a deployer, not something we resolve.
+  const unc = normalizePackage(body({
+    apps: [{ name: 'core', version: '3.2.0', url: '\\\\builds\\release\\core\\setup.msi' }],
+  }));
+  assert.equal(unc.data.data.apps[0].url, '\\\\builds\\release\\core\\setup.msi');
+  // No address is the normal state for a package assembled before the field
+  // existed, and stays absent rather than becoming an empty string.
+  const none = normalizePackage(body({ apps: [{ name: 'core', version: '3.2.0', url: '  ' }] }));
+  assert.deepEqual(none.data.data.apps, [{ name: 'core', version: '3.2.0' }]);
+  // A hostile caller must not be able to store an unbounded blob in the JSONB.
+  const long = normalizePackage(body({
+    apps: [{ name: 'core', version: '3.2.0', url: 'h'.repeat(2000) }],
+  }));
+  assert.equal(long.data.data.apps[0].url.length, 1000);
+});
+
 // The description used to live per issue; it is now one block for the package,
 // so an issue entry carries identifiers only.
 test('an issue carries identifiers only — a per-issue description is not stored', () => {
@@ -342,6 +368,27 @@ test('the client view drops the instructions and their files, keeping the change
   // team, and a shared object would have been emptied for everyone.
   assert.equal(pkg.instructions, 'Stop the service, then run migration.sql.');
   assert.equal(pkg.files.length, 3);
+});
+
+// The build address is where the installer is fetched from during a rollout, so
+// it belongs to the deployer's half of the package — usually a path on an
+// internal share. What is being released stays visible; how to obtain it does not.
+test('the client view drops the build addresses but keeps the versions', () => {
+  const pkg = {
+    id: 'PKG-2026-0003',
+    apps: [
+      { name: 'core', version: '3.2.0', url: '\\\\builds\\release\\core\\setup.msi' },
+      { name: 'portal', version: '1.4.1' },
+    ],
+  };
+  const out = stripAdminInfoFromPackage(pkg);
+  assert.deepEqual(out.apps, [
+    { name: 'core', version: '3.2.0' },
+    { name: 'portal', version: '1.4.1' },
+  ]);
+  // The stored row is shared with the unstripped team view, so it must not be
+  // mutated in place.
+  assert.equal(pkg.apps[0].url, '\\\\builds\\release\\core\\setup.msi');
 });
 
 test('the client view survives a package with no files at all', () => {

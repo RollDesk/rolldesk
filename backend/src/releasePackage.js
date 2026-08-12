@@ -30,7 +30,15 @@ function normalizeApp(a) {
   const name = clamp(a.name, 200);
   const version = clamp(a.version, 100);
   if (!name || !version) return null;
-  return { name, version };
+  const out = { name, version };
+  // Where the build itself is. A deployer works from the version and then has to
+  // find the file, which was a question asked over chat for every rollout — so the
+  // address belongs on the package that names the version. Stored as typed: this
+  // is a UNC share as often as it is a URL, so it is not parsed or validated
+  // beyond a length limit, and the UI only makes it a link when it can be one.
+  const url = clamp(a.url ?? a.packageUrl ?? a.package_url, 1000);
+  if (url) out.url = url;
+  return out;
 }
 
 // A fixed issue is identifiers only — what changed is described once for the
@@ -216,6 +224,18 @@ export function stripAdminInfoFromPackage(obj) {
   const out = Object.assign({}, obj);
   delete out.instructions;
   if (Array.isArray(out.files)) out.files = out.files.filter((f) => !isInstructionKind(f && f.kind));
+  // The build address goes with the instructions: it is where the installer is
+  // fetched from during a rollout, which is deployer material and often a path on
+  // an internal share. The versions themselves stay — a client is told what is
+  // being released, just not how to obtain it.
+  if (Array.isArray(out.apps)) {
+    out.apps = out.apps.map((a) => {
+      if (!a || typeof a !== 'object' || a.url === undefined) return a;
+      const app = Object.assign({}, a);
+      delete app.url;
+      return app;
+    });
+  }
   return out;
 }
 
