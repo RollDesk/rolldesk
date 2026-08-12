@@ -1064,8 +1064,10 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
     <span data-i18n="nav.deployments">Deployments</span>
   </div>
-
-  <div class="nav-group-label" data-i18n="grp.tester">Test team</div>
+  <!-- Packages sit with the release manager's own screens: a package is what a
+       deployment is planned from, so the two are read together. The test team
+       still writes them (see VIEW_ROLES.packages) — this is where the work is
+       filed, not who may do it. -->
   <div class="nav-item" data-view="packages">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v8l-9 5-9-5V8l9-5 9 5Z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>
     <span data-i18n="nav.packages">Release packages</span>
@@ -1319,6 +1321,68 @@
           <button class="btn" onclick="saveProjectPostDeploy()" data-i18n="common.save">Save</button>
         </div>
       </div>
+
+      <!-- Where this project's issue identifiers come from. Per project rather than
+           per instance because one RollDesk serves several clients, each with its
+           own tracker organisation, its own custom field names and its own
+           credentials — and a credential shared across projects would let a tester
+           in one read work items of another. Admin only: it holds secrets. -->
+      <div class="card" id="project-tracker-card" style="margin-top:18px; display:none;">
+        <h3 class="sub-title" style="display:flex; align-items:center;"><span data-i18n="proj.tracker">Configure the issue trackers</span><span class="info-ic" data-i18n-tip="proj.trackerDesc">i</span></h3>
+        <p class="section-desc" data-i18n="proj.trackerNote">With this filled in, a tester enters the work item id in a release package and the app reads the service-desk ticket and the office that reported it. Leave it empty and both are typed by hand.</p>
+
+        <div class="form-section">
+          <div class="form-section-title" data-i18n="proj.trackerWork">Work tracker (Azure DevOps)</div>
+          <div class="grid-2">
+            <div class="field">
+              <label data-i18n="proj.trackerOrgUrl">Organisation URL</label>
+              <input type="text" id="tracker-azure-url" class="mono" data-i18n-ph="proj.trackerOrgUrlPh" placeholder="https://dev.azure.com/Organisation">
+            </div>
+            <div class="field">
+              <label data-i18n="proj.trackerProject">Project in the tracker</label>
+              <input type="text" id="tracker-azure-project" class="mono" data-i18n-ph="proj.trackerProjectPh" placeholder="e.g. Core">
+            </div>
+            <div class="field">
+              <label style="display:flex; align-items:center;"><span data-i18n="proj.trackerTicketField">Field holding the ticket id</span><span class="info-ic" data-i18n-tip="proj.trackerTicketFieldNote">i</span></label>
+              <input type="text" id="tracker-ticket-field" class="mono" data-i18n-ph="proj.trackerTicketFieldPh" placeholder="Custom.SMProblem">
+            </div>
+            <div class="field">
+              <label style="display:flex; align-items:center;"><span data-i18n="proj.trackerPat">Access token (PAT)</span><span class="info-ic" data-i18n-tip="proj.trackerSecretNote">i</span></label>
+              <input type="password" id="tracker-azure-pat" class="mono" autocomplete="new-password" data-i18n-ph="proj.trackerSecretPh" placeholder="Leave empty to keep the stored one">
+              <p style="font-size:11px; margin:4px 0 0 0;" id="tracker-azure-pat-state"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title" data-i18n="proj.trackerDesk">Service desk (HaloITSM)</div>
+          <div class="grid-2">
+            <div class="field">
+              <label data-i18n="proj.trackerDeskUrl">Service desk URL</label>
+              <input type="text" id="tracker-halo-url" class="mono" data-i18n-ph="proj.trackerDeskUrlPh" placeholder="https://servicedesk.example.com">
+            </div>
+            <div class="field">
+              <label style="display:flex; align-items:center;"><span data-i18n="proj.trackerTicketPath">Path of one ticket</span><span class="info-ic" data-i18n-tip="proj.trackerTicketPathNote">i</span></label>
+              <input type="text" id="tracker-ticket-path" class="mono" data-i18n-ph="proj.trackerTicketPathPh" placeholder="/api/Tickets/{id}">
+            </div>
+            <div class="field">
+              <label style="display:flex; align-items:center;"><span data-i18n="proj.trackerOfficeField">Field holding the reporting office</span><span class="info-ic" data-i18n-tip="proj.trackerOfficeFieldNote">i</span></label>
+              <input type="text" id="tracker-office-field" class="mono" data-i18n-ph="proj.trackerOfficeFieldPh" placeholder="leave empty to detect it">
+            </div>
+            <div class="field">
+              <label style="display:flex; align-items:center;"><span data-i18n="proj.trackerApiKey">API key</span><span class="info-ic" data-i18n-tip="proj.trackerSecretNote">i</span></label>
+              <input type="password" id="tracker-halo-key" class="mono" autocomplete="new-password" data-i18n-ph="proj.trackerSecretPh" placeholder="Leave empty to keep the stored one">
+              <p style="font-size:11px; margin:4px 0 0 0;" id="tracker-halo-key-state"></p>
+            </div>
+          </div>
+        </div>
+
+        <p id="tracker-status-line" style="font-size:12px; color:var(--text-muted); margin:0;"></p>
+        <div class="card-actions">
+          <button class="mini-btn mini-btn-danger" type="button" onclick="clearProjectTracker()" data-i18n="proj.trackerClear">Remove the configuration</button>
+          <button class="btn" type="button" onclick="saveProjectTracker()" data-i18n="common.save">Save</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1518,23 +1582,20 @@
           <div id="schedule-apps-list" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;"></div>
         </div>
         <div class="field">
-          <label><span data-i18n="sch.changelog">Changelog</span> <span style="color:#A81E1E;">*</span> <span style="color:var(--text-faint); font-weight:400; font-size:11px;" data-i18n="sch.changelogOrFile">(or attach a file below)</span></label>
+          <label><span data-i18n="sch.changelog">Changelog</span> <span style="color:#A81E1E;">*</span> <span style="color:var(--text-faint); font-weight:400; font-size:11px;" data-i18n="sch.changelogFromPackage">(filled in from the package — edit only if this rollout needs different wording)</span></label>
           <textarea id="schedule-changelog" data-i18n-ph="sch.changelogPh" placeholder="Describe the changes in this release (required)..."></textarea>
           <div style="margin-top:6px;">
             <button type="button" class="mini-btn" onclick="downloadChangelogTxt()" data-i18n-tip="sch.changelogTxtNote"><span class="mb-ic">⬇</span> <span data-i18n="sch.changelogTxt">Download as .txt</span></button>
           </div>
         </div>
-        <div class="field">
-          <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.changelogAttach">Changelog attachment (optional)</span><span class="info-ic" data-i18n-tip="sch.changelogAttachNote">i</span></label>
-          <input type="file" id="schedule-changelog-file" multiple onchange="onChangelogFileChange()">
-          <div id="schedule-changelog-file-name" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
-        </div>
-        <div class="field">
-          <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.installerNotes">Instructions for deployers (optional)</span><span class="info-ic" data-i18n-tip="sch.installerNotesNote">i</span></label>
-          <textarea id="schedule-installer-notes" data-i18n-ph="sch.installerNotesPh" placeholder="Describe the actions for the deployer..."></textarea>
-          <label style="display:flex; align-items:center; margin:10px 0 6px 0;"><span data-i18n="sch.installerAttach">Attachments for deployers (optional)</span><span class="info-ic" data-i18n-tip="sch.installerAttachNote">i</span></label>
-          <input type="file" id="schedule-installer-file" multiple onchange="onInstallerFileChange()">
-          <div id="schedule-installer-file-name" style="font-size:12px; color:var(--text-muted); margin-top:6px;"></div>
+        <!-- Changelog files and deployer instructions live on the package, not
+             here: they describe the build, so uploading them per rollout meant
+             re-uploading the same files and letting the copies drift. Shown
+             read-only so the release manager can still see what the deployer
+             will get. -->
+        <div class="field" id="schedule-package-materials-field" style="display:none;">
+          <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.packageMaterials">From the release package</span><span class="info-ic" data-i18n-tip="sch.packageMaterialsNote">i</span></label>
+          <div id="schedule-package-materials" style="font-size:12.5px;"></div>
         </div>
         <div class="field">
           <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.deps">Dependencies — must be deployed earlier (optional)</span><span class="info-ic" data-i18n-tip="sch.depsNote">i</span></label>
@@ -1674,6 +1735,11 @@
 
   <!-- ============ VIEW: DEPLOYMENTS LIST ============ -->
   <div class="view" id="view-deployments">
+   <!-- The list and one deployment's detail are two pages of the same view: only
+        one of them is on screen at a time. The detail is not an extra table row
+        any more — it holds the day schedule, the pending queue and the timeline,
+        and each of those had to fit in a nested scroll pane inside one cell. -->
+   <div id="deploy-list-page">
     <div class="section-head">
       <div>
         <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.deployments">A list of all deployments and their statuses. Pick a client to see deployments across all their projects.</p>
@@ -1749,6 +1815,10 @@
         </table>
       </div>
     </div>
+   </div>
+
+   <!-- One deployment, full width. Filled by renderDeploymentDetailPage(). -->
+   <div id="deploy-detail-page" style="display:none;"></div>
   </div>
 
   <!-- ============ VIEW: RELEASE PACKAGES ============ -->
@@ -1842,12 +1912,12 @@
             <div class="form-section-title" style="margin:0;" data-i18n="pkg.issues">Fixed issues</div>
             <button class="mini-btn" type="button" onclick="addPackageIssue()"><span aria-hidden="true">＋</span> <span data-i18n="pkg.addIssue">Add issue</span></button>
           </div>
-          <p class="form-hint" style="margin-top:0;" data-i18n="pkg.issuesNote">Identifiers only — what the release changes is described in the next section. Copy each value exactly as the tracker shows it: the Azure work item, its „SM Problem" field (the HaloITSM ticket) and the office that reported it.</p>
+          <p class="form-hint" style="margin-top:0;" data-i18n="pkg.issuesNote">Enter the work item id only — the Halo ticket and the office that reported it are read from the work item. What the release changes is described in the next section.</p>
           <div id="package-issues-head" style="display:none; gap:8px; margin-bottom:2px; font-size:11px; font-weight:700; color:var(--text-muted);">
-            <div style="width:150px;" data-i18n="pkg.thWorkItem">Azure work item</div>
-            <div style="width:150px;" data-i18n="pkg.thSmProblem">SM Problem (HaloITSM)</div>
+            <div style="width:150px;" data-i18n="pkg.thWorkItem">Work item</div>
+            <div style="width:150px;" data-i18n="pkg.thHaloTicket">Halo ticket</div>
             <div style="flex:1;" data-i18n="pkg.thOffice">Reporting office</div>
-            <div style="width:34px;"></div>
+            <div style="width:76px;"></div>
           </div>
           <div id="package-issues-list" style="display:flex; flex-direction:column; gap:8px;"></div>
         </div>
@@ -1860,6 +1930,27 @@
           <p class="form-hint" style="margin-top:0;" data-i18n="pkg.changesNote">Describe what this release changes. The client reads this text, and it fills in the changelog when a release manager picks the package.</p>
           <div class="field">
             <textarea id="package-changes-input" style="min-height:150px;" data-i18n-ph="pkg.changesPh" placeholder="What changes for the user in this release..."></textarea>
+          </div>
+          <div class="field">
+            <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="pkg.changelogFiles">Changelog files (optional)</span><span class="info-ic" data-i18n-tip="pkg.changelogFilesNote">i</span></label>
+            <div id="package-changelog-files" style="margin-bottom:6px;"></div>
+            <input type="file" id="package-changelog-file" multiple onchange="onPackageFileChange('changelog')" style="font-size:12px;">
+          </div>
+        </div>
+
+        <!-- How the build is installed. It used to be typed on every deployment of
+             the same package, which meant retyping it and letting the copies
+             drift; a deployment now renders it read-only from its package. -->
+        <div class="form-section">
+          <div class="form-section-title" data-i18n="pkg.secInstructions">Instructions for deployers</div>
+          <p class="form-hint" style="margin-top:0;" data-i18n="pkg.instructionsNote">How this build is installed. Every deployment planned from this package shows these instructions to its deployer.</p>
+          <div class="field">
+            <textarea id="package-instructions-input" style="min-height:120px;" data-i18n-ph="pkg.instructionsPh" placeholder="Describe the actions for the deployer..."></textarea>
+          </div>
+          <div class="field">
+            <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="pkg.instructionFiles">Files for deployers (optional)</span><span class="info-ic" data-i18n-tip="pkg.instructionFilesNote">i</span></label>
+            <div id="package-instruction-files" style="margin-bottom:6px;"></div>
+            <input type="file" id="package-instruction-file" multiple onchange="onPackageFileChange('instructions')" style="font-size:12px;">
           </div>
         </div>
 
@@ -1913,7 +2004,7 @@
           <!-- The e-mail sits under the name rather than in its own column: it is
                the account's identifier, not an independent attribute, and giving it
                a column pushed Projects out of view on a laptop screen. -->
-          <thead><tr><th data-i18n="usr.thName">Full name</th><th data-i18n="usr.thRole">Role</th><th data-i18n="usr.thGroup">Group</th><th data-i18n="usr.thProjects">Projects</th><th></th></tr></thead>
+          <thead><tr><th data-i18n="usr.thName">Full name</th><th data-i18n="usr.thRole">Role</th><th data-i18n="usr.thGroup">Group</th><th data-i18n="usr.thProjects">Projects</th><th data-i18n="usr.thLastLogin">Last sign-in</th><th></th></tr></thead>
           <tbody id="users-table"></tbody>
         </table>
       </div>
@@ -2523,7 +2614,7 @@
 <div id="edit-dep-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(20,24,30,0.45); z-index:1001; align-items:center; justify-content:center;">
   <div class="card" style="max-width:560px; width:94%; background:var(--paper-alt, #fff); max-height:90vh; overflow-y:auto;">
     <div style="font-weight:600; font-size:14px; margin-bottom:4px;" data-i18n="editdep.title">Edit the planned deployment</div>
-    <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:14px;" data-i18n="editdep.help">Release managers and administrators can adjust the version, start time and changelog of a deployment that has not finished yet.</div>
+    <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:14px;" data-i18n="editdep.help">Release managers and administrators can adjust the version, start time and changelog of a deployment that has not finished yet. The deployer instructions and the files belong to the release package — they are corrected there.</div>
     <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" data-i18n="editdep.versions">Application versions</label>
     <div id="edit-dep-versions" style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;"></div>
     <!-- A start is one moment, so it is one control. A batch rollout has no single
@@ -2533,14 +2624,11 @@
     <input type="time" id="edit-dep-time" class="mono" style="margin-bottom:14px; box-sizing:border-box; display:none;">
     <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" data-i18n="sch.changelog">Changelog</label>
     <textarea id="edit-dep-changelog" style="width:100%; min-height:120px; box-sizing:border-box; font-size:13px; line-height:1.55;"></textarea>
-    <label style="font-size:11px; color:var(--text-muted); margin:12px 0 4px 0; display:block;" data-i18n="sch.changelogAttach">Changelog attachment (optional)</label>
-    <div id="edit-dep-changelog-atts" style="margin-bottom:6px;"></div>
-    <input type="file" id="edit-dep-changelog-file" multiple onchange="onEditDepFileChange('changelog')" style="font-size:12px;">
-    <label style="font-size:11px; color:var(--text-muted); margin:14px 0 4px 0; display:block;" data-i18n="sch.installerNotes">Instructions for deployers (optional)</label>
-    <textarea id="edit-dep-installer-notes" style="width:100%; min-height:90px; box-sizing:border-box; font-size:13px; line-height:1.55;"></textarea>
-    <label style="font-size:11px; color:var(--text-muted); margin:12px 0 4px 0; display:block;" data-i18n="sch.installerAttach">Attachments for deployers (optional)</label>
-    <div id="edit-dep-installer-atts" style="margin-bottom:6px;"></div>
-    <input type="file" id="edit-dep-installer-file" multiple onchange="onEditDepFileChange('installer')" style="font-size:12px;">
+    <!-- The files and the deployer instructions are the package's, so they are
+         shown here rather than edited: correcting them for one rollout would leave
+         every other deployment of the same build with the old copy. The button
+         opens the package, which is where the correction belongs. -->
+    <div id="edit-dep-package-materials" style="margin-top:14px;"></div>
     <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px;">
       <button class="mini-btn" onclick="closeEditDeploymentModal(false)" data-i18n="common.close">Close</button>
       <button class="btn" onclick="saveDeploymentEdits()" data-i18n="editdep.save">Save changes</button>
@@ -2647,11 +2735,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.23.0"></script>
-<script src="i18n/en.js?v=0.23.0"></script>
+<script src="i18n/pl.js?v=0.24.0"></script>
+<script src="i18n/en.js?v=0.24.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.23.0';
+  const ROLLDESK_VERSION = '0.24.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -2734,6 +2822,12 @@
   const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
   const I18N = window.RD_I18N;
   function t(key){ return (I18N[LANG] && I18N[LANG][key]) || (I18N.pl[key]) || key; }
+  // Whether a key exists at all. t() returns the key itself when it does not, so
+  // a caller that builds a key from a value (an error reason, a status) needs this
+  // to tell "no translation" from a translation that happens to look like a key.
+  function hasI18nKey(key){
+    return !!((I18N[LANG] && I18N[LANG][key]) || I18N.pl[key]);
+  }
   // Translate + interpolate {token} placeholders, e.g. tf('client.welcome', {name:'ACME'}).
   function tf(key, params){
     return interpolate(t(key), params);
@@ -2842,10 +2936,15 @@
   // Sorting is driven by clicking a column header, not by a separate dropdown —
   // the dropdown was a second place to look for something the table itself can
   // express, and it did not exist in the deployer panel at all. `null` means the
-  // default order: most recently added first.
+  // insertion order: most recently added first.
   //   key: 'project' | 'app' | 'locations' | 'env' | 'date' | 'progress' | 'approval'
   //   dir: 'asc' | 'desc'
-  let deploySort = null;
+  //
+  // The deployments list opens on the newest deployment rather than the most
+  // recently *added* record: the two differ whenever an old rollout is edited or
+  // backfilled, and the question the list is opened to answer is "what is going
+  // out now", which is the top of a date-descending order.
+  let deploySort = { key: 'date', dir: 'desc' };
   let installerSort = null;
   let clientSort = null;
 
@@ -3369,6 +3468,38 @@
     renderUsersTable();
   }
 
+  // "yyyy-mm-dd hh:mm" in the reader's own timezone, from an ISO timestamp.
+  function fmtStamp(iso){
+    const d = new Date(iso);
+    if(isNaN(d.getTime())) return '';
+    const pad = n => String(n).padStart(2,'0');
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+  }
+  // When an account last signed in. What an admin reads this column for is "is
+  // this account still in use", and an age answers that faster than a timestamp —
+  // so recent sign-ins are relative and the exact moment stays in the tooltip.
+  // Anything older than a month is given as a plain date: past that point the day
+  // count is no longer something anyone counts back from.
+  function lastLoginCellHtml(iso){
+    // Absent and null mean different things: the admin directory always sends the
+    // field (null = never signed in), while the assignable-deployers roster a
+    // non-admin gets omits it entirely — claiming "never" there would be a lie.
+    if(iso === undefined) return `<span style="color:var(--text-faint);">—</span>`;
+    if(!iso) return `<span style="color:var(--text-faint);">${t('usr.lastLoginNever')}</span>`;
+    const stamp = fmtStamp(iso);
+    if(!stamp) return `<span style="color:var(--text-faint);">—</span>`;
+    // Compared by calendar day, not by elapsed hours: a sign-in at 23:50 is
+    // "yesterday" the next morning, however few hours have actually passed.
+    const day = d => Math.floor(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 86400000);
+    const days = day(new Date()) - day(new Date(iso));
+    let label;
+    if(days <= 0) label = t('usr.lastLoginToday');
+    else if(days === 1) label = t('usr.lastLoginYesterday');
+    else if(days <= 30) label = tf('usr.lastLoginDaysAgo', {n: days});
+    else label = stamp.slice(0, 10);
+    return `<span title="${escapeHtml(stamp)}" style="cursor:help;">${escapeHtml(label)}</span>`;
+  }
+
   function renderUsersTable(){
     const tbody = document.getElementById('users-table');
     const activeCount = USERS.filter(u=>!u.archived).length;
@@ -3419,9 +3550,10 @@
         <td><span class="mono" title="${t('roleDesc.'+u.role)}" style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:${info.bg}; color:${info.color}; cursor:help;">${t('role.'+u.role)}</span></td>
         <td style="font-size:12.5px;">${u.group ? escapeHtml(u.group) : '<span style="color:var(--text-faint);">—</span>'}</td>
         <td style="font-size:12.5px;">${projLabel}</td>
+        <td style="font-size:12.5px; white-space:nowrap;">${lastLoginCellHtml(u.lastLoginAt)}</td>
         <td style="white-space:nowrap; text-align:right;">${actions}</td>
       </tr>`;
-    }).join('') || `<tr><td colspan="5" style="color:var(--text-faint); font-size:13px;">${usersTab === 'archived' ? t('usr.noArchived') : t('usr.noActive')}</td></tr>`;
+    }).join('') || `<tr><td colspan="6" style="color:var(--text-faint); font-size:13px;">${usersTab === 'archived' ? t('usr.noArchived') : t('usr.noActive')}</td></tr>`;
   }
 
   let currentLoggedInRole = 'admin'; // mirrors the real signed-in user's role (set from /api/auth/me)
@@ -4326,6 +4458,10 @@
     dismissTokenRevealOnLeave();
     // Leaving the deployer panel discards the in-progress (unsaved) report state.
     if(viewName !== 'installer' && Object.keys(reportedResults).length){ reportedResults = {}; renderInstallerPanel(); }
+    // Switching views closes an open deployment: "Deployments" in the rail means
+    // the list, not the one record that happened to be open when the reader last
+    // left it. A #deployments/<id> link sets it again after the switch.
+    expandedBatchIdx = null;
     document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
     const item = document.querySelector(`.nav-item[data-view="${viewName}"]`);
     if(item) item.classList.add('active');
@@ -4419,9 +4555,10 @@
     Object.keys(deployStatusFilter).forEach(k => { deployStatusFilter[k] = true; });
     ['deploy-filter-client','deploy-filter-project','deploy-filter-app','deploy-filter-env']
       .forEach(id => { const el = document.getElementById(id); if(el) el.value = 'all'; });
+    // A link to one deployment opens that deployment, not the list with a row
+    // highlighted — the detail page is where the id resolves to something to read.
     expandedBatchIdx = idx;
     renderDeploymentsTable();
-    flashRow(document.querySelector(`#deploy-table tr[data-idx="${idx}"]`));
   }
 
   // The client portal: rows are keyed by deployment id, not by index, and its
@@ -4799,6 +4936,10 @@
     updateScheduleTemplateOptions();
 
     clearManifestPreview();
+
+    // The tracker configuration is read per project and holds secrets, so it is
+    // fetched on demand rather than carried in the projects list.
+    try { loadProjectTracker(currentProjectKey); } catch(e){}
   }
 
   function saveProjectName(){
@@ -4864,6 +5005,118 @@
     const summary = [email && ('e-mail: ' + email), webhook && 'webhook'].filter(Boolean).join(', ');
     logAudit('changed', 'Project', 'Changed the post-deployment notification' + (enabled ? ' (enabled: ' + summary + ')' : ' (disabled)'), p.name + ' (' + p.clientName + ')', enabled ? 'aud.d.notifEnabled' : 'aud.d.notifDisabled', {summary});
     showToast(enabled ? 'Post-deployment notification enabled — ' + summary : 'Post-deployment notification disabled');
+  }
+
+  // ---- Per-project tracker configuration (admin only) ----
+  // The backend never returns a stored secret, only whether one is on file, so a
+  // blank secret box means "keep what is stored" and the two state lines below
+  // say which of the two is configured.
+  function canEditTracker(){ return (currentLoggedInRole || 'admin') === 'admin'; }
+
+  const TRACKER_FIELDS = {
+    azureOrgUrl: 'tracker-azure-url',
+    azureProject: 'tracker-azure-project',
+    ticketField: 'tracker-ticket-field',
+    haloBaseUrl: 'tracker-halo-url',
+    ticketPath: 'tracker-ticket-path',
+    officeField: 'tracker-office-field',
+  };
+
+  async function loadProjectTracker(key){
+    const card = document.getElementById('project-tracker-card');
+    if(!card) return;
+    card.style.display = canEditTracker() ? '' : 'none';
+    if(!canEditTracker() || !key || !API_CONNECTED) return;
+    // Clear first: a failed load must not leave the previous project's settings
+    // on screen, where saving would copy them onto this one.
+    Object.values(TRACKER_FIELDS).forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ''; });
+    ['tracker-azure-pat','tracker-halo-key'].forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ''; });
+    let cfg = null;
+    try {
+      const res = await apiFetch('/api/projects/' + encodeURIComponent(key) + '/tracker');
+      if(res.ok) cfg = await res.json();
+    } catch(e){ /* an unconfigured or unreachable project shows as empty */ }
+    cfg = cfg || {};
+    Object.entries(TRACKER_FIELDS).forEach(([field, id])=>{
+      const el = document.getElementById(id);
+      if(el) el.value = cfg[field] || '';
+    });
+    const patState = document.getElementById('tracker-azure-pat-state');
+    if(patState){
+      patState.textContent = cfg.azurePatSet ? t('proj.trackerSecretSet') : t('proj.trackerSecretUnset');
+      patState.style.color = cfg.azurePatSet ? 'var(--text-muted)' : 'var(--text-faint)';
+    }
+    const keyState = document.getElementById('tracker-halo-key-state');
+    if(keyState){
+      keyState.textContent = cfg.haloApiKeySet ? t('proj.trackerSecretSet') : t('proj.trackerSecretUnset');
+      keyState.style.color = cfg.haloApiKeySet ? 'var(--text-muted)' : 'var(--text-faint)';
+    }
+    const line = document.getElementById('tracker-status-line');
+    if(line){
+      const st = cfg.status || {};
+      line.textContent = [
+        t(st.workItems ? 'proj.trackerOnWork' : 'proj.trackerOffWork'),
+        t(st.tickets ? 'proj.trackerOnDesk' : 'proj.trackerOffDesk'),
+      ].join(' · ');
+    }
+  }
+
+  async function saveProjectTracker(){
+    const key = currentProjectKey;
+    const p = PROJECTS[key];
+    if(!p || !canEditTracker()){ showToast(t('proj.trackerNoPerm')); return; }
+    if(!API_CONNECTED){ showToast(t('proj.trackerNeedApi')); return; }
+    const val = (id)=> (document.getElementById(id) ? document.getElementById(id).value.trim() : '');
+    const tracker = {};
+    Object.entries(TRACKER_FIELDS).forEach(([field, id])=>{ tracker[field] = val(id); });
+    // A blank secret keeps the stored one; the backend does the keeping.
+    const pat = val('tracker-azure-pat');
+    const apiKey = val('tracker-halo-key');
+    if(pat) tracker.azurePat = pat;
+    if(apiKey) tracker.haloApiKey = apiKey;
+    // An empty path would be refused by the backend; blank means "the default".
+    if(!tracker.ticketPath) delete tracker.ticketPath;
+
+    // The PUT is issued here rather than through apiSaveProject so a rejected
+    // setting (a non-https URL, a path without {id}) can be shown as the message
+    // the backend wrote instead of a bare status code.
+    let saved;
+    try {
+      const res = await apiFetch('/api/projects/' + encodeURIComponent(key), {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(Object.assign({key}, p, {tracker})),
+      });
+      let info = {}; try { info = await res.json(); } catch(e){}
+      if(!res.ok){ showToast('⚠ ' + (info.error || t('proj.trackerSaveFailed'))); return; }
+      saved = info;
+    } catch(e){
+      showToast('⚠ ' + t('proj.trackerSaveFailed'));
+      return;
+    }
+    if(saved && saved.tracker) p.tracker = saved.tracker;
+    // The secrets are not echoed back, so the boxes are emptied and the state
+    // lines are refreshed from the server's answer.
+    ['tracker-azure-pat','tracker-halo-key'].forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ''; });
+    logAudit('changed', 'Project', 'Changed the issue tracker configuration', p.name + ' (' + p.clientName + ')', 'aud.d.projTracker', {});
+    showToast(t('proj.trackerSaved'));
+    await loadProjectTracker(key);
+  }
+
+  async function clearProjectTracker(){
+    const key = currentProjectKey;
+    const p = PROJECTS[key];
+    if(!p || !canEditTracker()){ showToast(t('proj.trackerNoPerm')); return; }
+    if(!API_CONNECTED){ showToast(t('proj.trackerNeedApi')); return; }
+    if(!confirm(t('proj.trackerClearConfirm'))) return;
+    try {
+      // An explicit null is what the backend reads as "drop the whole block",
+      // credentials included.
+      await apiSaveProject(key, Object.assign({key}, p, {tracker: null}));
+    } catch(e){ showToast('⚠ ' + (e.message || t('proj.trackerSaveFailed'))); return; }
+    logAudit('changed', 'Project', 'Removed the issue tracker configuration', p.name + ' (' + p.clientName + ')', 'aud.d.projTrackerCleared', {});
+    showToast(t('proj.trackerCleared'));
+    await loadProjectTracker(key);
   }
 
   // Send a one-off test to the project's post-deployment e-mail or webhook,
@@ -5009,6 +5262,9 @@
     if(!id) return null;
     return RELEASE_PACKAGES.find(p => p && p.id === id) || null;
   }
+  // The package a deployment was planned from, or null for a record created
+  // before packages existed (and for a client whose scope excludes it).
+  function packageForDeployment(r){ return packageById(r && r.packageId); }
   function packageApps(pkg){ return (pkg && Array.isArray(pkg.apps)) ? pkg.apps : []; }
   function packageIssues(pkg){ return (pkg && Array.isArray(pkg.issues)) ? pkg.issues : []; }
   function packageAppsLabel(pkg){
@@ -5023,11 +5279,18 @@
     const ids = packageIssues(pkg).map(i=>packageIssueTicket(i)).filter(Boolean);
     return [changes, ids.join(', ')].filter(Boolean).join('\n\n');
   }
-  // The ticket a reader recognises: the HaloITSM id from the work item's "SM
-  // Problem" field when the tester filled it in, otherwise the work item id.
+  // The Halo ticket an issue answers. Stored as `haloTicket`; packages written
+  // before the rename carry `smProblem` (the tracker field's own name), so both
+  // are read.
+  function issueHaloTicket(issue){
+    if(!issue) return '';
+    return String(issue.haloTicket || issue.smProblem || '');
+  }
+  // The ticket a reader recognises: the Halo ticket when the lookup found one,
+  // otherwise the work item id.
   function packageIssueTicket(issue){
     if(!issue) return '';
-    return String(issue.smProblem || issue.id || '');
+    return issueHaloTicket(issue) || String(issue.id || '');
   }
   // The offices that reported the tickets in the package, deduplicated in the
   // order they were listed. The schedule rolls out to these first.
@@ -5051,10 +5314,10 @@
     const url = urlPattern.split('{id}').join(encodeURIComponent(id));
     return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="color:var(--cyan); text-decoration:none;">${label}</a>`;
   }
-  // The HaloITSM ticket id (the "SM Problem" of the Azure work item).
+  // The Halo ticket id, read off the work item.
   function issueIdHtml(issueId){ return trackerIdHtml(issueId, ISSUE_TRACKER_URL); }
-  // The Azure work item id, shown smaller: during a rollout the HaloITSM ticket
-  // is the one that matters, the work item is the trace back to the test team.
+  // The work item id, shown smaller: during a rollout the Halo ticket is the one
+  // that matters, the work item is the trace back to the test team.
   function workItemIdHtml(id){
     return trackerIdHtml(id, WORKITEM_URL, {size:'10.5px', weight:400});
   }
@@ -5067,15 +5330,16 @@
 
   // The fixed-issue list as it appears on a deployment: identifiers only. Read
   // live from the package (not copied onto the deployment) so a late fix shows up
-  // everywhere. The HaloITSM ticket leads because that is the id a deployer is
-  // asked about during the rollout; the work item follows it, and the reporting
-  // office is called out because those targets are deployed to first.
+  // everywhere. The Halo ticket leads because that is the id a deployer is asked
+  // about during the rollout; the work item follows it, and the reporting office
+  // is called out because those targets are deployed to first.
   function packageIssuesBlockHtml(r){
     const pkg = packageById(r && r.packageId);
     const issues = packageIssues(pkg);
     if(!issues.length) return '';
     const rows = issues.map(i=>{
-      const ticket = i.smProblem ? issueIdHtml(i.smProblem) : '<span style="color:var(--text-faint);">—</span>';
+      const halo = issueHaloTicket(i);
+      const ticket = halo ? issueIdHtml(halo) : '<span style="color:var(--text-faint);">—</span>';
       const item = workItemIdHtml(i.id);
       const office = i.office
         ? `<span style="font-size:11.5px;">🏢 ${escapeHtml(i.office)}</span>`
@@ -5117,7 +5381,7 @@
       if(status !== 'all' && p.status !== status) return false;
       if(!q) return true;
       const hay = [p.id, p.name, p.projectKey, packageAppsLabel(p), p.changes || '',
-        packageIssues(p).map(i=>[i.id, i.smProblem, i.office].filter(Boolean).join(' ')).join(' ')].join(' ').toLowerCase();
+        packageIssues(p).map(i=>[i.id, issueHaloTicket(i), i.office].filter(Boolean).join(' ')).join(' ')].join(' ').toLowerCase();
       return hay.includes(q);
     });
 
@@ -5162,6 +5426,50 @@
       .map(([key,p])=>({key, label: `${p.name} (${p.clientName})`}));
   }
 
+  // Package-editor file working state, the same shape as the deployment edit
+  // modal: existing files are editable copies so a removal is not committed until
+  // Save, and newly picked files wait until the package has an id to attach to.
+  let packageExistingFiles = { changelog: [], instructions: [] };
+  let packageNewFiles = { changelog: [], instructions: [] };
+  let packageRemovedFileIds = [];
+  const packageFileState = {
+    changelog:    { box: 'package-changelog-files',   input: 'package-changelog-file' },
+    instructions: { box: 'package-instruction-files', input: 'package-instruction-file' },
+  };
+  // Files already stored on the package, split by kind. A file whose kind the
+  // backend does not recognise is treated as instructions — the narrower
+  // audience, matching isInstructionFile on the server.
+  function packageFilesOfKind(pkg, kind){
+    const list = (pkg && Array.isArray(pkg.files)) ? pkg.files : [];
+    return list.filter(f => (kind === 'changelog') ? (f && f.kind === 'changelog') : (f && f.kind !== 'changelog'));
+  }
+  function renderPackageFiles(kind){
+    const st = packageFileState[kind];
+    const box = document.getElementById(st.box);
+    if(!box) return;
+    const chip = (name, onRemove)=>`<span style="display:inline-flex; align-items:center; gap:6px; background:var(--line-soft); border:1px solid var(--line); border-radius:14px; padding:2px 6px 2px 10px; margin:0 6px 6px 0; font-size:12px;">📎 ${escapeHtml(name)} <button type="button" title="${t('sch.removeFile')}" onclick="${onRemove}" style="border:none; background:none; cursor:pointer; color:var(--text-muted); font-size:14px; line-height:1; padding:0 2px;">✕</button></span>`;
+    box.innerHTML = packageExistingFiles[kind].map((f,i)=>chip(f.filename, `removePackageExistingFile('${kind}', ${i})`)).join('')
+      + packageNewFiles[kind].map((f,i)=>chip(f.name, `removePackageNewFile('${kind}', ${i})`)).join('');
+  }
+  function onPackageFileChange(kind){
+    const st = packageFileState[kind];
+    const input = document.getElementById(st.input);
+    const arr = packageNewFiles[kind];
+    const picked = input && input.files ? Array.from(input.files) : [];
+    picked.forEach(f=>{ if(!arr.some(x=>x.name===f.name && x.size===f.size)) arr.push(f); });
+    if(input) input.value = ''; // allow re-picking the same file later
+    renderPackageFiles(kind);
+  }
+  function removePackageExistingFile(kind, i){
+    const removed = packageExistingFiles[kind].splice(i, 1)[0];
+    if(removed && removed.id) packageRemovedFileIds.push(removed.id);
+    renderPackageFiles(kind);
+  }
+  function removePackageNewFile(kind, i){
+    packageNewFiles[kind].splice(i, 1);
+    renderPackageFiles(kind);
+  }
+
   function openPackageEditor(id){
     if(!canEditPackages()){ showToast(t('pkg.noPerm')); return; }
     const pkg = id ? packageById(id) : null;
@@ -5179,11 +5487,26 @@
     document.getElementById('package-name-input').value = (pkg && pkg.name) || '';
     document.getElementById('package-notes-input').value = (pkg && pkg.notes) || '';
     document.getElementById('package-changes-input').value = (pkg && pkg.changes) || '';
+    // `installerNotes` is what this field was called while it lived on the
+    // deployment; a package written before the move can still carry that name.
+    document.getElementById('package-instructions-input').value = (pkg && (pkg.instructions || pkg.installerNotes)) || '';
     selectRadioPill('package-status', (pkg && pkg.status === 'ready') ? 'ready' : 'draft');
+
+    packageExistingFiles = {
+      changelog: packageFilesOfKind(pkg, 'changelog').map(f=>({id:f.id, filename:f.filename})),
+      instructions: packageFilesOfKind(pkg, 'instructions').map(f=>({id:f.id, filename:f.filename})),
+    };
+    packageNewFiles = { changelog: [], instructions: [] };
+    packageRemovedFileIds = [];
+    Object.keys(packageFileState).forEach(kind=>{
+      const el = document.getElementById(packageFileState[kind].input);
+      if(el) el.value = '';
+      renderPackageFiles(kind);
+    });
 
     packageDraftApps = pkg ? packageApps(pkg).map(a=>({name:a.name, version:a.version})) : [];
     packageDraftIssues = pkg
-      ? packageIssues(pkg).map(i=>({id:i.id, smProblem:i.smProblem||'', office:i.office||''}))
+      ? packageIssues(pkg).map(i=>({id:i.id, haloTicket:issueHaloTicket(i), office:i.office||'', lookup:''}))
       : [];
     if(!packageDraftApps.length) packageDraftApps = [{name:'', version:''}];
     if(!packageDraftIssues.length) packageDraftIssues = [newPackageIssueDraft()];
@@ -5229,35 +5552,79 @@
     }).join('');
   }
 
-  function newPackageIssueDraft(){ return {id:'', smProblem:'', office:''}; }
-
-  // The production targets of the package's project, offered as suggestions for
-  // the reporting office. Free text is still accepted — the ticket may name an
-  // office the project has not registered yet — but picking a known target is
-  // what lets the schedule put it first.
-  function packageOfficeOptions(){
-    const sel = document.getElementById('package-project-select');
-    const p = sel ? PROJECTS[sel.value] : null;
-    const locs = (p && Array.isArray(p.locationsList)) ? p.locationsList : [];
-    return locs.filter(l=>l.type === 'Production').map(l=>l.label || l.code).filter(Boolean);
-  }
+  function newPackageIssueDraft(){ return {id:'', haloTicket:'', office:'', lookup:''}; }
 
   function renderPackageIssues(){
     const wrap = document.getElementById('package-issues-list');
     if(!wrap) return;
     const head = document.getElementById('package-issues-head');
     if(head) head.style.display = packageDraftIssues.length ? 'flex' : 'none';
-    const offices = packageOfficeOptions();
-    const datalist = offices.length
-      ? `<datalist id="package-office-options">${offices.map(o=>`<option value="${escapeHtml(o)}"></option>`).join('')}</datalist>`
-      : '';
-    wrap.innerHTML = datalist + packageDraftIssues.map((issue,i)=>`
-      <div style="display:flex; gap:8px; align-items:center;">
-        <input type="text" class="mono" value="${escapeHtml(issue.id)}" placeholder="${t('pkg.issueIdPh')}" style="width:150px; font-size:12.5px;" oninput="setPackageIssue(${i}, 'id', this.value)">
-        <input type="text" class="mono" value="${escapeHtml(issue.smProblem)}" placeholder="${t('pkg.smProblemPh')}" style="width:150px; font-size:12.5px;" oninput="setPackageIssue(${i}, 'smProblem', this.value)">
-        <input type="text" value="${escapeHtml(issue.office)}" placeholder="${t('pkg.officePh')}" ${offices.length ? 'list="package-office-options"' : ''} style="flex:1; font-size:12.5px;" oninput="setPackageIssue(${i}, 'office', this.value)">
+    wrap.innerHTML = packageDraftIssues.map((issue,i)=>{
+      // The Halo ticket and the office are read off the work item, so they are
+      // shown rather than typed: an office typed by hand only matched a
+      // registered target when the spelling happened to agree, and a ticket id
+      // typed from memory is wrong in a way nobody notices until the office that
+      // reported it asks why nothing arrived.
+      const halo = issue.haloTicket
+        ? `<span class="mono" style="font-size:12.5px;">${escapeHtml(issue.haloTicket)}</span>`
+        : `<span style="font-size:12px; color:var(--text-faint);">${t('pkg.lookupPending')}</span>`;
+      const office = issue.office
+        ? `<span style="font-size:12px;">🏢 ${escapeHtml(issue.office)}</span>`
+        : `<span style="font-size:12px; color:var(--text-faint);">—</span>`;
+      const note = issue.lookup
+        ? `<div style="grid-column:1 / -1; font-size:11.5px; color:var(--text-muted); margin-top:-4px;">${escapeHtml(issue.lookup)}</div>`
+        : '';
+      return `<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <input type="text" class="mono" value="${escapeHtml(issue.id)}" placeholder="${t('pkg.issueIdPh')}" style="width:150px; font-size:12.5px;" oninput="setPackageIssue(${i}, 'id', this.value)" onchange="lookupPackageIssue(${i})">
+        <div style="width:150px; overflow:hidden; text-overflow:ellipsis;">${halo}</div>
+        <div style="flex:1; min-width:120px;">${office}</div>
+        <button type="button" class="mini-btn" id="pkg-lookup-${i}" title="${t('pkg.lookupTitle')}" onclick="lookupPackageIssue(${i}, true)">⟳</button>
         <button type="button" class="mini-btn" title="${t('pkg.removeRow')}" onclick="removePackageIssue(${i})">✕</button>
-      </div>`).join('');
+        ${note}
+      </div>`;
+    }).join('');
+  }
+
+  // Fill the Halo ticket and the reporting office from the work item id. Called
+  // when the id is entered and from the refresh button. A failure only leaves a
+  // note on the row: the package still saves, it just carries the ids the tester
+  // has, which is what it did before the lookup existed.
+  async function lookupPackageIssue(i, manual){
+    const issue = packageDraftIssues[i];
+    if(!issue) return;
+    const id = String(issue.id || '').trim();
+    const sel = document.getElementById('package-project-select');
+    const projectKey = sel ? sel.value : '';
+    if(!id || !projectKey){ return; }
+    // Nothing to do on a re-render of an unchanged row unless the tester asked.
+    if(!manual && issue.lookedUpFor === id) return;
+    issue.lookedUpFor = id;
+    if(!API_CONNECTED){ issue.lookup = t('pkg.lookupOffline'); renderPackageIssues(); return; }
+    issue.lookup = t('pkg.lookupRunning');
+    renderPackageIssues();
+    try{
+      const res = await apiFetch(`/api/packages/lookup/${encodeURIComponent(projectKey)}/${encodeURIComponent(id)}`);
+      const data = await res.json();
+      if(data && data.ok && data.issue){
+        issue.id = data.issue.id || id;
+        issue.haloTicket = data.issue.ticket || '';
+        issue.office = data.issue.office || '';
+        issue.lookedUpFor = issue.id;
+        // Show what the work item is, so the tester can see they picked the one
+        // they meant before saving.
+        issue.lookup = [data.issue.title, data.issue.state].filter(Boolean).join(' · ');
+        if(!issue.haloTicket) issue.lookup = t('pkg.lookupNoTicket');
+      } else {
+        // Each known reason has its own message; an unrecognised one falls back
+        // to the generic wording rather than showing a raw key.
+        const reason = (data && data.reason) || 'failed';
+        const key = 'pkg.lookupErr.' + reason;
+        issue.lookup = hasI18nKey(key) ? t(key) : t('pkg.lookupErr.failed');
+      }
+    } catch(err){
+      issue.lookup = t('pkg.lookupErr.failed');
+    }
+    renderPackageIssues();
   }
 
   function setPackageApp(i, field, value){ if(packageDraftApps[i]) packageDraftApps[i][field] = value; }
@@ -5275,6 +5642,36 @@
     renderPackageIssues();
   }
 
+  // Apply the editor's file changes to a stored package: drop what was removed,
+  // upload what was added, and return the package with its file list refreshed.
+  // The returned object is what the caller puts into RELEASE_PACKAGES, so the
+  // list and the next open of the editor agree with the server.
+  async function syncPackageFiles(saved){
+    if(!saved || !saved.id) return saved;
+    let touched = false;
+    for(const id of packageRemovedFileIds){ await apiDeleteAttachment(id); touched = true; }
+    packageRemovedFileIds = [];
+    const uploaded = { changelog: [], instructions: [] };
+    for(const kind of Object.keys(packageNewFiles)){
+      for(const f of packageNewFiles[kind]){
+        const meta = await uploadPackageFile(saved.id, kind, f);
+        if(meta){ uploaded[kind].push(meta); touched = true; }
+      }
+      packageNewFiles[kind] = [];
+    }
+    if(!touched) return saved;
+    // Re-read rather than splice the responses together: a rejected upload (virus
+    // scan, size) must not leave the list claiming a file that was not stored.
+    try { return await apiGetPackage(saved.id); }
+    catch(e){
+      console.warn('Could not reload the package after uploading files:', e.message);
+      const files = packageExistingFiles.changelog.map(f=>Object.assign({kind:'changelog'}, f))
+        .concat(packageExistingFiles.instructions.map(f=>Object.assign({kind:'instructions'}, f)))
+        .concat(uploaded.changelog, uploaded.instructions);
+      return Object.assign({}, saved, {files});
+    }
+  }
+
   async function savePackage(){
     if(!canEditPackages()){ showToast(t('pkg.noPerm')); return; }
     const projectKey = document.getElementById('package-project-select').value;
@@ -5284,8 +5681,8 @@
       .map(a=>({name:(a.name||'').trim(), version:(a.version||'').trim()}))
       .filter(a=>a.name || a.version);
     const issues = packageDraftIssues
-      .map(i=>({id:(i.id||'').trim(), smProblem:(i.smProblem||'').trim(), office:(i.office||'').trim()}))
-      .filter(i=>i.id || i.smProblem || i.office);
+      .map(i=>({id:(i.id||'').trim(), haloTicket:(i.haloTicket||'').trim(), office:(i.office||'').trim()}))
+      .filter(i=>i.id || i.haloTicket || i.office);
     const changes = (document.getElementById('package-changes-input').value || '').trim();
 
     const errs = [];
@@ -5308,14 +5705,19 @@
       apps,
       issues,
       changes: changes || undefined,
+      instructions: (document.getElementById('package-instructions-input').value || '').trim() || undefined,
       notes: (document.getElementById('package-notes-input').value || '').trim() || undefined,
     };
 
     if(!API_CONNECTED){ showToast(t('pkg.needApi')); return; }
     try {
-      const saved = editingPackageId
+      let saved = editingPackageId
         ? await apiSavePackage(editingPackageId, payload)
         : await apiCreatePackage(payload);
+      // Files are attached after the package is stored — a new one has no id to
+      // upload against until then. Done before the editor closes so a failed
+      // upload is reported while the picked files are still on screen.
+      saved = await syncPackageFiles(saved);
       const i = RELEASE_PACKAGES.findIndex(p=>p.id === saved.id);
       if(i >= 0) RELEASE_PACKAGES[i] = saved; else RELEASE_PACKAGES.push(saved);
       logAudit(editingPackageId ? 'changed' : 'added', 'Package',
@@ -5410,6 +5812,7 @@
     const pkg = packageById(schedulePackageId);
     updateSchedulePackageSummary();
     renderScheduleAppsList();
+    renderSchedulePackageMaterials();
     if(!pkg) return;
 
     // An application in the package that the project does not define is still
@@ -5463,40 +5866,41 @@
     return first.concat(rest);
   }
 
-  // Selected attachments are held in JS arrays (not the <input>.files, which is
-  // read-only and can't drop a single entry) so each file can be removed with its
-  // own "✕" before the schedule is confirmed. Re-selecting appends.
-  let scheduleChangelogFiles = [];
-  let scheduleInstallerFiles = [];
-  const scheduleFileState = {
-    changelog: { arr: ()=>scheduleChangelogFiles, input: 'schedule-changelog-file', box: 'schedule-changelog-file-name' },
-    installer: { arr: ()=>scheduleInstallerFiles, input: 'schedule-installer-file', box: 'schedule-installer-file-name' },
-  };
-  function renderScheduleFileChips(kind){
-    const st = scheduleFileState[kind];
-    const box = document.getElementById(st.box);
-    if(!box) return;
-    const files = st.arr();
-    box.innerHTML = files.map((f,i)=>`<span style="display:inline-flex; align-items:center; gap:6px; background:var(--line-soft); border:1px solid var(--line); border-radius:14px; padding:2px 6px 2px 10px; margin:0 6px 6px 0; font-size:12px;">📎 ${escapeHtml(f.name)} <button type="button" title="${t('sch.removeFile')}" onclick="removeScheduleFile('${kind}', ${i})" style="border:none; background:none; cursor:pointer; color:var(--text-muted); font-size:14px; line-height:1; padding:0 2px;">✕</button></span>`).join('');
+  // The files and instructions the picked package carries, listed read-only on the
+  // schedule form. Nothing is uploaded here — a deployment shows the package's
+  // materials, so the release manager's job is to confirm they are the right ones,
+  // not to re-attach them.
+  function renderSchedulePackageMaterials(){
+    const field = document.getElementById('schedule-package-materials-field');
+    const box = document.getElementById('schedule-package-materials');
+    if(!field || !box) return;
+    const pkg = packageById(schedulePackageId);
+    if(!pkg){ field.style.display = 'none'; box.innerHTML = ''; return; }
+    const clFiles = packageFilesOfKind(pkg, 'changelog');
+    const instrFiles = packageFilesOfKind(pkg, 'instructions');
+    const instructions = pkg.instructions || pkg.installerNotes || '';
+    const parts = [];
+    if(clFiles.length){
+      parts.push(`<div style="margin-bottom:8px;"><div style="font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:4px;">${t('pkg.changelogFiles')}</div>
+        <div style="display:flex; flex-direction:column; gap:6px;">${clFiles.map(f=>attachmentLinkHtml(f.filename, f.id)).join('')}</div></div>`);
+    }
+    if(instructions){
+      parts.push(`<div style="margin-bottom:8px;"><div style="font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:4px;">${t('pkg.secInstructions')}</div>
+        <div style="white-space:pre-line; line-height:1.55; color:var(--ink);">${escapeHtml(instructions)}</div></div>`);
+    }
+    if(instrFiles.length){
+      parts.push(`<div><div style="font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:4px;">${t('pkg.instructionFiles')}</div>
+        <div style="display:flex; flex-direction:column; gap:6px;">${instrFiles.map(f=>attachmentLinkHtml(f.filename, f.id)).join('')}</div></div>`);
+    }
+    // An empty package is worth saying out loud: the deployer would otherwise open
+    // the rollout to find no instructions at all, and the time to notice is now.
+    if(!parts.length){
+      parts.push(`<div style="color:var(--text-faint);">${tf('sch.packageNoMaterials', {id: pkg.id})}
+        ${canEditPackages() ? `<button type="button" class="mini-btn" style="margin-left:8px;" onclick="openPackageEditor('${escapeHtml(pkg.id)}')">${t('usr.edit')}</button>` : ''}</div>`);
+    }
+    box.innerHTML = parts.join('');
+    field.style.display = '';
   }
-  function addScheduleFiles(kind){
-    const st = scheduleFileState[kind];
-    const input = document.getElementById(st.input);
-    const arr = st.arr();
-    const picked = input && input.files ? Array.from(input.files) : [];
-    picked.forEach(f=>{
-      if(!arr.some(x=>x.name === f.name && x.size === f.size)) arr.push(f);
-    });
-    if(input) input.value = ''; // allow re-picking the same file later
-    renderScheduleFileChips(kind);
-  }
-  function removeScheduleFile(kind, i){
-    const arr = scheduleFileState[kind].arr();
-    arr.splice(i, 1);
-    renderScheduleFileChips(kind);
-  }
-  function onChangelogFileChange(){ addScheduleFiles('changelog'); }
-  function onInstallerFileChange(){ addScheduleFiles('installer'); }
 
   // Turn the typed changelog into a .txt file, so the same text that goes to the
   // client can be attached elsewhere without retyping it. Header carries the
@@ -5643,17 +6047,13 @@
     }
     const apps = scheduleAppsFromPackage();
 
-    // Changelog is required unless a changelog file is attached (the file then
-    // carries the release notes, so there's no need to also type them in).
+    // Changelog is required unless the package carries one of its own (its
+    // description, or a changelog file that carries the release notes instead).
     const changelog = (document.getElementById('schedule-changelog').value || '').trim();
-    const changelogFiles = scheduleChangelogFiles.slice();
-    if(!changelog && !changelogFiles.length){
-      schErrs.push({id:'schedule-changelog', label: t('sch.changelog'), msg: t('sch.fillChangelogOrAttach')});
+    const pkgHasChangelog = !!(pkg && (packageChangelogText(pkg) || packageFilesOfKind(pkg, 'changelog').length));
+    if(!changelog && !pkgHasChangelog){
+      schErrs.push({id:'schedule-changelog', label: t('sch.changelog'), msg: t('sch.fillChangelogOrPackage')});
     }
-    const fileToUpload = changelogFiles[0] || null;
-    // Legacy single fields kept for back-compat; the full set is uploaded below.
-    const attachment = fileToUpload ? fileToUpload.name : null;
-    const installerFiles = scheduleInstallerFiles.slice();
 
     const testEnvs = Array.from(document.querySelectorAll('#schedule-envs-checks input:checked')).map(c=>c.value);
     const testStart = schedStart('test', '2026-07-13', '20:00');
@@ -5703,7 +6103,6 @@
     }
 
     const dependsOn = Array.from(document.querySelectorAll('.schedule-dep-check:checked')).map(cb=>cb.value);
-    const installerNotes = (document.getElementById('schedule-installer-notes').value || '').trim();
     const isInternal = document.getElementById('schedule-internal').checked;
     const draftEl = document.getElementById('schedule-draft');
     const isDraft = !!(draftEl && draftEl.checked) && !isInternal;
@@ -5711,7 +6110,10 @@
     // stays editable, and a deployment that copied the list would go stale the
     // moment a late fix was added to it.
     const packageId = schedulePackageId || undefined;
-    const commonMeta = {changelog, attachment, createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, installerNotes: installerNotes || undefined, internal: isInternal || undefined, draft: isDraft || undefined, packageId};
+    // No `attachment` / `installerNotes` here any more: the files and the deployer
+    // instructions belong to the package this deployment points at, so a copy on
+    // the deployment would be the stale one the moment the package is corrected.
+    const commonMeta = {changelog, createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, internal: isInternal || undefined, draft: isDraft || undefined, packageId};
 
     const created = [];
     const createdIdsStart = DEPLOYMENTS_DATA.length;
@@ -5791,13 +6193,12 @@
       created.push('prod');
     }
 
-    // Save the newly created deployments to the database (if connected) and,
-    // when changelog / instruction files were chosen, upload them and link the
-    // stored ids (changelog attachments and deployer-instruction attachments).
-    // Awaited so all records (e.g. both ŚT + PROD) are fully persisted before we
-    // navigate away — otherwise the deployments refresh reloads from the DB and
-    // wipes any record whose PUT hadn't landed yet.
-    await finalizeCreatedDeployments(createdIdsStart, changelogFiles, installerFiles);
+    // Save the newly created deployments to the database (if connected). Awaited so
+    // all records (e.g. both test + PROD) are fully persisted before we navigate
+    // away — otherwise the deployments refresh reloads from the DB and wipes any
+    // record whose PUT hadn't landed yet. Nothing is uploaded here any more: the
+    // files sit on the package, already stored before it could be picked.
+    await finalizeCreatedDeployments(createdIdsStart);
 
     renderDeploymentsTable();
     renderInstallerPanel();
@@ -5806,15 +6207,14 @@
     const includesTest = created.includes('test');
     const needsApproval = !isInternal && approvalPolicyFor(p) !== 'none'
       && (includesProd || (includesTest && !!p.testNeedsApproval));
-    const attachNote = attachment ? ' (with attachment: ' + attachment + ')' : '';
     if(isDraft){
       showToast(t('sch.draftSaved'));
     } else if(needsApproval){
-      showToast('Schedule added — an e-mail with the changelog' + attachNote + ' and an approval request has been sent to the client');
+      showToast('Schedule added — an e-mail with the changelog and an approval request has been sent to the client');
     } else if(isInternal){
-      showToast('Internal deployment added' + attachNote + ' — the client will not see it');
+      showToast('Internal deployment added — the client will not see it');
     } else {
-      showToast('Schedule added to the deployments list' + attachNote);
+      showToast('Schedule added to the deployments list');
     }
     // Real notifications: schedule created (and, for production paths needing
     // sign-off, an approval request) go to the client's webhooks for those events.
@@ -5836,13 +6236,10 @@
   }
 
   // Clears the "New deployment" form after saving, so the settings (especially
-  // "internal deployment" and the instructions) don't leak into the next deployment.
+  // "internal deployment") don't leak into the next deployment.
   function resetScheduleForm(){
-    const ids = ['schedule-changelog','schedule-changelog-file','schedule-installer-notes','schedule-installer-file'];
-    ids.forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ''; });
-    scheduleChangelogFiles = [];
-    scheduleInstallerFiles = [];
-    ['schedule-changelog-file-name','schedule-installer-file-name'].forEach(id=>{ const el = document.getElementById(id); if(el) el.innerHTML = ''; });
+    const cl = document.getElementById('schedule-changelog');
+    if(cl) cl.value = '';
     const internal = document.getElementById('schedule-internal');
     if(internal) internal.checked = false;
     const draftCb = document.getElementById('schedule-draft');
@@ -5869,8 +6266,10 @@
     const pkgSel = document.getElementById('schedule-package-select');
     if(pkgSel) pkgSel.value = '';
     updateSchedulePackageSummary();
-    // The application list is derived from the package, so it empties with it.
+    // The application list and the materials panel are derived from the package,
+    // so they empty with it.
     renderScheduleAppsList();
+    renderSchedulePackageMaterials();
     refreshScheduleTargetCount();
   }
   // ---- Production-target subset for one deployment ----
@@ -8446,8 +8845,17 @@
     clearFormErrors(id);
   }
   // Escape closes the topmost form modal; a click on the backdrop does the same.
+  // With no dialog open it backs out of the deployment detail page, which is the
+  // same gesture one level up.
   document.addEventListener('keydown', (e)=>{
-    if(e.key !== 'Escape' || !openFormModals.length) return;
+    if(e.key !== 'Escape') return;
+    if(!openFormModals.length){
+      if(currentView === 'deployments' && expandedBatchIdx != null){
+        e.preventDefault();
+        closeDeploymentDetails();
+      }
+      return;
+    }
     e.preventDefault();
     closeFormModal(openFormModals[openFormModals.length - 1]);
   });
@@ -8543,26 +8951,6 @@
     return res.json();
   }
 
-  // Upload a file as an attachment of a deployment (multipart). Returns the
-  // stored attachment metadata ({id, filename, mime, size, ...}).
-  async function apiUploadAttachment(deploymentId, file){
-    const fd = new FormData();
-    fd.append('file', file);
-    const res = await apiFetch('/api/deployments/' + encodeURIComponent(deploymentId) + '/attachments', {
-      method: 'POST',
-      body: fd  // no Content-Type header — the browser sets the multipart boundary
-    });
-    if(!res.ok){
-      let info = {};
-      try { info = await res.json(); } catch(e){}
-      const err = new Error(info.error || ('POST attachment ' + res.status));
-      err.status = res.status;
-      err.virus = info.virus || null;
-      throw err;
-    }
-    return res.json();
-  }
-
   // Download a stored attachment via an authenticated fetch, then hand the
   // bytes to the browser as a normal file download.
   async function downloadAttachment(att){
@@ -8591,12 +8979,36 @@
     catch(e){ console.warn('attachment delete failed', e.message); }
   }
 
-  // Upload one file to a deployment, returning its stored {id, filename} meta or
-  // null (and a toast) on failure. Shared by schedule creation and the edit modal.
-  async function uploadDeploymentFile(d, f){
+  // Upload a file onto a release package (multipart). `kind` decides who may read
+  // it later: 'changelog' is client-facing, 'instructions' stays team-only unless
+  // the project shares admin info, so it is sent as a form field rather than
+  // guessed from the filename server-side.
+  async function apiUploadPackageFile(packageId, file, kind){
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('kind', kind === 'instructions' ? 'instructions' : 'changelog');
+    const res = await apiFetch('/api/packages/' + encodeURIComponent(packageId) + '/attachments', {
+      method: 'POST',
+      body: fd  // no Content-Type header — the browser sets the multipart boundary
+    });
+    if(!res.ok){
+      let info = {};
+      try { info = await res.json(); } catch(e){}
+      const err = new Error(info.error || ('POST package attachment ' + res.status));
+      err.status = res.status;
+      err.virus = info.virus || null;
+      throw err;
+    }
+    return res.json();
+  }
+
+  // Upload one file to a package, returning its stored meta or null (and a toast)
+  // on failure. Mirrors uploadDeploymentFile so both paths report a rejected
+  // upload the same way.
+  async function uploadPackageFile(packageId, kind, f){
     try {
-      const meta = await apiUploadAttachment(d.id, f);
-      return {id: meta.id, filename: meta.filename};
+      const meta = await apiUploadPackageFile(packageId, f, kind);
+      return {id: meta.id, filename: meta.filename, kind: meta.kind};
     } catch(upErr){
       if(upErr.virus){ showToast(tf('sch.attachVirus', {name: f.name, virus: upErr.virus})); }
       else if(upErr.status === 503){ showToast(t('sch.attachAvDown')); }
@@ -8608,14 +9020,6 @@
   // Renders the attachment line: a real download link when the file is stored
   // in the DB (attachmentId present), otherwise a plain label (e.g. offline or
   // legacy records where only the filename was kept).
-  // Render a list of attachments (multiple files). Falls back to the legacy
-  // single filename/id so older deployment records still show their attachment.
-  function attachmentsHtml(atts, legacyName, legacyId){
-    const list = (Array.isArray(atts) && atts.length) ? atts : (legacyName ? [{id: legacyId, filename: legacyName}] : []);
-    if(!list.length) return '';
-    return list.map(a=>attachmentLinkHtml(a.filename, a.id)).join('<br>');
-  }
-
   function attachmentLinkHtml(filename, attachmentId){
     if(!filename) return '';
     const safeName = String(filename).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -8654,6 +9058,11 @@
   async function apiListPackages(){
     const res = await apiFetch('/api/packages');
     if(!res.ok) throw new Error('GET /api/packages ' + res.status);
+    return res.json();
+  }
+  async function apiGetPackage(id){
+    const res = await apiFetch('/api/packages/' + encodeURIComponent(id));
+    if(!res.ok) throw await apiError(res, 'GET /api/packages');
     return res.json();
   }
   async function apiCreatePackage(obj){
@@ -8730,7 +9139,14 @@
     if(!API_CONNECTED || !key) return;
     const p = PROJECTS[key];
     if(!p) return;
-    apiSaveProject(key, Object.assign({key}, p)).catch(err => {
+    // The tracker block is never sent from here. What the browser holds is the
+    // redacted shape (a flag instead of each secret), so echoing it back on an
+    // unrelated save — renaming the project, editing a target — would be sending
+    // settings we cannot fully see. Omitting the key is what tells the backend to
+    // keep the stored configuration; only the integration form writes it.
+    const body = Object.assign({key}, p);
+    delete body.tracker;
+    apiSaveProject(key, body).catch(err => {
       console.warn('Failed to save project:', err.message);
       showToast('⚠ Could not save the project to the database — change is local only');
     });
@@ -8752,35 +9168,15 @@
     apiDeleteDeployment(id).catch(err => console.warn('Failed to delete from the database:', err.message));
   }
 
-  // Persist freshly created deployments and, if a changelog file was attached,
-  // upload it to each one and store the returned attachment id so it can later
-  // be downloaded. Runs async; re-renders once the uploads have completed.
-  async function finalizeCreatedDeployments(startIdx, changelogFiles, installerFiles){
-    // Back-compat: earlier callers passed a single File.
-    changelogFiles = Array.isArray(changelogFiles) ? changelogFiles : (changelogFiles ? [changelogFiles] : []);
-    installerFiles = Array.isArray(installerFiles) ? installerFiles : (installerFiles ? [installerFiles] : []);
-    if(!API_CONNECTED){
-      // Offline: nothing to upload; keep the filenames for display only.
-      return;
-    }
-    const uploadOne = uploadDeploymentFile;
+  // Persist freshly created deployments. There is nothing to upload: the changelog
+  // and instruction files live on the release package, stored there before the
+  // package could be picked, so a deployment only carries the reference to it.
+  async function finalizeCreatedDeployments(startIdx){
+    if(!API_CONNECTED) return;
     for(let i = startIdx; i < DEPLOYMENTS_DATA.length; i++){
       const d = DEPLOYMENTS_DATA[i];
       try {
         await apiSaveDeployment(d);
-        if(changelogFiles.length){
-          d.attachments = [];
-          for(const f of changelogFiles){ const m = await uploadOne(d, f); if(m) d.attachments.push(m); }
-          // Keep the legacy single fields pointing at the first file.
-          if(d.attachments.length){ d.attachmentId = d.attachments[0].id; d.attachment = d.attachments[0].filename; }
-          else { d.attachmentId = null; d.attachment = null; }
-          await apiSaveDeployment(d);
-        }
-        if(installerFiles.length){
-          d.instructionAttachments = [];
-          for(const f of installerFiles){ const m = await uploadOne(d, f); if(m) d.instructionAttachments.push(m); }
-          await apiSaveDeployment(d);
-        }
       } catch(err){
         console.warn('Failed to finalize deployment', d.id, err.message);
         showToast('⚠ Could not save to the database — change is local only');
@@ -9508,13 +9904,7 @@
       versions: [...document.querySelectorAll('#edit-dep-versions input[data-app-idx]')].map(i=>i.value),
       time: (document.getElementById('edit-dep-time')||{}).value || '',
       start: (document.getElementById('edit-dep-start')||{}).value || '',
-      changelog: (document.getElementById('edit-dep-changelog')||{}).value || '',
-      notes: (document.getElementById('edit-dep-installer-notes')||{}).value || '',
-      chExist: (editDepChangelogExisting||[]).map(a=>a.id||a.filename),
-      inExist: (editDepInstallerExisting||[]).map(a=>a.id||a.filename),
-      chNew: (editDepChangelogNew||[]).map(f=>f.name+'|'+f.size),
-      inNew: (editDepInstallerNew||[]).map(f=>f.name+'|'+f.size),
-      removed: (editDepRemovedAttIds||[]).slice()
+      changelog: (document.getElementById('edit-dep-changelog')||{}).value || ''
     });
   }
   function editDepIsDirty(){
@@ -9540,42 +9930,42 @@
     return role === 'admin' || role === 'rm';
   }
   let editDepIdx = null;
-  // Edit-modal attachment working state: existing files (editable copies, so a
-  // removal isn't committed until Save) and newly picked files to upload.
-  let editDepChangelogExisting = [], editDepInstallerExisting = [];
-  let editDepChangelogNew = [], editDepInstallerNew = [];
-  let editDepRemovedAttIds = [];
-  const editDepAttState = {
-    changelog: { existing: ()=>editDepChangelogExisting, added: ()=>editDepChangelogNew, box: 'edit-dep-changelog-atts', input: 'edit-dep-changelog-file' },
-    installer: { existing: ()=>editDepInstallerExisting, added: ()=>editDepInstallerNew, box: 'edit-dep-installer-atts', input: 'edit-dep-installer-file' },
-  };
-  function renderEditDepAtts(kind){
-    const st = editDepAttState[kind];
-    const box = document.getElementById(st.box);
+  // The package's materials as the edit modal shows them: read-only, with a link
+  // into the package editor. A deployment no longer owns files of its own, so
+  // there is no working state to keep here — only what to display.
+  function renderEditDepPackageMaterials(r){
+    const box = document.getElementById('edit-dep-package-materials');
     if(!box) return;
-    const chip = (name, onRemove)=>`<span style="display:inline-flex; align-items:center; gap:6px; background:var(--line-soft); border:1px solid var(--line); border-radius:14px; padding:2px 6px 2px 10px; margin:0 6px 6px 0; font-size:12px;">📎 ${escapeHtml(name)} <button type="button" title="${t('sch.removeFile')}" onclick="${onRemove}" style="border:none; background:none; cursor:pointer; color:var(--text-muted); font-size:14px; line-height:1; padding:0 2px;">✕</button></span>`;
-    const existingHtml = st.existing().map((a,i)=>chip(a.filename, `removeEditDepExisting('${kind}', ${i})`)).join('');
-    const addedHtml = st.added().map((f,i)=>chip(f.name, `removeEditDepAdded('${kind}', ${i})`)).join('');
-    box.innerHTML = existingHtml + addedHtml;
-  }
-  function onEditDepFileChange(kind){
-    const st = editDepAttState[kind];
-    const input = document.getElementById(st.input);
-    const arr = st.added();
-    const picked = input && input.files ? Array.from(input.files) : [];
-    picked.forEach(f=>{ if(!arr.some(x=>x.name===f.name && x.size===f.size)) arr.push(f); });
-    if(input) input.value = '';
-    renderEditDepAtts(kind);
-  }
-  function removeEditDepExisting(kind, i){
-    const arr = editDepAttState[kind].existing();
-    const removed = arr.splice(i, 1)[0];
-    if(removed && removed.id) editDepRemovedAttIds.push(removed.id);
-    renderEditDepAtts(kind);
-  }
-  function removeEditDepAdded(kind, i){
-    editDepAttState[kind].added().splice(i, 1);
-    renderEditDepAtts(kind);
+    const pkg = packageForDeployment(r);
+    if(!pkg){
+      // A deployment planned before packages existed still carries its own files.
+      // Nothing here can edit them; the record is read as it stands.
+      const legacy = (Array.isArray(r.attachments) ? r.attachments : [])
+        .concat(Array.isArray(r.instructionAttachments) ? r.instructionAttachments : []);
+      box.innerHTML = legacy.length
+        ? `<div style="font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:4px;">${t('editdep.legacyFiles')}</div>
+           <div style="display:flex; flex-direction:column; gap:6px;">${legacy.map(a=>attachmentLinkHtml(a.filename, a.id)).join('')}</div>`
+        : '';
+      return;
+    }
+    const clFiles = packageFilesOfKind(pkg, 'changelog');
+    const instrFiles = packageFilesOfKind(pkg, 'instructions');
+    const instructions = pkg.instructions || pkg.installerNotes || '';
+    const parts = [`<div style="font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:6px;">${tf('editdep.fromPackage', {id: pkg.id})}</div>`];
+    if(instructions){
+      parts.push(`<div style="white-space:pre-line; line-height:1.55; font-size:12.5px; color:var(--ink); margin-bottom:8px;">${escapeHtml(instructions)}</div>`);
+    }
+    const allFiles = clFiles.concat(instrFiles);
+    if(allFiles.length){
+      parts.push(`<div style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;">${allFiles.map(a=>attachmentLinkHtml(a.filename, a.id)).join('')}</div>`);
+    }
+    if(!instructions && !allFiles.length){
+      parts.push(`<div style="font-size:12.5px; color:var(--text-faint); margin-bottom:8px;">${t('editdep.packageEmpty')}</div>`);
+    }
+    if(canEditPackages()){
+      parts.push(`<button type="button" class="mini-btn" onclick="closeEditDeploymentModal(true); openPackageEditor('${escapeHtml(pkg.id)}')">✎ ${t('editdep.editPackage')}</button>`);
+    }
+    box.innerHTML = parts.join('');
   }
 
   function openEditDeployment(idx){
@@ -9601,14 +9991,7 @@
     startEl.value = (!isBatch && r.date) ? `${r.date}T${fmtTime(r.time) || '00:00'}` : '';
     timeEl.value = r.time || '';
     document.getElementById('edit-dep-changelog').value = r.changelog || '';
-    document.getElementById('edit-dep-installer-notes').value = r.installerNotes || '';
-    // Seed the attachment editor from the current record (copies, not references).
-    editDepChangelogExisting = (Array.isArray(r.attachments) ? r.attachments : []).map(a=>({id:a.id, filename:a.filename}));
-    editDepInstallerExisting = (Array.isArray(r.instructionAttachments) ? r.instructionAttachments : []).map(a=>({id:a.id, filename:a.filename}));
-    editDepChangelogNew = []; editDepInstallerNew = []; editDepRemovedAttIds = [];
-    ['edit-dep-changelog-file','edit-dep-installer-file'].forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ''; });
-    renderEditDepAtts('changelog');
-    renderEditDepAtts('installer');
+    renderEditDepPackageMaterials(r);
     document.getElementById('edit-dep-modal-overlay').style.display = 'flex';
     editDepSnapshot = captureEditDepSnapshot();
   }
@@ -9640,27 +10023,7 @@
     }
     const newChangelog = document.getElementById('edit-dep-changelog').value;
     if(newChangelog !== (r.changelog||'')){ changes.push(t('sch.changelog')); r.changelog = newChangelog; }
-    const newInstallerNotes = document.getElementById('edit-dep-installer-notes').value;
-    if(newInstallerNotes !== (r.installerNotes||'')){ changes.push(t('sch.installerNotes')); r.installerNotes = newInstallerNotes || undefined; }
-
-    // Attachments: delete the ones removed, upload the newly added ones.
-    let attsChanged = false;
-    for(const id of editDepRemovedAttIds){ await apiDeleteAttachment(id); attsChanged = true; }
-    const uploadedCl = [];
-    for(const f of editDepChangelogNew){ const m = await uploadDeploymentFile(r, f); if(m) uploadedCl.push(m); }
-    const uploadedInstr = [];
-    for(const f of editDepInstallerNew){ const m = await uploadDeploymentFile(r, f); if(m) uploadedInstr.push(m); }
-    if(uploadedCl.length || editDepChangelogExisting.length !== (Array.isArray(r.attachments)?r.attachments.length:0)){
-      r.attachments = editDepChangelogExisting.concat(uploadedCl);
-      r.attachmentId = r.attachments.length ? r.attachments[0].id : null;
-      r.attachment = r.attachments.length ? r.attachments[0].filename : null;
-      attsChanged = true;
-    }
-    if(uploadedInstr.length || editDepInstallerExisting.length !== (Array.isArray(r.instructionAttachments)?r.instructionAttachments.length:0)){
-      r.instructionAttachments = editDepInstallerExisting.concat(uploadedInstr);
-      attsChanged = true;
-    }
-    if(attsChanged) changes.push(t('editdep.attachments'));
+    // Instructions and files are the package's — edited there, not here.
 
     const savedIdx = editDepIdx;
     closeEditDeploymentModal(true);
@@ -10021,13 +10384,23 @@
     return {blocked: pending.length > 0, pending};
   }
 
+  // The deployer instructions shown on a deployment. They live on the release
+  // package — the instructions describe the build, not the date it goes out — so
+  // the package is read first and the deployment's own `installerNotes` is only a
+  // fallback for records planned before the move (and for the ones the backfill
+  // could not reach). A client only ever gets the package's instruction files when
+  // the project shares admin info, so an absent file here is a scope answer, not
+  // an error.
   function installerNotesBodyHtml(r){
-    const hasNotes = !!r.installerNotes;
-    const atts = Array.isArray(r.instructionAttachments) ? r.instructionAttachments : [];
-    if(!hasNotes && !atts.length) return '';
+    const pkg = packageForDeployment(r);
+    const notes = (pkg && (pkg.instructions || pkg.installerNotes)) || r.installerNotes || '';
+    const atts = pkg
+      ? packageFilesOfKind(pkg, 'instructions')
+      : (Array.isArray(r.instructionAttachments) ? r.instructionAttachments : []);
+    if(!notes && !atts.length) return '';
     const bodyParts = [];
-    if(hasNotes) bodyParts.push(`<div style="white-space:pre-line; line-height:1.55; color:var(--ink);">${escapeHtml(r.installerNotes)}</div>`);
-    if(atts.length) bodyParts.push(`<div style="display:flex; flex-direction:column; gap:6px;${hasNotes ? ' margin-top:8px;' : ''}">${atts.map(a=>attachmentLinkHtml(a.filename, a.id)).join('')}</div>`);
+    if(notes) bodyParts.push(`<div style="white-space:pre-line; line-height:1.55; color:var(--ink);">${escapeHtml(notes)}</div>`);
+    if(atts.length) bodyParts.push(`<div style="display:flex; flex-direction:column; gap:6px;${notes ? ' margin-top:8px;' : ''}">${atts.map(a=>attachmentLinkHtml(a.filename, a.id)).join('')}</div>`);
     return bodyParts.join('');
   }
   function installerNotesHtml(r){
@@ -10079,18 +10452,28 @@
     </div>`;
   }
 
+  // The changelog shown on a deployment. Like the instructions above, the text and
+  // its files belong to the package; the deployment keeps its own `changelog`
+  // because a release manager may still adjust what the client is sent for one
+  // rollout, so a typed one wins over the package's. The files are the package's
+  // either way — a deployment no longer carries changelog attachments of its own,
+  // and the legacy ones are read only when there is no package to read from.
   function changelogBodyHtml(r){
-    const clAtts = (Array.isArray(r.attachments) && r.attachments.length)
-      ? r.attachments
-      : (r.attachment ? [{id: r.attachmentId, filename: r.attachment}] : []);
+    const pkg = packageForDeployment(r);
+    const text = r.changelog || (pkg ? packageChangelogText(pkg) : '');
+    const clAtts = pkg
+      ? packageFilesOfKind(pkg, 'changelog')
+      : ((Array.isArray(r.attachments) && r.attachments.length)
+          ? r.attachments
+          : (r.attachment ? [{id: r.attachmentId, filename: r.attachment}] : []));
     // The fixed-issue list of the picked package belongs with the changelog: it is
     // the same question ("what is in this release?") answered per issue, and it is
     // shown to everyone who can read the deployment, the client included.
     const issuesBlock = packageIssuesBlockHtml(r);
-    if(!r.changelog && !clAtts.length && !issuesBlock) return '';
+    if(!text && !clAtts.length && !issuesBlock) return '';
     const bodyParts = [];
-    if(r.changelog) bodyParts.push(`<div style="white-space:pre-line; line-height:1.55; color:var(--ink);">${escapeHtml(r.changelog)}</div>`);
-    if(clAtts.length) bodyParts.push(`<div style="display:flex; flex-direction:column; gap:6px;${r.changelog ? ' margin-top:8px;' : ''}">${clAtts.map(a=>attachmentLinkHtml(a.filename, a.id)).join('')}</div>`);
+    if(text) bodyParts.push(`<div style="white-space:pre-line; line-height:1.55; color:var(--ink);">${escapeHtml(text)}</div>`);
+    if(clAtts.length) bodyParts.push(`<div style="display:flex; flex-direction:column; gap:6px;${text ? ' margin-top:8px;' : ''}">${clAtts.map(a=>attachmentLinkHtml(a.filename, a.id)).join('')}</div>`);
     if(issuesBlock) bodyParts.push(issuesBlock);
     return bodyParts.join('');
   }
@@ -10818,15 +11201,27 @@
     ].join('');
   }
 
-  // Distinct applications the visible rollouts cover. A record carries several
-  // applications and each one has to be installed on every target, so a count of
-  // deployments understates the actual work — the same reason this panel's XLS
-  // export is one file per application. Counted per name, not per record: the
-  // same application in two rollouts is still one application to deploy.
-  function installerAppCount(list){
-    const names = new Set();
-    list.forEach(r => (r.apps || []).forEach(a => { if(a && a.name) names.add(a.name); }));
-    return names.size;
+  // Installations the visible rollouts have actually finished. One deployment
+  // installs each of its applications, so the work done is applications × the
+  // rollouts they went out in, not the number of rollouts — a record carrying
+  // four applications is four installations, which is also why this panel's XLS
+  // export is one file per application.
+  //
+  // Only finished rollouts are counted: the tile says what has been installed, so
+  // a scheduled one contributes nothing until it completes. A batch rollout counts
+  // as finished once no target is still scheduled, matching the "installed"
+  // counter beside it.
+  function installerInstallCount(list){
+    let n = 0;
+    list.forEach(r=>{
+      const apps = (r.apps || []).length;
+      if(!apps) return;
+      const done = r.mode === 'batch'
+        ? !!(r.counts && r.counts.scheduled === 0)
+        : r.status === 'installed';
+      if(done) n += apps;
+    });
+    return n;
   }
 
   function renderInstallerStats(list){
@@ -10843,7 +11238,7 @@
       }
     });
     stats.innerHTML = deployStatsHtml(total, pending, installed, issues)
-      + statTileHtml('ic-apps', '\u{1F4E6}', installerAppCount(list), t('rep.appsDeployed'));
+      + statTileHtml('ic-apps', '\u{1F4E6}', installerInstallCount(list), t('rep.installsDone'));
   }
 
   function renderInstallerPanel(){
@@ -11545,8 +11940,13 @@
   }
 
   function toggleDeploymentDetails(idx){
-    expandedBatchIdx = (expandedBatchIdx === idx) ? null : idx;
+    if(expandedBatchIdx === idx){ closeDeploymentDetails(); return; }
+    expandedBatchIdx = idx;
     renderDeploymentsTable();
+    // The list was scrolled to the clicked row; the page that replaced it starts
+    // at its own top.
+    const view = document.getElementById('view-deployments');
+    if(view) view.scrollTop = 0;
   }
 
   let commentClock = 0; // ensures each new comment gets a strictly increasing timestamp
@@ -11693,7 +12093,245 @@
     renderDeploymentsTable();
   }
 
+  // The body of the full-page detail. Everything here used to be crammed into
+  // one table cell under the row, which is why the day plan, the queue and the
+  // timeline each needed their own inner scroll pane. On a page of their own
+  // they get the width and the height they need, so those caps are relaxed.
+  function detailBodyHtml(r){
+    const events = getDeploymentTimeline(r);
+    const timelineHtml = `
+      <div class="dep-detail-scroll" style="max-height:520px; overflow-y:auto; margin-bottom:16px;">
+        ${events.map(e=>`
+          <div style="display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--line-soft);">
+            <div class="mono" style="width:96px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${e.date ? e.date + (e.time ? ' ' + e.time : '') : t('dtl.pending')}</div>
+            <div style="flex-shrink:0;">${e.icon}</div>
+            <div style="flex:1; font-size:12.5px;">
+              ${e.text}
+              ${e.locations ? `<div class="mono" style="margin-top:3px; font-size:11px; color:var(--text-muted);">${e.locations.join(', ')}</div>` : ''}
+            </div>
+          </div>`).join('')}
+      </div>`;
+
+    const commentForm = `
+      <div class="field" style="margin:0;">
+        <label>${t('dcard.addComment')}</label>
+        <textarea id="new-comment-w-${r.idx}" placeholder="${t('dcard.addCommentExamplePh')}"></textarea>
+        <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'w')">${t('dcard.saveComment')}</button>
+      </div>`;
+
+    let actionHtml = '';
+    if(r.mode === 'batch' && r.counts.scheduled > 0){
+      const queue = getBatchPendingQueue(r);
+      const todayDay = dayIndexForPosition(r, r.counts.installed);
+      // Staged schedule changes: shifts/date edits are previewed here and only sent on "Save".
+      const staged = r._pendingDayDates || null;
+      const effectiveDate = (day)=> staged && staged[day] ? staged[day] : getDateForDay(r, day);
+      let dayPlanRows = '';
+      for(let day=1; day<=r.days; day++){
+        const dateStr = effectiveDate(day);
+        const done = day < todayDay;
+        const isToday = day === todayDay;
+        const changed = staged && staged[day] && staged[day] !== getDateForDay(r, day);
+        const label = done ? `<span style="color:#0F7A38; font-size:10.5px;">${t('dtl.stDone')}</span>` : isToday ? `<span style="color:#0A6E7A; font-size:10.5px;">${t('dtl.stInProgress')}</span>` : `<span style="color:var(--text-faint); font-size:10.5px;">${t('dtl.stScheduled')}</span>`;
+        dayPlanRows += `<tr>
+          <td class="mono">${tf('dtl.day', {n: day})}</td>
+          <td>${done ? `<span class="mono" style="font-size:12px;">${fmtDate(dateStr)}</span>` : `<input type="date" class="mono" value="${dateStr}" style="font-size:12px; padding:2px 6px; ${changed ? 'border-color:#8A5A05; background:#FDF8EE;' : ''}" onchange="stageDayDate(${r.idx}, ${day}, this.value)">`}${changed ? ` <span style="font-size:10px; color:#8A5A05;">${t('dtl.changed')}</span>` : ''}</td>
+          <td class="mono" style="font-size:11.5px;">${done ? `${computeDayCount(r, day)}` : `<input type="number" min="0" value="${computeDayCount(r, day)}" style="width:56px; font-size:12px; padding:2px 6px;" title="${t('dtl.editCountTitle')}" onchange="setDayTargetCount(${r.idx}, ${day}, this.value)">`}</td>
+          <td>${label}</td>
+        </tr>`;
+      }
+      const hasStaged = staged && Object.keys(staged).length;
+      actionHtml = `
+        <label style="margin-bottom:8px;">${t('dtl.dayScheduleLabel')}</label>
+        <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+          <button class="mini-btn" onclick="stageShiftDays(${r.idx}, 1)">${t('dtl.shift1')}</button>
+          <button class="mini-btn" onclick="stageShiftDays(${r.idx}, 2)">${t('dtl.shift2')}</button>
+          <button class="mini-btn" onclick="stageShiftDays(${r.idx}, 5)">${t('dtl.shift5')}</button>
+        </div>
+        <div class="dep-detail-scroll" style="max-height:420px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; margin-bottom:${hasStaged ? '8px' : '16px'};">
+          <table><thead><tr><th>${t('dtl.thDay')}</th><th>${t('dtl.thDate')}</th><th>${t('dtl.thTargets')}</th><th>${t('dtl.thStatus')}</th></tr></thead><tbody>${dayPlanRows}</tbody></table>
+        </div>
+        ${hasStaged ? `<div class="alert alert-warning" style="margin-bottom:16px; align-items:center;" role="status">
+          <span class="alert-ic" aria-hidden="true">⚠</span>
+          <div class="alert-body"><strong>${t('dtl.unsaved')}</strong></div>
+          <div style="display:flex; gap:8px; flex-shrink:0;">
+            <button class="mini-btn" onclick="discardScheduleChanges(${r.idx})">${t('dtl.cancelChanges')}</button>
+            <button class="btn small" onclick="saveScheduleChanges(${r.idx})">${t('dtl.saveNotifyAll')}</button>
+          </div>
+        </div>` : ''}
+        <label style="margin-bottom:8px;">${tf('dtl.queueLabel', {n: queue.length})}</label>
+        <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">${t('dtl.queueNote')}</p>
+        <input type="text" placeholder="${t('dtl.queueSearch')}" oninput="filterQueueRows(${r.idx}, this.value)" style="width:100%; margin-bottom:8px; padding:6px 10px; font-size:12px;">
+        <div id="queue-tbl-${r.idx}" style="max-height:560px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; margin-bottom:10px;">
+          <table>
+            <thead><tr><th>${t('dtl.thLocation')}</th><th>${t('dtl.thDay')}</th><th></th></tr></thead>
+            <tbody>
+              ${queue.map((loc,qi)=>{
+                const dn = dayIndexForPosition(r, r.counts.installed + qi);
+                const isToday = dn === todayDay;
+                return `<tr class="queue-row" data-loc="${String(loc).toLowerCase()}" ${isToday ? 'style="background:var(--cyan-soft);"' : ''}>
+                  <td>${loc}</td>
+                  <td class="mono">${tf('dtl.day', {n: dn})}${isToday ? ` <span style="color:#0A6E7A; font-size:10.5px;">${t('dtl.today')}</span>` : ''}</td>
+                  <td style="white-space:nowrap;">
+                    <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'prevDay')" title="${t('dtl.toPrevDay')}">${t('dtl.moveDayBack')}</button>
+                    <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'nextDay')" title="${t('dtl.toNextDay')}">${t('dtl.moveDayFwd')}</button>
+                    <select class="mini-btn" title="${t('dtl.moveToDayTitle')}" onchange="if(this.value){moveBatchQueueToDay(${r.idx}, ${qi}, parseInt(this.value)); this.selectedIndex=0;}" style="padding:2px 4px;">
+                      <option value="">${t('dtl.moveToDay')}</option>
+                      ${(function(){ let o=''; for(let dd=todayDay; dd<=r.days; dd++){ if(dd!==dn) o+=`<option value="${dd}">${tf('dtl.day', {n: dd})}</option>`; } return o; })()}
+                    </select>
+                    <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'start')" title="${t('dtl.moveStartTitle')}">${t('dtl.moveStart')}</button>
+                    <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'end')" title="${t('dtl.moveEndTitle')}">${t('dtl.moveEnd')}</button>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    // Detail content (instructions / changelog / timeline / comment) opens
+    // one-at-a-time from the ID action bar. One at a time even on a full page:
+    // the four are alternative answers to "what do I need to know about this
+    // rollout", and stacking them buried the day plan below the fold.
+    // Timeline starts open — it's the primary context when opening a deployment.
+    const instrBody = installerNotesBodyHtml(r);
+    const changelogBody = changelogBodyHtml(r);
+    const detailPanels = [
+      depDetailPanelHtml(r.idx, 'instr', instrBody),
+      depDetailPanelHtml(r.idx, 'changelog', changelogBody),
+      depDetailPanelHtml(r.idx, 'timeline', timelineHtml, true),
+      depDetailPanelHtml(r.idx, 'comment', commentForm)
+    ].join('');
+
+    // Action buttons live in the same bar as the deployment ID, pushed to the right.
+    const isActiveDep = (r.mode === 'batch' && r.counts.scheduled > 0) || (r.mode === 'single' && r.status === 'scheduled');
+    const isBatch = r.mode === 'batch';
+    const barBtns = [];
+    // A draft's schedule must not leave the app as a client-facing document.
+    const canExportSchedule = !!(r.apps && r.apps.length) && !r.draft;
+    if(instrBody) barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-instr-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'instr')">📋 ${t('rep.instrShort')}</button>`);
+    if(changelogBody) barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-changelog-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'changelog')">📄 ${t('rep.changelogShort')}</button>`);
+    barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-timeline-${r.idx}" aria-pressed="true" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'timeline')">🕓 ${t('dcard.timeline')}</button>`);
+    barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-comment-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'comment')">💬 ${t('dcard.commentShort')}</button>`);
+    // PDF only. The XLS is the deployers' worklist and lives in their panel;
+    // the spreadsheet exports here duplicated it for readers who plan rather
+    // than install, which is what the on-screen schedule tab already shows.
+    if(canExportSchedule) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">${t('dtl.schedPdf')}</button>`);
+    if(isActiveDep) barBtns.push(`<button class="mini-btn icon-btn accent" onclick="event.stopPropagation(); generateEndUserMessage(${r.idx})"><span class="mb-ic">✉</span> ${t('dcard.genMessage')}</button>`);
+    if(isActiveDep && !r.paused) barBtns.push(`<button class="mini-btn icon-btn warn" onclick="event.stopPropagation(); pauseDeployment(${r.idx})"><span class="mb-ic">⏸</span> ${t('dcard.pause')}</button>`);
+    if(isActiveDep && r.paused) barBtns.push(`<button class="mini-btn icon-btn ok" onclick="event.stopPropagation(); resumeDeployment(${r.idx})"><span class="mb-ic">▶</span> ${t('dcard.resume')}</button>`);
+    if(isActiveDep && canEditDeployments()) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); openEditDeployment(${r.idx})">✏️ ${t('editdep.btn')}</button>`);
+    if(r.draft && canEditDeployments()) barBtns.push(`<button class="mini-btn icon-btn accent" onclick="event.stopPropagation(); notifyClientOfDraft(${r.idx})"><span class="mb-ic">📣</span> ${t('draft.notifyBtn')}</button>`);
+    if(!r.draft && r.clientApproval && r.clientApproval !== 'approved' && canEditDeployments()){
+      const remindChannels = notifyChannelsLabel('approval', r.projectKey, false);
+      barBtns.push(`<button class="mini-btn icon-btn" title="${escapeHtml(remindChannels)}" onclick="event.stopPropagation(); sendApprovalReminder(${r.idx})"><span class="mb-ic">🔔</span> ${t('draft.remindBtn')}</button>`);
+    }
+    if(isLoggedInAsAdmin()) barBtns.push(`<button class="mini-btn mini-btn-danger" onclick="event.stopPropagation(); deleteDeployment(${r.idx})">${t('cli.delete')}</button>`);
+    // The package the rollout was planned from, named here as well as on the
+    // list: this is the page where the versions and the changelog are read, and
+    // they are the package's, so it has to be possible to get to it.
+    const pkgLink = r.packageId
+      ? `<span class="mono" style="font-size:11px; color:var(--text-muted);">📦 ${escapeHtml(r.packageId)}</span>${canEditPackages() ? ` <button class="mini-btn" style="padding:2px 7px; font-size:10.5px;" onclick="event.stopPropagation(); openPackageEditor('${escapeHtml(r.packageId)}')">${t('editdep.editPackage')}</button>` : ''}`
+      : '';
+    const idHtml = `
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px;">
+        <span class="mono" style="font-size:13px; font-weight:700;">${r.id || '—'}</span>
+        <button class="mini-btn" title="${t('dcard.copyId')}" style="padding:4px 7px; display:inline-flex; align-items:center;" onclick="event.stopPropagation(); copyDeploymentId('${r.id||''}')">${COPY_ICON}</button>
+        ${r.draft ? `<span class="mono" style="font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; background:#FDF1E1; color:#8A5A05;">📝 ${t('draft.badge')}</span>` : ''}
+        ${pkgLink}
+        ${barBtns.length ? `<div style="margin-left:auto; display:flex; gap:6px; flex-wrap:wrap;">${barBtns.join('')}</div>` : ''}
+      </div>`;
+
+    const depHtml = (r.dependsOn && r.dependsOn.length) ? (function(){
+      const items = r.dependsOn.map(depId=>{
+        const dep = DEPLOYMENTS_DATA.find(x=>x.id===depId);
+        const done = dep ? (dep.mode === 'batch' ? (dep.counts && dep.counts.scheduled === 0) : dep.status === 'installed') : false;
+        const apps = dep ? (dep.apps||[]).map(a=>a.name+' v'+a.version).join(', ') : t('dcard.depMissing');
+        const badge = done
+          ? `<span class="mono" style="font-size:10px; font-weight:700; padding:1px 7px; border-radius:20px; background:var(--green-soft); color:#0F7A38;">✓ ${t('dcard.depDone')}</span>`
+          : `<span class="mono" style="font-size:10px; font-weight:700; padding:1px 7px; border-radius:20px; background:#FDF1E1; color:#8A5A05;">⧗ ${t('dcard.depOpen')}</span>`;
+        return `<div style="display:flex; align-items:center; gap:8px; padding:4px 0;"><span class="mono" style="font-size:11px; font-weight:700;">${depId}</span> <span style="font-size:12px; color:var(--text-muted);">${apps}</span> ${badge}</div>`;
+      }).join('');
+      return `<div class="field" style="margin-bottom:16px;"><label style="margin-bottom:4px;">${t('dcard.dependencies')}</label><div style="border:1px solid var(--line); border-radius:8px; padding:8px 12px;">${items}</div></div>`;
+    })() : '';
+
+    // Paused state — reason stays below; resume control lives on the ID bar.
+    let pauseHtml = '';
+    if(r.paused){
+      pauseHtml = `<div class="alert alert-warning" style="margin-bottom:16px;" role="status">
+        <span class="alert-ic" aria-hidden="true">⏸</span>
+        <div class="alert-body">
+          <div class="alert-title">${t('dcard.paused')}</div>
+          <div>${t('dcard.reason')}: ${r.pauseReason ? '„'+escapeHtml(r.pauseReason)+'”' : '—'}</div>
+          ${r.pausedBy ? `<div style="opacity:0.8; margin-top:2px;">${t('dcard.pausedBy')}: <strong>${escapeHtml(r.pausedBy)}</strong>${r.pausedAt ? ' · ' + escapeHtml(r.pausedAt) : ''}</div>` : ''}
+        </div>
+      </div>`;
+    }
+
+    return `
+      ${idHtml}
+      ${detailPanels}
+      ${r.assignedTo ? `<div style="font-size:12px; color:var(--text-muted); margin:-4px 0 12px 0;">${t('dcard.assignee')}: <strong>${escapeHtml(r.assignedTo)}</strong></div>` : ''}
+      ${pauseHtml}
+      ${depHtml}
+      ${r.paused ? '' : actionHtml}`;
+  }
+
+  // ---- The deployment detail page ----
+  //
+  // Opening a deployment swaps the list for a page about that one rollout, and
+  // "back" swaps it in again. Two pages of one view rather than a modal: the
+  // detail owns editable schedule controls whose handlers re-render it, and a
+  // dialog that redraws itself under the reader would lose the scroll position of
+  // whichever of its panes they were working in.
+  function renderDeploymentDetailPage(){
+    const listPage = document.getElementById('deploy-list-page');
+    const detailPage = document.getElementById('deploy-detail-page');
+    if(!listPage || !detailPage) return;
+    const d = expandedBatchIdx == null ? null : DEPLOYMENTS_DATA[expandedBatchIdx];
+    if(!d){
+      // Also the path taken when the open deployment is deleted or filtered away.
+      listPage.style.display = '';
+      detailPage.style.display = 'none';
+      detailPage.innerHTML = '';
+      return;
+    }
+    const r = Object.assign({idx: expandedBatchIdx}, d, {project: PROJECTS[d.projectKey]});
+    // The pane offsets belong to the tables inside the detail, and every schedule
+    // edit re-renders the whole page — without this, changing one day's date threw
+    // the reader back to day 1.
+    const prev = Array.from(detailPage.querySelectorAll('.dep-detail-scroll, [id^="queue-tbl-"]')).map(p=>p.scrollTop);
+    detailPage.innerHTML = `
+      <div class="section-head">
+        <div>
+          <button class="btn ghost" onclick="closeDeploymentDetails()">${t('dep.backToList')}</button>
+        </div>
+      </div>
+      <h2 class="section-title" style="margin-bottom:2px;">${escapeHtml(deploymentTitle(r))}</h2>
+      <p class="section-desc" style="margin-bottom:16px;">${escapeHtml((r.project && r.project.name) || r.projectKey || '')}${r.env ? ' · ' + escapeHtml(envLabel(r.env)) : ''} · ${escapeHtml(installerDateLabel(r))}</p>
+      <div class="card">${detailBodyHtml(r)}</div>`;
+    const panes = Array.from(detailPage.querySelectorAll('.dep-detail-scroll, [id^="queue-tbl-"]'));
+    panes.forEach((p,i)=>{ if(prev[i]) p.scrollTop = prev[i]; });
+    listPage.style.display = 'none';
+    detailPage.style.display = '';
+  }
+
+  function closeDeploymentDetails(){
+    const wasOpen = expandedBatchIdx;
+    expandedBatchIdx = null;
+    renderDeploymentsTable();
+    // Land on the row they came back from rather than at the top of a list they
+    // would have to search again.
+    if(wasOpen != null) flashRow(document.querySelector(`#deploy-table tr[data-idx="${wasOpen}"]`));
+  }
+
   function renderDeploymentsTable(){
+    // Every action on the detail page (a staged date, a comment, a status change)
+    // calls this, because the two pages share one render entry point. When a
+    // deployment is open it is the page on screen, so redraw that and leave the
+    // list alone — the list is rebuilt on the way back out.
+    renderDeploymentDetailPage();
+    if(expandedBatchIdx != null && DEPLOYMENTS_DATA[expandedBatchIdx]) return;
     const clientVal = document.getElementById('deploy-filter-client').value;
     const projectVal = document.getElementById('deploy-filter-project').value;
     const appVal = (document.getElementById('deploy-filter-app')||{}).value || 'all';
@@ -11703,9 +12341,10 @@
     renderDeployActiveFilters();
 
     let rows = DEPLOYMENTS_DATA.map((d,i)=>Object.assign({idx:i}, d, {project:PROJECTS[d.projectKey]}));
-    // Default: newest-added deployments (higher _seq) float to the top so a
-    // freshly created schedule is immediately visible without scrolling. Any other
-    // order comes from clicking a column header.
+    // Insertion order first (higher _seq on top), which is also what ties fall
+    // back to once the sort below runs. The list then opens newest-deployment
+    // first — see deploySort's initial value; clicking the Date header a third
+    // time drops back to this order.
     rows.sort((a,b)=> (b._seq||0) - (a._seq||0));
     applyDeploymentSort(rows, deploySort);
 
@@ -11765,7 +12404,6 @@
     head.innerHTML = '<tr>' + cols.map(([key, label]) =>
       key ? sortableThHtml(label, key, deploySort, 'setDeploySort') : `<th>${label}</th>`
     ).join('') + '</tr>';
-    const totalCols = cols.length;
 
     function approvalBadgeHtml(r){
       // A draft was never sent, so it cannot be awaiting the client's approval.
@@ -11800,179 +12438,6 @@
       return `<td style="min-width:170px;" onclick="event.stopPropagation();">${html}</td>`;
     }
 
-    function timelinePanelHtml(r){
-      const events = getDeploymentTimeline(r);
-      const timelineHtml = `
-        <div style="max-height:260px; overflow-y:auto; margin-bottom:16px;">
-          ${events.map(e=>`
-            <div style="display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--line-soft);">
-              <div class="mono" style="width:96px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${e.date ? e.date + (e.time ? ' ' + e.time : '') : t('dtl.pending')}</div>
-              <div style="flex-shrink:0;">${e.icon}</div>
-              <div style="flex:1; font-size:12.5px;">
-                ${e.text}
-                ${e.locations ? `<div class="mono" style="margin-top:3px; font-size:11px; color:var(--text-muted);">${e.locations.join(', ')}</div>` : ''}
-              </div>
-            </div>`).join('')}
-        </div>`;
-
-      const commentForm = `
-        <div class="field" style="margin:0;">
-          <label>${t('dcard.addComment')}</label>
-          <textarea id="new-comment-w-${r.idx}" placeholder="${t('dcard.addCommentExamplePh')}"></textarea>
-          <button class="mini-btn" style="margin-top:6px;" onclick="addDeploymentComment(${r.idx}, 'w')">${t('dcard.saveComment')}</button>
-        </div>`;
-
-      let actionHtml = '';
-      if(r.mode === 'batch' && r.counts.scheduled > 0){
-        const queue = getBatchPendingQueue(r);
-        const todayDay = dayIndexForPosition(r, r.counts.installed);
-        // Staged schedule changes: shifts/date edits are previewed here and only sent on "Save".
-        const staged = r._pendingDayDates || null;
-        const effectiveDate = (day)=> staged && staged[day] ? staged[day] : getDateForDay(r, day);
-        let dayPlanRows = '';
-        for(let day=1; day<=r.days; day++){
-          const dateStr = effectiveDate(day);
-          const done = day < todayDay;
-          const isToday = day === todayDay;
-          const changed = staged && staged[day] && staged[day] !== getDateForDay(r, day);
-          const label = done ? `<span style="color:#0F7A38; font-size:10.5px;">${t('dtl.stDone')}</span>` : isToday ? `<span style="color:#0A6E7A; font-size:10.5px;">${t('dtl.stInProgress')}</span>` : `<span style="color:var(--text-faint); font-size:10.5px;">${t('dtl.stScheduled')}</span>`;
-          dayPlanRows += `<tr>
-            <td class="mono">${tf('dtl.day', {n: day})}</td>
-            <td>${done ? `<span class="mono" style="font-size:12px;">${fmtDate(dateStr)}</span>` : `<input type="date" class="mono" value="${dateStr}" style="font-size:12px; padding:2px 6px; ${changed ? 'border-color:#8A5A05; background:#FDF8EE;' : ''}" onchange="stageDayDate(${r.idx}, ${day}, this.value)">`}${changed ? ` <span style="font-size:10px; color:#8A5A05;">${t('dtl.changed')}</span>` : ''}</td>
-            <td class="mono" style="font-size:11.5px;">${done ? `${computeDayCount(r, day)}` : `<input type="number" min="0" value="${computeDayCount(r, day)}" style="width:56px; font-size:12px; padding:2px 6px;" title="${t('dtl.editCountTitle')}" onchange="setDayTargetCount(${r.idx}, ${day}, this.value)">`}</td>
-            <td>${label}</td>
-          </tr>`;
-        }
-        const hasStaged = staged && Object.keys(staged).length;
-        actionHtml = `
-          <label style="margin-bottom:8px;">${t('dtl.dayScheduleLabel')}</label>
-          <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
-            <button class="mini-btn" onclick="stageShiftDays(${r.idx}, 1)">${t('dtl.shift1')}</button>
-            <button class="mini-btn" onclick="stageShiftDays(${r.idx}, 2)">${t('dtl.shift2')}</button>
-            <button class="mini-btn" onclick="stageShiftDays(${r.idx}, 5)">${t('dtl.shift5')}</button>
-          </div>
-          <div style="max-height:180px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; margin-bottom:${hasStaged ? '8px' : '16px'};">
-            <table><thead><tr><th>${t('dtl.thDay')}</th><th>${t('dtl.thDate')}</th><th>${t('dtl.thTargets')}</th><th>${t('dtl.thStatus')}</th></tr></thead><tbody>${dayPlanRows}</tbody></table>
-          </div>
-          ${hasStaged ? `<div class="alert alert-warning" style="margin-bottom:16px; align-items:center;" role="status">
-            <span class="alert-ic" aria-hidden="true">⚠</span>
-            <div class="alert-body"><strong>${t('dtl.unsaved')}</strong></div>
-            <div style="display:flex; gap:8px; flex-shrink:0;">
-              <button class="mini-btn" onclick="discardScheduleChanges(${r.idx})">${t('dtl.cancelChanges')}</button>
-              <button class="btn small" onclick="saveScheduleChanges(${r.idx})">${t('dtl.saveNotifyAll')}</button>
-            </div>
-          </div>` : ''}
-          <label style="margin-bottom:8px;">${tf('dtl.queueLabel', {n: queue.length})}</label>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">${t('dtl.queueNote')}</p>
-          <input type="text" placeholder="${t('dtl.queueSearch')}" oninput="filterQueueRows(${r.idx}, this.value)" style="width:100%; margin-bottom:8px; padding:6px 10px; font-size:12px;">
-          <div id="queue-tbl-${r.idx}" style="max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; margin-bottom:10px;">
-            <table>
-              <thead><tr><th>${t('dtl.thLocation')}</th><th>${t('dtl.thDay')}</th><th></th></tr></thead>
-              <tbody>
-                ${queue.map((loc,qi)=>{
-                  const dn = dayIndexForPosition(r, r.counts.installed + qi);
-                  const isToday = dn === todayDay;
-                  return `<tr class="queue-row" data-loc="${String(loc).toLowerCase()}" ${isToday ? 'style="background:var(--cyan-soft);"' : ''}>
-                    <td>${loc}</td>
-                    <td class="mono">${tf('dtl.day', {n: dn})}${isToday ? ` <span style="color:#0A6E7A; font-size:10.5px;">${t('dtl.today')}</span>` : ''}</td>
-                    <td style="white-space:nowrap;">
-                      <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'prevDay')" title="${t('dtl.toPrevDay')}">${t('dtl.moveDayBack')}</button>
-                      <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'nextDay')" title="${t('dtl.toNextDay')}">${t('dtl.moveDayFwd')}</button>
-                      <select class="mini-btn" title="${t('dtl.moveToDayTitle')}" onchange="if(this.value){moveBatchQueueToDay(${r.idx}, ${qi}, parseInt(this.value)); this.selectedIndex=0;}" style="padding:2px 4px;">
-                        <option value="">${t('dtl.moveToDay')}</option>
-                        ${(function(){ let o=''; for(let dd=todayDay; dd<=r.days; dd++){ if(dd!==dn) o+=`<option value="${dd}">${tf('dtl.day', {n: dd})}</option>`; } return o; })()}
-                      </select>
-                      <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'start')" title="${t('dtl.moveStartTitle')}">${t('dtl.moveStart')}</button>
-                      <button class="mini-btn" onclick="moveBatchQueueLocation(${r.idx}, ${qi}, 'end')" title="${t('dtl.moveEndTitle')}">${t('dtl.moveEnd')}</button>
-                    </td>
-                  </tr>`;
-                }).join('')}
-              </tbody>
-            </table>
-          </div>`;
-      }
-
-      // Detail content (instructions / changelog / timeline / comment) opens
-      // one-at-a-time from the ID action bar so the expanded row stays compact.
-      // Timeline starts open — it's the primary context when expanding a row.
-      const instrBody = installerNotesBodyHtml(r);
-      const changelogBody = changelogBodyHtml(r);
-      const detailPanels = [
-        depDetailPanelHtml(r.idx, 'instr', instrBody),
-        depDetailPanelHtml(r.idx, 'changelog', changelogBody),
-        depDetailPanelHtml(r.idx, 'timeline', timelineHtml, true),
-        depDetailPanelHtml(r.idx, 'comment', commentForm)
-      ].join('');
-
-      // Action buttons live in the same bar as the deployment ID, pushed to the right.
-      const isActiveDep = (r.mode === 'batch' && r.counts.scheduled > 0) || (r.mode === 'single' && r.status === 'scheduled');
-      const isBatch = r.mode === 'batch';
-      const barBtns = [];
-      // A draft's schedule must not leave the app as a client-facing document.
-      const canExportSchedule = !!(r.apps && r.apps.length) && !r.draft;
-      if(instrBody) barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-instr-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'instr')">📋 ${t('rep.instrShort')}</button>`);
-      if(changelogBody) barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-changelog-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'changelog')">📄 ${t('rep.changelogShort')}</button>`);
-      barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-timeline-${r.idx}" aria-pressed="true" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'timeline')">🕓 ${t('dcard.timeline')}</button>`);
-      barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-comment-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'comment')">💬 ${t('dcard.commentShort')}</button>`);
-      // PDF only. The XLS is the deployers' worklist and lives in their panel;
-      // the spreadsheet exports here duplicated it for readers who plan rather
-      // than install, which is what the on-screen schedule tab already shows.
-      if(canExportSchedule) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); exportSchedulePdf(${r.idx})">${t('dtl.schedPdf')}</button>`);
-      if(isActiveDep) barBtns.push(`<button class="mini-btn icon-btn accent" onclick="event.stopPropagation(); generateEndUserMessage(${r.idx})"><span class="mb-ic">✉</span> ${t('dcard.genMessage')}</button>`);
-      if(isActiveDep && !r.paused) barBtns.push(`<button class="mini-btn icon-btn warn" onclick="event.stopPropagation(); pauseDeployment(${r.idx})"><span class="mb-ic">⏸</span> ${t('dcard.pause')}</button>`);
-      if(isActiveDep && r.paused) barBtns.push(`<button class="mini-btn icon-btn ok" onclick="event.stopPropagation(); resumeDeployment(${r.idx})"><span class="mb-ic">▶</span> ${t('dcard.resume')}</button>`);
-      if(isActiveDep && canEditDeployments()) barBtns.push(`<button class="mini-btn" onclick="event.stopPropagation(); openEditDeployment(${r.idx})">✏️ ${t('editdep.btn')}</button>`);
-      if(r.draft && canEditDeployments()) barBtns.push(`<button class="mini-btn icon-btn accent" onclick="event.stopPropagation(); notifyClientOfDraft(${r.idx})"><span class="mb-ic">📣</span> ${t('draft.notifyBtn')}</button>`);
-      if(!r.draft && r.clientApproval && r.clientApproval !== 'approved' && canEditDeployments()){
-        const remindChannels = notifyChannelsLabel('approval', r.projectKey, false);
-        barBtns.push(`<button class="mini-btn icon-btn" title="${escapeHtml(remindChannels)}" onclick="event.stopPropagation(); sendApprovalReminder(${r.idx})"><span class="mb-ic">🔔</span> ${t('draft.remindBtn')}</button>`);
-      }
-      if(isLoggedInAsAdmin()) barBtns.push(`<button class="mini-btn mini-btn-danger" onclick="event.stopPropagation(); deleteDeployment(${r.idx})">${t('cli.delete')}</button>`);
-      const idHtml = `
-        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px;">
-          <span class="mono" style="font-size:13px; font-weight:700;">${r.id || '—'}</span>
-          <button class="mini-btn" title="${t('dcard.copyId')}" style="padding:4px 7px; display:inline-flex; align-items:center;" onclick="event.stopPropagation(); copyDeploymentId('${r.id||''}')">${COPY_ICON}</button>
-          ${r.draft ? `<span class="mono" style="font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; background:#FDF1E1; color:#8A5A05;">📝 ${t('draft.badge')}</span>` : ''}
-          ${barBtns.length ? `<div style="margin-left:auto; display:flex; gap:6px; flex-wrap:wrap;">${barBtns.join('')}</div>` : ''}
-        </div>`;
-
-      const depHtml = (r.dependsOn && r.dependsOn.length) ? (function(){
-        const items = r.dependsOn.map(depId=>{
-          const dep = DEPLOYMENTS_DATA.find(x=>x.id===depId);
-          const done = dep ? (dep.mode === 'batch' ? (dep.counts && dep.counts.scheduled === 0) : dep.status === 'installed') : false;
-          const apps = dep ? (dep.apps||[]).map(a=>a.name+' v'+a.version).join(', ') : t('dcard.depMissing');
-          const badge = done
-            ? `<span class="mono" style="font-size:10px; font-weight:700; padding:1px 7px; border-radius:20px; background:var(--green-soft); color:#0F7A38;">✓ ${t('dcard.depDone')}</span>`
-            : `<span class="mono" style="font-size:10px; font-weight:700; padding:1px 7px; border-radius:20px; background:#FDF1E1; color:#8A5A05;">⧗ ${t('dcard.depOpen')}</span>`;
-          return `<div style="display:flex; align-items:center; gap:8px; padding:4px 0;"><span class="mono" style="font-size:11px; font-weight:700;">${depId}</span> <span style="font-size:12px; color:var(--text-muted);">${apps}</span> ${badge}</div>`;
-        }).join('');
-        return `<div class="field" style="margin-bottom:16px;"><label style="margin-bottom:4px;">${t('dcard.dependencies')}</label><div style="border:1px solid var(--line); border-radius:8px; padding:8px 12px;">${items}</div></div>`;
-      })() : '';
-
-      // Paused state — reason stays below; resume control lives on the ID bar.
-      let pauseHtml = '';
-      if(r.paused){
-        pauseHtml = `<div class="alert alert-warning" style="margin-bottom:16px;" role="status">
-          <span class="alert-ic" aria-hidden="true">⏸</span>
-          <div class="alert-body">
-            <div class="alert-title">${t('dcard.paused')}</div>
-            <div>${t('dcard.reason')}: ${r.pauseReason ? '„'+escapeHtml(r.pauseReason)+'”' : '—'}</div>
-            ${r.pausedBy ? `<div style="opacity:0.8; margin-top:2px;">${t('dcard.pausedBy')}: <strong>${escapeHtml(r.pausedBy)}</strong>${r.pausedAt ? ' · ' + escapeHtml(r.pausedAt) : ''}</div>` : ''}
-          </div>
-        </div>`;
-      }
-
-      return `<tr><td colspan="${totalCols}" style="background:var(--paper);" onclick="event.stopPropagation();">
-        <div style="padding:14px;">
-          ${idHtml}
-          ${detailPanels}
-          ${r.assignedTo ? `<div style="font-size:12px; color:var(--text-muted); margin:-4px 0 12px 0;">${t('dcard.assignee')}: <strong>${escapeHtml(r.assignedTo)}</strong></div>` : ''}
-          ${pauseHtml}
-          ${depHtml}
-          ${r.paused ? '' : actionHtml}
-        </div>
-      </td></tr>`;
-    }
 
     const statusLabel = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
     const statusOptions = ['scheduled','installed','failed','rolledback','aborted'];
@@ -11980,20 +12445,29 @@
     let html = '';
     rows.forEach(r=>{
       const cells = [];
-      // Every row but the one being edited inline opens a detail panel, so it gets
-      // the chevron in its first cell.
+      // Every row but the one being edited inline opens the detail page, so it
+      // gets the chevron in its first cell. No is-open/aria-expanded state: the
+      // row does not expand any more, it navigates, and the list is never on
+      // screen at the same time as the deployment it opened.
       const isEditing = editingDeployIdx === r.idx;
-      const open = expandedBatchIdx === r.idx;
       const lead = html => (isEditing ? html : expandableCell(html));
       if(showProjectCol){
         const clientLabel = (r.project && r.project.clientName) ? r.project.clientName : '';
         cells.push(`<td>${lead(`<div style="font-size:13px;">${escapeHtml(r.project.name || r.projectKey || '')}</div>${clientLabel ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${escapeHtml(clientLabel)}</div>` : ''}`)}</td>`);
       }
-      const appsCell = `${r.apps.map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${a.name}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${a.version}</div></div>`).join('')}${r.internal ? '<div>'+internalBadge(r)+'</div>' : ''}`;
+      // The package id sits with the versions it defines: the versions on the row
+      // are the package's, and without the id there is no way to tell from the
+      // list which handover a rollout came from.
+      const pkgIdCell = r.packageId
+        ? `<div class="mono" style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">📦 ${escapeHtml(r.packageId)}</div>`
+        : '';
+      const appsCell = `${r.apps.map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${a.name}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${a.version}</div></div>`).join('')}${pkgIdCell}${r.internal ? '<div>'+internalBadge(r)+'</div>' : ''}`;
       cells.push(`<td style="max-width:150px;">${showProjectCol ? appsCell : lead(appsCell)}</td>`);
 
       if(r.mode === 'batch'){
-        cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})} <span style="color:var(--text-faint);">· ${tf('notif.daysN', {n: r.days})}</span></td>`);
+        // Working days go under the target count rather than beside it: two
+        // numbers on one line read as one figure, and the pair widened the column.
+        cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})}<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${tf('notif.daysN', {n: r.days})}</div></td>`);
         cells.push(`<td>${envTagHtml(r.env)}</td>`);
         cells.push(`<td class="mono">${r.dateRange}<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(r.time)}</div></td>`);
         const pct = Math.round((r.counts.installed / r.totalLocations) * 100);
@@ -12019,8 +12493,8 @@
           </div>${progressExtra}`);
         cells.push(approvalBadgeHtml(r));
         cells.push('<td></td>');
-        html += `<tr data-idx="${r.idx}" class="deploy-row${open ? ' is-open' : ''}" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;" aria-expanded="${open}">` + cells.join('') + '</tr>';
-        if(expandedBatchIdx === r.idx) html += timelinePanelHtml(r);
+        html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
+
       } else if(isEditing){
         const envChoices = [...PROJECTS[r.projectKey].testEnvs, 'Production'];
         cells.push(`<td onclick="event.stopPropagation();">${r.location}</td>`);
@@ -12046,8 +12520,8 @@
         </select>${r.paused ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' — ' + r.pauseReason : ''}</div>` : ''}</td>`);
         cells.push(approvalBadgeHtml(r));
         cells.push(`<td style="white-space:nowrap; text-align:right;" onclick="event.stopPropagation();"><button class="mini-btn icon-btn" onclick="toggleEditDeployment(${r.idx})"><span class="mb-ic">✎</span> ${t('usr.edit')}</button></td>`);
-        html += `<tr data-idx="${r.idx}" class="deploy-row${open ? ' is-open' : ''}" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;" aria-expanded="${open}">` + cells.join('') + '</tr>';
-        if(expandedBatchIdx === r.idx) html += timelinePanelHtml(r);
+        html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
+
       }
     });
     // Nothing loaded yet: a blank table on a slow link looks like "no deployments",

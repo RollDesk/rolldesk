@@ -46,9 +46,10 @@ app.use('/api/version', requireAuth, version);
 app.use('/api/sso', requireAuth, sso);
 // The data API accepts either a session JWT or a personal access token, so
 // scripts/CI can call it with `Authorization: Bearer rd_live_…`.
-// Attachments are mounted at /api so both `/api/deployments/:id/attachments`
-// and `/api/attachments/:id` resolve here; more specific deployment sub-routes
-// are matched before the generic deployments router below.
+// Attachments are mounted at /api so `/api/deployments/:id/attachments`,
+// `/api/packages/:id/attachments` and `/api/attachments/:id` all resolve here;
+// these more specific sub-routes are matched before the generic deployments and
+// packages routers below, which is why this mount stays first.
 app.use('/api', requireApiAuth, attachments);
 app.use('/api', requireApiAuth, state);
 app.use('/api/notifications', requireApiAuth, notifications);

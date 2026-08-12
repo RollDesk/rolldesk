@@ -1,0 +1,163 @@
+// Tracker I/O — the thin fetching wrapper around the pure helpers in tracker.js.
+//
+// Two calls chained: read a work item to get the service-desk ticket id out of
+// the configured field, then read that ticket to get the office that reported it.
+// The office drives the rollout order (reporters first), so it is worth a second
+// request; a failure there still returns the ticket id, which is the half the
+// deployer needs on screen.
+//
+// The two APIs spoken here are Azure DevOps' work-item REST API and a
+// Halo-style ticket API, but *what* they are asked is configuration: every URL,
+// project name and field name comes from the project's settings, and nothing in
+// this file names an organisation, a project or a tenant. Credentials are per
+// project and stored in the database (an admin fills them in under the project)
+// — see routes/projects.js for where they come from.
+import { query } from './db.js';
+import { encryptSecret, decryptSecret } from './sso.js';
+import {
+  parseWorkItemId, workItemFromAzure, officeFromTicket, ticketUrl,
+  azureLookupConfigured, haloLookupConfigured,
+  DEFAULT_TICKET_FIELD, DEFAULT_TICKET_PATH,
+} from './tracker.js';
+
+// An external system must never hold up a request the tester is waiting on.
+const TIMEOUT_MS = 12000;
+
+const str = (v) => (v == null ? '' : String(v)).trim();
+
+async function getJson(url, headers) {
+  const res = await fetch(url, {
+    headers: Object.assign({ accept: 'application/json' }, headers),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    const err = new Error(`${res.status} ${res.statusText}${body ? ' — ' + body.slice(0, 200) : ''}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+// Azure DevOps authenticates a PAT as HTTP basic with an empty username.
+function azureAuthHeader(pat) {
+  return { authorization: 'Basic ' + Buffer.from(':' + str(pat)).toString('base64') };
+}
+
+// The non-secret settings, with every configurable name resolved to either what
+// the project set or the documented default. One place does this so the routes,
+// the status endpoint and the lookup cannot disagree about what a blank field
+// means.
+function resolveSettings(raw) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  return {
+    azureOrgUrl: str(r.azureOrgUrl),
+    azureProject: str(r.azureProject),
+    ticketField: str(r.ticketField) || str(r.smProblemField) || DEFAULT_TICKET_FIELD,
+    haloBaseUrl: str(r.haloBaseUrl),
+    ticketPath: str(r.ticketPath) || DEFAULT_TICKET_PATH,
+    officeField: str(r.officeField),
+  };
+}
+
+// The tracker settings stored on a project, with the secrets decrypted. Secrets
+// live in the same JSONB as the rest of the project (encrypted, like the SSO
+// client secrets) so adding them needed no schema change.
+export async function projectTrackerSettings(projectKey) {
+  if (!projectKey) return null;
+  const { rows } = await query(`SELECT data->'tracker' AS tracker FROM projects WHERE key = $1`, [projectKey]);
+  const raw = rows[0] && rows[0].tracker;
+  if (!raw || typeof raw !== 'object') return null;
+  const out = Object.assign(resolveSettings(raw), { azurePat: '', haloApiKey: '' });
+  // A secret that cannot be decrypted (the encryption key changed) must not
+  // take the whole project down — the lookup degrades to "not configured".
+  for (const [enc, plain] of [['azurePatEnc', 'azurePat'], ['haloApiKeyEnc', 'haloApiKey']]) {
+    if (!raw[enc]) continue;
+    try {
+      out[plain] = decryptSecret(raw[enc]);
+    } catch (err) {
+      console.warn(`[tracker] cannot decrypt ${enc} for project ${projectKey}: ${err.message}`);
+    }
+  }
+  return out;
+}
+
+// Store the non-secret settings, encrypting each secret that was supplied and
+// keeping the stored one when the field is left blank (the browser never gets a
+// secret back, so a blank field means "unchanged", not "clear it").
+export function trackerSettingsForStorage(settings, secrets, previous) {
+  const prev = previous && typeof previous === 'object' ? previous : {};
+  const out = Object.assign({}, settings);
+  for (const [enc, key] of [['azurePatEnc', 'azurePat'], ['haloApiKeyEnc', 'haloApiKey']]) {
+    const supplied = str(secrets && secrets[key]);
+    if (supplied === '__clear__') continue;               // explicit removal
+    if (supplied) out[enc] = encryptSecret(supplied);
+    else if (prev[enc]) out[enc] = prev[enc];
+  }
+  return out;
+}
+
+// Which halves are usable, for the admin UI and the "why did nothing fill in"
+// message. Never reports the secrets themselves.
+export function trackerStatus(settings) {
+  const r = resolveSettings(settings);
+  return {
+    // Named after what they enable rather than after a vendor: the first is the
+    // work-item lookup, the second the ticket lookup that adds the office.
+    workItems: azureLookupConfigured(settings),
+    tickets: haloLookupConfigured(settings),
+    azureProject: r.azureProject,
+    ticketField: r.ticketField,
+    officeField: r.officeField,
+  };
+}
+
+// Look up one work item. Returns {ok:true, issue} where issue is
+// {id, ticket, office, title, state}, or {ok:false, reason, detail} — the route
+// turns the reason into a message, and the tester can always type the values by
+// hand instead.
+export async function lookupWorkItem(projectKey, rawId) {
+  const id = parseWorkItemId(rawId);
+  if (!id) return { ok: false, reason: 'bad-id' };
+
+  const settings = await projectTrackerSettings(projectKey);
+  if (!azureLookupConfigured(settings)) return { ok: false, reason: 'work-items-not-configured' };
+
+  const base = `${settings.azureOrgUrl}/${encodeURIComponent(settings.azureProject)}/_apis/wit/workitems/${id}`;
+  let json;
+  try {
+    json = await getJson(`${base}?api-version=7.0`, azureAuthHeader(settings.azurePat));
+  } catch (err) {
+    if (err.status === 404) return { ok: false, reason: 'work-item-not-found' };
+    if (err.status === 401 || err.status === 403) return { ok: false, reason: 'work-items-unauthorized' };
+    console.warn(`[tracker] work item lookup of ${id} failed: ${err.message}`);
+    return { ok: false, reason: 'work-items-unreachable', detail: err.message };
+  }
+
+  const issue = workItemFromAzure(json, { ticketField: settings.ticketField });
+  if (!issue) return { ok: false, reason: 'work-item-not-found' };
+
+  // The office comes from the service-desk ticket, so it is only available when
+  // the work item names a ticket and the service desk is configured. Neither is
+  // required — an installation may run the work-item half alone.
+  let office = '';
+  if (issue.ticket && haloLookupConfigured(settings)) {
+    office = await lookupTicketOffice(settings, issue.ticket);
+  }
+  return { ok: true, issue: Object.assign({}, issue, { office: office || undefined }) };
+}
+
+// The reporting office for a service-desk ticket. Best-effort by design: a
+// failure here costs the rollout ordering hint, not the lookup, so it warns and
+// returns ''.
+async function lookupTicketOffice(settings, ticketId) {
+  const url = ticketUrl(settings, ticketId);
+  if (!url) return '';
+  try {
+    const json = await getJson(url, { authorization: `Bearer ${settings.haloApiKey}` });
+    return officeFromTicket(json, { officeField: settings.officeField });
+  } catch (err) {
+    console.warn(`[tracker] ticket lookup of ${ticketId} failed: ${err.message}`);
+    return '';
+  }
+}
