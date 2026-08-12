@@ -83,7 +83,9 @@ Typing a work item id on a package can fill the HaloITSM ticket and the reportin
 | Ticket path | `/api/Tickets/{id}` | The **API** route the backend reads a ticket from. Must start with `/` and contain `{id}`. |
 | Office field | *(blank)* | Which ticket field names the reporting office. Blank tries the usual keys. |
 | API key | — | Same handling as the PAT. |
-| Link to one ticket | `/tickets?area=14&id={id}` | The **browser** link a reader follows when they click a ticket id — a service desk's web view, not the API route above. HaloITSM opens a ticket inside a saved list, so copy the address of one open ticket and replace its id with `{id}`. Optional; blank leaves the ids as plain text. |
+| Link to one ticket | `/ticket?id={num}` | The **browser** link a reader follows when they click a ticket id — a service desk's web view, not the API route above. Two placeholders: `{id}` substitutes the reference as stored (`PR-0164935`), `{num}` substitutes its digits alone (`164935`). Optional; blank leaves the ids as plain text. |
+
+Copy the address of a **single open ticket**, not the one in the bar after clicking through a list: HaloITSM serves one ticket from `/ticket` while `/tickets` renders a list, so a list's address (carrying its own `area` / `selid` / `selparentid`) makes every id reopen that list. And mind which placeholder: Halo shows a ticket as the padded reference the work item carries but addresses it by number, so `/ticket?id={num}` is right there and `{id}` yields "ticket not found". `{num}` strips any prefix and leading zeros; a reference with no digits falls back to the reference itself.
 
 The two halves are **independent and both optional**. With only the work tracker configured, an id resolves to its ticket number but no office; with neither, the fields stay manual and nothing else changes.
 

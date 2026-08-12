@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import {
   parseWorkItemId, normalizeBaseUrl, workItemFromAzure, officeFromTicket,
   normalizeTrackerSettings, azureLookupConfigured, haloLookupConfigured, ticketUrl,
-  trackerLinkPatterns,
+  trackerLinkPatterns, ticketNumber, hasIdPlaceholder,
   DEFAULT_TICKET_FIELD, DEFAULT_TICKET_PATH, DEFAULT_OFFICE_KEYS,
 } from '../src/tracker.js';
 
@@ -194,15 +194,48 @@ test('a ticket path must be a rooted template containing {id}', () => {
   assert.equal(r.data.ticketPath, '/v2/incidents/{id}/detail');
 });
 
-// The link is what a reader clicks, so a template without {id} would send every
-// reader to the same ticket — worse than showing the id as text.
-test('a ticket link is optional but must be a rooted template containing {id}', () => {
+// The link is what a reader clicks, so a template without a placeholder would
+// send every reader to the same ticket — worse than showing the id as text.
+test('a ticket link is optional but must be a rooted template with a placeholder', () => {
   assert.equal(normalizeTrackerSettings({}).data.ticketLinkPath, '');
   assert.equal(normalizeTrackerSettings({ ticketLinkPath: '/tickets?id=' }).ok, false);
   assert.equal(normalizeTrackerSettings({ ticketLinkPath: 'tickets?id={id}' }).ok, false);
   const r = normalizeTrackerSettings({ ticketLinkPath: '/tickets?area=14&id={id}' });
   assert.equal(r.ok, true);
   assert.equal(r.data.ticketLinkPath, '/tickets?area=14&id={id}');
+  // {num} is the other accepted placeholder, and is enough on its own.
+  const num = normalizeTrackerSettings({ ticketLinkPath: '/ticket?id={num}' });
+  assert.equal(num.ok, true);
+  assert.equal(num.data.ticketLinkPath, '/ticket?id={num}');
+  assert.match(normalizeTrackerSettings({ ticketLinkPath: '/ticket?id=x' }).error, /\{num\}/);
+});
+
+// A service desk shows a ticket as a padded reference but addresses it in a URL
+// by its number, so the two cannot be the same placeholder. This is why {num}
+// exists: HaloITSM stores "PR-0164935" in the work item and serves the ticket at
+// /ticket?id=164935 — substituting the reference gives "ticket not found".
+test('the ticket number is the digits of the reference, without prefix or padding', () => {
+  assert.equal(ticketNumber('PR-0164935'), '164935');
+  assert.equal(ticketNumber('0167265'), '167265');
+  assert.equal(ticketNumber('164935'), '164935');
+  assert.equal(ticketNumber('PM21435'), '21435');
+  assert.equal(ticketNumber(' PR-0164935 '), '164935');
+  // A reference with no digits has no number; the caller shows the reference
+  // rather than linking to an empty id.
+  assert.equal(ticketNumber('ABC'), '');
+  assert.equal(ticketNumber(''), '');
+  assert.equal(ticketNumber(null), '');
+  assert.equal(ticketNumber(undefined), '');
+  // All-zero padding must not collapse to a link to ticket 0.
+  assert.equal(ticketNumber('PR-0000'), '');
+});
+
+test('a template says where the id goes with either placeholder', () => {
+  assert.equal(hasIdPlaceholder('/ticket?id={id}'), true);
+  assert.equal(hasIdPlaceholder('/ticket?id={num}'), true);
+  assert.equal(hasIdPlaceholder('/ticket?id=164935'), false);
+  assert.equal(hasIdPlaceholder(''), false);
+  assert.equal(hasIdPlaceholder(null), false);
 });
 
 test('the link patterns keep {id} for the browser to substitute', () => {
