@@ -54,10 +54,18 @@ RollDesk models exactly that: a **deployment** carries its schedule, target list
 | **Project** | A deliverable belonging to a client (e.g. `acme:core`). Defines its **applications**, **test environments**, and default scheduling (days/time). |
 | **Application** | A deployable unit within a project (a service/repo), with tracked deployed versions. |
 | **Deployment target** | A destination a project deploys to — a non-production (test) environment or a named production location. |
-| **Release package** | What the test team hands over: the application versions tested together plus the issues they fix (tracker id + description). A deployment references one instead of restating its versions and changelog. |
+| **Release package** | What the test team hands over: the application versions tested together, one description of the changes that go out, and the list of issues they fix as identifiers only (Azure work item, the HaloITSM ticket from its "SM Problem" field, and the office that reported it). Every deployment is planned from a package — it never restates its own versions or changelog. |
 | **Deployment** | One rollout record: which project/apps/versions, to which environment(s), on what schedule, its status, assignee, client approval, and results. |
 | **Status** | Lifecycle of a deployment: `scheduled` → `installed`, or `failed` / `rolledback` / `aborted`; a rollout can also be `paused`. |
 | **Mode** | A deployment is either a **test-only** install (installed once, manually) or a **batch** rollout (spread across many production targets over several days). |
+
+### From a release package to a rollout
+
+A deployment is always planned **from a package** — picking one is the first field of the form and there is no manual path for typing applications and versions by hand, so what is installed is what was tested. The package fills the read-only application list (warning where a version is older than or equal to what production already runs) and the changelog.
+
+Each fixed issue on a package is **identifiers only**: the Azure Boards work item the testers file, the HaloITSM ticket named in that work item's `SM Problem` field, and — when it is known — the office that reported it. What the release actually changes is described **once for the whole package**, in its own section, rather than a line per issue. Both ids are shown to the deployer during the rollout, linked through `ISSUE_TRACKER_URL` / `WORKITEM_URL` when those are configured.
+
+The reported offices drive the **rollout order**: `prioritizeReportingTargets` (in `backend/src/releasePackage.js`, mirrored in the UI) moves the production targets named on the package's issues to the front of the generated schedule, matching either a target's code or its label, case-insensitively. The office waiting for the fix should not be the last one to receive it.
 
 ---
 
@@ -66,13 +74,13 @@ RollDesk models exactly that: a **deployment** carries its schedule, target list
 The UI is organised around the people involved in a release:
 
 - **Release Manager** — defines projects (apps, targets, post-deployment notifications), schedules new deployments, and monitors the deployments board.
-- **Tester** — assembles release packages for the projects they were granted: the application versions tested together and the issues they fix. No access to schedules, targets or client decisions.
+- **Tester** — assembles release packages for the projects they were granted: the application versions tested together, what the release changes, and the ids of the issues it fixes. No access to schedules, targets or client decisions.
 - **Deployer** — a focused panel to carry out the assigned installs and report results.
 - **Client** — a read-oriented view of the schedule and status for the projects they can see, with approval/notes.
 - **Administrator** — manages users, clients, notification rules (email/Teams), and reviews the change history (audit log).
 - **Account** — profile, help, and sign-out.
 
-Cross-cutting features: release packages handed over from testing to release management, schedule shifting mid-rollout, pause/resume with a reason, per-event notifications, an append-only audit trail, and IP-restricted access.
+Cross-cutting features: release packages handed over from testing to release management, a rollout order that puts the offices which reported the fixed issues first, schedule shifting mid-rollout, pause/resume with a reason, per-event notifications, an append-only audit trail, and IP-restricted access.
 
 ---
 
@@ -193,7 +201,8 @@ All configuration comes from environment variables (see `.env.example`). Key one
 | `APP_BASE_URL` | *(empty)* | Public URL where the app is reachable (e.g. `https://rolldesk.example.com`). When set, outgoing notifications (webhooks / e-mail / Teams) turn the deployment id into a link that opens that deployment (`<APP_BASE_URL>/#deployments/<id>`); a notification with no deployment gets a link to the app instead. **Required for SSO** (used to build the OIDC redirect URI). |
 | `APP_TIMEZONE` | `Europe/Warsaw` (in compose) | IANA zone for the timestamps the backend writes on deployment timelines and in the change history. The container image has no zone of its own, so without this those entries are stamped in UTC while the ones the browser writes use the viewer's local time — two hours apart in Polish summer, on the same timeline. An unknown zone falls back to the runtime's with a warning. |
 | `NOTIFY_LANG` | `pl` (in compose) | Language outgoing notifications (e-mail, Slack, Teams, webhooks) are written in — `pl` or `en`. A notification is composed in the browser of whoever triggered the event, so leaving this empty means it inherits *that person's* UI language, and the UI defaults to English: the same client could be told about one deployment in English and the next in Polish. Anything other than `pl`/`en` is ignored with a warning. |
-| `ISSUE_TRACKER_URL` | *(empty)* | URL pattern of the issue tracker the test team files fixes in, used to turn the issue ids on a release package into links (also for the client, who sees what a rollout closes). `{id}` marks where the ticket id goes — e.g. `https://haloitsm.example.com/tickets?id={id}` — because trackers differ in where the id belongs and the ids are stored exactly as they were typed. A value without `{id}` is ignored with a warning; empty means the ids stay plain text. |
+| `ISSUE_TRACKER_URL` | *(empty)* | URL pattern of the service desk the fixed issues are reported in, used to turn the HaloITSM ticket ids on a release package into links (also for the client, who sees what a rollout closes). `{id}` marks where the ticket id goes — e.g. `https://haloitsm.example.com/tickets?id={id}` — because trackers differ in where the id belongs and the ids are stored exactly as they were typed. A value without `{id}` is ignored with a warning; empty means the ids stay plain text. |
+| `WORKITEM_URL` | *(empty)* | The same, for the Azure Boards work item the testers file the fix under — e.g. `https://dev.azure.com/org/project/_workitems/edit/{id}`. Independent of `ISSUE_TRACKER_URL`: configuring one and not the other is a normal setup. |
 | `SSO_ENC_KEY` | *(derived from `JWT_SECRET`)* | Key used to encrypt stored SSO/OIDC client secrets at rest (AES-256-GCM). Set a dedicated random value in production (`openssl rand -hex 32`). See [Single sign-on (SSO)](#single-sign-on-sso). |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `rolldesk` | Database credentials. |
 | `DATABASE_URL` | *(built from the above)* | Backend connection string. |

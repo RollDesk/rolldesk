@@ -57,12 +57,23 @@ if (notifyLangFromEnv && !NOTIFY_LANGS.includes(notifyLangFromEnv)) {
 // A pattern rather than a base URL because trackers differ in where the id goes,
 // and the ids themselves are stored verbatim as the testers type them. Empty =
 // issue ids are shown as plain text.
-const issueTrackerUrl = (process.env.ISSUE_TRACKER_URL || '').trim();
-if (issueTrackerUrl && !issueTrackerUrl.includes('{id}')) {
-  console.warn(
-    '[config] ISSUE_TRACKER_URL has no {id} placeholder — issue ids will be shown as plain text'
-  );
+//
+// There are two, because a fixed issue carries two ids: the work item the test
+// team files in Azure Boards, and the HaloITSM ticket named in that work item's
+// "SM Problem" field. ISSUE_TRACKER_URL links the HaloITSM ticket (the id the
+// client and the deployer recognise); WORKITEM_URL links the Azure work item.
+function trackerPattern(name) {
+  const value = (process.env[name] || '').trim();
+  if (value && !value.includes('{id}')) {
+    console.warn(
+      `[config] ${name} has no {id} placeholder — those ids will be shown as plain text`
+    );
+    return '';
+  }
+  return value;
 }
+const issueTrackerUrl = trackerPattern('ISSUE_TRACKER_URL');
+const workItemUrl = trackerPattern('WORKITEM_URL');
 
 export const config = {
   env,
@@ -79,8 +90,9 @@ export const config = {
   // Language outgoing notifications are composed in ('pl' | 'en'). Empty = follow
   // the UI language of whoever triggered the event (the historical behaviour).
   notifyLang,
-  // Issue-tracker link pattern containing {id}; empty = no links.
-  issueTrackerUrl: issueTrackerUrl.includes('{id}') ? issueTrackerUrl : '',
+  // Issue-tracker link patterns containing {id}; empty = no links.
+  issueTrackerUrl,
+  workItemUrl,
   trustProxy: process.env.TRUST_PROXY === '1',
   allowedIps: (process.env.ALLOWED_IPS || '')
     .split(',')

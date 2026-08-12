@@ -1505,10 +1505,11 @@
           <select id="schedule-project-select" class="mono w-long" onchange="switchProject(this.value)"></select>
         </div>
         <!-- The versions and the changelog are the test team's output, so they are
-             picked here rather than retyped: a package fills both in, and the
-             deployment keeps a reference to it. -->
+             not retyped here: a deployment is planned from a handed-over package
+             and keeps a reference to it. There is no manual path — two people
+             typing the same version list is how the two drift apart. -->
         <div class="field" id="schedule-package-field">
-          <label style="display:flex; align-items:center;"><span data-i18n="sch.package">Release package</span><span class="info-ic" data-i18n-tip="sch.packageNote">i</span></label>
+          <label style="display:flex; align-items:center;"><span data-i18n="sch.package">Release package</span> <span style="color:#A81E1E;">*</span><span class="info-ic" data-i18n-tip="sch.packageNote">i</span></label>
           <select id="schedule-package-select" class="mono w-long" onchange="applyPackageToSchedule(this.value)"></select>
           <div id="schedule-package-summary" style="font-size:11.5px; color:var(--text-muted); margin-top:6px;"></div>
         </div>
@@ -1538,16 +1539,6 @@
         <div class="field">
           <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.deps">Dependencies — must be deployed earlier (optional)</span><span class="info-ic" data-i18n-tip="sch.depsNote">i</span></label>
           <div id="schedule-deps-list" style="display:flex; flex-direction:column; gap:6px;"></div>
-        </div>
-        <!-- Whether a release carries a legal obligation decides how a deployer
-             treats a failure — a statutory deadline cannot simply be rescheduled
-             to next week. It is the first thing the deployer panel shows. -->
-        <div class="field">
-          <label data-i18n="sch.legal">Is this a legally required change?</label>
-          <div class="radio-row">
-            <label class="radio-pill selected"><input type="radio" name="schedule-legal" value="no" checked onchange="selectRadioPill('schedule-legal', this.value)"> <span data-i18n="sch.legalNo">No — a regular change</span></label>
-            <label class="radio-pill"><input type="radio" name="schedule-legal" value="yes" onchange="selectRadioPill('schedule-legal', this.value)"> <span data-i18n="sch.legalYes">Yes — required by law</span></label>
-          </div>
         </div>
         <div class="field">
           <label data-i18n="sch.path">Deployment path — set for this specific deployment</label>
@@ -1851,8 +1842,25 @@
             <div class="form-section-title" style="margin:0;" data-i18n="pkg.issues">Fixed issues</div>
             <button class="mini-btn" type="button" onclick="addPackageIssue()"><span aria-hidden="true">＋</span> <span data-i18n="pkg.addIssue">Add issue</span></button>
           </div>
-          <p class="form-hint" style="margin-top:0;" data-i18n="pkg.issuesNote">Type the issue id exactly as it appears in the tracker, and describe what changed. This list is what the client reads about the release, so it is written for them.</p>
+          <p class="form-hint" style="margin-top:0;" data-i18n="pkg.issuesNote">Identifiers only — what the release changes is described in the next section. Copy each value exactly as the tracker shows it: the Azure work item, its „SM Problem" field (the HaloITSM ticket) and the office that reported it.</p>
+          <div id="package-issues-head" style="display:none; gap:8px; margin-bottom:2px; font-size:11px; font-weight:700; color:var(--text-muted);">
+            <div style="width:150px;" data-i18n="pkg.thWorkItem">Azure work item</div>
+            <div style="width:150px;" data-i18n="pkg.thSmProblem">SM Problem (HaloITSM)</div>
+            <div style="flex:1;" data-i18n="pkg.thOffice">Reporting office</div>
+            <div style="width:34px;"></div>
+          </div>
           <div id="package-issues-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+
+        <!-- One block for the whole release rather than a line per issue: this is
+             the text the client reads, and it never mapped one-to-one onto the
+             ticket list anyway. -->
+        <div class="form-section">
+          <div class="form-section-title" data-i18n="pkg.secChanges">Changes in this release</div>
+          <p class="form-hint" style="margin-top:0;" data-i18n="pkg.changesNote">Describe what this release changes. The client reads this text, and it fills in the changelog when a release manager picks the package.</p>
+          <div class="field">
+            <textarea id="package-changes-input" style="min-height:150px;" data-i18n-ph="pkg.changesPh" placeholder="What changes for the user in this release..."></textarea>
+          </div>
         </div>
 
         <div class="form-section">
@@ -2639,11 +2647,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.22.0"></script>
-<script src="i18n/en.js?v=0.22.0"></script>
+<script src="i18n/pl.js?v=0.23.0"></script>
+<script src="i18n/en.js?v=0.23.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.22.0';
+  const ROLLDESK_VERSION = '0.23.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -2693,15 +2701,17 @@
       // instance decides what language its notifications go out in, regardless
       // of the language the sender happens to be using.
       NOTIFY_LANG = (data.notifyLang === 'pl' || data.notifyLang === 'en') ? data.notifyLang : '';
-      // Issue-tracker link pattern (ISSUE_TRACKER_URL), same trip: the ids on a
-      // release package are only links where the operator configured a tracker.
-      const trackerBefore = ISSUE_TRACKER_URL;
-      ISSUE_TRACKER_URL = (typeof data.issueTrackerUrl === 'string' && data.issueTrackerUrl.includes('{id}'))
-        ? data.issueTrackerUrl : '';
+      // Issue-tracker link patterns (ISSUE_TRACKER_URL / WORKITEM_URL), same
+      // trip: the ids on a release package are only links where the operator
+      // configured a tracker.
+      const trackerBefore = ISSUE_TRACKER_URL + '|' + WORKITEM_URL;
+      const pattern = v => (typeof v === 'string' && v.includes('{id}')) ? v : '';
+      ISSUE_TRACKER_URL = pattern(data.issueTrackerUrl);
+      WORKITEM_URL = pattern(data.workItemUrl);
       // This answer arrives after the package-bearing lists have been drawn once,
       // so learning the pattern here has to redraw them — otherwise the ids stay
       // plain text until the next unrelated render.
-      if(ISSUE_TRACKER_URL !== trackerBefore && RELEASE_PACKAGES.length){
+      if(ISSUE_TRACKER_URL + '|' + WORKITEM_URL !== trackerBefore && RELEASE_PACKAGES.length){
         try { renderPackagesTable(); } catch(e){}
         try { renderDeploymentsTable(); } catch(e){}
         try { renderInstallerPanel(); } catch(e){}
@@ -4782,8 +4792,9 @@
       });
     }
 
-    renderScheduleAppsList();
     renderScheduleDeps();
+    // Also redraws the application list: it is derived from the picked package,
+    // and switching project drops a package belonging to the previous one.
     renderSchedulePackageSelect();
     updateScheduleTemplateOptions();
 
@@ -4885,25 +4896,49 @@
     } catch(e){ showToast('⚠ Could not send the test message'); }
   }
 
+  // The applications and versions of a deployment come from the picked package —
+  // they are shown, not edited. Retyping them here is exactly the drift the
+  // package was introduced to remove, so this list is read-only and empty until a
+  // package is chosen.
   function renderScheduleAppsList(){
     const p = PROJECTS[currentProjectKey];
     const wrap = document.getElementById('schedule-apps-list');
     if(!wrap || !p) return;
-    wrap.innerHTML = p.apps.map((a,i)=>{
-      // suggest the current production version as a starting point, if known
-      const prod = (a.deployedVersions||[]).find(v=>v.env==='Production');
-      const suggested = prod ? prod.version : '';
-      const checked = i === 0; // first app checked by default
-      return `<div style="border:1px solid var(--line); border-radius:8px; padding:8px 10px;">
+    const pkg = packageById(schedulePackageId);
+    const apps = packageApps(pkg);
+    if(!apps.length){
+      wrap.innerHTML = `<div style="color:var(--text-faint); font-size:12.5px;">${t('sch.appsFromPackage')}</div>`;
+      return;
+    }
+    // The version already in production, so a downgrade or a reinstall is visible
+    // before the schedule is approved — the same warning the typed field carried.
+    const byName = new Map((p.apps||[]).map(a=>[a.name, a]));
+    wrap.innerHTML = apps.map(a=>{
+      const known = byName.get(a.name);
+      const prod = known ? (known.deployedVersions||[]).find(v=>v.env === 'Production') : null;
+      const current = prod ? prod.version : '';
+      let hint = '';
+      if(current){
+        let cmp = null;
+        try { cmp = compareVersions(a.version, current); } catch(e){ cmp = null; }
+        if(cmp !== null && cmp < 0) hint = tf('sch.appOlder', {version: a.version, current});
+        else if(cmp === 0) hint = tf('sch.appSame', {version: a.version});
+      }
+      const unknown = !known ? `<div style="font-size:11px; color:#8A5A05; margin-top:5px;">⚠ ${tf('sch.appNotInProject', {app: a.name})}</div>` : '';
+      return `<div class="schedule-app-row" data-app="${escapeHtml(a.name)}" data-version="${escapeHtml(a.version)}" style="border:1px solid var(--line); border-radius:8px; padding:8px 10px;">
         <div style="display:flex; align-items:center; gap:10px;">
-          <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; flex:1; cursor:pointer;">
-            <input type="checkbox" class="schedule-app-check" value="${a.name}" ${checked?'checked':''} style="width:auto;" onchange="onScheduleAppToggle(this)"> ${a.name}
-          </label>
-          <input type="text" class="schedule-app-version mono" data-app="${a.name}" data-current="${suggested}" placeholder="${t('sch.versionExample')} ${suggested||'1.0.0'}" value="${suggested}" ${checked?'':'disabled'} style="width:160px; font-size:12.5px; ${checked?'':'background:var(--paper); color:var(--text-faint);'}" oninput="onScheduleVersionInput(this)">
+          <span style="flex:1; font-size:13px; font-weight:500;">${escapeHtml(a.name)}</span>
+          <span class="mono" style="font-size:12.5px; font-weight:700;">v${escapeHtml(a.version)}</span>
         </div>
-        <div class="schedule-version-hint" style="display:none; font-size:11px; color:#8A5A05; margin-top:5px;"></div>
+        ${hint ? `<div style="font-size:11px; color:#8A5A05; margin-top:5px;">⚠ ${escapeHtml(hint)}</div>` : ''}
+        ${unknown}
       </div>`;
-    }).join('') || `<div style="color:var(--text-faint); font-size:12.5px;">${t('sch.noApps')}</div>`;
+    }).join('');
+  }
+
+  // The applications a deployment will carry: whatever the picked package lists.
+  function scheduleAppsFromPackage(){
+    return packageApps(packageById(schedulePackageId)).map(a=>({name:a.name, version:a.version}));
   }
 
   function renderScheduleDeps(){
@@ -4937,9 +4972,11 @@
   // (`packageId`) — never a copy of the issue list. A package stays editable
   // afterwards, so a fix that lands late still reaches the client who reads it.
   const RELEASE_PACKAGES = [];
-  // URL pattern with {id} from the backend (ISSUE_TRACKER_URL). Empty = the ids
-  // are shown as plain text, which is also what an unconfigured instance gets.
+  // URL patterns with {id} from the backend (ISSUE_TRACKER_URL for the HaloITSM
+  // ticket, WORKITEM_URL for the Azure work item). Empty = the ids are shown as
+  // plain text, which is also what an unconfigured instance gets.
   let ISSUE_TRACKER_URL = '';
+  let WORKITEM_URL = '';
   let editingPackageId = null;
   // The editor works on drafts rather than the stored object, so cancelling
   // leaves the loaded package untouched.
@@ -4977,20 +5014,49 @@
   function packageAppsLabel(pkg){
     return packageApps(pkg).map(a=>`${a.name} v${a.version}`).join(', ');
   }
-  // The changelog text a picked package fills in: one issue per line, exactly what
-  // a reader of the deployment wants, so nobody retypes it and the two drift.
+  // The changelog text a picked package fills in: what the test team wrote about
+  // the release, with the ticket ids listed underneath (the changelog also leaves
+  // the app as a .txt file and in the client e-mail, where the rendered issue
+  // table is not there to carry them).
   function packageChangelogText(pkg){
-    return packageIssues(pkg)
-      .map(i => i.description ? `${i.id} — ${i.description}` : i.id)
-      .join('\n');
+    const changes = (pkg && typeof pkg.changes === 'string') ? pkg.changes.trim() : '';
+    const ids = packageIssues(pkg).map(i=>packageIssueTicket(i)).filter(Boolean);
+    return [changes, ids.join(', ')].filter(Boolean).join('\n\n');
   }
-  // The tracker id, linked when a pattern is configured. The id is never parsed
+  // The ticket a reader recognises: the HaloITSM id from the work item's "SM
+  // Problem" field when the tester filled it in, otherwise the work item id.
+  function packageIssueTicket(issue){
+    if(!issue) return '';
+    return String(issue.smProblem || issue.id || '');
+  }
+  // The offices that reported the tickets in the package, deduplicated in the
+  // order they were listed. The schedule rolls out to these first.
+  function packageReportingOffices(pkg){
+    const seen = new Set(); const out = [];
+    packageIssues(pkg).forEach(i=>{
+      const office = String((i && i.office) || '').trim();
+      const key = office.toLowerCase();
+      if(!office || seen.has(key)) return;
+      seen.add(key); out.push(office);
+    });
+    return out;
+  }
+  // A tracker id, linked when its pattern is configured. The id is never parsed
   // or reformatted — it is stored exactly as the tester typed it.
-  function issueIdHtml(issueId){
-    const label = `<span class="mono" style="font-size:11.5px; font-weight:700;">${escapeHtml(issueId)}</span>`;
-    if(!ISSUE_TRACKER_URL || !issueId) return label;
-    const url = ISSUE_TRACKER_URL.split('{id}').join(encodeURIComponent(issueId));
+  function trackerIdHtml(id, urlPattern, opts){
+    const o = opts || {};
+    if(!id) return '';
+    const label = `<span class="mono" style="font-size:${o.size || '11.5px'}; font-weight:${o.weight || 700};">${escapeHtml(id)}</span>`;
+    if(!urlPattern) return label;
+    const url = urlPattern.split('{id}').join(encodeURIComponent(id));
     return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="color:var(--cyan); text-decoration:none;">${label}</a>`;
+  }
+  // The HaloITSM ticket id (the "SM Problem" of the Azure work item).
+  function issueIdHtml(issueId){ return trackerIdHtml(issueId, ISSUE_TRACKER_URL); }
+  // The Azure work item id, shown smaller: during a rollout the HaloITSM ticket
+  // is the one that matters, the work item is the trace back to the test team.
+  function workItemIdHtml(id){
+    return trackerIdHtml(id, WORKITEM_URL, {size:'10.5px', weight:400});
   }
   function packageStatusBadgeHtml(status){
     const ready = status === 'ready';
@@ -4999,17 +5065,27 @@
     return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:12px; color:${color}; background:${bg};">${t(ready ? 'pkg.stReady' : 'pkg.stDraft')}</span>`;
   }
 
-  // The fixed-issue list as it appears on a deployment. Read live from the
-  // package (not copied onto the deployment) so a late fix shows up everywhere.
+  // The fixed-issue list as it appears on a deployment: identifiers only. Read
+  // live from the package (not copied onto the deployment) so a late fix shows up
+  // everywhere. The HaloITSM ticket leads because that is the id a deployer is
+  // asked about during the rollout; the work item follows it, and the reporting
+  // office is called out because those targets are deployed to first.
   function packageIssuesBlockHtml(r){
     const pkg = packageById(r && r.packageId);
     const issues = packageIssues(pkg);
     if(!issues.length) return '';
-    const rows = issues.map(i=>`
-      <div style="display:flex; gap:8px; padding:4px 0; border-bottom:1px solid var(--line-soft);">
-        <div style="flex-shrink:0; min-width:96px;">${issueIdHtml(i.id)}</div>
-        <div style="flex:1;">${i.description ? escapeHtml(i.description) : '<span style="color:var(--text-faint);">—</span>'}</div>
-      </div>`).join('');
+    const rows = issues.map(i=>{
+      const ticket = i.smProblem ? issueIdHtml(i.smProblem) : '<span style="color:var(--text-faint);">—</span>';
+      const item = workItemIdHtml(i.id);
+      const office = i.office
+        ? `<span style="font-size:11.5px;">🏢 ${escapeHtml(i.office)}</span>`
+        : '';
+      return `<div style="display:flex; gap:10px; align-items:baseline; padding:4px 0; border-bottom:1px solid var(--line-soft);">
+        <div style="flex-shrink:0; min-width:110px;">${ticket}</div>
+        <div style="flex-shrink:0; min-width:90px; color:var(--text-faint);">${item}</div>
+        <div style="flex:1;">${office}</div>
+      </div>`;
+    }).join('');
     return `<div style="margin-top:10px;">
       <div style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px;">🐞 ${t('pkg.fixedIssues')} <span class="mono" style="font-weight:400;">${escapeHtml(pkg.id)}</span></div>
       ${rows}
@@ -5040,8 +5116,8 @@
       if(proj !== 'all' && p.projectKey !== proj) return false;
       if(status !== 'all' && p.status !== status) return false;
       if(!q) return true;
-      const hay = [p.id, p.name, p.projectKey, packageAppsLabel(p),
-        packageIssues(p).map(i=>i.id + ' ' + (i.description||'')).join(' ')].join(' ').toLowerCase();
+      const hay = [p.id, p.name, p.projectKey, packageAppsLabel(p), p.changes || '',
+        packageIssues(p).map(i=>[i.id, i.smProblem, i.office].filter(Boolean).join(' ')).join(' ')].join(' ').toLowerCase();
       return hay.includes(q);
     });
 
@@ -5052,7 +5128,7 @@
       const projName = PROJECTS[p.projectKey] ? PROJECTS[p.projectKey].name : (p.projectKey || '—');
       const issues = packageIssues(p);
       const issueCell = issues.length
-        ? issues.slice(0, 3).map(i=>issueIdHtml(i.id)).join(' ') +
+        ? issues.slice(0, 3).map(i=>issueIdHtml(packageIssueTicket(i))).join(' ') +
           (issues.length > 3 ? ` <span style="font-size:11px; color:var(--text-muted);">${tf('pkg.andMore', {n: issues.length - 3})}</span>` : '')
         : '<span style="color:var(--text-faint);">—</span>';
       const usedBy = DEPLOYMENTS_DATA.filter(d=>d && d.packageId === p.id).length;
@@ -5102,12 +5178,15 @@
     document.getElementById('package-form-sub').textContent = pkg ? pkg.id : '';
     document.getElementById('package-name-input').value = (pkg && pkg.name) || '';
     document.getElementById('package-notes-input').value = (pkg && pkg.notes) || '';
+    document.getElementById('package-changes-input').value = (pkg && pkg.changes) || '';
     selectRadioPill('package-status', (pkg && pkg.status === 'ready') ? 'ready' : 'draft');
 
     packageDraftApps = pkg ? packageApps(pkg).map(a=>({name:a.name, version:a.version})) : [];
-    packageDraftIssues = pkg ? packageIssues(pkg).map(i=>({id:i.id, description:i.description||''})) : [];
+    packageDraftIssues = pkg
+      ? packageIssues(pkg).map(i=>({id:i.id, smProblem:i.smProblem||'', office:i.office||''}))
+      : [];
     if(!packageDraftApps.length) packageDraftApps = [{name:'', version:''}];
-    if(!packageDraftIssues.length) packageDraftIssues = [{id:'', description:''}];
+    if(!packageDraftIssues.length) packageDraftIssues = [newPackageIssueDraft()];
     renderPackageApps();
     renderPackageIssues();
     openFormModal('package-modal');
@@ -5127,7 +5206,8 @@
     return (p && Array.isArray(p.apps)) ? p.apps.map(a=>a.name) : [];
   }
 
-  function onPackageProjectChange(){ renderPackageApps(); }
+  // Both lists are project-scoped: the app names and the offices to suggest.
+  function onPackageProjectChange(){ renderPackageApps(); renderPackageIssues(); }
 
   function renderPackageApps(){
     const wrap = document.getElementById('package-apps-list');
@@ -5149,13 +5229,33 @@
     }).join('');
   }
 
+  function newPackageIssueDraft(){ return {id:'', smProblem:'', office:''}; }
+
+  // The production targets of the package's project, offered as suggestions for
+  // the reporting office. Free text is still accepted — the ticket may name an
+  // office the project has not registered yet — but picking a known target is
+  // what lets the schedule put it first.
+  function packageOfficeOptions(){
+    const sel = document.getElementById('package-project-select');
+    const p = sel ? PROJECTS[sel.value] : null;
+    const locs = (p && Array.isArray(p.locationsList)) ? p.locationsList : [];
+    return locs.filter(l=>l.type === 'Production').map(l=>l.label || l.code).filter(Boolean);
+  }
+
   function renderPackageIssues(){
     const wrap = document.getElementById('package-issues-list');
     if(!wrap) return;
-    wrap.innerHTML = packageDraftIssues.map((issue,i)=>`
-      <div style="display:flex; gap:8px; align-items:flex-start;">
+    const head = document.getElementById('package-issues-head');
+    if(head) head.style.display = packageDraftIssues.length ? 'flex' : 'none';
+    const offices = packageOfficeOptions();
+    const datalist = offices.length
+      ? `<datalist id="package-office-options">${offices.map(o=>`<option value="${escapeHtml(o)}"></option>`).join('')}</datalist>`
+      : '';
+    wrap.innerHTML = datalist + packageDraftIssues.map((issue,i)=>`
+      <div style="display:flex; gap:8px; align-items:center;">
         <input type="text" class="mono" value="${escapeHtml(issue.id)}" placeholder="${t('pkg.issueIdPh')}" style="width:150px; font-size:12.5px;" oninput="setPackageIssue(${i}, 'id', this.value)">
-        <textarea style="flex:1; min-height:44px; font-size:12.5px;" placeholder="${t('pkg.issueDescPh')}" oninput="setPackageIssue(${i}, 'description', this.value)">${escapeHtml(issue.description)}</textarea>
+        <input type="text" class="mono" value="${escapeHtml(issue.smProblem)}" placeholder="${t('pkg.smProblemPh')}" style="width:150px; font-size:12.5px;" oninput="setPackageIssue(${i}, 'smProblem', this.value)">
+        <input type="text" value="${escapeHtml(issue.office)}" placeholder="${t('pkg.officePh')}" ${offices.length ? 'list="package-office-options"' : ''} style="flex:1; font-size:12.5px;" oninput="setPackageIssue(${i}, 'office', this.value)">
         <button type="button" class="mini-btn" title="${t('pkg.removeRow')}" onclick="removePackageIssue(${i})">✕</button>
       </div>`).join('');
   }
@@ -5163,7 +5263,7 @@
   function setPackageApp(i, field, value){ if(packageDraftApps[i]) packageDraftApps[i][field] = value; }
   function setPackageIssue(i, field, value){ if(packageDraftIssues[i]) packageDraftIssues[i][field] = value; }
   function addPackageApp(){ packageDraftApps.push({name:'', version:''}); renderPackageApps(); }
-  function addPackageIssue(){ packageDraftIssues.push({id:'', description:''}); renderPackageIssues(); }
+  function addPackageIssue(){ packageDraftIssues.push(newPackageIssueDraft()); renderPackageIssues(); }
   function removePackageApp(i){
     packageDraftApps.splice(i, 1);
     if(!packageDraftApps.length) packageDraftApps = [{name:'', version:''}];
@@ -5171,7 +5271,7 @@
   }
   function removePackageIssue(i){
     packageDraftIssues.splice(i, 1);
-    if(!packageDraftIssues.length) packageDraftIssues = [{id:'', description:''}];
+    if(!packageDraftIssues.length) packageDraftIssues = [newPackageIssueDraft()];
     renderPackageIssues();
   }
 
@@ -5184,8 +5284,9 @@
       .map(a=>({name:(a.name||'').trim(), version:(a.version||'').trim()}))
       .filter(a=>a.name || a.version);
     const issues = packageDraftIssues
-      .map(i=>({id:(i.id||'').trim(), description:(i.description||'').trim()}))
-      .filter(i=>i.id || i.description);
+      .map(i=>({id:(i.id||'').trim(), smProblem:(i.smProblem||'').trim(), office:(i.office||'').trim()}))
+      .filter(i=>i.id || i.smProblem || i.office);
+    const changes = (document.getElementById('package-changes-input').value || '').trim();
 
     const errs = [];
     if(!projectKey) errs.push({id:'package-project-select', label:t('sch.project'), msg:t('form.required')});
@@ -5194,6 +5295,9 @@
     if(issues.some(i=>!i.id)) errs.push({label:t('pkg.issues'), msg:t('pkg.errIssueId')});
     // The backend refuses this too; catching it here says which field to fix.
     if(status === 'ready' && !issues.length) errs.push({label:t('pkg.issues'), msg:t('pkg.errReadyNoIssues')});
+    // A ready package fills the deployment changelog, and an empty changelog is
+    // what the client would then be sent.
+    if(status === 'ready' && !changes) errs.push({id:'package-changes-input', label:t('pkg.secChanges'), msg:t('pkg.errReadyNoChanges')});
     if(errs.length){ showFormErrors('package-form', errs); return; }
     clearFormErrors('package-form');
 
@@ -5203,6 +5307,7 @@
       status,
       apps,
       issues,
+      changes: changes || undefined,
       notes: (document.getElementById('package-notes-input').value || '').trim() || undefined,
     };
 
@@ -5261,7 +5366,9 @@
     // Only handed-over packages of the project being planned: a draft is still
     // being assembled, and its version list is not something to schedule against.
     const usable = RELEASE_PACKAGES.filter(p => p.status === 'ready' && p.projectKey === currentProjectKey);
-    sel.innerHTML = `<option value="">${t('sch.packageNone')}</option>` +
+    // The empty entry is a prompt, not an option: a deployment without a package
+    // cannot be confirmed, so leaving it selected fails validation.
+    sel.innerHTML = `<option value="">${t('sch.packagePick')}</option>` +
       usable.map(p=>{
         const label = `${p.id}${p.name ? ' — ' + p.name : ''} (${packageAppsLabel(p) || '—'})`;
         return `<option value="${escapeHtml(p.id)}">${escapeHtml(label)}</option>`;
@@ -5270,10 +5377,12 @@
     if(prev && usable.some(p=>p.id === prev)) sel.value = prev;
     else schedulePackageId = '';
     updateSchedulePackageSummary();
+    // The applications shown are the package's, so they follow the selection.
+    renderScheduleAppsList();
   }
 
-  // The package a new deployment is being planned from (empty = versions and
-  // changelog were typed by hand, which stays possible).
+  // The package the deployment being planned is based on. A deployment always has
+  // one — the applications, versions and changelog all come from it.
   let schedulePackageId = '';
 
   function updateSchedulePackageSummary(){
@@ -5285,38 +5394,30 @@
       box.textContent = anyReady ? t('sch.packageHint') : t('sch.packageNoneAvailable');
       return;
     }
+    const offices = packageReportingOffices(pkg);
     box.textContent = tf('sch.packageSummary', {
       apps: packageAppsLabel(pkg) || '—',
       n: packageIssues(pkg).length,
-    });
+    }) + (offices.length ? ' · ' + tf('sch.packageOffices', {offices: offices.join(', ')}) : '');
   }
 
-  // Picking a package fills in the applications, their versions and the changelog
-  // — the three things the test team already decided. Everything stays editable
-  // afterwards: the release manager owns the deployment, not the package.
+  // Picking a package is what defines the deployment's content: the applications,
+  // their versions and the changelog all come from it. The changelog stays
+  // editable — the release manager owns what the client is sent — but the version
+  // list does not, so the deployment cannot claim a version nobody tested.
   function applyPackageToSchedule(id){
     schedulePackageId = id || '';
     const pkg = packageById(schedulePackageId);
     updateSchedulePackageSummary();
+    renderScheduleAppsList();
     if(!pkg) return;
 
-    const apps = packageApps(pkg);
-    const known = new Set(apps.map(a=>a.name));
-    let missing = [];
-    document.querySelectorAll('.schedule-app-check').forEach(cb=>{
-      const inPkg = known.has(cb.value);
-      cb.checked = inPkg;
-      onScheduleAppToggle(cb);
-      if(!inPkg) return;
-      const row = cb.closest('div');
-      const versionInput = row.querySelector('.schedule-app-version');
-      const app = apps.find(a=>a.name === cb.value);
-      if(versionInput && app){ versionInput.value = app.version; onScheduleVersionInput(versionInput); }
-    });
-    // An application in the package that the project does not define cannot be
-    // ticked here — say so rather than silently dropping it from the deployment.
-    const listed = new Set(Array.from(document.querySelectorAll('.schedule-app-check')).map(cb=>cb.value));
-    missing = apps.filter(a=>!listed.has(a.name)).map(a=>a.name);
+    // An application in the package that the project does not define is still
+    // deployed — the package is authoritative — but it is worth naming, because
+    // it usually means the project definition is out of date.
+    const p = PROJECTS[currentProjectKey] || {};
+    const defined = new Set((p.apps||[]).map(a=>a.name));
+    const missing = packageApps(pkg).filter(a=>!defined.has(a.name)).map(a=>a.name);
 
     const changelogEl = document.getElementById('schedule-changelog');
     const text = packageChangelogText(pkg);
@@ -5326,6 +5427,14 @@
       if(!current || current === schedulePackageChangelogPrev) changelogEl.value = text;
       schedulePackageChangelogPrev = text;
     }
+    // The offices that reported the fixed tickets go first in the rollout, so a
+    // preview generated before the package was picked is no longer what would be
+    // saved. Rebuild it rather than leave a stale order on screen.
+    if(manifestOrder.length){
+      manifestOrder = [];
+      manifestDayPlan = null;
+      try { generateManifest(true); } catch(e){}
+    }
     showToast(missing.length
       ? tf('sch.packageAppliedMissing', {id: pkg.id, apps: missing.join(', ')})
       : tf('sch.packageApplied', {id: pkg.id}));
@@ -5334,35 +5443,24 @@
   // replaces it while hand-typed notes are left alone.
   let schedulePackageChangelogPrev = '';
 
-  function onScheduleAppToggle(cb){
-    const row = cb.closest('div');
-    const versionInput = row.querySelector('.schedule-app-version');
-    versionInput.disabled = !cb.checked;
-    versionInput.style.background = cb.checked ? '' : 'var(--paper)';
-    versionInput.style.color = cb.checked ? '' : 'var(--text-faint)';
-    if(cb.checked) onScheduleVersionInput(versionInput); else onScheduleVersionInput(versionInput, true);
-  }
-
-  // Warns when the planned version is older than or identical to the one already in production.
-  function onScheduleVersionInput(inp, forceHide){
-    const outer = inp.closest('div').parentElement;
-    const hint = outer ? outer.querySelector('.schedule-version-hint') : null;
-    if(!hint) return;
-    const current = (inp.dataset.current || '').trim();
-    const val = (inp.value || '').trim();
-    if(forceHide || !current || !val){ hint.style.display = 'none'; hint.textContent = ''; return; }
-    let cmp = null;
-    try { cmp = compareVersions(val, current); } catch(e){ cmp = null; }
-    if(cmp === null){ hint.style.display = 'none'; hint.textContent = ''; return; }
-    if(cmp < 0){
-      hint.textContent = '⚠ Version ' + val + ' is OLDER than the one currently in production (' + current + ') — this will be a downgrade.';
-      hint.style.display = 'block';
-    } else if(cmp === 0){
-      hint.textContent = 'ℹ Version ' + val + ' is already deployed in production — this will be a reinstall of the same version.';
-      hint.style.display = 'block';
-    } else {
-      hint.style.display = 'none'; hint.textContent = '';
-    }
+  // Reorders production targets so the offices that reported the fixed tickets go
+  // first: they are the ones waiting for the release, and the as-entered order
+  // routinely put them on the last rollout day. Mirrors
+  // prioritizeReportingTargets in backend/src/releasePackage.js — matching is
+  // case-insensitive against both the target code and its label, because the
+  // tester types whatever the ticket says.
+  function prioritizeReportingTargets(targets, offices){
+    const list = Array.isArray(targets) ? targets.slice() : [];
+    const wanted = new Set((offices||[]).map(o=>String(o||'').trim().toLowerCase()).filter(Boolean));
+    if(!wanted.size) return list;
+    const isReporter = loc => {
+      const code = String((loc && loc.code) || '').trim().toLowerCase();
+      const label = String((loc && loc.label) || '').trim().toLowerCase();
+      return (!!code && wanted.has(code)) || (!!label && wanted.has(label));
+    };
+    const first = [], rest = [];
+    list.forEach(loc => (isReporter(loc) ? first : rest).push(loc));
+    return first.concat(rest);
   }
 
   // Selected attachments are held in JS arrays (not the <input>.files, which is
@@ -5402,17 +5500,13 @@
 
   // Turn the typed changelog into a .txt file, so the same text that goes to the
   // client can be attached elsewhere without retyping it. Header carries the
-  // project and the checked applications/versions — the text alone doesn't say
+  // project and the package's applications/versions — the text alone doesn't say
   // which release it describes.
   function downloadChangelogTxt(){
     const text = (document.getElementById('schedule-changelog').value || '').trim();
     if(!text){ showToast(t('sch.changelogTxtEmpty')); return; }
     const p = PROJECTS[currentProjectKey] || {};
-    const apps = Array.from(document.querySelectorAll('.schedule-app-check:checked')).map(cb=>{
-      const row = cb.closest('div');
-      const v = row ? (row.querySelector('.schedule-app-version') || {}).value : '';
-      return cb.value + ((v || '').trim() ? ' v' + v.trim() : '');
-    });
+    const apps = scheduleAppsFromPackage().map(a=>a.name + ' v' + a.version);
     const head = [
       (p.name || currentProjectKey || ''),
       apps.join(', '),
@@ -5540,22 +5634,14 @@
     // red banner plus red fields — never as a bare "required fields missing" modal.
     const schErrs = [];
 
-    // Collect checked apps with their versions; every checked app must have a version.
-    const checkedApps = Array.from(document.querySelectorAll('.schedule-app-check:checked'));
-    const apps = [];
-    if(!checkedApps.length){
-      schErrs.push({label: t('sch.appsVersions'), msg: t('sch.errPickApp')});
+    // A deployment is planned from a handed-over package — that is where its
+    // applications and versions come from, so there is nothing to validate about
+    // them beyond the package being picked.
+    const pkg = packageById(schedulePackageId);
+    if(!pkg){
+      schErrs.push({id:'schedule-package-select', label: t('sch.package'), msg: t('sch.errPickPackage')});
     }
-    for(const cb of checkedApps){
-      const row = cb.closest('div');
-      const versionInput = row.querySelector('.schedule-app-version');
-      const version = (versionInput.value || '').trim();
-      if(!version){
-        schErrs.push({el: versionInput, label: cb.value, msg: t('sch.errVersion')});
-        continue;
-      }
-      apps.push({name: cb.value, version});
-    }
+    const apps = scheduleAppsFromPackage();
 
     // Changelog is required unless a changelog file is attached (the file then
     // carries the release notes, so there's no need to also type them in).
@@ -5621,13 +5707,11 @@
     const isInternal = document.getElementById('schedule-internal').checked;
     const draftEl = document.getElementById('schedule-draft');
     const isDraft = !!(draftEl && draftEl.checked) && !isInternal;
-    const legalEl = document.querySelector('input[name="schedule-legal"]:checked');
-    const isLegal = !!legalEl && legalEl.value === 'yes';
     // Only the reference is stored, never a copy of the issue list: the package
     // stays editable, and a deployment that copied the list would go stale the
     // moment a late fix was added to it.
     const packageId = schedulePackageId || undefined;
-    const commonMeta = {changelog, attachment, createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, installerNotes: installerNotes || undefined, internal: isInternal || undefined, draft: isDraft || undefined, legal: isLegal || undefined, packageId};
+    const commonMeta = {changelog, attachment, createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, installerNotes: installerNotes || undefined, internal: isInternal || undefined, draft: isDraft || undefined, packageId};
 
     const created = [];
     const createdIdsStart = DEPLOYMENTS_DATA.length;
@@ -5754,8 +5838,6 @@
   // Clears the "New deployment" form after saving, so the settings (especially
   // "internal deployment" and the instructions) don't leak into the next deployment.
   function resetScheduleForm(){
-    document.querySelectorAll('.schedule-app-check').forEach(cb=>{ cb.checked = false; });
-    document.querySelectorAll('.schedule-app-version').forEach(inp=>{ inp.value = ''; });
     const ids = ['schedule-changelog','schedule-changelog-file','schedule-installer-notes','schedule-installer-file'];
     ids.forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ''; });
     scheduleChangelogFiles = [];
@@ -5773,7 +5855,6 @@
     const cfw = document.getElementById('constraint-field-wrap'); if(cfw) cfw.innerHTML = '';
     const bt = document.getElementById('day-breakdown-table'); if(bt) bt.innerHTML = '';
     const sum = document.getElementById('day-breakdown-summary'); if(sum) sum.remove();
-    selectRadioPill('schedule-legal', 'no');
     // A target subset applies to the one deployment it was picked for.
     scheduleTargetPick = null;
     const limitCb = document.getElementById('schedule-limit-targets');
@@ -5788,6 +5869,8 @@
     const pkgSel = document.getElementById('schedule-package-select');
     if(pkgSel) pkgSel.value = '';
     updateSchedulePackageSummary();
+    // The application list is derived from the package, so it empties with it.
+    renderScheduleAppsList();
     refreshScheduleTargetCount();
   }
   // ---- Production-target subset for one deployment ----
@@ -6781,7 +6864,7 @@
     // this preserves any manual reordering / day breakdown when just tweaking other fields.
     // Only Production targets go into the production rollout (matches confirmSchedule),
     // narrowed to the picked subset when this deployment covers only part of the estate.
-    const prodTargets = scheduleProdTargets();
+    const prodTargets = prioritizeReportingTargets(scheduleProdTargets(), packageReportingOffices(packageById(schedulePackageId)));
     if(manifestOrder.length !== prodTargets.length){
       manifestOrder = prodTargets.map(loc => ({code: loc.code, type: loc.type, label: loc.label, group: loc.group || '', custom: loc.custom || {}}));
       // Only discard a manual day breakdown when it no longer fits the target
@@ -10145,7 +10228,6 @@
         <span class="mono" style="font-size:13px; font-weight:700;">${r.id || '—'}</span>
         <button class="mini-btn" title="${t('dcard.copyId')}" style="padding:4px 7px; display:inline-flex; align-items:center;" onclick="event.stopPropagation(); copyDeploymentId('${r.id||''}')">${COPY_ICON}</button>
         <span style="font-size:13px; font-weight:600;">${escapeHtml(deploymentTitle(r))}</span>
-        ${legalBadge(r)}
         ${assigneeHtml}
         ${barBtns.length ? `<div style="margin-left:auto; display:flex; gap:6px; flex-wrap:wrap;">${barBtns.join('')}</div>` : ''}
       </div>
@@ -10233,13 +10315,6 @@
 
   function internalBadge(r){
     return r.internal ? ' <span class="mono" style="font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; background:#EDE7F6; color:#5B3EA6; vertical-align:middle;">🔒 INTERNAL</span>' : '';
-  }
-
-  // A legally required change cannot simply be moved to next week when something
-  // goes wrong, so the deployer has to see it before deciding how to handle a
-  // failure — in the list and again in the open record, not buried in the notes.
-  function legalBadge(r){
-    return r.legal ? ' <span class="mono" style="font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; background:#FDE7E7; color:#A81E1E; vertical-align:middle;" title="' + escapeHtml(t('rep.legalTip')) + '">§ ' + escapeHtml(t('rep.legalShort')) + '</span>' : '';
   }
 
   // Small badge making the client's approval state explicit in the deployer
@@ -10555,7 +10630,7 @@
     const clientLabel = (r.project && r.project.clientName) ? r.project.clientName : '';
     const cells = [];
     cells.push(`<td>${expandableCell(`<div style="font-size:13px;">${escapeHtml(r.project.name || r.projectKey || '')}</div>${clientLabel ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${escapeHtml(clientLabel)}</div>` : ''}`)}</td>`);
-    cells.push(`<td style="max-width:150px;">${(r.apps||[]).map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${escapeHtml(a.name)}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${escapeHtml(a.version||'')}</div></div>`).join('')}${internalBadge(r)}${legalBadge(r)}</td>`);
+    cells.push(`<td style="max-width:150px;">${(r.apps||[]).map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${escapeHtml(a.name)}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${escapeHtml(a.version||'')}</div></div>`).join('')}${internalBadge(r)}</td>`);
     if(r.mode === 'batch'){
       cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})} <span style="color:var(--text-faint);">· ${tf('notif.daysN', {n: r.days})}</span></td>`);
     } else {
@@ -11914,7 +11989,7 @@
         const clientLabel = (r.project && r.project.clientName) ? r.project.clientName : '';
         cells.push(`<td>${lead(`<div style="font-size:13px;">${escapeHtml(r.project.name || r.projectKey || '')}</div>${clientLabel ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${escapeHtml(clientLabel)}</div>` : ''}`)}</td>`);
       }
-      const appsCell = `${r.apps.map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${a.name}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${a.version}</div></div>`).join('')}${r.internal ? '<div>'+internalBadge(r)+'</div>' : ''}${r.legal ? '<div>'+legalBadge(r)+'</div>' : ''}`;
+      const appsCell = `${r.apps.map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${a.name}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${a.version}</div></div>`).join('')}${r.internal ? '<div>'+internalBadge(r)+'</div>' : ''}`;
       cells.push(`<td style="max-width:150px;">${showProjectCol ? appsCell : lead(appsCell)}</td>`);
 
       if(r.mode === 'batch'){
