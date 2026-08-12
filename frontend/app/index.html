@@ -1369,6 +1369,13 @@
               <label style="display:flex; align-items:center;"><span data-i18n="proj.trackerOfficeField">Field holding the reporting office</span><span class="info-ic" data-i18n-tip="proj.trackerOfficeFieldNote">i</span></label>
               <input type="text" id="tracker-office-field" class="mono" data-i18n-ph="proj.trackerOfficeFieldPh" placeholder="leave empty to detect it">
             </div>
+            <!-- The web link, not the API route above: a service desk opens a
+                 ticket inside one of its saved views, so the URL carries that
+                 view's own parameters and only this installation knows them. -->
+            <div class="field" style="grid-column:1 / -1;">
+              <label style="display:flex; align-items:center;"><span data-i18n="proj.trackerTicketLink">Link to one ticket</span><span class="info-ic" data-i18n-tip="proj.trackerTicketLinkNote">i</span></label>
+              <input type="text" id="tracker-ticket-link" class="mono" data-i18n-ph="proj.trackerTicketLinkPh" placeholder="/tickets?area=14&amp;id={id}">
+            </div>
             <div class="field">
               <label style="display:flex; align-items:center;"><span data-i18n="proj.trackerApiKey">API key</span><span class="info-ic" data-i18n-tip="proj.trackerSecretNote">i</span></label>
               <input type="password" id="tracker-halo-key" class="mono" autocomplete="new-password" data-i18n-ph="proj.trackerSecretPh" placeholder="Leave empty to keep the stored one">
@@ -1905,8 +1912,10 @@
           </div>
           <p class="form-hint" style="margin-top:0;" data-i18n="pkg.issuesNote">Enter the work item id only — the Halo ticket and the office that reported it are read from the work item. What the release changes is described in the next section.</p>
           <div id="package-issues-head" style="display:none; gap:8px; margin-bottom:2px; font-size:11px; font-weight:700; color:var(--text-muted);">
-            <div style="width:150px;" data-i18n="pkg.thWorkItem">Work item</div>
-            <div style="width:150px;" data-i18n="pkg.thHaloTicket">Halo ticket</div>
+            <div style="width:130px;" data-i18n="pkg.thWorkItem">Work item</div>
+            <div style="width:130px;" data-i18n="pkg.thHaloTicket">Halo ticket</div>
+            <div style="flex:1.4;" data-i18n="pkg.thTitle">Title</div>
+            <div style="width:96px;" data-i18n="pkg.thState">State</div>
             <div style="flex:1;" data-i18n="pkg.thOffice">Reporting office</div>
             <div style="width:76px;"></div>
           </div>
@@ -2726,11 +2735,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.24.1"></script>
-<script src="i18n/en.js?v=0.24.1"></script>
+<script src="i18n/pl.js?v=0.24.2"></script>
+<script src="i18n/en.js?v=0.24.2"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.24.1';
+  const ROLLDESK_VERSION = '0.24.2';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -2791,10 +2800,7 @@
       // so learning the pattern here has to redraw them — otherwise the ids stay
       // plain text until the next unrelated render.
       if(ISSUE_TRACKER_URL + '|' + WORKITEM_URL !== trackerBefore && RELEASE_PACKAGES.length){
-        try { renderPackagesTable(); } catch(e){}
-        try { renderDeploymentsTable(); } catch(e){}
-        try { renderInstallerPanel(); } catch(e){}
-        try { renderClientPortal(currentClientScenario); } catch(e){}
+        renderTrackerDependentViews();
       }
     } catch(err){
       versionCheckState = 'error';
@@ -5015,6 +5021,7 @@
     ticketField: 'tracker-ticket-field',
     haloBaseUrl: 'tracker-halo-url',
     ticketPath: 'tracker-ticket-path',
+    ticketLinkPath: 'tracker-ticket-link',
     officeField: 'tracker-office-field',
   };
 
@@ -5091,11 +5098,18 @@
       return;
     }
     if(saved && saved.tracker) p.tracker = saved.tracker;
+    // The link patterns are derived from what was just saved, so they are taken
+    // from the response too — otherwise every issue list stays unlinked until the
+    // next full reload.
+    p.trackerLinks = saved ? saved.trackerLinks : p.trackerLinks;
     // The secrets are not echoed back, so the boxes are emptied and the state
     // lines are refreshed from the server's answer.
     ['tracker-azure-pat','tracker-halo-key'].forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ''; });
     logAudit('changed', 'Project', 'Changed the issue tracker configuration', p.name + ' (' + p.clientName + ')', 'aud.d.projTracker', {});
     showToast(t('proj.trackerSaved'));
+    // Every list that turns an issue id into a link reads the patterns that just
+    // changed, so they are redrawn instead of waiting for the next page load.
+    renderTrackerDependentViews();
     await loadProjectTracker(key);
   }
 
@@ -5221,9 +5235,11 @@
   // (`packageId`) — never a copy of the issue list. A package stays editable
   // afterwards, so a fix that lands late still reaches the client who reads it.
   const RELEASE_PACKAGES = [];
-  // URL patterns with {id} from the backend (ISSUE_TRACKER_URL for the HaloITSM
-  // ticket, WORKITEM_URL for the Azure work item). Empty = the ids are shown as
-  // plain text, which is also what an unconfigured instance gets.
+  // Instance-wide URL patterns with {id} from the backend (ISSUE_TRACKER_URL for
+  // the HaloITSM ticket, WORKITEM_URL for the Azure work item). These are the
+  // fallback: a project that configures its own trackers carries its own patterns
+  // in `trackerLinks` and wins (see trackerLinksFor). Empty on both sides = the
+  // ids are shown as plain text, which is what an unconfigured instance gets.
   let ISSUE_TRACKER_URL = '';
   let WORKITEM_URL = '';
   let editingPackageId = null;
@@ -5249,6 +5265,17 @@
     try { renderSchedulePackageSelect(); } catch(e){}
     // The issue list is part of what a deployment shows, so the lists that render
     // it need a redraw once the packages are in.
+    try { renderDeploymentsTable(); } catch(e){}
+    try { renderInstallerPanel(); } catch(e){}
+    try { renderClientPortal(currentClientScenario); } catch(e){}
+  }
+
+  // Everything that renders an issue id, redrawn when the link patterns change —
+  // either the instance-wide ones arriving from /api/version after the first
+  // render, or a project's own being saved in the admin screen.
+  function renderTrackerDependentViews(){
+    try { renderPackagesTable(); } catch(e){}
+    try { renderPackageIssues(); } catch(e){}
     try { renderDeploymentsTable(); } catch(e){}
     try { renderInstallerPanel(); } catch(e){}
     try { renderClientPortal(currentClientScenario); } catch(e){}
@@ -5310,12 +5337,25 @@
     const url = urlPattern.split('{id}').join(encodeURIComponent(id));
     return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="color:var(--cyan); text-decoration:none;">${label}</a>`;
   }
+  // Which link patterns apply to a given project. A project that configures its
+  // own trackers wins: two projects may live in different Azure organisations and
+  // report to different service desks, so the instance-wide environment patterns
+  // are the fallback for projects that configure nothing, not the rule.
+  function trackerLinksFor(projectKey){
+    const links = (PROJECTS[projectKey] || {}).trackerLinks || {};
+    return {
+      workItem: links.workItemUrl || WORKITEM_URL,
+      ticket: links.issueTrackerUrl || ISSUE_TRACKER_URL,
+    };
+  }
   // The Halo ticket id, read off the work item.
-  function issueIdHtml(issueId){ return trackerIdHtml(issueId, ISSUE_TRACKER_URL); }
+  function issueIdHtml(issueId, projectKey){
+    return trackerIdHtml(issueId, trackerLinksFor(projectKey).ticket);
+  }
   // The work item id, shown smaller: during a rollout the Halo ticket is the one
   // that matters, the work item is the trace back to the test team.
-  function workItemIdHtml(id){
-    return trackerIdHtml(id, WORKITEM_URL, {size:'10.5px', weight:400});
+  function workItemIdHtml(id, projectKey){
+    return trackerIdHtml(id, trackerLinksFor(projectKey).workItem, {size:'10.5px', weight:400});
   }
   function packageStatusBadgeHtml(status){
     const ready = status === 'ready';
@@ -5335,21 +5375,47 @@
     if(!issues.length) return '';
     const rows = issues.map(i=>{
       const halo = issueHaloTicket(i);
-      const ticket = halo ? issueIdHtml(halo) : '<span style="color:var(--text-faint);">—</span>';
-      const item = workItemIdHtml(i.id);
+      const ticket = halo ? issueIdHtml(halo, pkg.projectKey) : '<span style="color:var(--text-faint);">—</span>';
+      const item = workItemIdHtml(i.id, pkg.projectKey);
       const office = i.office
         ? `<span style="font-size:11.5px;">🏢 ${escapeHtml(i.office)}</span>`
+        : '';
+      // The work item's own title, when the lookup found one. A row of bare
+      // identifiers says how many things a release fixes but not what they were.
+      const title = i.title
+        ? `<div style="font-size:11.5px; color:var(--text-muted);">${escapeHtml(i.title)}</div>`
         : '';
       return `<div style="display:flex; gap:10px; align-items:baseline; padding:4px 0; border-bottom:1px solid var(--line-soft);">
         <div style="flex-shrink:0; min-width:110px;">${ticket}</div>
         <div style="flex-shrink:0; min-width:90px; color:var(--text-faint);">${item}</div>
-        <div style="flex:1;">${office}</div>
+        <div style="flex:1;">${title}${office}</div>
       </div>`;
     }).join('');
     return `<div style="margin-top:10px;">
       <div style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px;">🐞 ${t('pkg.fixedIssues')} <span class="mono" style="font-weight:400;">${escapeHtml(pkg.id)}</span></div>
       ${rows}
     </div>`;
+  }
+
+  // The package id as it appears inside a deployment row, under the versions it
+  // defines: the versions are the package's, so without the id there is no way to
+  // tell from a list which handover a rollout came from. Shown to clients too —
+  // the id already heads the fixed-issue list they read, and it is the reference
+  // they quote back when asking what a release contains.
+  function packageIdCellHtml(r){
+    if(!r || !r.packageId) return '';
+    return `<div class="mono" style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">📦 ${escapeHtml(r.packageId)}</div>`;
+  }
+  // The same id on an action bar, beside the deployment id. The way through to the
+  // package is offered only to the roles that may open one — a deployer reads the
+  // id to match the build they were handed, and has nothing to change in it.
+  function packageIdChipHtml(r){
+    if(!r || !r.packageId) return '';
+    const id = escapeHtml(r.packageId);
+    const editBtn = canEditPackages()
+      ? ` <button class="mini-btn" style="padding:2px 7px; font-size:10.5px;" onclick="event.stopPropagation(); openPackageEditor('${id}')">${t('editdep.editPackage')}</button>`
+      : '';
+    return `<span class="mono" style="font-size:11px; color:var(--text-muted);">📦 ${id}</span>${editBtn}`;
   }
 
   function populatePackageProjectFilter(){
@@ -5377,8 +5443,20 @@
       if(status !== 'all' && p.status !== status) return false;
       if(!q) return true;
       const hay = [p.id, p.name, p.projectKey, packageAppsLabel(p), p.changes || '',
-        packageIssues(p).map(i=>[i.id, issueHaloTicket(i), i.office].filter(Boolean).join(' ')).join(' ')].join(' ').toLowerCase();
+        packageIssues(p).map(i=>[i.id, issueHaloTicket(i), i.title, i.office].filter(Boolean).join(' ')).join(' ')].join(' ').toLowerCase();
       return hay.includes(q);
+    });
+    // Newest first. The backend already returns them in that order, but a package
+    // saved in this session is appended to the loaded list, so a freshly created
+    // one showed up at the bottom of the table it was created from until the next
+    // reload. Sorting here makes the view's order its own rather than an artefact
+    // of when each row arrived. The id is the tie-break: it carries the sequence
+    // (PKG-YYYY-NNNN), so two packages created in the same second still order.
+    visible.sort((a, b)=>{
+      const at = Date.parse(a.createdAt || '') || 0;
+      const bt = Date.parse(b.createdAt || '') || 0;
+      if(at !== bt) return bt - at;
+      return String(b.id || '').localeCompare(String(a.id || ''));
     });
 
     const addBtn = document.getElementById('add-package-btn');
@@ -5387,9 +5465,24 @@
     tbody.innerHTML = visible.map(p=>{
       const projName = PROJECTS[p.projectKey] ? PROJECTS[p.projectKey].name : (p.projectKey || '—');
       const issues = packageIssues(p);
+      // One line per issue rather than three ids on one: the work item id links
+      // into Azure DevOps, the Halo ticket into the service desk, and the title
+      // says what the entry is — a row of numbers alone made the list unusable
+      // without opening every one of them.
       const issueCell = issues.length
-        ? issues.slice(0, 3).map(i=>issueIdHtml(packageIssueTicket(i))).join(' ') +
-          (issues.length > 3 ? ` <span style="font-size:11px; color:var(--text-muted);">${tf('pkg.andMore', {n: issues.length - 3})}</span>` : '')
+        ? issues.slice(0, 3).map(i=>{
+            const halo = issueHaloTicket(i);
+            // Both ids at the same weight here, unlike on a deployment: this is
+            // the test team's own list, where the work item is what they entered.
+            const links = trackerLinksFor(p.projectKey);
+            const ids = [trackerIdHtml(i.id, links.workItem), halo ? trackerIdHtml(halo, links.ticket) : '']
+              .filter(Boolean).join(' · ');
+            const title = i.title
+              ? `<div style="font-size:11px; color:var(--text-muted);">${escapeHtml(i.title)}</div>`
+              : '';
+            return `<div style="margin-bottom:3px;">${ids}${title}</div>`;
+          }).join('') +
+          (issues.length > 3 ? `<span style="font-size:11px; color:var(--text-muted);">${tf('pkg.andMore', {n: issues.length - 3})}</span>` : '')
         : '<span style="color:var(--text-faint);">—</span>';
       const usedBy = DEPLOYMENTS_DATA.filter(d=>d && d.packageId === p.id).length;
       const usedLine = usedBy
@@ -5502,7 +5595,9 @@
 
     packageDraftApps = pkg ? packageApps(pkg).map(a=>({name:a.name, version:a.version})) : [];
     packageDraftIssues = pkg
-      ? packageIssues(pkg).map(i=>({id:i.id, haloTicket:issueHaloTicket(i), office:i.office||'', lookup:''}))
+      // `lookedUpFor` is seeded with the stored id so reopening the editor does not
+      // re-query the tracker for every row; ⟳ still forces a fresh lookup.
+      ? packageIssues(pkg).map(i=>({id:i.id, haloTicket:issueHaloTicket(i), title:i.title||'', state:i.state||'', office:i.office||'', lookup:'', lookedUpFor:i.id}))
       : [];
     if(!packageDraftApps.length) packageDraftApps = [{name:'', version:''}];
     if(!packageDraftIssues.length) packageDraftIssues = [newPackageIssueDraft()];
@@ -5548,13 +5643,17 @@
     }).join('');
   }
 
-  function newPackageIssueDraft(){ return {id:'', haloTicket:'', office:'', lookup:''}; }
+  function newPackageIssueDraft(){ return {id:'', haloTicket:'', title:'', state:'', office:'', lookup:''}; }
 
   function renderPackageIssues(){
     const wrap = document.getElementById('package-issues-list');
     if(!wrap) return;
     const head = document.getElementById('package-issues-head');
     if(head) head.style.display = packageDraftIssues.length ? 'flex' : 'none';
+    // The project being edited decides which tracker the ids belong to, so the
+    // links follow the picker rather than the instance-wide setting.
+    const projSel = document.getElementById('package-project-select');
+    const links = trackerLinksFor(projSel ? projSel.value : '');
     wrap.innerHTML = packageDraftIssues.map((issue,i)=>{
       // The Halo ticket and the office are read off the work item, so they are
       // shown rather than typed: an office typed by hand only matched a
@@ -5562,18 +5661,43 @@
       // typed from memory is wrong in a way nobody notices until the office that
       // reported it asks why nothing arrived.
       const halo = issue.haloTicket
-        ? `<span class="mono" style="font-size:12.5px;">${escapeHtml(issue.haloTicket)}</span>`
+        ? trackerIdHtml(issue.haloTicket, links.ticket, {size:'12.5px', weight:400})
         : `<span style="font-size:12px; color:var(--text-faint);">${t('pkg.lookupPending')}</span>`;
       const office = issue.office
         ? `<span style="font-size:12px;">🏢 ${escapeHtml(issue.office)}</span>`
         : `<span style="font-size:12px; color:var(--text-faint);">—</span>`;
+      // What the work item is called, as soon as the lookup answers: the tester
+      // needs to see they entered the id they meant, and a number alone does not
+      // tell them. Kept on the row (not only in the note below it) because it is
+      // saved with the package and read everywhere the issue list is shown.
+      const title = issue.title
+        ? `<span style="font-size:12px;">${escapeHtml(issue.title)}</span>`
+        : `<span style="font-size:12px; color:var(--text-faint);">—</span>`;
+      // Where the work item stood when it was added. Saved with the entry, so
+      // reopening the editor shows it without another lookup — pressing ⟳ is how
+      // a reader asks the tracker for today's value.
+      const state = issue.state
+        ? `<span class="badge" style="font-size:10.5px;">${escapeHtml(issue.state)}</span>`
+        : `<span style="font-size:12px; color:var(--text-faint);">—</span>`;
+      // The lookup's own message — progress or a failure reason. The title and the
+      // state have their own columns, so this line carries only what is not
+      // already on the row.
       const note = issue.lookup
         ? `<div style="grid-column:1 / -1; font-size:11.5px; color:var(--text-muted); margin-top:-4px;">${escapeHtml(issue.lookup)}</div>`
         : '';
+      // The id links into the work tracker when a pattern is configured, so the
+      // tester can open the work item they just entered without retyping it there.
+      const openLink = (issue.id && links.workItem)
+        ? `<a href="${escapeHtml(links.workItem.split('{id}').join(encodeURIComponent(issue.id)))}" target="_blank" rel="noopener" title="${escapeHtml(t('pkg.openWorkItem'))}" style="color:var(--cyan); text-decoration:none; font-size:12px;">↗</a>`
+        : '';
       return `<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-        <input type="text" class="mono" value="${escapeHtml(issue.id)}" placeholder="${t('pkg.issueIdPh')}" style="width:150px; font-size:12.5px;" oninput="setPackageIssue(${i}, 'id', this.value)" onchange="lookupPackageIssue(${i})">
-        <div style="width:150px; overflow:hidden; text-overflow:ellipsis;">${halo}</div>
-        <div style="flex:1; min-width:120px;">${office}</div>
+        <div style="width:130px; display:flex; gap:4px; align-items:center;">
+          <input type="text" class="mono" value="${escapeHtml(issue.id)}" placeholder="${t('pkg.issueIdPh')}" style="flex:1; min-width:0; font-size:12.5px;" oninput="setPackageIssue(${i}, 'id', this.value)" onchange="lookupPackageIssue(${i})">${openLink}
+        </div>
+        <div style="width:130px; overflow:hidden; text-overflow:ellipsis;">${halo}</div>
+        <div style="flex:1.4; min-width:140px; overflow:hidden; text-overflow:ellipsis;">${title}</div>
+        <div style="width:96px; overflow:hidden; text-overflow:ellipsis;">${state}</div>
+        <div style="flex:1; min-width:110px;">${office}</div>
         <button type="button" class="mini-btn" id="pkg-lookup-${i}" title="${t('pkg.lookupTitle')}" onclick="lookupPackageIssue(${i}, true)">⟳</button>
         <button type="button" class="mini-btn" title="${t('pkg.removeRow')}" onclick="removePackageIssue(${i})">✕</button>
         ${note}
@@ -5605,11 +5729,16 @@
         issue.id = data.issue.id || id;
         issue.haloTicket = data.issue.ticket || '';
         issue.office = data.issue.office || '';
+        // The work item's title, kept on the entry: it is how the tester sees they
+        // picked the one they meant, and it is saved so every later reader of the
+        // issue list sees it too without another lookup.
+        issue.title = data.issue.title || '';
+        issue.state = data.issue.state || '';
         issue.lookedUpFor = issue.id;
-        // Show what the work item is, so the tester can see they picked the one
-        // they meant before saving.
-        issue.lookup = [data.issue.title, data.issue.state].filter(Boolean).join(' · ');
-        if(!issue.haloTicket) issue.lookup = t('pkg.lookupNoTicket');
+        // The title and the state have their own columns and are saved with the
+        // entry, so the note is left for what the row cannot show: a work item
+        // that answers with no ticket, which is why no office was filled in.
+        issue.lookup = issue.haloTicket ? '' : t('pkg.lookupNoTicket');
       } else {
         // Each known reason has its own message; an unrecognised one falls back
         // to the generic wording rather than showing a raw key.
@@ -5677,7 +5806,7 @@
       .map(a=>({name:(a.name||'').trim(), version:(a.version||'').trim()}))
       .filter(a=>a.name || a.version);
     const issues = packageDraftIssues
-      .map(i=>({id:(i.id||'').trim(), haloTicket:(i.haloTicket||'').trim(), office:(i.office||'').trim()}))
+      .map(i=>({id:(i.id||'').trim(), haloTicket:(i.haloTicket||'').trim(), title:(i.title||'').trim(), state:(i.state||'').trim(), office:(i.office||'').trim()}))
       .filter(i=>i.id || i.haloTicket || i.office);
     const changes = (document.getElementById('package-changes-input').value || '').trim();
 
@@ -8331,7 +8460,7 @@
       const isExpanded = expandedClientRow === rowKey;
       const cells = [];
       cells.push(`<td><div style="font-size:13px;">${escapeHtml((r.project && r.project.name) || r.projectKey || '')}</div></td>`);
-      cells.push(`<td style="max-width:150px;">${(r.apps||[]).map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${escapeHtml(a.name)}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${escapeHtml(a.version||'')}</div></div>`).join('')}</td>`);
+      cells.push(`<td style="max-width:150px;">${(r.apps||[]).map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${escapeHtml(a.name)}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${escapeHtml(a.version||'')}</div></div>`).join('')}${packageIdCellHtml(r)}</td>`);
       if(r.mode === 'batch'){
         cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})} <span style="color:var(--text-faint);">· ${tf('notif.daysN', {n: r.days})}</span></td>`);
       } else {
@@ -10553,6 +10682,7 @@
         <span class="mono" style="font-size:13px; font-weight:700;">${r.id || '—'}</span>
         <button class="mini-btn" title="${t('dcard.copyId')}" style="padding:4px 7px; display:inline-flex; align-items:center;" onclick="event.stopPropagation(); copyDeploymentId('${r.id||''}')">${COPY_ICON}</button>
         <span style="font-size:13px; font-weight:600;">${escapeHtml(deploymentTitle(r))}</span>
+        ${packageIdChipHtml(r)}
         ${assigneeHtml}
         ${barBtns.length ? `<div style="margin-left:auto; display:flex; gap:6px; flex-wrap:wrap;">${barBtns.join('')}</div>` : ''}
       </div>
@@ -10955,7 +11085,7 @@
     const clientLabel = (r.project && r.project.clientName) ? r.project.clientName : '';
     const cells = [];
     cells.push(`<td>${expandableCell(`<div style="font-size:13px;">${escapeHtml(r.project.name || r.projectKey || '')}</div>${clientLabel ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${escapeHtml(clientLabel)}</div>` : ''}`)}</td>`);
-    cells.push(`<td style="max-width:150px;">${(r.apps||[]).map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${escapeHtml(a.name)}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${escapeHtml(a.version||'')}</div></div>`).join('')}${internalBadge(r)}</td>`);
+    cells.push(`<td style="max-width:150px;">${(r.apps||[]).map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${escapeHtml(a.name)}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${escapeHtml(a.version||'')}</div></div>`).join('')}${packageIdCellHtml(r)}${internalBadge(r)}</td>`);
     if(r.mode === 'batch'){
       cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})} <span style="color:var(--text-faint);">· ${tf('notif.daysN', {n: r.days})}</span></td>`);
     } else {
@@ -12172,9 +12302,7 @@
     // The package the rollout was planned from, named here as well as on the
     // list: this is the page where the versions and the changelog are read, and
     // they are the package's, so it has to be possible to get to it.
-    const pkgLink = r.packageId
-      ? `<span class="mono" style="font-size:11px; color:var(--text-muted);">📦 ${escapeHtml(r.packageId)}</span>${canEditPackages() ? ` <button class="mini-btn" style="padding:2px 7px; font-size:10.5px;" onclick="event.stopPropagation(); openPackageEditor('${escapeHtml(r.packageId)}')">${t('editdep.editPackage')}</button>` : ''}`
-      : '';
+    const pkgLink = packageIdChipHtml(r);
     const idHtml = `
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px;">
         <span class="mono" style="font-size:13px; font-weight:700;">${r.id || '—'}</span>
@@ -12397,12 +12525,7 @@
         const clientLabel = (r.project && r.project.clientName) ? r.project.clientName : '';
         cells.push(`<td>${lead(`<div style="font-size:13px;">${escapeHtml(r.project.name || r.projectKey || '')}</div>${clientLabel ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${escapeHtml(clientLabel)}</div>` : ''}`)}</td>`);
       }
-      // The package id sits with the versions it defines: the versions on the row
-      // are the package's, and without the id there is no way to tell from the
-      // list which handover a rollout came from.
-      const pkgIdCell = r.packageId
-        ? `<div class="mono" style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">📦 ${escapeHtml(r.packageId)}</div>`
-        : '';
+      const pkgIdCell = packageIdCellHtml(r);
       const appsCell = `${r.apps.map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${a.name}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${a.version}</div></div>`).join('')}${pkgIdCell}${r.internal ? '<div>'+internalBadge(r)+'</div>' : ''}`;
       cells.push(`<td style="max-width:150px;">${showProjectCol ? appsCell : lead(appsCell)}</td>`);
 

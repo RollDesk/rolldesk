@@ -69,8 +69,21 @@ function normalizeIssue(i) {
   // The office is looked up from the ticket rather than typed, but it still
   // arrives in the body — the browser sends back what the lookup filled in.
   const office = clamp(i.office, 200);
+  // What the work item is called. Read from the tracker, not typed, and stored so
+  // the list still says what each id is once the editor is closed — a column of
+  // bare numbers tells a reader nothing about what the release fixes, and the
+  // alternative is a lookup per row on every page that shows the list.
+  const title = clamp(i.title, 300);
+  // Where the work item stood when it was added to the package. Stored for the
+  // same reason as the title: reopening the editor must show what the lookup
+  // found, not an empty column until someone presses the refresh button. It is a
+  // snapshot, not a live value — the tracker stays the source of truth, which is
+  // why the id remains a link.
+  const state = clamp(i.state, 60);
   if (haloTicket) out.haloTicket = haloTicket;
   if (office) out.office = office;
+  if (title) out.title = title;
+  if (state) out.state = state;
   return out;
 }
 

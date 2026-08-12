@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { requireWriteRole, isClient, clientScope } from '../rbac.js';
-import { normalizeTrackerSettings } from '../tracker.js';
+import { normalizeTrackerSettings, trackerLinkPatterns } from '../tracker.js';
 import { trackerSettingsForStorage, trackerStatus } from '../trackerService.js';
 
 const router = Router();
@@ -21,10 +21,22 @@ function publicTracker(raw) {
     ticketField: t.ticketField || t.smProblemField || '',
     haloBaseUrl: t.haloBaseUrl || '',
     ticketPath: t.ticketPath || '',
+    ticketLinkPath: t.ticketLinkPath || '',
     officeField: t.officeField || '',
     azurePatSet: !!t.azurePatEnc,
     haloApiKeySet: !!t.haloApiKeyEnc,
   };
+}
+
+// The link patterns a reader needs to open an issue id, derived from the same
+// settings. Sent with the project rather than only from /api/version because they
+// are per-project: two projects may live in different Azure organisations and
+// report to different service desks, so one instance-wide pattern cannot be right
+// for both. The UI falls back to the environment settings when a project has none.
+function trackerLinks(raw) {
+  const { workItemUrl, issueTrackerUrl } = trackerLinkPatterns(raw);
+  if (!workItemUrl && !issueTrackerUrl) return undefined;
+  return { workItemUrl: workItemUrl || undefined, issueTrackerUrl: issueTrackerUrl || undefined };
 }
 
 function rowToObj(r) {
@@ -38,7 +50,10 @@ function rowToObj(r) {
   // Never let an encrypted PAT leave the backend, even though it could not be
   // read without the key: a secret that is not sent cannot be logged, cached by
   // a proxy, or left in a browser's memory.
-  if (data.tracker) out.tracker = publicTracker(data.tracker);
+  if (data.tracker) {
+    out.tracker = publicTracker(data.tracker);
+    out.trackerLinks = trackerLinks(data.tracker);
+  }
   return out;
 }
 
@@ -51,8 +66,15 @@ router.get('/', async (req, res) => {
     const { projects } = await clientScope(req);
     list = list.filter(p => p.clientVisible !== false && projects.includes(p.key));
     // Which trackers we integrate with is internal plumbing, not part of what a
-    // client is shown about their own project.
-    list = list.map((p) => { const q = Object.assign({}, p); delete q.tracker; return q; });
+    // client is shown about their own project. The link patterns go with it: they
+    // name our Azure organisation and our service desk, and neither is reachable
+    // by a client account, so a client reads the ids as text.
+    list = list.map((p) => {
+      const q = Object.assign({}, p);
+      delete q.tracker;
+      delete q.trackerLinks;
+      return q;
+    });
   }
   res.json(list);
 });
