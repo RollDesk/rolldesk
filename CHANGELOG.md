@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.0] - 2026-08-12
+
+### Added
+- **An application version can say where its build is, and the deployer is handed that address.** A rollout began with the deployer asking, over chat, for the path of the file they were supposed to install — the package named the version and stopped there. The package editor now has a **Link to the build** field next to each version, and the address travels with the version everywhere it is shown: on the packages list, under the versions on the deployments list and the deployer panel, and as a chip on the deployer's action bar, which is where the rollout is actually worked. A web address becomes a link; a network share is offered as a path to copy, because a browser cannot navigate to a UNC path and a link that silently does nothing is worse than text. The address is read from the package rather than copied onto the deployment, so correcting it reaches the rollouts already planned — and it is deployer material, so it is stripped for a client account on a project that does not share deployment information, along with the instructions it belongs with.
+- **One button writes the fixed issues into the release description.** The description is the text the client reads, and it was being typed out of the issue list directly above it, line by line, with a missing entry every few releases. **Move to the release description** appends a line per issue — its title, with the ticket it was filed under so the client can match a line to their own case. It appends rather than replaces and skips what is already written, so the sentence a release manager opens with survives the button, and pressing it again after adding one more issue adds only that one.
+
+### Changed
+- **The fixed-issue list drops the "Reporting office" column and calls the other one "Ticket".** Nobody read the office in the editor — it is looked up from the ticket and still stored, because the schedule uses it to put the offices waiting for a fix on the first rollout day, not because anyone types or checks it. Removing the column gives the title the width it was missing. "Halo ticket" is now just "Ticket": the service desk is a per-project setting, so naming one vendor in a column header was wrong on any instance that uses another.
+
 ## [0.24.3] - 2026-08-12
 
 ### Fixed
