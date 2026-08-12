@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.1] - 2026-08-12
+
+### Changed
+- **The new-deployment form no longer asks for the changelog.** 0.24.0 moved the text onto the release package but left a copy of it on the form, pre-filled and editable — so the release manager was invited to change something that the package already said, and the copy then differed from what everyone else reads. Planning a deployment is now picking the package, and nothing else: the description, the deployer instructions and the files come from it, and the read-only panel that re-showed them below the form is gone too (it only asked for a second confirmation of the package just selected). A rollout that genuinely needs different wording is edited afterwards in the deployment editor, which is where the changelog field now lives — pre-filled with the package's text, and storing an override only when what is saved actually differs from it. A package that describes nothing at all is refused at planning time instead: the client would have been notified about a release that says nothing.
+- **"Release packages" is "Packages" in the menu, above Deployments.** A package exists before the rollout it is planned into, so the menu now reads in the order the work happens.
+
 ## [0.24.0] - 2026-08-12
 
 ### Changed

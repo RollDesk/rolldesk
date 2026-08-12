@@ -1060,17 +1060,17 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="7" height="16" rx="1"/><rect x="14" y="4" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="6" rx="1"/></svg>
     <span data-i18n="nav.projects">Projects</span>
   </div>
+  <!-- Packages sit with the release manager's own screens, above deployments:
+       a package exists before the rollout it is planned into, so the menu reads
+       in the order the work happens. The test team still writes them (see
+       VIEW_ROLES.packages) — this is where the work is filed, not who may do it. -->
+  <div class="nav-item" data-view="packages">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v8l-9 5-9-5V8l9-5 9 5Z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>
+    <span data-i18n="nav.packages">Packages</span>
+  </div>
   <div class="nav-item" data-view="deployments">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
     <span data-i18n="nav.deployments">Deployments</span>
-  </div>
-  <!-- Packages sit with the release manager's own screens: a package is what a
-       deployment is planned from, so the two are read together. The test team
-       still writes them (see VIEW_ROLES.packages) — this is where the work is
-       filed, not who may do it. -->
-  <div class="nav-item" data-view="packages">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v8l-9 5-9-5V8l9-5 9 5Z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>
-    <span data-i18n="nav.packages">Release packages</span>
   </div>
 
   <div class="nav-group-label" data-i18n="grp.installer">Deployer</div>
@@ -1581,22 +1581,13 @@
           <label style="display:flex; align-items:center;"><span data-i18n="sch.appsVersions">Applications and versions included in this deployment</span><span class="info-ic" data-i18n-tip="sch.appsVersionsNote">i</span></label>
           <div id="schedule-apps-list" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;"></div>
         </div>
-        <div class="field">
-          <label><span data-i18n="sch.changelog">Changelog</span> <span style="color:#A81E1E;">*</span> <span style="color:var(--text-faint); font-weight:400; font-size:11px;" data-i18n="sch.changelogFromPackage">(filled in from the package — edit only if this rollout needs different wording)</span></label>
-          <textarea id="schedule-changelog" data-i18n-ph="sch.changelogPh" placeholder="Describe the changes in this release (required)..."></textarea>
-          <div style="margin-top:6px;">
-            <button type="button" class="mini-btn" onclick="downloadChangelogTxt()" data-i18n-tip="sch.changelogTxtNote"><span class="mb-ic">⬇</span> <span data-i18n="sch.changelogTxt">Download as .txt</span></button>
-          </div>
-        </div>
-        <!-- Changelog files and deployer instructions live on the package, not
-             here: they describe the build, so uploading them per rollout meant
-             re-uploading the same files and letting the copies drift. Shown
-             read-only so the release manager can still see what the deployer
-             will get. -->
-        <div class="field" id="schedule-package-materials-field" style="display:none;">
-          <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.packageMaterials">From the release package</span><span class="info-ic" data-i18n-tip="sch.packageMaterialsNote">i</span></label>
-          <div id="schedule-package-materials" style="font-size:12.5px;"></div>
-        </div>
+        <!-- No changelog field and no materials panel here. Both are the package's:
+             this form picks the package, and what it contains was written once by
+             the test team. A copy of the text on the form invited an edit that
+             then differed from the package everyone else reads, and re-showing the
+             files only asked the release manager to re-confirm what they had just
+             selected. A rollout that genuinely needs different wording is edited
+             afterwards, in the deployment editor. -->
         <div class="field">
           <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.deps">Dependencies — must be deployed earlier (optional)</span><span class="info-ic" data-i18n-tip="sch.depsNote">i</span></label>
           <div id="schedule-deps-list" style="display:flex; flex-direction:column; gap:6px;"></div>
@@ -2622,7 +2613,7 @@
     <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" id="edit-dep-start-label" data-i18n="editdep.start">Start</label>
     <input type="datetime-local" id="edit-dep-start" class="mono" style="margin-bottom:14px; box-sizing:border-box;">
     <input type="time" id="edit-dep-time" class="mono" style="margin-bottom:14px; box-sizing:border-box; display:none;">
-    <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" data-i18n="sch.changelog">Changelog</label>
+    <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;"><span data-i18n="sch.changelog">Changelog</span> <span style="color:var(--text-faint); font-weight:400;" data-i18n="editdep.changelogFromPackage">— the package's text. Editing it here changes what this one rollout's client is sent; leave it alone and later corrections on the package still come through.</span></label>
     <textarea id="edit-dep-changelog" style="width:100%; min-height:120px; box-sizing:border-box; font-size:13px; line-height:1.55;"></textarea>
     <!-- The files and the deployer instructions are the package's, so they are
          shown here rather than edited: correcting them for one rollout would leave
@@ -2735,11 +2726,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.24.0"></script>
-<script src="i18n/en.js?v=0.24.0"></script>
+<script src="i18n/pl.js?v=0.24.1"></script>
+<script src="i18n/en.js?v=0.24.1"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.24.0';
+  const ROLLDESK_VERSION = '0.24.1';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -3842,7 +3833,12 @@
     if(r.createdBy) tail.push(tn('notif.createdBy') + ': ' + r.createdBy);
     if(tail.length) lines.push(tail.join(' · '));
     let body = lines.filter(Boolean).join('\n');
-    if(r.changelog) body += '\n\n' + tn('notif.changelogLabel') + ':\n' + r.changelog;
+    // A freshly created deployment carries no changelog of its own — the text is
+    // the package's until someone edits this one rollout — so fall back to the
+    // package. Without this the client's very first notification about a release
+    // would arrive with no description of it.
+    const changelog = r.changelog || packageChangelogText(packageForDeployment(r));
+    if(changelog) body += '\n\n' + tn('notif.changelogLabel') + ':\n' + changelog;
     if(r.attachment) body += '\n' + tn('notif.attachment') + ': ' + r.attachment;
     // No "open the schedule in RollDesk" line: the backend links the deployment
     // id above, which is both shorter and lands on the right row.
@@ -5804,15 +5800,16 @@
   }
 
   // Picking a package is what defines the deployment's content: the applications,
-  // their versions and the changelog all come from it. The changelog stays
-  // editable — the release manager owns what the client is sent — but the version
-  // list does not, so the deployment cannot claim a version nobody tested.
+  // their versions, the changelog, the deployer instructions and the files all
+  // come from it, and none of them is copied onto the deployment — a deployment
+  // renders them from the package, so a correction reaches every rollout of that
+  // build. Adjusting the wording for one client is done afterwards in the
+  // deployment editor, which is a deliberate act rather than a form field.
   function applyPackageToSchedule(id){
     schedulePackageId = id || '';
     const pkg = packageById(schedulePackageId);
     updateSchedulePackageSummary();
     renderScheduleAppsList();
-    renderSchedulePackageMaterials();
     if(!pkg) return;
 
     // An application in the package that the project does not define is still
@@ -5822,14 +5819,6 @@
     const defined = new Set((p.apps||[]).map(a=>a.name));
     const missing = packageApps(pkg).filter(a=>!defined.has(a.name)).map(a=>a.name);
 
-    const changelogEl = document.getElementById('schedule-changelog');
-    const text = packageChangelogText(pkg);
-    if(changelogEl && text){
-      const current = (changelogEl.value || '').trim();
-      // Never overwrite something the release manager typed themselves.
-      if(!current || current === schedulePackageChangelogPrev) changelogEl.value = text;
-      schedulePackageChangelogPrev = text;
-    }
     // The offices that reported the fixed tickets go first in the rollout, so a
     // preview generated before the package was picked is no longer what would be
     // saved. Rebuild it rather than leave a stale order on screen.
@@ -5842,9 +5831,6 @@
       ? tf('sch.packageAppliedMissing', {id: pkg.id, apps: missing.join(', ')})
       : tf('sch.packageApplied', {id: pkg.id}));
   }
-  // The changelog text the last picked package wrote, so switching packages
-  // replaces it while hand-typed notes are left alone.
-  let schedulePackageChangelogPrev = '';
 
   // Reorders production targets so the offices that reported the fixed tickets go
   // first: they are the ones waiting for the release, and the as-entered order
@@ -5866,63 +5852,6 @@
     return first.concat(rest);
   }
 
-  // The files and instructions the picked package carries, listed read-only on the
-  // schedule form. Nothing is uploaded here — a deployment shows the package's
-  // materials, so the release manager's job is to confirm they are the right ones,
-  // not to re-attach them.
-  function renderSchedulePackageMaterials(){
-    const field = document.getElementById('schedule-package-materials-field');
-    const box = document.getElementById('schedule-package-materials');
-    if(!field || !box) return;
-    const pkg = packageById(schedulePackageId);
-    if(!pkg){ field.style.display = 'none'; box.innerHTML = ''; return; }
-    const clFiles = packageFilesOfKind(pkg, 'changelog');
-    const instrFiles = packageFilesOfKind(pkg, 'instructions');
-    const instructions = pkg.instructions || pkg.installerNotes || '';
-    const parts = [];
-    if(clFiles.length){
-      parts.push(`<div style="margin-bottom:8px;"><div style="font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:4px;">${t('pkg.changelogFiles')}</div>
-        <div style="display:flex; flex-direction:column; gap:6px;">${clFiles.map(f=>attachmentLinkHtml(f.filename, f.id)).join('')}</div></div>`);
-    }
-    if(instructions){
-      parts.push(`<div style="margin-bottom:8px;"><div style="font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:4px;">${t('pkg.secInstructions')}</div>
-        <div style="white-space:pre-line; line-height:1.55; color:var(--ink);">${escapeHtml(instructions)}</div></div>`);
-    }
-    if(instrFiles.length){
-      parts.push(`<div><div style="font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:4px;">${t('pkg.instructionFiles')}</div>
-        <div style="display:flex; flex-direction:column; gap:6px;">${instrFiles.map(f=>attachmentLinkHtml(f.filename, f.id)).join('')}</div></div>`);
-    }
-    // An empty package is worth saying out loud: the deployer would otherwise open
-    // the rollout to find no instructions at all, and the time to notice is now.
-    if(!parts.length){
-      parts.push(`<div style="color:var(--text-faint);">${tf('sch.packageNoMaterials', {id: pkg.id})}
-        ${canEditPackages() ? `<button type="button" class="mini-btn" style="margin-left:8px;" onclick="openPackageEditor('${escapeHtml(pkg.id)}')">${t('usr.edit')}</button>` : ''}</div>`);
-    }
-    box.innerHTML = parts.join('');
-    field.style.display = '';
-  }
-
-  // Turn the typed changelog into a .txt file, so the same text that goes to the
-  // client can be attached elsewhere without retyping it. Header carries the
-  // project and the package's applications/versions — the text alone doesn't say
-  // which release it describes.
-  function downloadChangelogTxt(){
-    const text = (document.getElementById('schedule-changelog').value || '').trim();
-    if(!text){ showToast(t('sch.changelogTxtEmpty')); return; }
-    const p = PROJECTS[currentProjectKey] || {};
-    const apps = scheduleAppsFromPackage().map(a=>a.name + ' v' + a.version);
-    const head = [
-      (p.name || currentProjectKey || ''),
-      apps.join(', '),
-      t('notif.changelogLabel'),
-    ].filter(Boolean);
-    // CRLF: these files are opened in Notepad on the client's Windows machines.
-    const body = head.join('\r\n') + '\r\n' + '-'.repeat(60) + '\r\n' + text.replace(/\r?\n/g, '\r\n') + '\r\n';
-    const slug = String(p.name || currentProjectKey || 'changelog').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'changelog';
-    if(downloadBlob(body, slug + '-changelog-' + todayIso() + '.txt', 'text/plain;charset=utf-8')){
-      showToast(t('sch.changelogTxtSaved'));
-    }
-  }
   function pathToHtml(pathVal, envs){
     const envTags = (envs||['Test']).map(e=>envTagHtml(e)).join('<span style="color:var(--text-faint);">+</span>');
     if(pathVal === 'prod-only') return envTagHtml('Production');
@@ -6047,12 +5976,13 @@
     }
     const apps = scheduleAppsFromPackage();
 
-    // Changelog is required unless the package carries one of its own (its
-    // description, or a changelog file that carries the release notes instead).
-    const changelog = (document.getElementById('schedule-changelog').value || '').trim();
+    // The changelog is the package's — there is nothing to type here. It still has
+    // to exist, because it is what the client is sent: a package with neither a
+    // description nor a changelog file would notify them about a release that says
+    // nothing. The error points at the package field, which is where it is fixed.
     const pkgHasChangelog = !!(pkg && (packageChangelogText(pkg) || packageFilesOfKind(pkg, 'changelog').length));
-    if(!changelog && !pkgHasChangelog){
-      schErrs.push({id:'schedule-changelog', label: t('sch.changelog'), msg: t('sch.fillChangelogOrPackage')});
+    if(pkg && !pkgHasChangelog){
+      schErrs.push({id:'schedule-package-select', label: t('sch.package'), msg: t('sch.errPackageNoChangelog')});
     }
 
     const testEnvs = Array.from(document.querySelectorAll('#schedule-envs-checks input:checked')).map(c=>c.value);
@@ -6110,10 +6040,12 @@
     // stays editable, and a deployment that copied the list would go stale the
     // moment a late fix was added to it.
     const packageId = schedulePackageId || undefined;
-    // No `attachment` / `installerNotes` here any more: the files and the deployer
-    // instructions belong to the package this deployment points at, so a copy on
-    // the deployment would be the stale one the moment the package is corrected.
-    const commonMeta = {changelog, createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, internal: isInternal || undefined, draft: isDraft || undefined, packageId};
+    // No `changelog` / `attachment` / `installerNotes` here any more: the text, the
+    // files and the deployer instructions belong to the package this deployment
+    // points at, so a copy on the deployment would be the stale one the moment the
+    // package is corrected. A deployment gains its own `changelog` only if someone
+    // deliberately edits it later, which then wins over the package's.
+    const commonMeta = {createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, internal: isInternal || undefined, draft: isDraft || undefined, packageId};
 
     const created = [];
     const createdIdsStart = DEPLOYMENTS_DATA.length;
@@ -6238,8 +6170,6 @@
   // Clears the "New deployment" form after saving, so the settings (especially
   // "internal deployment") don't leak into the next deployment.
   function resetScheduleForm(){
-    const cl = document.getElementById('schedule-changelog');
-    if(cl) cl.value = '';
     const internal = document.getElementById('schedule-internal');
     if(internal) internal.checked = false;
     const draftCb = document.getElementById('schedule-draft');
@@ -6262,14 +6192,11 @@
     if(tSearch) tSearch.value = '';
     // The package belonged to the deployment just created; the next one picks its own.
     schedulePackageId = '';
-    schedulePackageChangelogPrev = '';
     const pkgSel = document.getElementById('schedule-package-select');
     if(pkgSel) pkgSel.value = '';
     updateSchedulePackageSummary();
-    // The application list and the materials panel are derived from the package,
-    // so they empty with it.
+    // The application list is derived from the package, so it empties with it.
     renderScheduleAppsList();
-    renderSchedulePackageMaterials();
     refreshScheduleTargetCount();
   }
   // ---- Production-target subset for one deployment ----
@@ -9863,7 +9790,9 @@
         : tf('msg.datesSingle', {date: fmtDate(r.date)});
     }
     const attachments = [t('msg.attSchedule')];
-    if(r.changelog || r.attachment) attachments.push(t('msg.attChangelog'));
+    // Same fallback as the notification body: the changelog is normally the
+    // package's, not a copy on the deployment.
+    if(r.changelog || r.attachment || packageChangelogText(packageForDeployment(r))) attachments.push(t('msg.attChangelog'));
     return {
       '{application}': firstApp.name,
       '{version}': firstApp.version,
@@ -9990,7 +9919,11 @@
     if(startLabel) startLabel.textContent = isBatch ? t('editdep.time') : t('editdep.start');
     startEl.value = (!isBatch && r.date) ? `${r.date}T${fmtTime(r.time) || '00:00'}` : '';
     timeEl.value = r.time || '';
-    document.getElementById('edit-dep-changelog').value = r.changelog || '';
+    // The effective text, not the override: a deployment normally has no changelog
+    // of its own, and this is now the only place one can be given. Starting from a
+    // blank box would mean retyping the package's text to change one sentence of it.
+    document.getElementById('edit-dep-changelog').value =
+      r.changelog || packageChangelogText(packageForDeployment(r));
     renderEditDepPackageMaterials(r);
     document.getElementById('edit-dep-modal-overlay').style.display = 'flex';
     editDepSnapshot = captureEditDepSnapshot();
@@ -10021,8 +9954,17 @@
         r.date = newDate; r.time = newTime;
       }
     }
+    // An override is stored only when the text actually differs from the package's.
+    // The box opens pre-filled with that text, so saving it back unchanged would
+    // otherwise freeze a copy on the deployment — and the next correction made on
+    // the package would stop reaching this rollout without anyone asking for that.
+    const pkgChangelog = packageChangelogText(packageForDeployment(r));
     const newChangelog = document.getElementById('edit-dep-changelog').value;
-    if(newChangelog !== (r.changelog||'')){ changes.push(t('sch.changelog')); r.changelog = newChangelog; }
+    const override = newChangelog.trim() === pkgChangelog.trim() ? '' : newChangelog;
+    if(override !== (r.changelog||'')){
+      changes.push(t('sch.changelog'));
+      r.changelog = override;
+    }
     // Instructions and files are the package's — edited there, not here.
 
     const savedIdx = editDepIdx;
