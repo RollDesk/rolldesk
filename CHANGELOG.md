@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.3] - 2026-08-12
+
+### Fixed
+- **A ticket link can ask for the ticket's number, not only its stored reference.** A work item carries the reference a reader recognises — `PR-0164935` — but HaloITSM addresses that ticket in a URL as `164935`, so substituting the reference produced "ticket not found". A link template now also accepts **`{num}`**, which is the digits of the reference without its prefix or padding; `{id}` still substitutes it verbatim, for a desk that wants it that way. A reference with no digits at all falls back to the reference rather than linking to an empty id.
+- **The placeholder hint says which address to copy.** HaloITSM serves one ticket from `/ticket` while `/tickets` renders a saved list, and the address in the browser's bar after clicking through a list is the list's — complete with its `area` and `selid` parameters. Copying it made every id reopen that list. The field's hint and example now name the single-ticket route and both placeholders.
+
 ## [0.24.2] - 2026-08-12
 
 ### Added

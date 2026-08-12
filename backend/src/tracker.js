@@ -158,6 +158,26 @@ export function officeFromTicket(json, { officeField = '' } = {}) {
 // organisation, the project name inside it, the custom field the ticket id sits
 // in, the service-desk host, its ticket path and its office field all differ per
 // installation.
+// A link template has to say where the id goes. `{id}` is the ticket id exactly
+// as the work item carried it; `{num}` is its digits only — a service desk that
+// addresses a ticket by number cannot be handed the reference a tester reads.
+export function hasIdPlaceholder(template) {
+  const s = str(template);
+  return s.includes('{id}') || s.includes('{num}');
+}
+
+// The digits of a ticket reference. Service desks show a ticket as a reference
+// with a prefix and padding ("PR-0164935") but address it in a URL by its number
+// alone (164935), so a link template needs a way to ask for the number. Leading
+// zeros go with the prefix: they are display padding, not part of the id.
+//
+// Returns '' when there are no digits, which leaves the caller to fall back to
+// the reference rather than linking to a truncated id.
+export function ticketNumber(id) {
+  const digits = str(id).replace(/\D+/g, '').replace(/^0+/, '');
+  return digits;
+}
+
 export function normalizeTrackerSettings(body) {
   const b = body && typeof body === 'object' ? body : {};
 
@@ -184,8 +204,8 @@ export function normalizeTrackerSettings(body) {
   // as text, which is what they were before this setting existed.
   const ticketLinkPath = clamp(b.ticketLinkPath ?? b.ticket_link_path, 500);
   if (ticketLinkPath) {
-    if (!ticketLinkPath.includes('{id}')) {
-      return { ok: false, error: 'The ticket link must contain the {id} placeholder' };
+    if (!hasIdPlaceholder(ticketLinkPath)) {
+      return { ok: false, error: 'The ticket link must contain the {id} or {num} placeholder' };
     }
     if (!ticketLinkPath.startsWith('/')) {
       return { ok: false, error: 'The ticket link must start with /' };
@@ -207,9 +227,10 @@ export function normalizeTrackerSettings(body) {
       officeField: clamp(b.officeField ?? b.office_field, 200),
       // Where a reader is sent when they click a ticket id. Separate from
       // `ticketPath` (which the backend calls) because a service desk's own web
-      // view is not its API route: HaloITSM opens a ticket inside a saved list,
-      // so the link carries the view's parameters (area, selid, …) and only the
-      // installation knows them. Blank = the id is shown as plain text.
+      // view is not its API route — HaloITSM serves one ticket from /ticket while
+      // /tickets renders a list — and only the installation knows which.
+      // `{num}` is the digits of the id, for a desk that addresses a ticket by
+      // number rather than by the reference a tester reads. Blank = plain text.
       ticketLinkPath,
     },
   };

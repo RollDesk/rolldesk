@@ -1374,7 +1374,7 @@
                  view's own parameters and only this installation knows them. -->
             <div class="field" style="grid-column:1 / -1;">
               <label style="display:flex; align-items:center;"><span data-i18n="proj.trackerTicketLink">Link to one ticket</span><span class="info-ic" data-i18n-tip="proj.trackerTicketLinkNote">i</span></label>
-              <input type="text" id="tracker-ticket-link" class="mono" data-i18n-ph="proj.trackerTicketLinkPh" placeholder="/tickets?area=14&amp;id={id}">
+              <input type="text" id="tracker-ticket-link" class="mono" data-i18n-ph="proj.trackerTicketLinkPh" placeholder="/ticket?id={num}">
             </div>
             <div class="field">
               <label style="display:flex; align-items:center;"><span data-i18n="proj.trackerApiKey">API key</span><span class="info-ic" data-i18n-tip="proj.trackerSecretNote">i</span></label>
@@ -2735,11 +2735,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.24.2"></script>
-<script src="i18n/en.js?v=0.24.2"></script>
+<script src="i18n/pl.js?v=0.24.3"></script>
+<script src="i18n/en.js?v=0.24.3"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.24.2';
+  const ROLLDESK_VERSION = '0.24.3';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -5327,14 +5327,30 @@
     });
     return out;
   }
-  // A tracker id, linked when its pattern is configured. The id is never parsed
-  // or reformatted — it is stored exactly as the tester typed it.
+  // The digits of a ticket reference, without the prefix or the display padding:
+  // a service desk shows "PR-0164935" but addresses it in a URL as 164935. Mirrors
+  // ticketNumber() in backend/src/tracker.js.
+  function trackerIdNumber(id){
+    return String(id == null ? '' : id).replace(/\D+/g, '').replace(/^0+/, '');
+  }
+  // Substitute an id into a link template. `{id}` is the reference exactly as the
+  // tracker gave it; `{num}` is its digits, for a desk that addresses a ticket by
+  // number. A reference with no digits at all leaves `{num}` as the reference
+  // rather than producing a link to nothing.
+  function trackerUrlFor(urlPattern, id){
+    const num = trackerIdNumber(id) || String(id);
+    return urlPattern
+      .split('{id}').join(encodeURIComponent(id))
+      .split('{num}').join(encodeURIComponent(num));
+  }
+  // A tracker id, linked when its pattern is configured. The label always shows
+  // the id as stored — it is never parsed or reformatted for display.
   function trackerIdHtml(id, urlPattern, opts){
     const o = opts || {};
     if(!id) return '';
     const label = `<span class="mono" style="font-size:${o.size || '11.5px'}; font-weight:${o.weight || 700};">${escapeHtml(id)}</span>`;
     if(!urlPattern) return label;
-    const url = urlPattern.split('{id}').join(encodeURIComponent(id));
+    const url = trackerUrlFor(urlPattern, id);
     return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="color:var(--cyan); text-decoration:none;">${label}</a>`;
   }
   // Which link patterns apply to a given project. A project that configures its
@@ -5688,7 +5704,7 @@
       // The id links into the work tracker when a pattern is configured, so the
       // tester can open the work item they just entered without retyping it there.
       const openLink = (issue.id && links.workItem)
-        ? `<a href="${escapeHtml(links.workItem.split('{id}').join(encodeURIComponent(issue.id)))}" target="_blank" rel="noopener" title="${escapeHtml(t('pkg.openWorkItem'))}" style="color:var(--cyan); text-decoration:none; font-size:12px;">↗</a>`
+        ? `<a href="${escapeHtml(trackerUrlFor(links.workItem, issue.id))}" target="_blank" rel="noopener" title="${escapeHtml(t('pkg.openWorkItem'))}" style="color:var(--cyan); text-decoration:none; font-size:12px;">↗</a>`
         : '';
       return `<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
         <div style="width:130px; display:flex; gap:4px; align-items:center;">

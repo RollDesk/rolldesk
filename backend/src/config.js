@@ -2,6 +2,7 @@
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { isValidTimeZone } from './stamp.js';
+import { hasIdPlaceholder } from './tracker.js';
 
 const env = process.env.NODE_ENV || 'development';
 const isProd = env === 'production';
@@ -62,11 +63,13 @@ if (notifyLangFromEnv && !NOTIFY_LANGS.includes(notifyLangFromEnv)) {
 // team files in Azure Boards, and the HaloITSM ticket named in that work item's
 // "SM Problem" field. ISSUE_TRACKER_URL links the HaloITSM ticket (the id the
 // client and the deployer recognise); WORKITEM_URL links the Azure work item.
+// `{num}` is accepted alongside `{id}`: a service desk may address a ticket by
+// its number while the work item carries the padded reference ("PR-0164935").
 function trackerPattern(name) {
   const value = (process.env[name] || '').trim();
-  if (value && !value.includes('{id}')) {
+  if (value && !hasIdPlaceholder(value)) {
     console.warn(
-      `[config] ${name} has no {id} placeholder — those ids will be shown as plain text`
+      `[config] ${name} has no {id} or {num} placeholder — those ids will be shown as plain text`
     );
     return '';
   }
