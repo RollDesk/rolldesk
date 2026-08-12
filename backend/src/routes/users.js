@@ -19,6 +19,12 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ROLES = new Set(['admin', 'rm', 'tester', 'installer', 'client']);
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+// Everything `serialize` reads, in one place: every route that returns a user has
+// to select the same columns, and six hand-copied lists meant a column added to
+// one of them was silently `undefined` in the others.
+const USER_COLUMNS = `id, email, role, name, user_group, projects, client_key,
+                      archived, archived_reason, password_hash, mfa_enabled, last_login_at`;
+
 // GET /api/users/assignable — a minimal roster of accounts that can carry out a
 // deployment, available to any signed-in non-client (RM / installer / admin).
 // The full directory is admin-only, but release managers and deployers need this
@@ -71,6 +77,9 @@ function serialize(row) {
     // No password set yet AND an invite is outstanding → still pending.
     invitePending: !row.password_hash,
     mfaEnabled: !!row.mfa_enabled,
+    // When the account last completed a sign-in (the MFA step, not the password
+    // step — a stage token is not a session). Null for an account that never has.
+    lastLoginAt: row.last_login_at || null,
   };
 }
 
@@ -104,8 +113,7 @@ async function issueInvite(user, actorEmail) {
 // GET /api/users — the whole directory.
 router.get('/', async (_req, res) => {
   const { rows } = await query(
-    `SELECT id, email, role, name, user_group, projects, client_key, archived, archived_reason,
-            password_hash, mfa_enabled
+    `SELECT ${USER_COLUMNS}
        FROM users ORDER BY archived ASC, created_at ASC`
   );
   res.json(rows.map(serialize));
@@ -130,7 +138,7 @@ router.post('/', async (req, res) => {
   const { rows } = await query(
     `INSERT INTO users (email, role, name, user_group, projects, client_key, invited_by)
      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
-     RETURNING id, email, role, name, user_group, projects, client_key, archived, archived_reason, password_hash, mfa_enabled`,
+     RETURNING ${USER_COLUMNS}`,
     [email, role, name, group, JSON.stringify(projects), clientKey, (req.auth && req.auth.email) || null]
   );
   const user = rows[0];
@@ -159,7 +167,7 @@ router.put('/:id', async (req, res) => {
   const { rows } = await query(
     `UPDATE users SET name = $1, role = $2, projects = $3::jsonb, client_key = $4, user_group = $5
       WHERE id = $6
-      RETURNING id, email, role, name, user_group, projects, client_key, archived, archived_reason, password_hash, mfa_enabled`,
+      RETURNING ${USER_COLUMNS}`,
     [name, role, JSON.stringify(projects), clientKey, group, id]
   );
   if (!rows[0]) return res.status(404).json({ error: 'User not found' });
@@ -174,7 +182,7 @@ router.post('/:id/archive', async (req, res) => {
   const reason = String((req.body && req.body.reason) || '').trim() || null;
   const { rows } = await query(
     `UPDATE users SET archived = true, archived_reason = $2 WHERE id = $1
-      RETURNING id, email, role, name, user_group, projects, client_key, archived, archived_reason, password_hash, mfa_enabled`,
+      RETURNING ${USER_COLUMNS}`,
     [id, reason]
   );
   if (!rows[0]) return res.status(404).json({ error: 'User not found' });
@@ -187,7 +195,7 @@ router.post('/:id/restore', async (req, res) => {
   if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid user id' });
   const { rows } = await query(
     `UPDATE users SET archived = false, archived_reason = NULL WHERE id = $1
-      RETURNING id, email, role, name, user_group, projects, client_key, archived, archived_reason, password_hash, mfa_enabled`,
+      RETURNING ${USER_COLUMNS}`,
     [id]
   );
   if (!rows[0]) return res.status(404).json({ error: 'User not found' });
@@ -230,8 +238,7 @@ router.post('/:id/reset-mfa', async (req, res) => {
   const { rows } = await query(
     `UPDATE users SET mfa_enabled = false, mfa_secret = NULL, mfa_pending_secret = NULL
       WHERE id = $1
-      RETURNING id, email, role, name, user_group, projects, client_key, archived, archived_reason,
-                password_hash, mfa_enabled`,
+      RETURNING ${USER_COLUMNS}`,
     [id]
   );
   const user = rows[0];

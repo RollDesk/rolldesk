@@ -111,6 +111,30 @@ export async function canReadDeployment(req, dep) {
   return projects.includes(dep.project_key); // installer/tester (and any other scoped role)
 }
 
+// Loads a release package's ownership columns for access checks, mirroring
+// loadDeploymentAccess. Returns null when the package does not exist.
+export async function loadPackageAccess(packageId) {
+  const { rows } = await query(
+    'SELECT id, project_key, status FROM release_packages WHERE id = $1',
+    [packageId]
+  );
+  return rows[0] || null;
+}
+
+// Whether the caller may READ this package and its files. Same shape as the
+// package list route: admins and release managers see everything, scoped roles
+// their granted projects, and a client only a package already handed over —
+// a draft is the test team's working copy, not something the client is shown.
+export async function canReadPackage(req, pkg) {
+  if (!pkg) return false;
+  const role = req.auth && req.auth.role;
+  if (role === 'admin' || role === 'rm') return true;
+  const { projects } = await userScope(req);
+  if (!projects.includes(pkg.project_key)) return false;
+  if (role === 'client') return pkg.status === 'ready';
+  return true;
+}
+
 // Project policy: when true, deployer/admin notes on deployments are also
 // visible to client accounts (portal + attachment download). Stored in the
 // project's JSONB `data` column; defaults to false.

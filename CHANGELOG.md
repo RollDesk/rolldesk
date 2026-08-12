@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.0] - 2026-08-12
+
+### Changed
+- **The deployer instructions, the changelog and their files belong to the release package.** They describe the build, not the day it goes out, so they are written once on the package instead of being retyped on every rollout of the same versions — and a correction made after the first deployment now also reaches the ones planned later. The schedule form and the deployment editor show them read-only, with a link to the package for whoever may edit it; a deployment keeps only its own changelog text, because a release manager may still adjust what one client is sent. Files are uploaded to the package under the audience they are for: a changelog file is client-facing, an instruction file is not, and a file whose kind cannot be read falls to the narrower audience rather than leaking.
+- **Opening a deployment opens a page, not a row.** The detail was a panel inside one table cell, which is why its day plan, its pending-target queue and its timeline each had to live in a short nested scroll pane. Each of those now has the width and the height it needs. Escape or "Back to the list" returns to the list, on the row that was open.
+- **The release package id is on the deployments list**, under the versions it defines — the versions on a row are the package's, and there was no way to tell from the list which handover a rollout came from. The number of working days moved under the target count in the same row: two figures side by side read as one and widened the column.
+
+### Fixed
+- **A package's files were about to be hidden from every client.** The endpoint that lists them did not read each file's kind, so all of them would have been classified as deployer instructions and withheld — including the changelog files that exist to be sent out.
+
+### Migration
+- **Existing deployments are given the release package they should have been planned from** (`010_backfill_deployment_packages.sql`), filled from their own applications, versions, changelog and installer notes, with their attachments moved onto it under the audience the deployment recorded. One package per deployment, marked `ready` because the rollout already happened; deduplicating by version set would have been a guess about which rollouts shared a build. The fixed-issue list stays empty — the deployment never recorded it, and an empty list is the honest answer. Deployments with no applications are skipped, and a deployment that already pointed at a real package keeps its own files.
+
 ## [0.23.0] - 2026-08-12
 
 ### Added

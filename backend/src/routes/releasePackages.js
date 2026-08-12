@@ -11,10 +11,59 @@ import {
   isClient, isInstaller, isTester, clientScope, userScope, requirePackageRole,
 } from '../rbac.js';
 import {
-  normalizePackage, packageRowToObj, nextPackageId,
+  normalizePackage, packageRowToObj, nextPackageId, stripAdminInfoFromPackage,
 } from '../releasePackage.js';
+import { lookupWorkItem, projectTrackerSettings, trackerStatus } from '../trackerService.js';
+import { projectSharesAdminInfo } from '../rbac.js';
 
 const router = Router();
+
+// The files uploaded onto the given packages, keyed by package id. Fetched in one
+// query for the whole list — a package list is read on every page load, and a
+// query per row is what makes that slow.
+async function filesByPackage(ids) {
+  const map = new Map();
+  if (!ids.length) return map;
+  const { rows } = await query(
+    `SELECT id, package_id, filename, kind, mime, byte_size, uploaded_at
+       FROM attachments WHERE package_id = ANY($1::text[])
+      ORDER BY uploaded_at ASC`,
+    [ids]
+  );
+  rows.forEach((r) => {
+    const list = map.get(r.package_id) || [];
+    list.push({
+      id: String(r.id),
+      filename: r.filename,
+      kind: r.kind || 'changelog',
+      mime: r.mime,
+      size: Number(r.byte_size),
+      uploadedAt: r.uploaded_at,
+    });
+    map.set(r.package_id, list);
+  });
+  return map;
+}
+
+// Rows → API objects, with each package's files attached and the deployer-facing
+// half removed for a client account whose project does not share admin info.
+async function shapePackages(req, rows) {
+  const files = await filesByPackage(rows.map((r) => r.id));
+  const objs = rows.map((r) => Object.assign(packageRowToObj(r), { files: files.get(r.id) || [] }));
+  if (!isClient(req)) return objs;
+  // One flag lookup per project, not per package.
+  const shareCache = new Map();
+  const out = [];
+  for (const obj of objs) {
+    let share = shareCache.get(obj.projectKey);
+    if (share === undefined) {
+      share = await projectSharesAdminInfo(obj.projectKey);
+      shareCache.set(obj.projectKey, share);
+    }
+    out.push(share ? obj : stripAdminInfoFromPackage(obj));
+  }
+  return out;
+}
 
 // Project scope for a read. Returns null when the caller sees everything, or an
 // array of project keys (possibly empty — meaning "nothing").
@@ -23,6 +72,38 @@ async function readScope(req) {
   if (isInstaller(req) || isTester(req)) return (await userScope(req)).projects;
   return null; // admin / rm
 }
+
+// GET /api/packages/lookup/:project/:workItemId — read one work item from the
+// project's configured work tracker and return the ids that belong on an issue
+// entry: the service-desk ticket the work item points at, and the office that
+// reported that ticket.
+//
+// Declared before /:id so "lookup" is not read as a package id. It is a read
+// against an external system on behalf of the caller, so it carries the same
+// role and project scope as writing the package the answer ends up on.
+//
+// A failure is a 200 with ok:false, not an error status: the tester types the
+// ticket id by hand in that case, which is exactly what they did before this
+// endpoint existed. Turning an unconfigured project into a 4xx would make the
+// UI treat a normal setup as a fault.
+router.get('/lookup/:project/:workItemId', requirePackageRole, async (req, res) => {
+  const projectKey = req.params.project;
+  if (await forbiddenProject(req, projectKey)) {
+    return res.status(403).json({ error: 'Not permitted for this project' });
+  }
+  const result = await lookupWorkItem(projectKey, req.params.workItemId);
+  res.json(result);
+});
+
+// GET /api/packages/tracker-status/:project — whether the lookup can run at all,
+// so the editor can say "not configured" instead of silently doing nothing. Never
+// returns the PAT or API key.
+router.get('/tracker-status/:project', requirePackageRole, async (req, res) => {
+  if (await forbiddenProject(req, req.params.project)) {
+    return res.status(403).json({ error: 'Not permitted for this project' });
+  }
+  res.json(trackerStatus(await projectTrackerSettings(req.params.project)));
+});
 
 // GET /api/packages — optionally filtered by project or status.
 router.get('/', async (req, res) => {
@@ -46,7 +127,7 @@ router.get('/', async (req, res) => {
     `SELECT * FROM release_packages ${where} ORDER BY created_at DESC`,
     params
   );
-  res.json(rows.map(packageRowToObj));
+  res.json(await shapePackages(req, rows));
 });
 
 router.get('/:id', async (req, res) => {
@@ -58,7 +139,7 @@ router.get('/:id', async (req, res) => {
   // information the caller is not entitled to.
   if (scope && !scope.includes(row.project_key)) return res.status(404).json({ error: 'Not found' });
   if (isClient(req) && row.status !== 'ready') return res.status(404).json({ error: 'Not found' });
-  res.json(packageRowToObj(row));
+  res.json((await shapePackages(req, [row]))[0]);
 });
 
 // A tester may only write within the projects they were granted; admins and
@@ -84,7 +165,11 @@ async function upsert(id, shaped) {
     // package, not who last touched it.
     [id, shaped.projectKey, shaped.name, shaped.status, shaped.createdBy, shaped.data]
   );
-  return packageRowToObj(rows[0]);
+  // Files come back on a write too: the editor replaces its copy of the package
+  // with what was saved, and a response without them would blank the file list
+  // until the next full reload.
+  const files = await filesByPackage([id]);
+  return Object.assign(packageRowToObj(rows[0]), { files: files.get(id) || [] });
 }
 
 // POST /api/packages — create. The id is generated unless one is supplied.

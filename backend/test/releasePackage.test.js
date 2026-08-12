@@ -6,14 +6,15 @@ import assert from 'node:assert/strict';
 import {
   normalizePackage, packageRowToObj, packageChangelogText, nextPackageId,
   packageIssueIds, packageReportingOffices, prioritizeReportingTargets,
-  PACKAGE_STATUSES,
+  isInstructionKind, stripAdminInfoFromPackage, PACKAGE_STATUSES, FILE_KINDS,
+  requestedFileKind, isInstructionFile, visiblePackageFiles,
 } from '../src/releasePackage.js';
 
 function body(extra) {
   return Object.assign({
     projectKey: 'acme-core',
     apps: [{ name: 'core', version: '3.2.0' }],
-    issues: [{ id: '41231', smProblem: 'HALO-1234', office: 'Central branch' }],
+    issues: [{ id: '41231', haloTicket: 'HALO-1234', office: 'Central branch' }],
     changes: 'The login loop after a session timeout is gone.',
   }, extra);
 }
@@ -29,7 +30,7 @@ test('a well-formed package is accepted and shaped', () => {
   assert.equal(r.data.createdBy, 'tester@example.com');
   assert.deepEqual(r.data.data.apps, [{ name: 'core', version: '3.2.0' }]);
   assert.deepEqual(r.data.data.issues, [
-    { id: '41231', smProblem: 'HALO-1234', office: 'Central branch' },
+    { id: '41231', haloTicket: 'HALO-1234', office: 'Central branch' },
   ]);
   assert.equal(r.data.data.changes, 'The login loop after a session timeout is gone.');
 });
@@ -38,19 +39,30 @@ test('a well-formed package is accepted and shaped', () => {
 // so an issue entry carries identifiers only.
 test('an issue carries identifiers only — a per-issue description is not stored', () => {
   const r = normalizePackage(body({
-    issues: [{ id: '41231', description: 'what changed', smProblem: 'HALO-9' }],
+    issues: [{ id: '41231', description: 'what changed', haloTicket: 'HALO-9' }],
   }));
-  assert.deepEqual(r.data.data.issues, [{ id: '41231', smProblem: 'HALO-9' }]);
+  assert.deepEqual(r.data.data.issues, [{ id: '41231', haloTicket: 'HALO-9' }]);
 });
 
 test('an issue with only a work item id keeps the optional fields absent', () => {
-  const r = normalizePackage(body({ issues: [{ id: '41231', smProblem: '  ', office: '' }] }));
+  const r = normalizePackage(body({ issues: [{ id: '41231', haloTicket: '  ', office: '' }] }));
   assert.deepEqual(r.data.data.issues, [{ id: '41231' }]);
 });
 
-test('the SM Problem field is accepted in either casing', () => {
-  const r = normalizePackage(body({ issues: [{ id: '41231', sm_problem: 'HALO-7' }] }));
-  assert.equal(r.data.data.issues[0].smProblem, 'HALO-7');
+// The field is stored as `haloTicket` now. The tracker's own name for it and both
+// casings still parse, so a package stored before the rename — and any caller
+// written against it — keeps working.
+test('the ticket field is accepted under its old names and either casing', () => {
+  for (const issue of [
+    { id: '41231', haloTicket: 'HALO-7' },
+    { id: '41231', halo_ticket: 'HALO-7' },
+    { id: '41231', smProblem: 'HALO-7' },
+    { id: '41231', sm_problem: 'HALO-7' },
+  ]) {
+    const r = normalizePackage(body({ issues: [issue] }));
+    assert.equal(r.data.data.issues[0].haloTicket, 'HALO-7', JSON.stringify(issue));
+    assert.equal(r.data.data.issues[0].smProblem, undefined);
+  }
 });
 
 test('projectKey is required, in either casing', () => {
@@ -101,12 +113,12 @@ test('a bare string issue is accepted', () => {
 test('an issue without an id is dropped, and the ids are stored verbatim', () => {
   const r = normalizePackage(body({
     issues: [
-      { smProblem: 'HALO-1', office: 'no work item id here' },
-      { id: 'halo#42/A', smProblem: 'SM/2026 07', office: 'Tax office Kraków' },
+      { haloTicket: 'HALO-1', office: 'no work item id here' },
+      { id: 'halo#42/A', haloTicket: 'SM/2026 07', office: 'Tax office Kraków' },
     ],
   }));
   assert.deepEqual(r.data.data.issues, [
-    { id: 'halo#42/A', smProblem: 'SM/2026 07', office: 'Tax office Kraków' },
+    { id: 'halo#42/A', haloTicket: 'SM/2026 07', office: 'Tax office Kraków' },
   ]);
 });
 
@@ -119,18 +131,34 @@ test('oversized collections are refused rather than stored', () => {
 
 test('long text is clamped, not rejected', () => {
   const r = normalizePackage(body({
-    issues: [{ id: 'X'.repeat(200), smProblem: 'S'.repeat(200), office: 'o'.repeat(500) }],
+    issues: [{ id: 'X'.repeat(200), haloTicket: 'S'.repeat(200), office: 'o'.repeat(500) }],
     changes: 'c'.repeat(30000),
     notes: 'n'.repeat(5000),
   }));
   assert.equal(r.ok, true);
   assert.equal(r.data.data.issues[0].id.length, 100);
-  assert.equal(r.data.data.issues[0].smProblem.length, 100);
+  assert.equal(r.data.data.issues[0].haloTicket.length, 100);
   assert.equal(r.data.data.issues[0].office.length, 200);
   // The description of the whole release gets far more room than the per-issue
-  // text it replaced.
+  // text it replaced, and the deployer instructions the same — truncating an
+  // install step is worse than storing a long one.
   assert.equal(r.data.data.changes.length, 20000);
   assert.equal(r.data.data.notes.length, 2000);
+  const long = normalizePackage(body({ instructions: 'i'.repeat(30000) }));
+  assert.equal(long.data.data.instructions.length, 20000);
+});
+
+// The instructions describe the build, not the day it goes out, so they are the
+// package's — a deployment shows them read-only from the package it used. They
+// were typed on the deployment as `installerNotes`, which is still accepted so a
+// caller written against that keeps working.
+test('deployer instructions belong to the package, under either name', () => {
+  const r = normalizePackage(body({ instructions: 'Stop the service, then run migrate.' }));
+  assert.equal(r.data.data.instructions, 'Stop the service, then run migrate.');
+  const legacy = normalizePackage(body({ installerNotes: 'Stop the service.' }));
+  assert.equal(legacy.data.data.instructions, 'Stop the service.');
+  // Absent stays absent rather than becoming an empty string in the JSONB.
+  assert.equal(normalizePackage(body()).data.data.instructions, undefined);
 });
 
 test('an explicit id wins over the body id', () => {
@@ -240,4 +268,140 @@ test('ids run sequentially within a year and ignore other years', () => {
   // A gap does not get reused: the highest number wins.
   assert.equal(nextPackageId(['PKG-2026-0001', 'PKG-2026-0007'], 2026), 'PKG-2026-0008');
   assert.equal(nextPackageId(['PKG-2026-oops', null, undefined], 2026), 'PKG-2026-0001');
+});
+
+// ---- File kinds and the client-facing view of a package ----
+//
+// The instructions and the deployer files moved onto the package, so the
+// visibility rule they were subject to on the deployment had to move with them.
+
+test('only the changelog kind is client-facing; anything else is instructions', () => {
+  assert.deepEqual(FILE_KINDS, ['changelog', 'instructions']);
+  assert.equal(isInstructionKind('changelog'), false);
+  assert.equal(isInstructionKind('instructions'), true);
+  // Unrecognised, empty and absent all fall to the narrower audience: a file we
+  // cannot classify must not leak to a client because of a typo or a null.
+  assert.equal(isInstructionKind('Changelog'), true);
+  assert.equal(isInstructionKind('script'), true);
+  assert.equal(isInstructionKind(''), true);
+  assert.equal(isInstructionKind(null), true);
+  assert.equal(isInstructionKind(undefined), true);
+});
+
+test('the client view drops the instructions and their files, keeping the changelog', () => {
+  const pkg = {
+    id: 'PKG-2026-0001',
+    changes: 'The login loop is gone.',
+    instructions: 'Stop the service, then run migration.sql.',
+    files: [
+      { id: '1', filename: 'release-notes.pdf', kind: 'changelog' },
+      { id: '2', filename: 'install.ps1', kind: 'instructions' },
+      { id: '3', filename: 'mystery.bin' },
+    ],
+  };
+  const out = stripAdminInfoFromPackage(pkg);
+  assert.equal('instructions' in out, false);
+  assert.equal(out.changes, 'The login loop is gone.');
+  assert.deepEqual(out.files.map((f) => f.id), ['1']);
+  // The input is not mutated: the same row is also returned unstripped to the
+  // team, and a shared object would have been emptied for everyone.
+  assert.equal(pkg.instructions, 'Stop the service, then run migration.sql.');
+  assert.equal(pkg.files.length, 3);
+});
+
+test('the client view survives a package with no files at all', () => {
+  assert.deepEqual(stripAdminInfoFromPackage({ id: 'PKG-2026-0002' }), { id: 'PKG-2026-0002' });
+  assert.deepEqual(stripAdminInfoFromPackage({ files: null }), { files: null });
+  assert.equal(stripAdminInfoFromPackage(null), null);
+  assert.equal(stripAdminInfoFromPackage('nope'), 'nope');
+});
+
+// What the upload route stores in the `kind` column. The visibility rules below
+// are only as good as this value, so an unknown kind has to land on the
+// client-facing side deliberately rather than by accident: an uploader who does
+// not say what a file is gets the changelog default, and one who says something
+// unrecognised gets it too — but never a third class that no rule covers.
+test('an upload is stored as one of the two known kinds and nothing else', () => {
+  assert.equal(requestedFileKind({ kind: 'instructions' }), 'instructions');
+  assert.equal(requestedFileKind({ kind: 'changelog' }), 'changelog');
+  // The multipart field is sometimes called `type`; casing and padding are the
+  // browser's business, not a new kind.
+  assert.equal(requestedFileKind({ type: 'INSTRUCTIONS' }), 'instructions');
+  assert.equal(requestedFileKind({ kind: '  instructions  ' }), 'instructions');
+  // Anything else is a changelog file, which is the field the form defaults to.
+  assert.equal(requestedFileKind({ kind: 'internal' }), 'changelog');
+  assert.equal(requestedFileKind({ kind: 'instruction' }), 'changelog');
+  assert.equal(requestedFileKind({}), 'changelog');
+  assert.equal(requestedFileKind(null), 'changelog');
+  assert.equal(requestedFileKind(undefined), 'changelog');
+  // Whatever a caller sends — and a multipart field can arrive as an array when
+  // it is repeated — the result is one of the two known kinds. That is the
+  // guarantee the visibility rules rest on; which of the two a repeated field
+  // lands on is not worth defining beyond that.
+  for (const kind of [['instructions'], ['changelog'], 42, true, {}, [], null]) {
+    assert.ok(FILE_KINDS.includes(requestedFileKind({ kind })), JSON.stringify(kind));
+  }
+});
+
+// isInstructionFile is the same rule as isInstructionKind, asked of a database
+// row. The route reads the column through it, so the row shape matters: a SELECT
+// that forgets `kind` yields rows with kind === undefined, which must classify as
+// instructions and hide the file rather than expose one.
+test('a stored row is classified by its kind column, and a missing column hides the file', () => {
+  assert.equal(isInstructionFile({ id: '1', kind: 'changelog' }), false);
+  assert.equal(isInstructionFile({ id: '2', kind: 'instructions' }), true);
+  assert.equal(isInstructionFile({ id: '3' }), true);
+  assert.equal(isInstructionFile(null), true);
+});
+
+// The file-list rule the GET /api/packages/:id/attachments route applies. Kept
+// pure so both halves of it can be checked without a database: who is asking,
+// and whether their project shares deployer material.
+const FILES = [
+  { id: '1', filename: 'release-notes.pdf', kind: 'changelog' },
+  { id: '2', filename: 'install.ps1', kind: 'instructions' },
+  { id: '3', filename: 'mystery.bin' },
+];
+const ids = (list) => list.map((f) => f.id);
+
+test('a team account sees every file on a package, whatever its kind', () => {
+  for (const sharesAdminInfo of [false, true]) {
+    assert.deepEqual(
+      ids(visiblePackageFiles(FILES, { isClient: false, sharesAdminInfo })),
+      ['1', '2', '3'],
+      `sharesAdminInfo=${sharesAdminInfo}`
+    );
+  }
+});
+
+test('a client gets the changelog files only, unless the project shares admin info', () => {
+  assert.deepEqual(ids(visiblePackageFiles(FILES, { isClient: true, sharesAdminInfo: false })), ['1']);
+  // The project policy is an opt-in to showing deployer material, so it restores
+  // the whole list rather than only the instruction files.
+  assert.deepEqual(
+    ids(visiblePackageFiles(FILES, { isClient: true, sharesAdminInfo: true })),
+    ['1', '2', '3']
+  );
+});
+
+// An absent flag must mean "not a client" the same way the route's `isClient(req)`
+// returns false for a request with no role — but an absent *policy* must not read
+// as an opt-in, which is why the client branch is the one that filters.
+test('the narrow answer is the default when the caller is not described', () => {
+  assert.deepEqual(ids(visiblePackageFiles(FILES, {})), ['1', '2', '3']);
+  assert.deepEqual(ids(visiblePackageFiles(FILES)), ['1', '2', '3']);
+  assert.deepEqual(ids(visiblePackageFiles(FILES, { isClient: true })), ['1']);
+});
+
+test('a package with no files, or a non-list, yields an empty list rather than throwing', () => {
+  for (const files of [[], null, undefined, 'nope', { 0: 'x' }]) {
+    assert.deepEqual(visiblePackageFiles(files, { isClient: true }), [], JSON.stringify(files));
+    assert.deepEqual(visiblePackageFiles(files, { isClient: false }), [], JSON.stringify(files));
+  }
+});
+
+test('the stored list is not mutated by the client-facing filter', () => {
+  const files = FILES.map((f) => Object.assign({}, f));
+  visiblePackageFiles(files, { isClient: true, sharesAdminInfo: false });
+  assert.equal(files.length, 3);
 });

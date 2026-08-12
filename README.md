@@ -65,7 +65,26 @@ A deployment is always planned **from a package** — picking one is the first f
 
 Each fixed issue on a package is **identifiers only**: the Azure Boards work item the testers file, the HaloITSM ticket named in that work item's `SM Problem` field, and — when it is known — the office that reported it. What the release actually changes is described **once for the whole package**, in its own section, rather than a line per issue. Both ids are shown to the deployer during the rollout, linked through `ISSUE_TRACKER_URL` / `WORKITEM_URL` when those are configured.
 
+The **deployer instructions and the changelog files also belong to the package**, not to the deployment: they describe the build, so they are written once and every rollout of that build shows the same thing — including the ones planned after a correction. A deployment displays them read-only with a link to the package for whoever may edit it, and keeps only its own changelog *text*, because a release manager may still adjust what one client is sent. Files are uploaded under the audience they are for: a changelog file is client-facing, an instruction file is not, and a file whose kind cannot be read falls to the narrower audience (`visiblePackageFiles` in `backend/src/releasePackage.js`).
+
 The reported offices drive the **rollout order**: `prioritizeReportingTargets` (in `backend/src/releasePackage.js`, mirrored in the UI) moves the production targets named on the package's issues to the front of the generated schedule, matching either a target's code or its label, case-insensitively. The office waiting for the fix should not be the last one to receive it.
+
+### Configuring the work-item lookup
+
+Typing a work item id on a package can fill the HaloITSM ticket and the reporting office in by itself. What it takes to do that is **per project and entered by an administrator** in the project editor, not in the environment — the organisation, the project inside it, the field the ticket id sits in and the service desk's own host all differ per installation, and one RollDesk instance serves several clients:
+
+| Setting | Example | Notes |
+|---|---|---|
+| Work tracker organisation URL | `https://dev.azure.com/org` | Must be `https://`. |
+| Work tracker project | `PiK` | The project inside that organisation. |
+| Ticket field | `Custom.SMProblem` | The work item field carrying the service-desk ticket. Blank falls back to the common reference name. |
+| Personal access token | — | Encrypted at rest and never returned to the browser; an empty box leaves the stored value unchanged. Read-only work-item scope is enough. |
+| Service desk URL | `https://haloitsm.example.com` | Must be `https://`. |
+| Ticket path | `/api/Tickets/{id}` | Must start with `/` and contain `{id}`. |
+| Office field | *(blank)* | Which ticket field names the reporting office. Blank tries the usual keys. |
+| API key | — | Same handling as the PAT. |
+
+The two halves are **independent and both optional**. With only the work tracker configured, an id resolves to its ticket number but no office; with neither, the fields stay manual and nothing else changes. `ISSUE_TRACKER_URL` and `WORKITEM_URL` are separate from all of this — they only turn ids already on a package into links, and are environment-wide because they describe where the reader's browser should go, not what the backend queries.
 
 ---
 
