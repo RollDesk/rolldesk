@@ -180,6 +180,18 @@ export function normalizeTrackerSettings(body) {
     return { ok: false, error: 'The ticket path must start with /' };
   }
 
+  // The browser-facing link to one ticket. Optional: without it the ids are shown
+  // as text, which is what they were before this setting existed.
+  const ticketLinkPath = clamp(b.ticketLinkPath ?? b.ticket_link_path, 500);
+  if (ticketLinkPath) {
+    if (!ticketLinkPath.includes('{id}')) {
+      return { ok: false, error: 'The ticket link must contain the {id} placeholder' };
+    }
+    if (!ticketLinkPath.startsWith('/')) {
+      return { ok: false, error: 'The ticket link must start with /' };
+    }
+  }
+
   return {
     ok: true,
     data: {
@@ -193,6 +205,12 @@ export function normalizeTrackerSettings(body) {
       ticketPath,
       // Blank means "try the usual keys" — see officeFromTicket.
       officeField: clamp(b.officeField ?? b.office_field, 200),
+      // Where a reader is sent when they click a ticket id. Separate from
+      // `ticketPath` (which the backend calls) because a service desk's own web
+      // view is not its API route: HaloITSM opens a ticket inside a saved list,
+      // so the link carries the view's parameters (area, selid, …) and only the
+      // installation knows them. Blank = the id is shown as plain text.
+      ticketLinkPath,
     },
   };
 }
@@ -219,4 +237,31 @@ export function ticketUrl(settings, id) {
   if (!base || !ticketId) return '';
   const path = str(s.ticketPath) || DEFAULT_TICKET_PATH;
   return base + path.replace('{id}', encodeURIComponent(ticketId));
+}
+
+// The two link patterns the UI turns issue ids into, derived from the project's
+// tracker settings. `{id}` is left in place — the browser substitutes it, the
+// same shape as the instance-wide ISSUE_TRACKER_URL/WORKITEM_URL environment
+// settings, so the UI has one code path for both sources.
+//
+// The work item pattern is computed rather than configured: Azure DevOps serves
+// a work item at a fixed route under the organisation and project that are
+// already on file, so asking an admin to type a third URL that must agree with
+// the first two only invites the two to disagree. The ticket link cannot be
+// computed the same way — a service desk's web view is not derivable from its
+// API host — so that one is the setting validated above.
+//
+// Neither is a secret and both are needed to render any package, so they are
+// safe to hand to every reader.
+export function trackerLinkPatterns(settings) {
+  const s = settings || {};
+  const org = normalizeBaseUrl(s.azureOrgUrl);
+  const project = str(s.azureProject);
+  const workItemUrl = (org && project)
+    ? `${org}/${encodeURIComponent(project)}/_workitems/edit/{id}`
+    : '';
+  const deskBase = normalizeBaseUrl(s.haloBaseUrl);
+  const linkPath = str(s.ticketLinkPath);
+  const issueTrackerUrl = (deskBase && linkPath) ? deskBase + linkPath : '';
+  return { workItemUrl, issueTrackerUrl };
 }

@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import {
   parseWorkItemId, normalizeBaseUrl, workItemFromAzure, officeFromTicket,
   normalizeTrackerSettings, azureLookupConfigured, haloLookupConfigured, ticketUrl,
+  trackerLinkPatterns,
   DEFAULT_TICKET_FIELD, DEFAULT_TICKET_PATH, DEFAULT_OFFICE_KEYS,
 } from '../src/tracker.js';
 
@@ -191,6 +192,40 @@ test('a ticket path must be a rooted template containing {id}', () => {
   const r = normalizeTrackerSettings({ ticketPath: '/v2/incidents/{id}/detail' });
   assert.equal(r.ok, true);
   assert.equal(r.data.ticketPath, '/v2/incidents/{id}/detail');
+});
+
+// The link is what a reader clicks, so a template without {id} would send every
+// reader to the same ticket — worse than showing the id as text.
+test('a ticket link is optional but must be a rooted template containing {id}', () => {
+  assert.equal(normalizeTrackerSettings({}).data.ticketLinkPath, '');
+  assert.equal(normalizeTrackerSettings({ ticketLinkPath: '/tickets?id=' }).ok, false);
+  assert.equal(normalizeTrackerSettings({ ticketLinkPath: 'tickets?id={id}' }).ok, false);
+  const r = normalizeTrackerSettings({ ticketLinkPath: '/tickets?area=14&id={id}' });
+  assert.equal(r.ok, true);
+  assert.equal(r.data.ticketLinkPath, '/tickets?area=14&id={id}');
+});
+
+test('the link patterns keep {id} for the browser to substitute', () => {
+  const { workItemUrl, issueTrackerUrl } = trackerLinkPatterns({
+    azureOrgUrl: 'https://dev.azure.com/Org/',
+    azureProject: 'My Project',
+    haloBaseUrl: 'https://sd.example.com/',
+    ticketLinkPath: '/tickets?area=14&id={id}',
+  });
+  // The work item route is fixed, so it is derived rather than configured; the
+  // project name is escaped because it may contain spaces.
+  assert.equal(workItemUrl, 'https://dev.azure.com/Org/My%20Project/_workitems/edit/{id}');
+  assert.equal(issueTrackerUrl, 'https://sd.example.com/tickets?area=14&id={id}');
+});
+
+// A half-configured project must not produce a link to nowhere: the UI reads an
+// empty pattern as "show the id as text".
+test('an incomplete tracker configuration yields no link pattern', () => {
+  assert.deepEqual(trackerLinkPatterns(null), { workItemUrl: '', issueTrackerUrl: '' });
+  // The organisation alone does not say which project the work item is in.
+  assert.equal(trackerLinkPatterns({ azureOrgUrl: 'https://dev.azure.com/Org' }).workItemUrl, '');
+  // The service desk's API host is not its web view, so the path is required.
+  assert.equal(trackerLinkPatterns({ haloBaseUrl: 'https://sd.example.com' }).issueTrackerUrl, '');
 });
 
 test('the ticket URL follows the configured template', () => {

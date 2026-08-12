@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.2] - 2026-08-12
+
+### Added
+- **A work item's title and state are read with it and shown on the issue list.** The lookup already knew what the work item was called and what state it was in, and printed both once in a note next to the row, where they were gone as soon as the editor closed. Both are stored on the issue now and have their own columns: the title appears everywhere the fixed-issue list is — in the package editor as the tester enters the id, in the packages table, and on every deployment planned from the package — and the state is shown in the editor, so reopening a package says what was found rather than nothing. A list of bare numbers said how many things a release fixed but not what any of them were. The stored state is a snapshot of the day the issue was added, not a live value; the id links into the tracker and ⟳ re-reads the row.
+- **The issue ids link into Azure DevOps and the service desk, per project.** The work item link is derived from the organisation and project already on file — one fewer URL to type, and one fewer pair to disagree. The service desk link is a new setting (**Link to one ticket**) because a service desk's web view is not derivable from its API host: HaloITSM opens a ticket inside a saved list, so the address carries that list's own parameters and only the installation knows them. A project's own patterns win over the instance-wide `ISSUE_TRACKER_URL`/`WORKITEM_URL`, so two projects in different organisations both link correctly; a project that configures nothing still falls back to them, and a client account gets the ids as plain text — neither of our trackers is reachable from outside.
+
+### Changed
+- **Packages are listed newest first.** The backend already answered in that order, but a package created during the session was appended to the loaded list, so a tester's own new package appeared at the bottom of the table they created it from until the next reload.
+- **The release package is visible in the deployer panel and the client portal.** The id was only on the deployments list and the deployment page, so the two panels where a rollout is actually worked on and watched showed the versions without saying which handover they came from. It is now under the versions in both lists, and on the deployer's action bar next to the deployment id — read-only there, because a deployer matches the id against the build they were handed and has nothing to change in it. The way through to the package itself stays behind the roles that may open one.
+
 ## [0.24.1] - 2026-08-12
 
 ### Changed

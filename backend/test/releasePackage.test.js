@@ -49,6 +49,41 @@ test('an issue with only a work item id keeps the optional fields absent', () =>
   assert.deepEqual(r.data.data.issues, [{ id: '41231' }]);
 });
 
+// The work item's own title, read by the lookup rather than typed. Stored so the
+// issue list says what each id is without a lookup per row on every page.
+test('an issue keeps the work item title the lookup found', () => {
+  const r = normalizePackage(body({
+    issues: [{ id: '41231', haloTicket: 'HALO-9', title: '  Login loop after a session timeout  ' }],
+  }));
+  assert.deepEqual(r.data.data.issues, [
+    { id: '41231', haloTicket: 'HALO-9', title: 'Login loop after a session timeout' },
+  ]);
+  // A work item with no title stays absent rather than storing an empty string.
+  const blank = normalizePackage(body({ issues: [{ id: '41231', title: '   ' }] }));
+  assert.deepEqual(blank.data.data.issues, [{ id: '41231' }]);
+});
+
+// The state travels with the title for the same reason: reopening the editor has
+// to show what the lookup found rather than an empty column. It is a snapshot of
+// the day the issue was added — the id stays a link so today's value is one click
+// away.
+test('an issue keeps the work item state the lookup found', () => {
+  const r = normalizePackage(body({
+    issues: [{ id: '41231', title: 'Login loop', state: '  Resolved  ' }],
+  }));
+  assert.deepEqual(r.data.data.issues, [
+    { id: '41231', title: 'Login loop', state: 'Resolved' },
+  ]);
+  assert.deepEqual(
+    normalizePackage(body({ issues: [{ id: '41231', state: '  ' }] })).data.data.issues,
+    [{ id: '41231' }]
+  );
+  // A tracker naming its states at length must not push a long string into the
+  // JSONB the list has to lay out.
+  const long = normalizePackage(body({ issues: [{ id: '41231', state: 'S'.repeat(200) }] }));
+  assert.equal(long.data.data.issues[0].state.length, 60);
+});
+
 // The field is stored as `haloTicket` now. The tracker's own name for it and both
 // casings still parse, so a package stored before the rename — and any caller
 // written against it — keeps working.
