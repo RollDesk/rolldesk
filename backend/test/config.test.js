@@ -95,3 +95,31 @@ test('an ISSUE_TRACKER_URL without {id} warns and is dropped rather than linking
 test('an unset ISSUE_TRACKER_URL leaves the issue ids as plain text', async () => {
   for (const empty of ['', '   ']) assert.equal((await loadConfig({ ISSUE_TRACKER_URL: empty })).issueTrackerUrl, '');
 });
+
+// A fixed issue carries two ids — the Azure work item and the HaloITSM ticket in
+// its "SM Problem" field — so there are two patterns, validated the same way and
+// independent of each other.
+test('WORKITEM_URL is a separate pattern from ISSUE_TRACKER_URL', async () => {
+  const config = await loadConfig({
+    ISSUE_TRACKER_URL: 'https://halo.example.com/t?id={id}',
+    WORKITEM_URL: '  https://dev.azure.com/org/proj/_workitems/edit/{id}  ',
+  });
+  assert.equal(config.issueTrackerUrl, 'https://halo.example.com/t?id={id}');
+  assert.equal(config.workItemUrl, 'https://dev.azure.com/org/proj/_workitems/edit/{id}');
+  // One configured and the other not is a normal setup, not a broken one.
+  const halfway = await loadConfig({ ISSUE_TRACKER_URL: 'https://halo.example.com/t?id={id}' });
+  assert.equal(halfway.workItemUrl, '');
+});
+
+test('a WORKITEM_URL without {id} warns about that variable by name', async () => {
+  const warn = console.warn;
+  const warnings = [];
+  console.warn = (msg) => warnings.push(String(msg));
+  try {
+    assert.equal((await loadConfig({ WORKITEM_URL: 'https://dev.azure.com/org/proj' })).workItemUrl, '');
+  } finally {
+    console.warn = warn;
+  }
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /WORKITEM_URL/);
+});

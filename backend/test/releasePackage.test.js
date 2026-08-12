@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   normalizePackage, packageRowToObj, packageChangelogText, nextPackageId,
+  packageIssueIds, packageReportingOffices, prioritizeReportingTargets,
   PACKAGE_STATUSES,
 } from '../src/releasePackage.js';
 
@@ -12,7 +13,8 @@ function body(extra) {
   return Object.assign({
     projectKey: 'acme-core',
     apps: [{ name: 'core', version: '3.2.0' }],
-    issues: [{ id: 'HALO-1234', description: 'Login loop after session timeout' }],
+    issues: [{ id: '41231', smProblem: 'HALO-1234', office: 'Central branch' }],
+    changes: 'The login loop after a session timeout is gone.',
   }, extra);
 }
 
@@ -27,8 +29,28 @@ test('a well-formed package is accepted and shaped', () => {
   assert.equal(r.data.createdBy, 'tester@example.com');
   assert.deepEqual(r.data.data.apps, [{ name: 'core', version: '3.2.0' }]);
   assert.deepEqual(r.data.data.issues, [
-    { id: 'HALO-1234', description: 'Login loop after session timeout' },
+    { id: '41231', smProblem: 'HALO-1234', office: 'Central branch' },
   ]);
+  assert.equal(r.data.data.changes, 'The login loop after a session timeout is gone.');
+});
+
+// The description used to live per issue; it is now one block for the package,
+// so an issue entry carries identifiers only.
+test('an issue carries identifiers only — a per-issue description is not stored', () => {
+  const r = normalizePackage(body({
+    issues: [{ id: '41231', description: 'what changed', smProblem: 'HALO-9' }],
+  }));
+  assert.deepEqual(r.data.data.issues, [{ id: '41231', smProblem: 'HALO-9' }]);
+});
+
+test('an issue with only a work item id keeps the optional fields absent', () => {
+  const r = normalizePackage(body({ issues: [{ id: '41231', smProblem: '  ', office: '' }] }));
+  assert.deepEqual(r.data.data.issues, [{ id: '41231' }]);
+});
+
+test('the SM Problem field is accepted in either casing', () => {
+  const r = normalizePackage(body({ issues: [{ id: '41231', sm_problem: 'HALO-7' }] }));
+  assert.equal(r.data.data.issues[0].smProblem, 'HALO-7');
 });
 
 test('projectKey is required, in either casing', () => {
@@ -62,23 +84,29 @@ test('ready requires at least one issue', () => {
   assert.equal(normalizePackage(body({ issues: [] })).ok, true);
 });
 
-test('a bare string issue is accepted', () => {
-  const r = normalizePackage(body({ issues: ['HALO-1', ' HALO-2 ', '', null] }));
-  assert.deepEqual(r.data.data.issues, [
-    { id: 'HALO-1', description: '' },
-    { id: 'HALO-2', description: '' },
-  ]);
+// A ready package fills the deployment changelog, so an empty description would
+// be what the client is sent.
+test('ready also requires a description of the changes', () => {
+  const r = normalizePackage(body({ status: 'ready', changes: '   ' }));
+  assert.equal(r.ok, false);
+  assert.match(r.error, /changes/);
+  assert.equal(normalizePackage(body({ changes: '' })).ok, true);
 });
 
-test('an issue without an id is dropped, and the id is stored verbatim', () => {
+test('a bare string issue is accepted', () => {
+  const r = normalizePackage(body({ issues: ['41231', ' 41232 ', '', null] }));
+  assert.deepEqual(r.data.data.issues, [{ id: '41231' }, { id: '41232' }]);
+});
+
+test('an issue without an id is dropped, and the ids are stored verbatim', () => {
   const r = normalizePackage(body({
     issues: [
-      { description: 'no id here' },
-      { id: 'halo#42/A', description: 'odd but valid tracker id' },
+      { smProblem: 'HALO-1', office: 'no work item id here' },
+      { id: 'halo#42/A', smProblem: 'SM/2026 07', office: 'Tax office Kraków' },
     ],
   }));
   assert.deepEqual(r.data.data.issues, [
-    { id: 'halo#42/A', description: 'odd but valid tracker id' },
+    { id: 'halo#42/A', smProblem: 'SM/2026 07', office: 'Tax office Kraków' },
   ]);
 });
 
@@ -91,12 +119,17 @@ test('oversized collections are refused rather than stored', () => {
 
 test('long text is clamped, not rejected', () => {
   const r = normalizePackage(body({
-    issues: [{ id: 'X'.repeat(200), description: 'y'.repeat(5000) }],
+    issues: [{ id: 'X'.repeat(200), smProblem: 'S'.repeat(200), office: 'o'.repeat(500) }],
+    changes: 'c'.repeat(30000),
     notes: 'n'.repeat(5000),
   }));
   assert.equal(r.ok, true);
   assert.equal(r.data.data.issues[0].id.length, 100);
-  assert.equal(r.data.data.issues[0].description.length, 2000);
+  assert.equal(r.data.data.issues[0].smProblem.length, 100);
+  assert.equal(r.data.data.issues[0].office.length, 200);
+  // The description of the whole release gets far more room than the per-issue
+  // text it replaced.
+  assert.equal(r.data.data.changes.length, 20000);
   assert.equal(r.data.data.notes.length, 2000);
 });
 
@@ -127,18 +160,77 @@ test('packageRowToObj puts the lifted columns back on the JSONB', () => {
   assert.equal(packageRowToObj({ id: 'X', data: 'oops' }).id, 'X');
 });
 
-test('the changelog text lists one issue per line', () => {
+// The changelog also travels outside the app (the .txt export, the client
+// e-mail), where the rendered issue table is not there to carry the ids.
+test('the changelog text is the description with the ticket ids underneath', () => {
   assert.equal(
     packageChangelogText({
-      issues: [
-        { id: 'HALO-1', description: 'Fixed the login loop' },
-        { id: 'HALO-2', description: '' },
-      ],
+      changes: 'The login loop is gone.',
+      issues: [{ id: '41231' }, { id: '41232' }],
     }),
-    'HALO-1 — Fixed the login loop\nHALO-2'
+    'The login loop is gone.\n\n41231, 41232'
   );
+  // Either half alone still produces usable text.
+  assert.equal(packageChangelogText({ changes: 'Only prose.' }), 'Only prose.');
+  assert.equal(packageChangelogText({ issues: [{ id: '41231' }] }), '41231');
   assert.equal(packageChangelogText(null), '');
   assert.equal(packageChangelogText({ issues: 'nope' }), '');
+});
+
+test('the issue ids keep the order the test team listed them in', () => {
+  assert.deepEqual(
+    packageIssueIds({ issues: [{ id: '41232' }, { id: '' }, null, { id: '41231' }] }),
+    ['41232', '41231']
+  );
+  assert.deepEqual(packageIssueIds(null), []);
+});
+
+test('reporting offices are deduplicated case-insensitively, keeping the first spelling', () => {
+  assert.deepEqual(
+    packageReportingOffices({
+      issues: [
+        { id: '1', office: 'Tax office Kraków' },
+        { id: '2', office: 'tax office kraków' },
+        { id: '3' },
+        { id: '4', office: 'Tax office Gdańsk' },
+      ],
+    }),
+    ['Tax office Kraków', 'Tax office Gdańsk']
+  );
+  assert.deepEqual(packageReportingOffices(null), []);
+});
+
+// The office waiting for the fix should not be the last one to receive it.
+test('the reporting offices are moved to the front of the rollout order', () => {
+  const targets = [
+    { code: 'GD-01', label: 'Tax office Gdańsk' },
+    { code: 'WA-01', label: 'Tax office Warszawa' },
+    { code: 'KR-01', label: 'Tax office Kraków' },
+  ];
+  // Matched by label, case-insensitively.
+  assert.deepEqual(
+    prioritizeReportingTargets(targets, ['tax office kraków']).map((t) => t.code),
+    ['KR-01', 'GD-01', 'WA-01']
+  );
+  // ...or by code, because the ticket may name either.
+  assert.deepEqual(
+    prioritizeReportingTargets(targets, ['WA-01']).map((t) => t.code),
+    ['WA-01', 'GD-01', 'KR-01']
+  );
+  // Two reporters keep their relative order, and so does everything else.
+  assert.deepEqual(
+    prioritizeReportingTargets(targets, ['KR-01', 'GD-01']).map((t) => t.code),
+    ['GD-01', 'KR-01', 'WA-01']
+  );
+  // An office nobody registered as a target changes nothing, and neither does
+  // an empty list — the original order is returned untouched.
+  assert.deepEqual(
+    prioritizeReportingTargets(targets, ['Somewhere else']).map((t) => t.code),
+    ['GD-01', 'WA-01', 'KR-01']
+  );
+  assert.deepEqual(prioritizeReportingTargets(targets, []).map((t) => t.code),
+    ['GD-01', 'WA-01', 'KR-01']);
+  assert.deepEqual(prioritizeReportingTargets(null, ['KR-01']), []);
 });
 
 test('ids run sequentially within a year and ignore other years', () => {

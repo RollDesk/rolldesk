@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.0] - 2026-08-12
+
+### Added
+- **The HaloITSM ticket behind each fix is on screen during the rollout.** A fixed issue on a release package now carries the id of the Azure Boards work item the testers file *and* the ticket named in that work item's `SM Problem` field — the service-desk case the fix actually answers. The deployer sees the ticket id, not only an internal work item number, which is what they are asked about when an office calls to check whether its report went out. `WORKITEM_URL` links the work item the way `ISSUE_TRACKER_URL` already links the ticket; both are patterns with an `{id}` placeholder and both are optional.
+- **The offices that reported the fixes are rolled out to first.** An issue can name the office that reported it, and the generated schedule moves those production targets to the front of the order. Matching accepts a target's code or its label, case-insensitively, because a ticket names whichever the reporter used. The office waiting for a fix should not be the last one to receive it, which is what an alphabetical or as-entered order routinely made it.
+- **A separate "Changes in this release" section on a package.** What the release contains is described once for the whole package, in its own field with room for real text.
+
+### Changed
+- **A package's issue list is identifiers only.** The per-issue description is gone: it produced a wall of half-sentences that read worse than one paragraph, and it duplicated what the tracker already holds. The issue table is now three columns — service-desk ticket, work item, reporting office — and the prose lives in the new changes section. A package marked **ready** must have both a non-empty issue list and a description of its changes; API clients sending a per-issue `description` have it dropped rather than stored.
+- **A deployment is planned from a package, and only from a package.** The manual path — ticking applications and typing versions into the schedule form — is removed, along with the version-format and pick-an-application validation that existed only to guard it. Picking a package is now a required field, and the application list below it is read-only and derived, still warning where a version is older than or the same as what the target already runs. What gets installed is what was tested; the two could previously drift with nothing in the app noticing.
+
+### Removed
+- **The "is this change required by law?" question.** It was asked on every new deployment and answered the same way almost every time, and the red `§ LEGAL` badge it drove ended up on rollouts where it carried no information. Whether a statutory deadline applies is now part of the release description, where the reasoning can be stated instead of a boolean.
+
 ## [0.22.0] - 2026-08-11
 
 ### Added

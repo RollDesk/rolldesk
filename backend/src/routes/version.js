@@ -21,10 +21,12 @@ router.get('/', async (_req, res) => {
     // means "follow my own UI language". This endpoint carries it because the UI
     // already calls it right after sign-in, before any event can be dispatched.
     notifyLang: config.notifyLang || undefined,
-    // Link pattern for the issue ids listed on a release package ({id} is
-    // substituted). Carried here for the same reason as notifyLang: the UI has
-    // this response before it renders any package or deployment.
+    // Link patterns for the two ids a fixed issue carries ({id} is substituted):
+    // the HaloITSM ticket and the Azure work item. Carried here for the same
+    // reason as notifyLang: the UI has this response before it renders any
+    // package or deployment.
     issueTrackerUrl: config.issueTrackerUrl || undefined,
+    workItemUrl: config.workItemUrl || undefined,
     // Present only when the last attempt failed; the UI turns this into a
     // tooltip so "latest unknown" says why (rate limit vs. no network).
     error: state.error || undefined,

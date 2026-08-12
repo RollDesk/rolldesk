@@ -68,9 +68,11 @@ services:
       # Language outgoing notifications are written in ('pl' | 'en'); empty means
       # each one inherits the UI language of whoever triggered it.
       NOTIFY_LANG: ${NOTIFY_LANG:-pl}
-      # Issue-tracker link pattern for the ids listed on a release package.
-      # {id} is where the ticket id goes; empty means the ids stay plain text.
+      # Link patterns for the two ids on a fixed issue: the HaloITSM ticket from
+      # the work item's "SM Problem" field, and the Azure Boards work item itself.
+      # {id} is where the id goes; empty means that id stays plain text.
       ISSUE_TRACKER_URL: ${ISSUE_TRACKER_URL:-}
+      WORKITEM_URL: ${WORKITEM_URL:-}
       # Encryption key for stored SSO/OIDC client secrets (AES-256-GCM).
       SSO_ENC_KEY: ${SSO_ENC_KEY:-}
       CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
