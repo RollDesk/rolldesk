@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.2] - 2026-08-13
+
+### Changed
+- **The packages list shows what a release changes, under the issues it fixes.** The column held identifiers and nothing else, which said how many things a release touched but not what it was — and now that the issue list is optional, that column was simply empty on the releases nobody filed a ticket for. The description of the changes is shown beneath the issues in the same column, as a preview with the whole text on hover, so the table answers "what is in this package" without opening the editor. The column is called **Fixed issues and changes**.
+- **One button leads to the builds instead of a link after every version.** A release is normally one folder holding every installer, so the same address was repeated after each application — a stack of identical "build" links that crowded out the versions themselves. **Get the builds** appears once under the versions: it goes straight to the address when the applications share one, and opens a menu naming each application when a release really is spread over several. A network share still copies rather than pretending to be a link.
+
 ## [0.25.1] - 2026-08-13
 
 ### Changed

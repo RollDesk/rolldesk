@@ -1866,7 +1866,7 @@
             <th data-i18n="pkg.thId">ID</th>
             <th data-i18n="pkg.thProject">Project</th>
             <th data-i18n="pkg.thApps">Applications and versions</th>
-            <th data-i18n="pkg.thIssues">Fixed issues</th>
+            <th data-i18n="pkg.thIssues">Fixed issues and changes</th>
             <th data-i18n="pkg.thStatus">Status</th>
             <th></th>
           </tr></thead>
@@ -2743,11 +2743,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.25.1"></script>
-<script src="i18n/en.js?v=0.25.1"></script>
+<script src="i18n/pl.js?v=0.25.2"></script>
+<script src="i18n/en.js?v=0.25.2"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.25.1';
+  const ROLLDESK_VERSION = '0.25.2';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -5451,15 +5451,80 @@
       </div>`;
     }).join('');
   }
-  // The applications of a package on the packages list, each with the way to its
-  // build — so whoever typed the address can see it took.
+  // The applications of a package on the packages list, with one control leading
+  // to the builds rather than a link repeated after every version — see
+  // packageBuildsButtonHtml.
   function packageAppsCellHtml(pkg){
     const apps = packageApps(pkg);
     if(!apps.length) return '<span style="color:var(--text-faint);">—</span>';
-    return apps.map(a=>{
-      const build = buildLinkHtml(a);
-      return `<div>${escapeHtml(a.name)} <span class="mono">v${escapeHtml(a.version||'')}</span>${build ? ' · ' + build : ''}</div>`;
+    const rows = apps.map(a=>
+      `<div>${escapeHtml(a.name)} <span class="mono">v${escapeHtml(a.version||'')}</span></div>`
+    ).join('');
+    const builds = packageBuildsButtonHtml(pkg);
+    return rows + (builds ? `<div style="margin-top:5px;">${builds}</div>` : '');
+  }
+  // The builds of a package as a single button instead of one link per version. A
+  // release is normally one folder holding every installer, so the same address
+  // was repeated after each row — a column of identical "build" links that said
+  // nothing and crowded out the versions themselves. One button leads to them:
+  // straight to the address when the applications share it, and through a menu
+  // naming each application when a release really is spread over several.
+  function packageBuildsButtonHtml(pkg){
+    const apps = packageApps(pkg).filter(a=>String((a && a.url) || '').trim());
+    if(!apps.length) return '';
+    const label = t('pkg.getBuilds');
+    const urls = Array.from(new Set(apps.map(a=>String(a.url).trim())));
+    if(urls.length === 1) return buildActionHtml(urls[0], label);
+    const menuId = 'pkg-builds-' + String((pkg && pkg.id) || '').replace(/[^A-Za-z0-9_-]/g, '');
+    const items = apps.map(a=>{
+      const url = String(a.url).trim();
+      const name = `${a.name} v${a.version || ''}`;
+      return `<button type="button" class="row-menu-item" role="menuitem" title="${escapeHtml(url)}"
+        onclick="closeRowMenus(); ${buildActionCall(url)}">
+        <span class="rm-ic" aria-hidden="true">⤓</span>${escapeHtml(name)}
+      </button>`;
     }).join('');
+    return `<span class="row-menu">
+      <button type="button" class="mini-btn" id="${menuId}-btn" aria-haspopup="true" aria-expanded="false"
+        style="font-size:10.5px; padding:2px 7px;" onclick="event.stopPropagation(); toggleRowMenu('${menuId}')">⤓ ${escapeHtml(label)} <span aria-hidden="true">▾</span></button>
+      <div class="row-menu-list" id="${menuId}" role="menu" hidden onclick="event.stopPropagation();">${items}</div>
+    </span>`;
+  }
+  // What a click on a build address does: open it, or — for a share, which a
+  // browser cannot navigate to — put it on the clipboard.
+  function buildActionCall(url){
+    const encoded = escapeHtml(encodeURIComponent(url));
+    return /^https?:\/\//i.test(url) ? `openBuildUrl('${encoded}')` : `copyBuildPath('${encoded}')`;
+  }
+  // A single build address as a button. Rendered as a real link when it is one, so
+  // it can be opened in a new tab the way any other link can.
+  function buildActionHtml(url, label){
+    const style = 'font-size:10.5px; padding:2px 7px; text-decoration:none;';
+    if(!/^https?:\/\//i.test(url)){
+      return `<button type="button" class="mini-btn" style="${style}" title="${escapeHtml(url)}"
+        onclick="event.stopPropagation(); ${buildActionCall(url)}">⤓ ${escapeHtml(label)}</button>`;
+    }
+    return `<a class="mini-btn" href="${escapeHtml(url)}" target="_blank" rel="noopener" style="${style}"
+      title="${escapeHtml(url)}" onclick="event.stopPropagation();">⤓ ${escapeHtml(label)}</a>`;
+  }
+  function openBuildUrl(encoded){
+    const url = decodeURIComponent(encoded || '');
+    if(url) window.open(url, '_blank', 'noopener');
+  }
+  // The release description under the issues it fixes, in the same column. The two
+  // answer one question — what is in this package — and the description is the
+  // half that reads as a sentence, so having to open the editor for it was wrong.
+  // Collapsed to a preview because it runs to pages; the full text is the tooltip,
+  // and the editor has it whole.
+  function packageChangesCellHtml(pkg, afterIssues){
+    const full = String((pkg && pkg.changes) || '').trim();
+    if(!full) return '';
+    const oneLine = full.replace(/\s+/g, ' ');
+    const short = oneLine.length > 200 ? oneLine.slice(0, 200).replace(/\s+\S*$/, '') + '…' : oneLine;
+    const sep = afterIssues
+      ? 'margin-top:6px; padding-top:5px; border-top:1px solid var(--line-soft);'
+      : '';
+    return `<div style="${sep} font-size:11.5px; color:var(--text-muted);" title="${escapeHtml(full)}">📝 ${escapeHtml(short)}</div>`;
   }
   // The builds a deployment needs, as chips on the deployer's action bar. The row
   // already lists them under the versions, but the bar is where the deployer works
@@ -5575,7 +5640,7 @@
       // into Azure DevOps, the Halo ticket into the service desk, and the title
       // says what the entry is — a row of numbers alone made the list unusable
       // without opening every one of them.
-      const issueCell = issues.length
+      const issuesPart = issues.length
         ? issues.slice(0, 3).map(i=>{
             const halo = issueHaloTicket(i);
             // Both ids at the same weight here, unlike on a deployment: this is
@@ -5589,7 +5654,13 @@
             return `<div style="margin-bottom:3px;">${ids}${title}</div>`;
           }).join('') +
           (issues.length > 3 ? `<span style="font-size:11px; color:var(--text-muted);">${tf('pkg.andMore', {n: issues.length - 3})}</span>` : '')
-        : '<span style="color:var(--text-faint);">—</span>';
+        : '';
+      // The issues and the description of the release, stacked in one column: a
+      // package with no issue listed is now normal (the list is optional), so a
+      // column that only held ids would have been empty on those rows while the
+      // text saying what the release is sat out of sight in the editor.
+      const contentCell = (issuesPart + packageChangesCellHtml(p, !!issuesPart))
+        || '<span style="color:var(--text-faint);">—</span>';
       const usedBy = DEPLOYMENTS_DATA.filter(d=>d && d.packageId === p.id).length;
       const usedLine = usedBy
         ? `<div style="font-size:11px; color:var(--text-muted); margin-top:3px;">${tf('pkg.usedBy', {n: usedBy})}</div>`
@@ -5603,7 +5674,7 @@
         <td><span class="mono" style="font-size:12px; font-weight:700;">${escapeHtml(p.id)}</span>${p.name ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">${escapeHtml(p.name)}</div>` : ''}${usedLine}</td>
         <td style="font-size:12.5px;">${escapeHtml(projName)}</td>
         <td style="font-size:12.5px;">${packageAppsCellHtml(p)}</td>
-        <td>${issueCell}</td>
+        <td>${contentCell}</td>
         <td>${packageStatusBadgeHtml(p.status)}</td>
         <td style="white-space:nowrap; text-align:right;">${actions}</td>
       </tr>`;
