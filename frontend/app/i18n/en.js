@@ -232,7 +232,6 @@ window.RD_I18N.en = {
   "pkg.errNeedApp": "Give at least one application with a version.",
   "pkg.errAppVersion": "Every application needs a name and a version.",
   "pkg.errIssueId": "Every issue needs a tracker id.",
-  "pkg.errReadyNoIssues": "A package marked ready must list at least one issue.",
   "sch.package": "Release package",
   "sch.packageNote": "A package prepared by the test team. The applications, their versions and the changelog all come from it — a deployment is planned from a package and nothing else. The deployment keeps only a reference to the package, so a fix added to its list later also reaches the client.",
   "sch.packagePick": "Pick a release package…",

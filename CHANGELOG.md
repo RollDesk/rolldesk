@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.1] - 2026-08-13
+
+### Changed
+- **A package can be marked ready without listing a fixed issue.** Marking a package ready was refused until at least one work item was on the list, which blocked the releases that carry work no tracker item was ever filed for — a configuration change, a rebuild, a delivery agreed over a call. What makes a package ready is still the description of the changes, because that is the text the client is sent as the deployment's changelog; the issue list is now what it always was in practice, a reference for the deployer.
+
 ## [0.25.0] - 2026-08-12
 
 ### Added

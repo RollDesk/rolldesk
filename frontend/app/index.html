@@ -2743,11 +2743,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.25.0"></script>
-<script src="i18n/en.js?v=0.25.0"></script>
+<script src="i18n/pl.js?v=0.25.1"></script>
+<script src="i18n/en.js?v=0.25.1"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.25.0';
+  const ROLLDESK_VERSION = '0.25.1';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -5960,8 +5960,6 @@
     if(!apps.length) errs.push({label:t('pkg.apps'), msg:t('pkg.errNeedApp')});
     if(apps.some(a=>!a.name || !a.version)) errs.push({label:t('pkg.apps'), msg:t('pkg.errAppVersion')});
     if(issues.some(i=>!i.id)) errs.push({label:t('pkg.issues'), msg:t('pkg.errIssueId')});
-    // The backend refuses this too; catching it here says which field to fix.
-    if(status === 'ready' && !issues.length) errs.push({label:t('pkg.issues'), msg:t('pkg.errReadyNoIssues')});
     // A ready package fills the deployment changelog, and an empty changelog is
     // what the client would then be sent.
     if(status === 'ready' && !changes) errs.push({id:'package-changes-input', label:t('pkg.secChanges'), msg:t('pkg.errReadyNoChanges')});

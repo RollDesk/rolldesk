@@ -149,11 +149,12 @@ test('status falls back to draft and only known values are kept', () => {
   assert.equal(normalizePackage(body({ status: 'shipped' })).data.status, 'draft');
 });
 
-test('ready requires at least one issue', () => {
+// A release can carry work no tracker item was filed for, so the issue list is
+// not what makes a package ready — the description of the changes is.
+test('ready does not require an issue', () => {
   const r = normalizePackage(body({ status: 'ready', issues: [] }));
-  assert.equal(r.ok, false);
-  assert.match(r.error, /ready/);
-  // The same package as a draft is fine — the test team fills the list in later.
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.data.data.issues, []);
   assert.equal(normalizePackage(body({ issues: [] })).ok, true);
 });
 
