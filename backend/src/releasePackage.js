@@ -122,12 +122,9 @@ export function normalizePackage(body, { id, createdBy } = {}) {
 
   const status = PACKAGE_STATUSES.includes(str(b.status)) ? str(b.status) : 'draft';
   // 'ready' is what a release manager may pick, so it must not be claimable for
-  // a package that does not yet say what it fixes. Both halves are required:
-  // the ids the deployer works from, and the description the client is sent as
-  // the deployment's changelog.
-  if (status === 'ready' && !issues.length) {
-    return { ok: false, error: 'A package cannot be marked ready with no issues listed' };
-  }
+  // a package that does not say what it changes — that text is sent to the client
+  // as the deployment's changelog. The issue list is not required: a release can
+  // carry work that no tracker item was filed for, and the description covers it.
   if (status === 'ready' && !changes) {
     return { ok: false, error: 'A package cannot be marked ready without describing its changes' };
   }

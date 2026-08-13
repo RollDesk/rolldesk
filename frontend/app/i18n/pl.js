@@ -232,7 +232,6 @@ window.RD_I18N.pl = {
   "pkg.errNeedApp": "Podaj co najmniej jedną aplikację z wersją.",
   "pkg.errAppVersion": "Każda aplikacja musi mieć nazwę i wersję.",
   "pkg.errIssueId": "Każdy błąd musi mieć identyfikator zgłoszenia.",
-  "pkg.errReadyNoIssues": "Pakiet oznaczony jako gotowy musi mieć wypisany co najmniej jeden błąd.",
   "sch.package": "Pakiet wdrożeniowy",
   "sch.packageNote": "Pakiet przygotowany przez zespół testowy. To z niego pochodzą aplikacje, wersje i lista zmian — wdrożenie planuje się wyłącznie na podstawie pakietu. Wdrożenie zapamiętuje tylko odwołanie do pakietu, więc późniejsza poprawka na jego liście też trafi do klienta.",
   "sch.packagePick": "Wybierz pakiet wdrożeniowy…",
