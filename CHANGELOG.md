@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.26.0] - 2026-08-17
+
+### Added
+- **A release package announces itself.** Nothing was sent when a package was created or handed over, so whoever plans the rollout learnt about a release by opening the app and looking — and a package could sit ready for days with nobody asked to schedule it. Two events join the notification catalogue, **Release package created** and **Release package ready to deploy**, routed through the same per-client webhooks as the deployment events. The ready one names the applications and versions, the number of issues, who assembled it, the description of the changes, and closes with the request to plan the rollout. Only the transitions notify: editing a draft, or saving a ready package again, stays silent.
+- **Applications can be added to a deployment that is already scheduled.** The editor only offered a version box per application, so a schedule generated with an application missing — the package has it, whoever planned the rollout did not tick it — had to be deleted and planned again. The dialog now lists the applications of the package and of the project that are not on the deployment yet, adds them with the tested version filled in, and removes the ones that do not belong (never the last one: a deployment has to install something). What changed is recorded in the audit trail and on the deployment's timeline, as with every other edit here.
+
+### Fixed
+- **An application added to a project survives a refresh.** The application appeared in the table and in the audit trail, but the project was never saved, so the entry existed only in the browser tab that added it and was gone on the next reload. Renaming one had the same fate.
+- **A comment on a deployment reaches the Teams channel.** Every event added to the catalogue after a webhook was saved was silently muted for that webhook: a missing entry in its event map was read as "off", and only re-saving the client could have filled it in. A missing entry now means what `defaultEventMap()` always intended — enabled — so comments, status corrections and any future event reach the webhooks that were configured before they existed. Only an explicitly unticked event stays quiet.
+- **A deployment that needs no client approval says so.** An internal rollout, or one in a project that waived sign-off, showed the approval control defaulting to "awaiting approval", and the only way to make the row read correctly was to record an approval the client was never asked for. Those deployments now show **No approval needed** in the deployments list and in the deployer panel, and their timeline no longer claims a request was sent.
+- **"Clear all" clears the filters.** The button was rendered with its handler written in double quotes inside a double-quoted attribute, which ended the attribute early — so in the deployer panel, the deployments list, the client portal and the change history, pressing it did nothing at all.
+- **Filters reset when a view is re-entered.** Filters set in the deployer panel (or the deployments list, client portal, change history, packages) survived a trip to another tab, so coming back showed a table hiding most of its rows with nothing on screen explaining why. Entering a view now starts from its defaults; sorting and the open record are left alone, and a link to one deployment still widens the filters to show it.
+- **A test-only deployment cannot be narrowed to production targets.** Choosing "Test environment only" left **Deploy to selected production targets only** on screen and ticked, so the deployment ended up carrying a list of offices it never touches. The field is hidden on that path and any picked scope is dropped.
+
 ## [0.25.3] - 2026-08-17
 
 ### Fixed

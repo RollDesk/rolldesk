@@ -2622,9 +2622,13 @@
 <div id="edit-dep-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(20,24,30,0.45); z-index:1001; align-items:center; justify-content:center;">
   <div class="card" style="max-width:560px; width:94%; background:var(--paper-alt, #fff); max-height:90vh; overflow-y:auto;">
     <div style="font-weight:600; font-size:14px; margin-bottom:4px;" data-i18n="editdep.title">Edit the planned deployment</div>
-    <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:14px;" data-i18n="editdep.help">Release managers and administrators can adjust the version, start time and changelog of a deployment that has not finished yet. The deployer instructions and the files belong to the release package — they are corrected there.</div>
+    <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:14px;" data-i18n="editdep.help">Release managers and administrators can adjust the applications and their versions, the start time and the changelog of a deployment that has not finished yet. The deployer instructions and the files belong to the release package — they are corrected there.</div>
     <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" data-i18n="editdep.versions">Application versions</label>
-    <div id="edit-dep-versions" style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;"></div>
+    <div id="edit-dep-versions" style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;"></div>
+    <!-- A schedule is often generated with an application missing (the package has
+         it, whoever planned the rollout did not tick it). Re-planning the whole
+         deployment for that is out of proportion, so the list is editable here. -->
+    <div id="edit-dep-add-row" style="margin-bottom:14px;"></div>
     <!-- A start is one moment, so it is one control. A batch rollout has no single
          start date — its days live in the schedule table — so it keeps a time. -->
     <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" id="edit-dep-start-label" data-i18n="editdep.start">Start</label>
@@ -2743,11 +2747,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.25.3"></script>
-<script src="i18n/en.js?v=0.25.3"></script>
+<script src="i18n/pl.js?v=0.26.0"></script>
+<script src="i18n/en.js?v=0.26.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.25.3';
+  const ROLLDESK_VERSION = '0.26.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -3449,6 +3453,21 @@
     return (p && p.approvalPolicy) || 'one-approval';
   }
 
+  // Whether a client decision is part of this deployment's life at all. An
+  // internal deployment is never shown to the client, and a project can waive
+  // sign-off entirely, so those records have nothing to await — showing them as
+  // "awaiting approval" only invited someone to record an approval that never
+  // happened. An already-recorded decision always counts, whatever the current
+  // project settings say.
+  function approvalExpectedFor(r){
+    if(!r) return false;
+    if(r.clientApproval) return true;
+    if(r.internal) return false;
+    const p = PROJECTS[r.projectKey];
+    if(approvalPolicyFor(p) === 'none') return false;
+    return r.env === 'Production' || !!(p && p.testNeedsApproval);
+  }
+
   const ROLE_INFO = {
     admin:     {label:'Administrator',   desc:'Manages the whole system and defines permissions — the only role that can add and edit users.', color:'#6B21A8', bg:'#F1E9FB'},
     rm:        {label:'Release Manager', desc:'Plans and changes schedules, manages projects and applications.', color:'#0A6E7A', bg:'var(--cyan-soft)'},
@@ -3752,6 +3771,10 @@
     {key:'correction', label:'Installation status corrected'},
     {key:'dayReport', label:'Daily installation status'},
     {key:'completed', label:'Deployment completed (with status)'},
+    // A package is where a release starts, and nobody was told about one: whoever
+    // plans the rollout learnt of a handover by opening the app and looking.
+    {key:'packageCreated', label:'Release package created'},
+    {key:'packageReady',   label:'Release package handed over for deployment'},
   ];
   function defaultEventMap(){
     const m = {};
@@ -3769,8 +3792,13 @@
   function notifyRecipientsFor(eventKey, projectKey){
     const c = clientForProject(projectKey);
     // Full webhook targets ({url,name}) enabled for this event on the client.
+    // A key missing from the map means "not answered yet", not "off": a webhook
+    // saved before an event existed in the catalogue has no entry for it, and
+    // requiring one silently muted every event added later (the comment event
+    // reached nobody for exactly that reason). New events follow
+    // `defaultEventMap()` and start enabled; only an explicit `false` mutes them.
     const targets = ((c && c.webhooks) || [])
-      .filter(w=>w.enabled && w.url && w.events && w.events[eventKey])
+      .filter(w=>w.enabled && w.url && (!w.events || w.events[eventKey] !== false))
       .map(w=>({url:w.url, name:w.name || 'webhook'}));
     const webhooks = targets.map(w=>w.name); // names only, for summary text
     // Opt-in per-project post-deployment e-mail (used for completion events).
@@ -3874,6 +3902,28 @@
     return facts.length ? head + '\n' + facts.join(' · ') : head;
   }
 
+  // Body of the two package events. Same shape as a schedule notification — id
+  // and project, then the facts on one line — because both are read in the same
+  // Teams channel. A handed-over package adds what the reader is expected to do
+  // with it: plan the rollout.
+  function buildPackageNotifBody(pkg, projName){
+    pkg = pkg || {};
+    const lines = [];
+    lines.push((pkg.id ? pkg.id + ' — ' : '') + (projName || ''));
+    const facts = [];
+    const appsLabel = (pkg.apps||[]).map(a=>a.name + (a.version ? ' v' + a.version : '')).join(', ');
+    if(appsLabel) facts.push(appsLabel);
+    const issuesN = (pkg.issues||[]).length;
+    if(issuesN) facts.push(tnf('notif.pkgIssuesN', {n: issuesN}));
+    if(facts.length) lines.push(facts.join(' · '));
+    if(pkg.createdBy) lines.push(tn('notif.createdBy') + ': ' + pkg.createdBy);
+    let body = lines.filter(Boolean).join('\n');
+    const changes = (pkg.changes || '').trim();
+    if(changes) body += '\n\n' + tn('notif.changelogLabel') + ':\n' + changes;
+    if(pkg.status === 'ready') body += '\n\n' + tn('notif.pkgNeedsSchedule');
+    return body;
+  }
+
   async function dispatchEventNotification(eventKey, projectKey, subject, text, includeEmail, deploymentId){
     const {targets, email} = notifyRecipientsFor(eventKey, projectKey);
     const webhooks = targets.map(w=>({url:w.url, name:w.name}));
@@ -3912,7 +3962,7 @@
   function webhookEventChecklistHtml(i, rec){
     return NOTIF_EVENT_DEFS.map(e=> chkPillHtml(
       t('ev.' + e.key),
-      !!rec.events[e.key],
+      (rec.events || {})[e.key] !== false, // absent == on, like notifyRecipientsFor
       `${rec.enabled ? '' : 'disabled'} onchange="clientDraftWebhooks[${i}].events['${e.key}']=this.checked"`
     )).join('');
   }
@@ -4455,6 +4505,45 @@
     }
   }
 
+  // Filters are per-visit, not per-session: entering a view starts from its
+  // defaults. Keeping them would mean a reader who filtered the deployer panel,
+  // went to Users and came back sees a table that silently hides most rows with
+  // no memory of why. Only filters reset — sorting and the open record do not.
+  //
+  // State-only, no rendering: applyView renders the view right after this runs,
+  // and focusDeployment deliberately widens the filters afterwards.
+  function resetViewFilters(viewName){
+    const set = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
+    if(viewName === 'installer'){
+      installerPanelFilters = { project: '', app: '', env: '', q: '' };
+      installerPanelStatuses = { waiting: true, active: true, completed: false };
+      ['project','app','env','q'].forEach(k => set('installer-filter-' + k, ''));
+      refreshInstallerStatusMsLabel();
+    } else if(viewName === 'deployments'){
+      ['client','project','app','env'].forEach(k => set('deploy-filter-' + k, 'all'));
+      set('deploy-filter-range', '14');
+      deployStatusFilter = { scheduled: true, installed: true, failed: true, rolledback: true, aborted: true };
+      refreshDeployStatusMsLabel();
+      // The project/app/env lists were narrowed to the client that was selected;
+      // releasing the client has to widen them again.
+      if(typeof onDeployClientChange === 'function') onDeployClientChange();
+    } else if(viewName === 'client'){
+      clientPanelFilter = 'all';
+      clientPanelFilters = { project: 'all', app: 'all', env: 'all', q: '' };
+      ['project','app','env'].forEach(k => set('client-filter-' + k, 'all'));
+      set('client-filter-status', 'all');
+      set('client-filter-q', '');
+    } else if(viewName === 'audit'){
+      set('audit-filter-action', 'all');
+      set('audit-filter-entity', 'all');
+      set('audit-filter-search', '');
+    } else if(viewName === 'packages'){
+      set('package-filter-project', 'all');
+      set('package-filter-status', 'all');
+      set('package-filter-q', '');
+    }
+  }
+
   // Perform the actual view switch + per-view rendering. Does NOT touch the URL.
   function applyView(viewName){
     // Enforce role access: redirect a disallowed view to the role's default.
@@ -4486,6 +4575,7 @@
     const projectScopedViews = ['projects', 'schedule', 'apps'];
     const slugEl = document.getElementById('topbar-project-slug');
     if(slugEl) slugEl.style.display = projectScopedViews.includes(viewName) ? '' : 'none';
+    resetViewFilters(viewName);
     if(viewName === 'sso') loadSsoProviders();
     if(viewName === 'audit') renderAuditLog();
     if(viewName === 'account') renderRollDeskVersion();
@@ -6049,6 +6139,10 @@
     };
 
     if(!API_CONNECTED){ showToast(t('pkg.needApi')); return; }
+    // Read before the save: the events below are about the transition, and
+    // `editingPackageId` is cleared further down.
+    const wasNew = !editingPackageId;
+    const prevStatus = wasNew ? null : ((packageById(editingPackageId) || {}).status || null);
     try {
       let saved = editingPackageId
         ? await apiSavePackage(editingPackageId, payload)
@@ -6065,6 +6159,7 @@
         editingPackageId ? 'aud.d.pkgUpdated' : 'aud.d.pkgCreated', {id: saved.id});
       showToast(tf(editingPackageId ? 'pkg.updated' : 'pkg.created', {id: saved.id}));
       editingPackageId = null;
+      notifyPackageEvents(saved, wasNew, prevStatus);
       populatePackageProjectFilter();
       renderPackagesTable();
       renderSchedulePackageSelect();
@@ -6072,6 +6167,25 @@
     } catch(e){
       showFormErrors('package-form', [{label: t('pkg.saveFailed'), msg: e.message}]);
     }
+  }
+
+  // Two events per package, and only on the transitions that mean something:
+  // it was created, and it was handed over as ready. Editing a draft, or saving a
+  // ready package again, notifies nobody — a channel that reports every keystroke
+  // stops being read.
+  function notifyPackageEvents(pkg, wasNew, prevStatus){
+    if(!pkg || !pkg.projectKey) return;
+    const projName = (PROJECTS[pkg.projectKey]||{}).name || pkg.projectKey;
+    const body = buildPackageNotifBody(pkg, projName);
+    const fire = (eventKey) => {
+      const recipients = notifySummary(eventKey, pkg.projectKey, false);
+      logAudit('notified', 'Notification',
+        'Package ' + (pkg.id||'') + ' — ' + tn('ev.' + eventKey) + ' — recipients: ' + recipients,
+        projName, 'aud.d.notifyPackage', {id: pkg.id||'', event: t('ev.' + eventKey), recipients});
+      dispatchEventNotification(eventKey, pkg.projectKey, 'RollDesk — ' + tn('ev.' + eventKey), body, false, null);
+    };
+    if(wasNew) fire('packageCreated');
+    if(pkg.status === 'ready' && prevStatus !== 'ready') fire('packageReady');
   }
 
   function deletePackage(id){
@@ -6240,6 +6354,17 @@
     document.getElementById('schedule-test-only-preview-note').style.display = isTestOnly ? '' : 'none';
     document.getElementById('schedule-test-date-fields').style.display = path === 'prod-only' ? 'none' : 'grid';
     document.getElementById('schedule-prod-date-fields').style.display = isTestOnly ? 'none' : 'grid';
+
+    // Production targets are meaningless without a production step: leaving the
+    // checkbox reachable on a test-only path produced deployments carrying a list
+    // of selected offices they never touch. Hide it and drop any picked scope.
+    const targetsField = document.getElementById('schedule-targets-field');
+    if(targetsField) targetsField.style.display = isTestOnly ? 'none' : 'block';
+    const limitEl = document.getElementById('schedule-limit-targets');
+    if(isTestOnly && limitEl && limitEl.checked){
+      limitEl.checked = false;
+      onScheduleLimitTargetsChange();
+    }
   }
 
   let deploymentSeq = 1000; // monotonic counter so new deployments sort to the top
@@ -8222,6 +8347,10 @@
     }
     closeFormModal('app-modal-form');
     editingAppIndex = null;
+    // The list lives in the project JSONB, so an added or renamed application only
+    // exists in this tab until the project is saved — without this it disappeared
+    // on the next refresh.
+    persistProject(currentProjectKey);
     rebuildAppsTable(p);
     renderProjectsList();
     renderScheduleAppsList();
@@ -8876,11 +9005,14 @@
         <span class="af-val">${escapeHtml(s.val)}</span>
         <button type="button" class="af-x" title="${escapeHtml(t('flt.remove'))}"
           aria-label="${escapeHtml(t('flt.remove'))}: ${escapeHtml(s.cap)}"
-          onclick="${s.onClear}">✕</button>
+          onclick="${escapeHtml(s.onClear)}">✕</button>
       </span>`).join('');
+    // The handlers are escaped like any other attribute value: a snippet written
+    // with double quotes (`clearDeployFilter("all")`) would otherwise close the
+    // attribute early and leave a button that does nothing when clicked.
     // "Clear all" only earns its place once there is more than one thing to clear.
     const clearAll = (on.length > 1 && clearAllJs)
-      ? `<button type="button" class="af-clear" onclick="${clearAllJs}">${escapeHtml(t('flt.clearAll'))}</button>`
+      ? `<button type="button" class="af-clear" onclick="${escapeHtml(clearAllJs)}">${escapeHtml(t('flt.clearAll'))}</button>`
       : '';
     return `<div class="active-filters"><span class="af-lead">${escapeHtml(t('flt.active'))}</span>${pills}${clearAll}</div>`;
   }
@@ -10172,8 +10304,9 @@
 
   let editDepSnapshot = null;
   function captureEditDepSnapshot(){
+    syncEditDepAppInputs();
     return JSON.stringify({
-      versions: [...document.querySelectorAll('#edit-dep-versions input[data-app-idx]')].map(i=>i.value),
+      apps: editDepApps.map(a=>({name: a.name, version: a.version || ''})),
       time: (document.getElementById('edit-dep-time')||{}).value || '',
       start: (document.getElementById('edit-dep-start')||{}).value || '',
       changelog: (document.getElementById('edit-dep-changelog')||{}).value || ''
@@ -10193,6 +10326,7 @@
     el.style.display = 'none';
     editDepIdx = null;
     editDepSnapshot = null;
+    editDepApps = [];
   }
 
   // Release managers and administrators may edit planned (not-yet-finished)
@@ -10240,17 +10374,93 @@
     box.innerHTML = parts.join('');
   }
 
+  // The application list being edited. Kept apart from the record so a closed
+  // dialog changes nothing: the record is only rewritten on save.
+  let editDepApps = [];
+  const appKey = name => String(name == null ? '' : name).trim().toLowerCase();
+
+  // Typed versions live in the inputs, and adding or removing a row re-renders
+  // them all — read them back first or the re-render would discard whatever was
+  // typed before the button was pressed.
+  function syncEditDepAppInputs(){
+    document.querySelectorAll('#edit-dep-versions input[data-app-idx]').forEach(inp=>{
+      const i = parseInt(inp.getAttribute('data-app-idx'), 10);
+      if(editDepApps[i]) editDepApps[i].version = inp.value.trim();
+    });
+  }
+
+  // What can still be added: the applications of the release package this rollout
+  // installs (with the tested version filled in) and the rest of the project's
+  // applications, minus what is already on the list.
+  function editDepAppCandidates(r){
+    const have = new Set(editDepApps.map(a=>appKey(a.name)));
+    const out = [];
+    const add = (name, version) => {
+      const k = appKey(name);
+      if(!k || have.has(k) || out.some(c=>appKey(c.name) === k)) return;
+      out.push({name: String(name).trim(), version: version || ''});
+    };
+    packageApps(packageForDeployment(r)).forEach(a=>add(a.name, a.version));
+    (((PROJECTS[r.projectKey]||{}).apps)||[]).forEach(a=>add(a.name, ''));
+    return out;
+  }
+
+  function renderEditDepApps(){
+    const r = DEPLOYMENTS_DATA[editDepIdx];
+    if(!r) return;
+    const wrap = document.getElementById('edit-dep-versions');
+    const canRemove = editDepApps.length > 1;
+    wrap.innerHTML = editDepApps.map((a,i)=>`
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:12.5px; min-width:120px;">${escapeHtml(a.name)}</span>
+        <input type="text" class="mono" data-app-idx="${i}" value="${escapeHtml(a.version||'')}" placeholder="1.0.0" style="flex:1; box-sizing:border-box;">
+        ${canRemove ? `<button type="button" class="mini-btn" title="${escapeHtml(t('editdep.removeApp'))}" aria-label="${escapeHtml(t('editdep.removeApp'))}: ${escapeHtml(a.name)}" onclick="removeEditDepApp(${i})">✕</button>` : ''}
+      </div>`).join('') || `<div style="font-size:12px; color:var(--text-faint);">—</div>`;
+
+    const box = document.getElementById('edit-dep-add-row');
+    if(!box) return;
+    const cands = editDepAppCandidates(r);
+    if(!cands.length){
+      box.innerHTML = `<div style="font-size:11.5px; color:var(--text-faint);">${escapeHtml(t('editdep.allAppsAdded'))}</div>`;
+      return;
+    }
+    box.innerHTML = `
+      <div style="display:flex; align-items:center; gap:8px;">
+        <select id="edit-dep-add-app" class="mono" style="flex:1; box-sizing:border-box; font-size:12px;">
+          ${cands.map(c=>`<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}${c.version ? ' v' + escapeHtml(c.version) : ''}</option>`).join('')}
+        </select>
+        <button type="button" class="mini-btn" onclick="addEditDepApp()">+ ${escapeHtml(t('editdep.addApp'))}</button>
+      </div>
+      <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">${escapeHtml(t('editdep.addAppHint'))}</div>`;
+  }
+
+  function addEditDepApp(){
+    const r = DEPLOYMENTS_DATA[editDepIdx];
+    if(!r) return;
+    const sel = document.getElementById('edit-dep-add-app');
+    const name = sel && sel.value;
+    if(!name) return;
+    syncEditDepAppInputs();
+    const pick = editDepAppCandidates(r).find(c=>appKey(c.name) === appKey(name));
+    if(!pick) return;
+    editDepApps.push({name: pick.name, version: pick.version || ''});
+    renderEditDepApps();
+  }
+
+  function removeEditDepApp(i){
+    syncEditDepAppInputs();
+    if(editDepApps.length <= 1){ showToast(t('editdep.errNeedApp')); return; }
+    editDepApps.splice(i, 1);
+    renderEditDepApps();
+  }
+
   function openEditDeployment(idx){
     if(!canEditDeployments()){ showToast(t('editdep.forbidden')); return; }
     const r = DEPLOYMENTS_DATA[idx];
     if(!r) return;
     editDepIdx = idx;
-    const wrap = document.getElementById('edit-dep-versions');
-    wrap.innerHTML = (r.apps||[]).map((a,i)=>`
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span style="font-size:12.5px; min-width:120px;">${escapeHtml(a.name)}</span>
-        <input type="text" class="mono" data-app-idx="${i}" value="${escapeHtml(a.version||'')}" placeholder="1.0.0" style="flex:1; box-sizing:border-box;">
-      </div>`).join('') || `<div style="font-size:12px; color:var(--text-faint);">—</div>`;
+    editDepApps = (r.apps||[]).map(a=>({name: a.name, version: a.version || ''}));
+    renderEditDepApps();
     // Single rollout: date and time in one control. Batch: the dates belong to the
     // day breakdown, so only the shared start time is editable here.
     const isBatch = r.mode === 'batch';
@@ -10277,13 +10487,30 @@
     if(!r){ return; }
     if(!canEditDeployments()){ showToast(t('editdep.forbidden')); return; }
     const changes = [];
-    document.querySelectorAll('#edit-dep-versions input[data-app-idx]').forEach(inp=>{
-      const i = parseInt(inp.getAttribute('data-app-idx'), 10);
-      const v = inp.value.trim();
-      if(r.apps[i] && v && v !== r.apps[i].version){
-        changes.push(r.apps[i].name + ': ' + (r.apps[i].version||'—') + ' → ' + v);
-        r.apps[i].version = v;
+    syncEditDepAppInputs();
+    if(!editDepApps.length){ showToast(t('editdep.errNeedApp')); return; }
+    const prevApps = (r.apps||[]).map(a=>({name: a.name, version: a.version || ''}));
+    editDepApps.forEach(a=>{
+      const before = prevApps.find(p=>appKey(p.name) === appKey(a.name));
+      if(!before){
+        changes.push(tf('editdep.chAppAdded', {app: a.name + (a.version ? ' v' + a.version : '')}));
+      } else if(a.version && a.version !== before.version){
+        changes.push(a.name + ': ' + (before.version || '—') + ' → ' + a.version);
       }
+    });
+    prevApps.forEach(p=>{
+      if(!editDepApps.some(a=>appKey(a.name) === appKey(p.name))){
+        changes.push(tf('editdep.chAppRemoved', {app: p.name + (p.version ? ' v' + p.version : '')}));
+      }
+    });
+    // Rebuild the list from the dialog, carrying over whatever else an existing
+    // entry held. An emptied version box is not a version change (that is how the
+    // field has always behaved), so the stored one stays.
+    r.apps = editDepApps.map(a=>{
+      const before = (r.apps||[]).find(x=>appKey(x.name) === appKey(a.name));
+      return before
+        ? Object.assign({}, before, {version: a.version || before.version || ''})
+        : {name: a.name, version: a.version || ''};
     });
     if(r.mode === 'batch'){
       const newTime = document.getElementById('edit-dep-time').value;
@@ -10554,7 +10781,10 @@
       : ` (${locLabel})`;
     events.push({date: r.createdDate, time: r.createdTime, icon:'📝', text: tf('dtl.created', {by: `<strong>${createdBy}</strong>`, apps: appsLabel}) + createdSuffix});
 
-    if(r.env === 'Production' || r.clientApproval){
+    // An internal deployment (or a project that waived sign-off) never sent an
+    // approval request, so the timeline must not claim one was sent and is still
+    // being awaited.
+    if(approvalExpectedFor(r)){
       events.push({date: r.createdDate, time: r.createdTime, icon:'📧', text: t('dtl.approvalSent')});
       const who = r.clientApprovalBy ? `<strong>${r.clientApprovalBy}</strong>` : t('dtl.client');
       if(r.clientApproval === 'approved'){
@@ -11292,6 +11522,11 @@
     }
     if(r.env && r.env !== 'Production' && !r.clientApproval){
       return `<td><span class="mono" style="font-size:10.5px; padding:2px 9px; border-radius:20px; background:var(--cyan-soft); color:var(--cyan);" title="${escapeHtml(t('rep.testNoApprovalNeeded'))}">ŚT — ${t('rep.testNoApprovalNeeded')}</span></td>`;
+    }
+    // An internal production rollout waits for nobody: say that rather than
+    // leaving a dash the deployer reads as "the approval has not arrived yet".
+    if(!approvalExpectedFor(r)){
+      return `<td><span class="mono" style="font-size:10.5px; padding:2px 9px; border-radius:20px; background:var(--cyan-soft); color:var(--cyan);" title="${escapeHtml(t('dep.aNotRequiredTip'))}">${t('dep.aNotRequired')}</span></td>`;
     }
     return `<td style="color:var(--text-faint); font-size:12px;">—</td>`;
   }
@@ -12699,6 +12934,12 @@
         return `<td onclick="event.stopPropagation();"><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:#FDF1E1; color:#8A5A05;" title="${escapeHtml(t('draft.notSentTip'))}">📝 ${t('draft.badge')}</span></td>`;
       }
       if(r.env !== 'Production' && !r.clientApproval) return '<td style="color:var(--text-faint); font-size:12px;">—</td>';
+      // Nothing to decide: say so instead of offering a select that defaults to
+      // "awaiting approval" — that reading is what pushed people into recording an
+      // approval the client was never asked for.
+      if(!approvalExpectedFor(r)){
+        return `<td onclick="event.stopPropagation();"><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--cyan-soft); color:var(--cyan);" title="${escapeHtml(t('dep.aNotRequiredTip'))}">${t('dep.aNotRequired')}</span></td>`;
+      }
       // Short labels: the full wording ("Awaiting approval") stretched the column
       // and pushed the rest of the row out of view. The full text stays in the title.
       const map = {
