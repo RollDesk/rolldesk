@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.3] - 2026-08-17
+
+### Fixed
+- **An attachment larger than 1 MB reaches the API instead of bouncing off the proxy.** The backend accepts 25 MB per file, but nginx in front of it kept its default 1 MB body limit, so anything larger was refused by the proxy with a 413 the API never saw — and the upload failed for a reason nothing in the application could report. The `/api/` proxy now allows 26 MB, a little above the backend's own cap so the file-size limit is the one the API enforces and reports. Instances reached over HTTPS need the same setting on the TLS proxy in front of the container.
+
 ## [0.25.2] - 2026-08-13
 
 ### Changed
