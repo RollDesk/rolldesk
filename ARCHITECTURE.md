@@ -15,6 +15,9 @@ Adopted architectural decisions for RollDesk. Use this as a checklist when build
 - **backend** (Express): API, auth, migrations on startup, second IP-allowlist layer, uploads, notifications.
 - **PostgreSQL**: source of truth.
 - Optional sidecars (ClamAV, external DB/ClamAV) are enabled via env, not hard-coded.
+- **Body-size limits belong to every hop, not just the API.** nginx's `client_max_body_size` has to
+  be kept above the per-file cap in the upload route — its 1 MB default rejects an upload with a 413
+  the application never sees — and any TLS proxy in front of the container needs the same setting.
 
 ## Frontend
 

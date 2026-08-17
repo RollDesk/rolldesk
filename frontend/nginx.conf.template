@@ -43,6 +43,12 @@ server {
 
     # Forward the API to the backend (preserving the real client IP)
     location /api/ {
+        # Attachments are uploaded through this proxy and the backend accepts 25 MB per
+        # file (multer limit in routes/attachments.js). nginx defaults to 1 MB, so
+        # without this anything larger was refused here with a 413 that never reached
+        # the API — kept a little above the backend cap to leave room for the multipart
+        # envelope, so the file-size limit is reported by the backend and not by nginx.
+        client_max_body_size 26m;
         proxy_pass http://backend:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
