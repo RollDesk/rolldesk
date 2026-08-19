@@ -95,7 +95,39 @@ export function workItemFromAzure(json, { ticketField = DEFAULT_TICKET_FIELD } =
     title: clamp(fields['System.Title'], 300) || undefined,
     state: clamp(fields['System.State'], 100) || undefined,
     type: clamp(fields['System.WorkItemType'], 100) || undefined,
+    // Which tracker project the work item actually lives in. Read so a lookup
+    // that had to fall back to the organisation-wide route can say where it
+    // found the item — see workItemLookupUrls for why that fallback exists.
+    project: clamp(fields['System.TeamProject'], 200) || undefined,
   };
+}
+
+// The URLs one work item may be read from, most specific first.
+//
+// A work item id is unique across a whole tracker organisation, but the project
+// -scoped route answers 404 for an item that belongs to a *different* project in
+// the same organisation. That is not a hypothetical: two RollDesk projects
+// covering the same product commonly share one tracker organisation while their
+// bugs are filed under whichever tracker project the team uses, so a lookup
+// configured for one of them silently found nothing for the other — the tester
+// saw an id fill in no title, no ticket and no state, and had to type all three.
+//
+// So the scoped URL is tried first (it is the configured intent, and it keeps a
+// project's lookups inside its own tracker project when that is where the item
+// is), and the organisation-wide route is the fallback. The caller compares the
+// item's own `System.TeamProject` with the configured one and reports the
+// difference rather than hiding it.
+export function workItemLookupUrls(settings, id) {
+  const s = settings || {};
+  const org = normalizeBaseUrl(s.azureOrgUrl);
+  const workItemId = str(id);
+  if (!org || !workItemId) return [];
+  const suffix = `/_apis/wit/workitems/${encodeURIComponent(workItemId)}?api-version=7.0`;
+  const project = str(s.azureProject);
+  const urls = [];
+  if (project) urls.push(`${org}/${encodeURIComponent(project)}${suffix}`);
+  urls.push(`${org}${suffix}`);
+  return urls;
 }
 
 // Read a configured field name off a payload. The name may address a nested

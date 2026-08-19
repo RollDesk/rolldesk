@@ -98,6 +98,39 @@ test('accepts every canonical status', () => {
   }
 });
 
+// A rollout that installed some of its applications and not the others. Both
+// neighbours are wrong for it: 'installed' hides the applications that never went
+// in, 'failed' hides the ones that did.
+test('partial is a canonical status, so an automation caller can record one', () => {
+  assert.ok(DEPLOYMENT_STATUSES.includes('partial'));
+  const r = mergeDeploymentPatch(storedDeployment(), { status: 'partial' }, 'DEP-1');
+  assert.equal(r.ok, true);
+  assert.equal(r.data.status, 'partial');
+});
+
+test('a patched per-application result is shaped, and a bad one is refused', () => {
+  const ok = mergeDeploymentPatch(storedDeployment(), {
+    appResults: [
+      { name: '  Kolektor  ', status: 'installed' },
+      { name: 'Portal', status: 'failed', reason: 'the server stopped answering' },
+    ],
+  }, 'DEP-1');
+  assert.equal(ok.ok, true);
+  assert.deepEqual(ok.data.appResults, [
+    { name: 'Kolektor', status: 'installed' },
+    { name: 'Portal', status: 'failed', reason: 'the server stopped answering' },
+  ]);
+  // The shaped list, not the raw one, is what gets stored — the UI reads it to
+  // decide whether the rollout is installed, partial or failed.
+  assert.equal(ok.changes.length, 1);
+  assert.equal(ok.changes[0].field, 'appResults');
+
+  for (const bad of [[{ status: 'installed' }], [{ name: 'A', status: 'nope' }], 'Portal', 42]) {
+    const r = mergeDeploymentPatch(storedDeployment(), { appResults: bad }, 'DEP-1');
+    assert.equal(r.ok, false, `expected ${JSON.stringify(bad)} to be refused`);
+  }
+});
+
 test('rejects a change of project — that moves the record between access scopes', () => {
   for (const field of ['projectKey', 'project_key']) {
     const r = mergeDeploymentPatch(storedDeployment(), { [field]: 'other-client' }, 'DEP-1');

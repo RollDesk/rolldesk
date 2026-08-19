@@ -585,6 +585,18 @@
   .pill.installed::before{background:var(--green);}
   .pill.error{background:var(--red-soft); color:#A81E1E;}
   .pill.error::before{background:var(--red);}
+  /* Some applications went in and the rest did not. Amber rather than red: the
+     rollout did something, and the deployer still has work left on it — which is
+     a different message from a failure that installed nothing. */
+  .pill.partial{background:var(--amber-soft); color:#8A5A05;}
+  .pill.partial::before{background:var(--amber);}
+  /* `failed`, `rolledback` and `aborted` are rendered through the same
+     `pill ${status}` class as the three above and had no rule of their own, so a
+     failure looked like an unstyled label sitting next to a green success. */
+  .pill.failed, .pill.aborted{background:var(--red-soft); color:#A81E1E;}
+  .pill.failed::before, .pill.aborted::before{background:var(--red);}
+  .pill.rolledback{background:#F1E9FB; color:#6B21A8;}
+  .pill.rolledback::before{background:#6B21A8;}
   /* One environment style: the text already says which environment it is, so a
      second, darker treatment for production adds nothing. Grey outline for all. */
   .env-tag{
@@ -1606,6 +1618,10 @@
             <label class="radio-pill selected"><input type="radio" name="schedule-path" value="test-prod" checked onchange="onSchedulePathChange()"> <span data-i18n="sch.pathTestProd">Test environment + production</span></label>
             <label class="radio-pill"><input type="radio" name="schedule-path" value="prod-only" onchange="onSchedulePathChange()"> <span data-i18n="sch.pathProdOnly">Production only</span></label>
           </div>
+          <!-- Filled in when the selected package is marked test-only, so the
+               preselected path is explained where it was set rather than in a
+               toast that has already scrolled away. -->
+          <div id="schedule-path-package-note" style="display:none; font-size:11.5px; color:var(--cyan); margin-top:6px;"></div>
         </div>
         <div class="field" id="schedule-envs-field">
           <label data-i18n="sch.envs">Test environments included in this deployment</label>
@@ -1788,6 +1804,7 @@
               <div class="ms-filter-menu">
                 <label><input type="checkbox" value="scheduled" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sScheduled">To be installed</span></label>
                 <label><input type="checkbox" value="installed" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sInstalled">Installed</span></label>
+                <label><input type="checkbox" value="partial" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sPartial">Partially installed</span></label>
                 <label><input type="checkbox" value="failed" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sFailed">Failed</span></label>
                 <label><input type="checkbox" value="rolledback" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sRolledback">Rolled back</span></label>
                 <label><input type="checkbox" value="aborted" checked onchange="onDeployStatusMsChange()"> <span data-i18n="dep.sAborted">Aborted</span></label>
@@ -1892,6 +1909,11 @@
             <div class="field">
               <label data-i18n="sch.project">Project</label>
               <select id="package-project-select" class="mono" onchange="onPackageProjectChange()"></select>
+              <!-- Whether this project can look a work item up at all. Said here,
+                   before an id is typed: an unconfigured project used to answer a
+                   work item id with silence, which reads as a broken lookup
+                   rather than as a setting nobody has filled in yet. -->
+              <div id="package-tracker-status" style="font-size:11.5px; color:var(--text-muted); margin-top:6px;"></div>
             </div>
             <div class="field">
               <label data-i18n="pkg.name">Package name (optional)</label>
@@ -1964,6 +1986,15 @@
 
         <div class="form-section">
           <div class="form-section-title" data-i18n="pkg.secHandover">Handover</div>
+          <!-- Not every release is on its way to production. A change verified on
+               the test instance and never promoted follows a different process —
+               the test team tells the operating team directly and nobody plans,
+               approves or escalates a production rollout that will not happen —
+               and until this box existed there was nowhere to say so, so the extra
+               step had to be cancelled by hand, over mail, once per package. -->
+          <div class="field">
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="package-test-only" style="width:auto;"> <span data-i18n="pkg.testOnly">Test environment only — this release will not go to production</span><span class="info-ic" data-i18n-tip="pkg.testOnlyNote">i</span></label>
+          </div>
           <div class="field">
             <label data-i18n="pkg.status">Status</label>
             <div class="radio-row">
@@ -2747,11 +2778,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.26.0"></script>
-<script src="i18n/en.js?v=0.26.0"></script>
+<script src="i18n/pl.js?v=0.27.0"></script>
+<script src="i18n/en.js?v=0.27.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.26.0';
+  const ROLLDESK_VERSION = '0.27.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -2940,7 +2971,7 @@
   }
 
   // Deployments: default = all statuses; time range keeps the list to last 14 days.
-  let deployStatusFilter = { scheduled: true, installed: true, failed: true, rolledback: true, aborted: true };
+  let deployStatusFilter = { scheduled: true, installed: true, partial: true, failed: true, rolledback: true, aborted: true };
 
   // Sorting is driven by clicking a column header, not by a separate dropdown —
   // the dropdown was a second place to look for something the table itself can
@@ -3008,9 +3039,16 @@
       case 'date':      return (r.mode === 'batch' ? (r.historyStart || r.createdDate) : (r.date || r.createdDate)) || '';
       // Progress compares completion, not the raw count: 9/10 is further along
       // than 50/400, which is what the bar shows.
+      // A partially installed single-target rollout sorts by how much of it went
+      // in, so it lands between the scheduled and the finished ones rather than
+      // among the finished — which is where the reader looking for unfinished work
+      // would not find it.
       case 'progress':  return r.mode === 'batch'
         ? (r.totalLocations ? (r.counts.installed || 0) / r.totalLocations : 0)
-        : (r.status === 'scheduled' ? 0 : 1);
+        : (r.status === 'scheduled' ? 0
+          : (r.status === 'partial'
+            ? (function(){ const x = appResultTally(r); return x.total ? x.installed / x.total : 0.5; })()
+            : 1));
       case 'approval':  return r.draft ? '0' : (r.clientApproval || (r.env === 'Production' ? 'pending' : ''));
       // The client portal's own column shows a decision-or-status badge, so it
       // sorts by what the badge says: rows awaiting the client's decision first,
@@ -3053,6 +3091,7 @@
     return {
       scheduled: t('dep.sScheduled'),
       installed: t('dep.sInstalled'),
+      partial: t('dep.sPartial'),
       failed: t('dep.sFailed'),
       rolledback: t('dep.sRolledback'),
       aborted: t('dep.sAborted')
@@ -4522,7 +4561,7 @@
     } else if(viewName === 'deployments'){
       ['client','project','app','env'].forEach(k => set('deploy-filter-' + k, 'all'));
       set('deploy-filter-range', '14');
-      deployStatusFilter = { scheduled: true, installed: true, failed: true, rolledback: true, aborted: true };
+      deployStatusFilter = { scheduled: true, installed: true, partial: true, failed: true, rolledback: true, aborted: true };
       refreshDeployStatusMsLabel();
       // The project/app/env lists were narrowed to the client that was selected;
       // releasing the client has to widen them again.
@@ -5765,7 +5804,7 @@
         <td style="font-size:12.5px;">${escapeHtml(projName)}</td>
         <td style="font-size:12.5px;">${packageAppsCellHtml(p)}</td>
         <td>${contentCell}</td>
-        <td>${packageStatusBadgeHtml(p.status)}</td>
+        <td>${packageStatusBadgeHtml(p.status)}${p.testOnly ? `<div style="margin-top:4px;"><span class="mono" style="font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; background:var(--cyan-soft); color:var(--cyan);" title="${escapeHtml(t('pkg.testOnlyNote'))}">${t('pkg.testOnlyBadge')}</span></div>` : ''}</td>
         <td style="white-space:nowrap; text-align:right;">${actions}</td>
       </tr>`;
     }).join('') || `<tr><td colspan="6" style="color:var(--text-faint); font-size:13px;">${RELEASE_PACKAGES.length ? t('pkg.noneMatch') : t('pkg.none')}</td></tr>`;
@@ -5846,6 +5885,8 @@
     // `installerNotes` is what this field was called while it lived on the
     // deployment; a package written before the move can still carry that name.
     document.getElementById('package-instructions-input').value = (pkg && (pkg.instructions || pkg.installerNotes)) || '';
+    const testOnlyEl = document.getElementById('package-test-only');
+    if(testOnlyEl) testOnlyEl.checked = !!(pkg && pkg.testOnly);
     selectRadioPill('package-status', (pkg && pkg.status === 'ready') ? 'ready' : 'draft');
 
     packageExistingFiles = {
@@ -5870,6 +5911,7 @@
     if(!packageDraftIssues.length) packageDraftIssues = [newPackageIssueDraft()];
     renderPackageApps();
     renderPackageIssues();
+    refreshPackageTrackerStatus();
     openFormModal('package-modal');
   }
 
@@ -5887,8 +5929,48 @@
     return (p && Array.isArray(p.apps)) ? p.apps.map(a=>a.name) : [];
   }
 
-  // Both lists are project-scoped: the app names and the offices to suggest.
-  function onPackageProjectChange(){ renderPackageApps(); renderPackageIssues(); }
+  // Both lists are project-scoped: the app names and the offices to suggest. So
+  // is the work-item lookup, which is why the tracker line is refreshed with them.
+  function onPackageProjectChange(){ renderPackageApps(); renderPackageIssues(); refreshPackageTrackerStatus(); }
+
+  // Whether the selected project can look a work item up, said before an id is
+  // typed. Two projects of the same client are configured separately — one may
+  // have a tracker organisation, project and PAT on file and the next one none —
+  // and an unconfigured project used to answer an entered id with nothing at all.
+  // A tester reads that as a broken lookup, so it is stated up front, with the
+  // tracker project named: a lookup pointed at the wrong one is the other way
+  // this fails, and the name is the only thing that shows it.
+  let packageTrackerStatusFor = null;
+  async function refreshPackageTrackerStatus(){
+    const box = document.getElementById('package-tracker-status');
+    if(!box) return;
+    const sel = document.getElementById('package-project-select');
+    const key = sel ? sel.value : '';
+    packageTrackerStatusFor = key;
+    if(!key){ box.textContent = ''; return; }
+    if(!API_CONNECTED){ box.textContent = t('pkg.lookupOffline'); return; }
+    box.textContent = t('pkg.trackerChecking');
+    let st = null;
+    try {
+      const res = await apiFetch('/api/packages/tracker-status/' + encodeURIComponent(key));
+      if(res.ok) st = await res.json();
+    } catch(e){ /* reported as unknown below */ }
+    // The picker may have moved on while the request was in flight; a stale answer
+    // must not overwrite the current project's line.
+    if(packageTrackerStatusFor !== key) return;
+    if(!st){ box.textContent = t('pkg.trackerUnknown'); return; }
+    const parts = [];
+    if(st.workItems){
+      parts.push('✓ ' + (st.azureProject
+        ? tf('pkg.trackerOnProject', {project: st.azureProject})
+        : t('pkg.trackerOn')));
+    } else {
+      parts.push('⚠ ' + t('pkg.trackerOff'));
+    }
+    if(st.workItems) parts.push(st.tickets ? t('pkg.trackerDeskOn') : t('pkg.trackerDeskOff'));
+    box.textContent = parts.join(' · ');
+    box.style.color = st.workItems ? 'var(--text-muted)' : '#8A5A05';
+  }
 
   function renderPackageApps(){
     const wrap = document.getElementById('package-apps-list');
@@ -6006,8 +6088,16 @@
         issue.lookedUpFor = issue.id;
         // The title and the state have their own columns and are saved with the
         // entry, so the note is left for what the row cannot show: a work item
-        // that answers with no ticket, which is why no office was filled in.
-        issue.lookup = issue.haloTicket ? '' : t('pkg.lookupNoTicket');
+        // that answers with no ticket, which is why no office was filled in, and
+        // one that was found outside the project's configured tracker project —
+        // the ids are right either way, but a stale setting that keeps working is
+        // worth saying out loud rather than leaving to be discovered later.
+        const notes = [];
+        if(!issue.haloTicket) notes.push(t('pkg.lookupNoTicket'));
+        if(data.crossProject && data.issue.project){
+          notes.push(tf('pkg.lookupOtherProject', {project: data.issue.project}));
+        }
+        issue.lookup = notes.join(' · ');
       } else {
         // Each known reason has its own message; an unrecognised one falls back
         // to the generic wording rather than showing a raw key.
@@ -6127,10 +6217,14 @@
     if(errs.length){ showFormErrors('package-form', errs); return; }
     clearFormErrors('package-form');
 
+    const testOnlyEl = document.getElementById('package-test-only');
     const payload = {
       projectKey,
       name: (document.getElementById('package-name-input').value || '').trim() || undefined,
       status,
+      // Sent as a boolean either way: unticking it on a package that carried the
+      // flag has to clear it, and `undefined` would leave the stored one in place.
+      testOnly: !!(testOnlyEl && testOnlyEl.checked),
       apps,
       issues,
       changes: changes || undefined,
@@ -6253,7 +6347,11 @@
     box.textContent = tf('sch.packageSummary', {
       apps: packageAppsLabel(pkg) || '—',
       n: packageIssues(pkg).length,
-    }) + (offices.length ? ' · ' + tf('sch.packageOffices', {offices: offices.join(', ')}) : '');
+    }) + (offices.length ? ' · ' + tf('sch.packageOffices', {offices: offices.join(', ')}) : '')
+      // Said on the summary line as well as in the path radio below it: the path
+      // is what actually changes, and a reader who did not watch it move needs to
+      // know the package is why.
+      + (pkg.testOnly ? ' · ' + t('sch.packageTestOnly') : '');
   }
 
   // Picking a package is what defines the deployment's content: the applications,
@@ -6275,6 +6373,27 @@
     const p = PROJECTS[currentProjectKey] || {};
     const defined = new Set((p.apps||[]).map(a=>a.name));
     const missing = packageApps(pkg).filter(a=>!defined.has(a.name)).map(a=>a.name);
+
+    // A package the test team marked as test-only carries its own deployment path:
+    // there is no production rollout to plan, approve or escalate, so the form
+    // starts on that path instead of leaving the release manager to notice the
+    // note and switch by hand — and to be told off by the operating team when they
+    // did not. The choice stays a radio: a package can be promoted later, and then
+    // someone deliberately moves the path back.
+    if(pkg.testOnly){
+      const path = document.querySelector('input[name="schedule-path"]:checked');
+      if(!path || path.value !== 'test-only'){
+        selectRadioPill('schedule-path', 'test-only');
+        onSchedulePathChange();
+      }
+    }
+    // Why the path is where it is, in the form rather than only in a toast that
+    // scrolls away.
+    const pathNote = document.getElementById('schedule-path-package-note');
+    if(pathNote){
+      pathNote.style.display = pkg.testOnly ? '' : 'none';
+      pathNote.textContent = pkg.testOnly ? tf('sch.pathFromPackage', {id: pkg.id}) : '';
+    }
 
     // The offices that reported the fixed tickets go first in the rollout, so a
     // preview generated before the package was picked is no longer what would be
@@ -6513,7 +6632,15 @@
     // points at, so a copy on the deployment would be the stale one the moment the
     // package is corrected. A deployment gains its own `changelog` only if someone
     // deliberately edits it later, which then wins over the package's.
-    const commonMeta = {createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, internal: isInternal || undefined, draft: isDraft || undefined, packageId};
+    // `testOnly` travels onto the record as well as staying on the package: the
+    // deployer panel is where it matters ("nothing follows this — no production
+    // rollout to hand over"), and a panel that had to fetch the package to learn
+    // it would show nothing when the package list has not loaded yet. It is copied
+    // rather than derived because it describes this rollout, and a package
+    // promoted to production later must not silently rewrite what a finished
+    // test-only deployment claimed.
+    const packageTestOnly = !!(packageById(schedulePackageId) || {}).testOnly;
+    const commonMeta = {createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, internal: isInternal || undefined, draft: isDraft || undefined, packageId, testOnly: (packageTestOnly && path === 'test-only') || undefined};
 
     const created = [];
     const createdIdsStart = DEPLOYMENTS_DATA.length;
@@ -8650,6 +8777,17 @@
       const st = map[r.clientApproval] || map.pending;
       return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:${st.bg}; color:${st.color};">${st.icon} ${st.label}</span>`;
     }
+    // An install that went in only partly is what the client is told, approval or
+    // not: the approved-and-done branch below would badge it as installed, which
+    // is the same misreport the deployer panel was fixed to stop producing.
+    const partly = clientDeploymentStatus(r) === 'partial';
+    if(partly){
+      const tally = appResultTally(r);
+      const label = tally.total
+        ? tf('client.partialApps', {done: tally.installed, total: tally.total})
+        : t('status.partial');
+      return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:#FDF1E1; color:#8A5A05;">⚠ ${label}</span>`;
+    }
     if(r.clientApproval === 'approved'){
       const done = clientIsComplete(r);
       if(done){
@@ -8658,7 +8796,7 @@
       return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--green-soft); color:#0F7A38;">✓ ${t('client.appApproved')}</span>`;
     }
     const status = clientDeploymentStatus(r);
-    const statusLabel = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
+    const statusLabel = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), partial:t('status.partial'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
     const pillClass = status === 'installed' ? 'var(--green-soft)' : 'var(--paper)';
     const pillColor = status === 'installed' ? '#0F7A38' : 'var(--text-muted)';
     return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:${pillClass}; color:${pillColor};">${statusLabel[status]||status}</span>`;
@@ -8953,22 +9091,38 @@
 
   // Confirmation dialog for destructive actions (delete/remove/revoke).
   let confirmModalCallback = null;
+  // Called when the dialog is dismissed rather than confirmed. Optional: most
+  // callers only care about the yes, but one that is awaiting an answer has to be
+  // told about the no as well, or it waits forever.
+  let confirmModalCancelCallback = null;
   // `tone` is 'danger' (the default — red, for anything that destroys data) or
   // 'neutral' for a confirmation that only interrupts, like logging out.
-  function showAppConfirm(title, body, callback, okLabel, tone){
+  function showAppConfirm(title, body, callback, okLabel, tone, onCancel){
     document.getElementById('confirm-modal-title').textContent = title;
     document.getElementById('confirm-modal-body').textContent = body || '';
     const ok = document.getElementById('confirm-modal-ok');
     ok.textContent = okLabel || t('common.delete');
     ok.classList.toggle('danger', tone !== 'neutral');
     confirmModalCallback = callback;
+    confirmModalCancelCallback = typeof onCancel === 'function' ? onCancel : null;
     document.getElementById('confirm-modal-overlay').style.display = 'flex';
   }
   function closeConfirmModal(confirmed){
     document.getElementById('confirm-modal-overlay').style.display = 'none';
     const cb = confirmModalCallback;
+    const cancel = confirmModalCancelCallback;
     confirmModalCallback = null;
-    if(confirmed && cb) cb();
+    confirmModalCancelCallback = null;
+    if(confirmed){ if(cb) cb(); }
+    else if(cancel) cancel();
+  }
+
+  // A confirmation as a promise, for a caller that has to await the answer before
+  // it can decide whether to carry on writing.
+  function askAppConfirm(title, body, okLabel, tone){
+    return new Promise(resolve=>{
+      showAppConfirm(title, body, ()=>resolve(true), okLabel, tone || 'neutral', ()=>resolve(false));
+    });
   }
   document.addEventListener('keydown', (e)=>{
     const overlay = document.getElementById('confirm-modal-overlay');
@@ -9230,11 +9384,35 @@
   // Every dialog gets the same footer — Cancel on the left, the primary action on
   // the right — so the buttons never swap places between screens.
   const openFormModals = [];
+  // What every control inside a dialog held when it opened. A dialog is only
+  // dismissed by Escape or a backdrop click while it still matches this — the
+  // release-package form is twenty fields, a list of applications and a list of
+  // work items, and a stray click on the page behind it threw all of it away with
+  // no warning and no way back. Cancel still closes unconditionally: that is the
+  // gesture that means "discard", and it is the one on the footer button.
+  const formModalSnapshots = {};
+  function formModalState(el){
+    if(!el) return '';
+    return JSON.stringify([...el.querySelectorAll('input, select, textarea')].map(c=>{
+      if(c.type === 'checkbox' || c.type === 'radio') return c.checked ? 1 : 0;
+      // A file input reports its picked files, which is dirt like any other.
+      if(c.type === 'file') return (c.files && c.files.length) || 0;
+      return c.value;
+    }));
+  }
+  function formModalIsDirty(id){
+    const before = formModalSnapshots[id];
+    if(before == null) return false;
+    return formModalState(document.getElementById(id)) !== before;
+  }
   function openFormModal(id){
     const el = document.getElementById(id);
     if(!el) return;
     el.classList.add('open');
     if(!openFormModals.includes(id)) openFormModals.push(id);
+    // Taken after the caller has filled the form in, so an untouched dialog is
+    // clean whatever it was populated with.
+    formModalSnapshots[id] = formModalState(el);
     // Focus the first enabled control so the dialog is keyboard-usable at once.
     const first = el.querySelector('input:not([type=hidden]):not([disabled]), select, textarea');
     if(first) setTimeout(()=>{ try { first.focus(); first.select && first.select(); } catch(e){} }, 30);
@@ -9244,11 +9422,21 @@
     if(el) el.classList.remove('open');
     const i = openFormModals.indexOf(id);
     if(i >= 0) openFormModals.splice(i, 1);
+    delete formModalSnapshots[id];
     clearFormErrors(id);
   }
-  // Escape closes the topmost form modal; a click on the backdrop does the same.
-  // With no dialog open it backs out of the deployment detail page, which is the
-  // same gesture one level up.
+  // Escape closes the topmost form modal, and a click on the backdrop does the
+  // same — unless something has been typed into it, in which case the gesture is
+  // refused and the dialog says so. Both are easy to trigger by accident (the
+  // backdrop is most of the screen), and neither is worth a lost form.
+  //
+  // With no dialog open Escape backs out of the deployment detail page, which is
+  // the same gesture one level up.
+  function dismissFormModal(id){
+    if(formModalIsDirty(id)){ showToast(t('form.unsavedDismiss')); return false; }
+    closeFormModal(id);
+    return true;
+  }
   document.addEventListener('keydown', (e)=>{
     if(e.key !== 'Escape') return;
     if(!openFormModals.length){
@@ -9259,11 +9447,11 @@
       return;
     }
     e.preventDefault();
-    closeFormModal(openFormModals[openFormModals.length - 1]);
+    dismissFormModal(openFormModals[openFormModals.length - 1]);
   });
   document.addEventListener('click', (e)=>{
     if(e.target && e.target.classList && e.target.classList.contains('modal-overlay') && e.target.classList.contains('open')){
-      closeFormModal(e.target.id);
+      dismissFormModal(e.target.id);
     }
   });
 
@@ -9909,6 +10097,127 @@
   let expandedBatchIdx = null;
   let editingCommentIdx = null;
 
+  // ---- per-application install progress -----------------------------------
+  // Mirrors backend/src/appProgress.js — the rules live there with their tests,
+  // and this is the browser's copy (single file, no module loader), the same
+  // arrangement as prioritizeReportingTargets. Change both together.
+  //
+  // A deployment installs a list of applications, and until these helpers existed
+  // the record only ever said whether *the deployment* succeeded. Two reports
+  // were wrong because of it: a server that stops answering after the second of
+  // four applications had no way to be recorded, and an application added to a
+  // running rollout inherited every target that was already closed.
+  const APP_RESULT_STATUSES = ['installed', 'failed'];
+
+  // The deployment status implied by the per-application outcomes:
+  // null (nothing reported), 'installed', 'failed', or 'partial' for anything in
+  // between — including an application nobody has reported on yet, which is what
+  // an application added mid-rollout looks like.
+  function statusFromAppResults(results, appNames){
+    const norm = v => String(v == null ? '' : v).trim().toLowerCase();
+    const byName = new Map();
+    (Array.isArray(results) ? results : []).forEach(r=>{
+      const k = norm(r && r.name);
+      if(k) byName.set(k, String((r && r.status) || '').trim());
+    });
+    if(!byName.size) return null;
+    const names = (Array.isArray(appNames) ? appNames : []).map(norm).filter(Boolean);
+    const wanted = names.length ? names : [...byName.keys()];
+    let installed = 0, failed = 0, missing = 0;
+    wanted.forEach(k=>{
+      const s = byName.get(k);
+      if(s === 'installed') installed++;
+      else if(s === 'failed') failed++;
+      else missing++;
+    });
+    if(installed && !failed && !missing) return 'installed';
+    if(failed && !installed && !missing) return 'failed';
+    return 'partial';
+  }
+
+  // Where an application joined the rollout: {day, installed, date} for one added
+  // after it started, null for one on the list from the beginning.
+  function appJoinedAt(app){
+    const since = app && app.since;
+    if(!since || typeof since !== 'object') return null;
+    return {
+      day: Math.max(1, Math.floor(Number(since.day) || 1)),
+      installed: Math.max(0, Math.floor(Number(since.installed) || 0)),
+      date: since.date || undefined,
+    };
+  }
+
+  // How much of a batch rollout one application has had, and is planned for. The
+  // rollout backbone stays per target — this only discounts the targets that were
+  // already closed before the application joined the list.
+  function appCoverage(app, d){
+    const total = Math.max(0, Math.floor(Number(d && d.totalLocations) || 0));
+    const doneAll = Math.max(0, Math.floor(Number(d && d.counts && d.counts.installed) || 0));
+    const joined = appJoinedAt(app);
+    const from = joined ? Math.min(joined.installed, total) : 0;
+    return {
+      planned: Math.max(0, total - from),
+      installed: Math.min(Math.max(0, doneAll - from), Math.max(0, total - from)),
+      joinedDay: joined ? joined.day : 1,
+      joinedAfter: from,
+    };
+  }
+
+  // True as soon as one application joined late — which is what makes a single
+  // "312/400" figure for the whole rollout misleading.
+  function appsHaveMixedCoverage(apps){
+    return (Array.isArray(apps) ? apps : []).some(a=>!!appJoinedAt(a));
+  }
+
+  // Which applications failed at one target. An entry written before failures
+  // were recorded per application says nothing about them, and the honest reading
+  // of that silence is "the whole install failed there" — which is what it meant.
+  function failedAppsAt(entry, appNames){
+    const norm = v => String(v == null ? '' : v).trim().toLowerCase();
+    const names = (Array.isArray(appNames) ? appNames : []).map(n=>String(n||'')).filter(Boolean);
+    const listed = (entry && Array.isArray(entry.failedApps)) ? entry.failedApps : null;
+    if(!listed) return names;
+    const wanted = new Set(listed.map(norm).filter(Boolean));
+    const out = names.filter(n=>wanted.has(norm(n)));
+    return out.length ? out : names;
+  }
+
+  // The application names a deployment carries, in the order they are listed.
+  function deploymentAppNames(d){
+    return ((d && d.apps) || []).map(a=>String((a && a.name) || '')).filter(Boolean);
+  }
+
+  // Whether reporting has to be per application at all. One application means one
+  // outcome, and asking for a checklist of one is noise.
+  function isMultiAppDeployment(d){
+    return deploymentAppNames(d).length > 1;
+  }
+
+  // The per-application outcomes stored on a single-target deployment, indexed by
+  // lower-cased name.
+  function appResultMap(d){
+    const map = new Map();
+    ((d && d.appResults) || []).forEach(r=>{
+      const k = String((r && r.name) || '').trim().toLowerCase();
+      if(k) map.set(k, r);
+    });
+    return map;
+  }
+
+  // How many of a single-target deployment's applications went in. Used for the
+  // "2/4" figure beside a partial status.
+  function appResultTally(d){
+    const names = deploymentAppNames(d);
+    const map = appResultMap(d);
+    let installed = 0, failed = 0;
+    names.forEach(n=>{
+      const r = map.get(n.toLowerCase());
+      if(!r) return;
+      if(r.status === 'installed') installed++; else if(r.status === 'failed') failed++;
+    });
+    return {installed, failed, total: names.length, reported: installed + failed};
+  }
+
   // Number of targets planned for a given day. Honours the RM's manual per-day
   // breakdown (d.dayPlan) saved at creation; only falls back to an even split
   // when there is no explicit plan.
@@ -10061,6 +10370,12 @@
     const verLabel = apps.map(a=>a.version).join(' / ');
     const p = PROJECTS[r.projectKey] || {};
     const rows = [];
+    // A worklist for one application starts where that application joined the
+    // rollout. Listing the days it was not part of would send the deployer back to
+    // targets it was never going to reach — and it is the per-application sheet
+    // precisely because a deployer works one application at a time.
+    const joined = app ? appJoinedAt(app) : null;
+    const fromDay = joined ? joined.day : 1;
     // Single deployment: a one-row schedule (one target/location).
     if(r.mode !== 'batch'){
       const dateStr = r.date || r.createdDate || '';
@@ -10076,6 +10391,7 @@
       for(let k=0; k<count; k++){
         const code = targetCodeAt(r, pos);
         pos++;
+        if(day < fromDay) continue;
         rows.push({ app: appsLabel, version: verLabel, code, date: dateStr, dow, day, custom: locCustomByCode(p, code) });
       }
     }
@@ -10481,19 +10797,64 @@
     document.getElementById('edit-dep-modal-overlay').style.display = 'flex';
     editDepSnapshot = captureEditDepSnapshot();
   }
+  // What an application joining a running rollout has already missed. A rollout
+  // that has closed targets (or reported days) cannot honestly count them as
+  // having received an application that was not on the list at the time — that is
+  // the bug this records: adding a fourth application on day four used to mark it
+  // installed everywhere the first three had been.
+  //
+  // Returns null when there is nothing to exclude (nothing reported yet), which is
+  // the normal case and leaves the entry exactly as it was written before.
+  function appJoinStampFor(d){
+    if(!d) return null;
+    if(d.mode === 'batch'){
+      const done = Number(d.counts && d.counts.installed) || 0;
+      if(done <= 0) return null;
+      const stamp = (typeof nowStamp === 'function') ? nowStamp() : {date: todayIso()};
+      return {day: currentDayNum(d), date: stamp.date, installed: done};
+    }
+    // A single-target rollout is edited only while it is still scheduled, so there
+    // is nothing behind it — but a record whose status has already moved gets the
+    // stamp too rather than inheriting an outcome nobody reported for it.
+    if(!d.status || d.status === 'scheduled') return null;
+    const stamp = (typeof nowStamp === 'function') ? nowStamp() : {date: todayIso()};
+    return {day: 1, date: stamp.date, installed: 0};
+  }
+
+  // Ask before storing an application that joined a running rollout, naming what
+  // it will and will not reach. The alternative was a silent save whose report
+  // then claimed the new application had been installed on every target the
+  // rollout had already closed.
+  function confirmLateAppJoin(d, names, joinStamp){
+    const apps = names.join(', ');
+    const body = d.mode === 'batch'
+      ? tf('editdep.lateJoinBodyBatch', {
+          apps, day: joinStamp.day, done: joinStamp.installed,
+          left: Math.max(0, (Number(d.totalLocations) || 0) - joinStamp.installed),
+        })
+      : tf('editdep.lateJoinBody', {apps});
+    return askAppConfirm(t('editdep.lateJoinTitle'), body, t('editdep.lateJoinOk'), 'neutral');
+  }
+
   async function saveDeploymentEdits(){
     if(editDepIdx === null) return;
     const r = DEPLOYMENTS_DATA[editDepIdx];
     if(!r){ return; }
     if(!canEditDeployments()){ showToast(t('editdep.forbidden')); return; }
+    // Captured now: the save can pause on a confirmation below, and the index this
+    // record is persisted under must be the one the dialog was opened on.
+    const savedIdx = editDepIdx;
     const changes = [];
     syncEditDepAppInputs();
     if(!editDepApps.length){ showToast(t('editdep.errNeedApp')); return; }
     const prevApps = (r.apps||[]).map(a=>({name: a.name, version: a.version || ''}));
+    const joinStamp = appJoinStampFor(r);
+    const addedLate = [];
     editDepApps.forEach(a=>{
       const before = prevApps.find(p=>appKey(p.name) === appKey(a.name));
       if(!before){
         changes.push(tf('editdep.chAppAdded', {app: a.name + (a.version ? ' v' + a.version : '')}));
+        if(joinStamp) addedLate.push(a.name);
       } else if(a.version && a.version !== before.version){
         changes.push(a.name + ': ' + (before.version || '—') + ' → ' + a.version);
       }
@@ -10503,15 +10864,34 @@
         changes.push(tf('editdep.chAppRemoved', {app: p.name + (p.version ? ' v' + p.version : '')}));
       }
     });
+    // Adding an application to a rollout that is already part-way through is a
+    // decision with a consequence the release manager has to see before it is
+    // stored: the targets already closed will not receive it, so this rollout ends
+    // with its applications at different coverage. Saying so here is cheaper than
+    // explaining the resulting report afterwards.
+    if(addedLate.length && !(await confirmLateAppJoin(r, addedLate, joinStamp))) return;
     // Rebuild the list from the dialog, carrying over whatever else an existing
     // entry held. An emptied version box is not a version change (that is how the
     // field has always behaved), so the stored one stays.
     r.apps = editDepApps.map(a=>{
       const before = (r.apps||[]).find(x=>appKey(x.name) === appKey(a.name));
-      return before
-        ? Object.assign({}, before, {version: a.version || before.version || ''})
-        : {name: a.name, version: a.version || ''};
+      if(before) return Object.assign({}, before, {version: a.version || before.version || ''});
+      const entry = {name: a.name, version: a.version || ''};
+      // Where it joined, so every per-application figure counts from here rather
+      // than from the first day of the rollout.
+      if(joinStamp) entry.since = {day: joinStamp.day, date: joinStamp.date, installed: joinStamp.installed};
+      return entry;
     });
+    if(addedLate.length && joinStamp){
+      // On the timeline as well as in the record: a reader asking why one
+      // application shows 40/400 while the rest show 400/400 gets the answer in
+      // the same place as every other change to the rollout.
+      const stamp = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'};
+      r.comments = r.comments || [];
+      r.comments.push({date: stamp.date, time: stamp.time, author: actorName(), type:'system', icon:'➕',
+        text: tf(r.mode === 'batch' ? 'editdep.tlAppJoinedBatch' : 'editdep.tlAppJoined',
+          {apps: addedLate.join(', '), day: joinStamp.day, n: joinStamp.installed})});
+    }
     if(r.mode === 'batch'){
       const newTime = document.getElementById('edit-dep-time').value;
       if(newTime && newTime !== r.time){ changes.push(t('editdep.time') + ': ' + fmtTime(r.time) + ' → ' + fmtTime(newTime)); r.time = newTime; }
@@ -10537,7 +10917,6 @@
     }
     // Instructions and files are the package's — edited there, not here.
 
-    const savedIdx = editDepIdx;
     closeEditDeploymentModal(true);
     if(!changes.length){ showToast(t('editdep.noChanges')); return; }
     const projLabel = (PROJECTS[r.projectKey]||{}).name || r.projectKey;
@@ -10717,7 +11096,7 @@
     showToast(t('dtl.schedSaved'));
   }
 
-  const statusLabelFull = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
+  const statusLabelFull = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), partial:t('status.partial'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
   // The same labels for a notification. A function, not a constant: the object
   // above is built once at load time, so it freezes whatever language the UI
   // started in — and NOTIFY_LANG only arrives once /api/version has answered.
@@ -10755,6 +11134,12 @@
 
     if(status === 'installed'){
       events.push({date: date, time, icon:'✅', text: (d.env==='Production' ? tf('tl.prodDone', {n: locN}) : t('tl.testDone'))});
+    } else if(status === 'partial'){
+      // Which applications did go in, named: "partly installed" alone leaves the
+      // client to ask the question the record can already answer.
+      const tally = appResultTally(d);
+      const okApps = ((d.appResults)||[]).filter(x=>x && x.status === 'installed').map(x=>x.name).join(', ');
+      events.push({date: date, time, icon:'⚠️', text: tf('tl.partialDone', {done: tally.installed, total: tally.total, apps: okApps || '—'})});
     } else if(status === 'scheduled'){
       if(d.env === 'Production' && d.clientApproval === 'approved'){
         events.push({date, time, icon:'📅', text: tf('tl.prodWillStart', {date, time, n: locN})});
@@ -10825,7 +11210,7 @@
         });
       }
     } else {
-      const icon = r.status==='installed' ? '✅' : r.status==='failed' ? '⚠️' : r.status==='rolledback' ? '↩️' : r.status==='aborted' ? '⏹️' : '📅';
+      const icon = r.status==='installed' ? '✅' : r.status==='partial' ? '⚠️' : r.status==='failed' ? '⚠️' : r.status==='rolledback' ? '↩️' : r.status==='aborted' ? '⏹️' : '📅';
       // Once reported, use the actual report date/time (not the planned date) and
       // attribute it to the deployer who marked the status.
       const reported = r.status !== 'scheduled' && r.reportedDate;
@@ -11149,16 +11534,26 @@
     if(r.mode === 'batch'){
       if(failedCount > 0){
         // some failed but the rest went through → partial
-        return {label:'Partially failed', icon:'⚠', color:'#8A5A05', bg:'#FDF1E1'};
+        return {label:t('outc.partialTargets'), icon:'⚠', color:'#8A5A05', bg:'#FDF1E1'};
       }
-      return {label:'Completed in full', icon:'✓', color:'#0F7A38', bg:'var(--green-soft)'};
+      return {label:t('outc.completedFull'), icon:'✓', color:'#0F7A38', bg:'var(--green-soft)'};
     }
     // single-target deployment
-    if(r.status === 'installed') return {label:'Completed', icon:'✓', color:'#0F7A38', bg:'var(--green-soft)'};
-    if(r.status === 'failed')    return {label:'Failed', icon:'✕', color:'#A81E1E', bg:'var(--red-soft)'};
-    if(r.status === 'rolledback')return {label:'Rolled back', icon:'↺', color:'#8A5A05', bg:'#FDF1E1'};
-    if(r.status === 'aborted')   return {label:'Aborted', icon:'⊘', color:'#A81E1E', bg:'var(--red-soft)'};
-    return {label:'Completed', icon:'•', color:'var(--text-muted)', bg:'#EEF0F3'};
+    if(r.status === 'installed') return {label:t('outc.completed'), icon:'✓', color:'#0F7A38', bg:'var(--green-soft)'};
+    // Some applications went in and the rest did not — the count belongs in the
+    // label, because "partially installed" without it sends the reader looking
+    // for how much of it happened.
+    if(r.status === 'partial'){
+      const tally = appResultTally(r);
+      return {
+        label: tally.total ? tf('outc.partialApps', {done: tally.installed, total: tally.total}) : t('outc.partial'),
+        icon:'⚠', color:'#8A5A05', bg:'#FDF1E1',
+      };
+    }
+    if(r.status === 'failed')    return {label:t('outc.failed'), icon:'✕', color:'#A81E1E', bg:'var(--red-soft)'};
+    if(r.status === 'rolledback')return {label:t('outc.rolledback'), icon:'↺', color:'#8A5A05', bg:'#FDF1E1'};
+    if(r.status === 'aborted')   return {label:t('outc.aborted'), icon:'⊘', color:'#A81E1E', bg:'var(--red-soft)'};
+    return {label:t('outc.completed'), icon:'•', color:'var(--text-muted)', bg:'#EEF0F3'};
   }
 
   // People who can be assigned to a deployment (scoped to the project when possible).
@@ -11215,6 +11610,16 @@
 
   function internalBadge(r){
     return r.internal ? ' <span class="mono" style="font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; background:#EDE7F6; color:#5B3EA6; vertical-align:middle;">🔒 INTERNAL</span>' : '';
+  }
+
+  // A rollout that ends on the test environment. The deployer is the reader who
+  // needs it most: nothing follows this install, so there is no production
+  // rollout to hand over and nobody downstream to warn — which is exactly the
+  // step that used to be taken anyway, because the record did not say.
+  function testOnlyBadge(r){
+    if(!r || !r.testOnly) return '';
+    return ' <span class="mono" style="font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; background:var(--cyan-soft); color:var(--cyan); vertical-align:middle;" title="'
+      + escapeHtml(t('dep.testOnlyTip')) + '">' + t('dep.testOnlyBadge') + '</span>';
   }
 
   // Small badge making the client's approval state explicit in the deployer
@@ -11491,15 +11896,27 @@
       } else if(isDone){
         extra = `<div style="font-size:10.5px; color:#0F7A38; margin-top:3px;">✓ ${t('dep.complete')}</div>`;
       }
+      // One figure for the whole rollout is read as one figure per application, and
+      // an application added part-way through has not had the targets the others
+      // have. Say so on the row rather than letting the number speak for all of them.
+      const mixed = appsHaveMixedCoverage(r.apps)
+        ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px;" title="${escapeHtml(t('rep.mixedCoverageNote'))}">⚠ ${t('rep.mixedCoverageShort')}</div>`
+        : '';
       return `<td>
         <div style="display:flex; align-items:center; gap:8px;">
           <div style="width:64px; height:6px; background:var(--line); border-radius:3px; overflow:hidden;"><div style="width:${pct}%; height:100%; background:${failedN ? 'var(--amber)' : 'var(--green)'};"></div></div>
           <span class="mono" style="font-size:11.5px; color:var(--text-muted);">${r.counts.installed}/${r.totalLocations}</span>
-        </div>${extra}</td>`;
+        </div>${extra}${mixed}</td>`;
     }
-    const statusLabel = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
+    const statusLabel = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), partial:t('status.partial'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
     const st = r.status || 'scheduled';
-    return `<td><span class="pill ${st}">${statusLabel[st]||st}</span>${r.paused ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}</div>` : ''}</td>`;
+    // "Partially installed" with no number sends the reader looking for how much of
+    // it happened, which is the one fact the record now holds.
+    const tally = st === 'partial' ? appResultTally(r) : null;
+    const tallyLine = (tally && tally.total)
+      ? `<div class="mono" style="font-size:10.5px; color:#8A5A05; margin-top:3px;">${tf('rep.appTally', {done: tally.installed, total: tally.total})}</div>`
+      : '';
+    return `<td><span class="pill ${st}">${statusLabel[st]||st}</span>${tallyLine}${r.paused ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}</div>` : ''}</td>`;
   }
 
   function installerApprovalCellHtml(r, kind){
@@ -11535,7 +11952,7 @@
     const clientLabel = (r.project && r.project.clientName) ? r.project.clientName : '';
     const cells = [];
     cells.push(`<td>${expandableCell(`<div style="font-size:13px;">${escapeHtml(r.project.name || r.projectKey || '')}</div>${clientLabel ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${escapeHtml(clientLabel)}</div>` : ''}`)}</td>`);
-    cells.push(`<td style="max-width:150px;">${deploymentAppsCellHtml(r)}${packageIdCellHtml(r)}${internalBadge(r)}</td>`);
+    cells.push(`<td style="max-width:150px;">${deploymentAppsCellHtml(r)}${packageIdCellHtml(r)}${internalBadge(r)}${testOnlyBadge(r)}</td>`);
     if(r.mode === 'batch'){
       cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})} <span style="color:var(--text-faint);">· ${tf('notif.daysN', {n: r.days})}</span></td>`);
     } else {
@@ -11599,18 +12016,25 @@
       }
       return `${installerActionChromeHtml(r, {showSchedule:true, showComment:true, showTimeline:true, timelineOpen:true, showAssignee:true})}
         ${depWarningHtml(r)}
+        ${appCoverageBlockHtml(r)}
         <label style="margin-bottom:6px;">${tf('rep.todaysBatch', {n: todayBatch.length})}</label>
         <input type="text" class="today-batch-search" placeholder="${t('rep.searchLocations')}" style="width:100%; margin-bottom:8px; padding:6px 10px; font-size:12.5px;" oninput="filterTodayBatch(this)">
         <div style="max-height:180px; overflow-y:auto; border:1px solid var(--line); border-radius:6px; padding:8px; margin-bottom:10px;">
-          ${todayBatch.map(loc=>`<label class="today-ok-row" data-loc="${String(loc).toLowerCase()}" style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; padding:6px 8px; border-radius:6px; background:var(--green-soft); cursor:pointer;">
-            <input type="checkbox" class="today-fail-check" data-batch="${r.idx}" data-scope="i" value="${escapeHtml(loc)}" checked style="width:auto;" onchange="onTodayOkToggle(this)">
-            ${escapeHtml(loc)} <span class="today-ok-badge mono" style="margin-left:auto; font-size:11px; font-weight:700; color:#0F7A38;">${t('rep.correct')}</span>
-          </label>`).join('')}
+          ${todayBatch.map((loc, li)=>todayBatchRowHtml(r, loc, li, 'i')).join('')}
         </div>
         <textarea id="today-fail-reason-i-${r.idx}" placeholder="${t('rep.failureReasonUnchecked')}"></textarea>
         <button class="btn" style="margin-top:8px;" onclick="reportBatchDayResult(${r.idx}, 'i')">${t('rep.saveResult')}</button>
         <hr style="border:none; border-top:1px solid var(--line); margin:14px 0 12px 0;">
         ${batchCorrectionBlockHtml(r, true)}`;
+    }
+    // A single-target install of several applications is reported per application:
+    // an install that stops half-way (the server drops off the network after the
+    // second of four) has no honest answer among "installed" and "failed", and the
+    // deployer used to have to pick one of them and explain the rest by hand.
+    if(isMultiAppDeployment(r)){
+      return `${installerActionChromeHtml(r, {showSchedule:true, showComment:true, showTimeline:true, timelineOpen:true, showAssignee:true})}
+        ${depWarningHtml(r)}
+        ${singleAppReportHtml(r)}`;
     }
     return `${installerActionChromeHtml(r, {showSchedule:true, showComment:true, showTimeline:true, timelineOpen:true, showAssignee:true})}
       ${depWarningHtml(r)}
@@ -11619,6 +12043,94 @@
         <button class="btn ghost" onclick="installerMarkSingle(${r.idx}, 'installed')">${t('rep.confirmInstalled')}</button>
         <button class="btn ghost" onclick="installerMarkSingle(${r.idx}, 'failed')">${t('rep.reportFailed')}</button>
       </div>`;
+  }
+
+  // One target row of today's batch. On a rollout carrying several applications the
+  // row opens into a per-application list as soon as it is marked failed: a server
+  // that stopped answering part-way through left some of them installed, and
+  // "the target failed" alone sends the whole set out again.
+  //
+  // The applications start unticked in that list — that is what a failed target
+  // meant before this existed, so the unchanged gesture (untick the target, save)
+  // still records exactly what it used to.
+  function todayBatchRowHtml(r, loc, li, scope){
+    const apps = deploymentAppNames(r);
+    const detail = apps.length > 1
+      ? `<div class="today-app-detail" style="display:none; padding:2px 0 2px 26px;">
+           <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">${t('rep.whichAppsInstalled')}</div>
+           <div style="display:flex; flex-wrap:wrap; gap:10px;">
+             ${apps.map(name=>`<label style="display:flex; align-items:center; gap:5px; font-size:12px; font-weight:400; cursor:pointer;">
+               <input type="checkbox" class="today-app-check" data-batch="${r.idx}" data-scope="${scope}" data-li="${li}" value="${escapeHtml(name)}" style="width:auto;">
+               ${escapeHtml(name)}
+             </label>`).join('')}
+           </div>
+         </div>`
+      : '';
+    return `<div class="today-ok-row" data-loc="${String(loc).toLowerCase()}" style="display:flex; flex-direction:column; gap:4px; padding:6px 8px; border-radius:6px; background:var(--green-soft); margin-bottom:4px;">
+      <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; cursor:pointer; margin:0;">
+        <input type="checkbox" class="today-fail-check" data-batch="${r.idx}" data-scope="${scope}" data-li="${li}" value="${escapeHtml(loc)}" checked style="width:auto;" onchange="onTodayOkToggle(this)">
+        ${escapeHtml(loc)} <span class="today-ok-badge mono" style="margin-left:auto; font-size:11px; font-weight:700; color:#0F7A38;">${t('rep.correct')}</span>
+      </label>
+      ${detail}</div>`;
+  }
+
+  // The per-application report for a single-target install: a row per application
+  // (ticked = it went in), one reason for whatever did not, and one Save.
+  //
+  // The same block is the correction: reopening it pre-ticked from what was last
+  // reported means finishing the two applications a dead server left behind is the
+  // same gesture as reporting them, rather than a separate "correction" form that
+  // can only flip the whole record.
+  function singleAppReportHtml(r){
+    const results = appResultMap(r);
+    const reported = !!(r.appResults && r.appResults.length);
+    return `<p style="font-size:12px; color:var(--text-muted); margin:0 0 10px 0;">${t(reported ? 'rep.perAppAgainHint' : 'rep.perAppHint')}</p>
+      <div style="display:flex; flex-direction:column; gap:6px; border:1px solid var(--line); border-radius:6px; padding:8px; margin-bottom:10px;">
+        ${deploymentAppNames(r).map((name, ai)=>{
+          const version = ((r.apps||[])[ai] || {}).version || '';
+          const prev = results.get(name.toLowerCase());
+          // Default to installed: an untouched form reports the normal outcome, and
+          // a re-opened one starts from what is on the record.
+          const ok = !prev || prev.status === 'installed';
+          return `<label class="single-app-row" style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; padding:6px 8px; border-radius:6px; background:var(--${ok ? 'green' : 'red'}-soft); cursor:pointer;">
+            <input type="checkbox" class="single-app-check" data-dep="${r.idx}" value="${escapeHtml(name)}" ${ok ? 'checked' : ''} style="width:auto;" onchange="onSingleAppToggle(this)">
+            ${escapeHtml(name)}${version ? ` <span class="mono" style="font-size:11px; color:var(--text-faint);">v${escapeHtml(version)}</span>` : ''}
+            <span class="single-app-badge mono" style="margin-left:auto; font-size:11px; font-weight:700; color:${ok ? '#0F7A38' : '#A81E1E'};">${ok ? t('rep.correct') : t('rep.failedShort')}</span>
+          </label>`;
+        }).join('')}
+      </div>
+      <textarea id="single-fail-reason-${r.idx}" placeholder="${t('rep.failureReasonUncheckedApps')}">${escapeHtml(lastAppFailureReason(r))}</textarea>
+      <button class="btn" style="margin-top:8px;" onclick="reportSingleAppResults(${r.idx})">${t('rep.saveResult')}</button>`;
+  }
+
+  // The reason last given for a failed application, so a re-opened report does not
+  // ask for it again when nothing about the failure has changed.
+  function lastAppFailureReason(r){
+    const failed = ((r && r.appResults) || []).find(x=>x && x.status === 'failed' && x.reason);
+    return failed ? failed.reason : '';
+  }
+
+  // Per-application coverage of a batch rollout, shown only once the applications
+  // have drifted apart — which happens the moment one of them is added to a
+  // rollout that is already running. A single "312/400" for the whole record is
+  // read as 312 for every application on the list, and for the one that joined on
+  // day four that is not true.
+  function appCoverageBlockHtml(r){
+    if(!r || r.mode !== 'batch' || !appsHaveMixedCoverage(r.apps)) return '';
+    const rows = (r.apps||[]).map(a=>{
+      const c = appCoverage(a, r);
+      const late = appJoinedAt(a);
+      return `<div style="display:flex; gap:8px; align-items:baseline; font-size:12px;">
+        <span style="min-width:140px;">${escapeHtml(a.name || '—')}</span>
+        <span class="mono" style="font-weight:700;">${c.installed}/${c.planned}</span>
+        ${late ? `<span style="font-size:11px; color:#8A5A05;">${tf('rep.appJoinedDay', {day: late.day, n: late.installed})}</span>` : ''}
+      </div>`;
+    }).join('');
+    return `<div class="alert alert-warning" style="margin:0 0 12px 0; display:block;" role="status">
+      <div style="font-size:11.5px; font-weight:700; margin-bottom:6px;">⚠ ${t('rep.mixedCoverage')}</div>
+      ${rows}
+      <div style="font-size:11px; color:var(--text-muted); margin-top:6px;">${t('rep.mixedCoverageNote')}</div>
+    </div>`;
   }
 
   // Production target labels for the correction picker — a correction only ever
@@ -11647,7 +12159,7 @@
     const corrBtn = `<button class="mini-btn" onclick="toggleInstallerCorrection(${r.idx})">${t('rep.reportCorrection')}</button>`;
     return `
       <div style="margin-bottom:10px;">${corrBtn}</div>
-      ${failed.length ? `<div style="margin-bottom:8px; font-size:11.5px; color:#A81E1E;">⚠ ${tf('rep.toFinish', {list: failed.map(f=>f.location).join(', ')})}</div>` : ''}
+      ${failed.length ? `<div style="margin-bottom:8px; font-size:11.5px; color:#A81E1E;">⚠ ${tf('rep.toFinish', {list: failed.map(f=>failedTargetLabel(r, f)).join(', ')})}</div>` : ''}
       <div id="correction-form-${r.idx}" style="display:none; margin-top:4px;">
         <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">${inProgress ? t('rep.correctionHintActive') : t('rep.correctionHint')}</p>
         <div id="correction-${r.idx}-errors" style="display:none; margin-bottom:10px;"></div>
@@ -11669,6 +12181,18 @@
       </div>`;
   }
 
+  // A target still to finish, with the applications it is still owed when that is
+  // only part of the set. "WORD-7" alone reads as a repeat of the whole install,
+  // which on a four-application rollout is three times the work it needs.
+  function failedTargetLabel(r, entry){
+    const loc = (entry && entry.location) || '';
+    const names = deploymentAppNames(r);
+    if(names.length < 2) return loc;
+    const owed = failedAppsAt(entry, names);
+    if(owed.length >= names.length) return loc;
+    return loc + ' (' + owed.join(', ') + ')';
+  }
+
   function installerCompletedDetailHtml(r){
     const corrBtn = `<button class="mini-btn" onclick="toggleInstallerCorrection(${r.idx})">${t('rep.reportCorrection')}</button>`;
     const chrome = installerActionChromeHtml(r, {showSchedule:true, showComment:true, showTimeline:true, timelineOpen:true});
@@ -11679,6 +12203,14 @@
       return `${chrome}
         ${doneBanner}
         ${batchCorrectionBlockHtml(r, false)}`;
+    }
+    // Several applications on one target: the correction is the report, re-opened.
+    // A whole-record flip cannot express "the two that failed have now gone in",
+    // which is the correction actually being made after a server came back.
+    if(isMultiAppDeployment(r)){
+      return `${chrome}
+        ${appResultSummaryHtml(r)}
+        ${singleAppReportHtml(r)}`;
     }
     return `${chrome}
       <div style="margin-bottom:10px;">${corrBtn}</div>
@@ -11695,6 +12227,27 @@
                <button class="btn" onclick="submitSingleCorrection(${r.idx}, 'installed')">${t('rep.changeToSuccessful')}</button>`}
         </div>
       </div>`;
+  }
+
+  // What was reported per application, for a reader rather than an editor: which
+  // went in, which did not and why.
+  function appResultSummaryHtml(r){
+    const results = (r && r.appResults) || [];
+    if(!results.length) return '';
+    const tally = appResultTally(r);
+    const rows = results.map(x=>{
+      const ok = x.status === 'installed';
+      return `<div style="display:flex; gap:8px; align-items:baseline; font-size:12px;">
+        <span style="min-width:16px; color:${ok ? '#0F7A38' : '#A81E1E'};">${ok ? '✓' : '✕'}</span>
+        <span style="min-width:140px;">${escapeHtml(x.name || '—')}</span>
+        ${x.reason ? `<span style="font-size:11px; color:var(--text-muted);">${escapeHtml(x.reason)}</span>` : ''}
+      </div>`;
+    }).join('');
+    const failed = tally.total - tally.installed;
+    return `<div class="alert ${failed ? 'alert-warning' : 'alert-info'}" style="margin:0 0 12px 0; display:block;" role="status">
+      <div style="font-size:11.5px; font-weight:700; margin-bottom:6px;">${failed ? '⚠ ' : '✓ '}${tf('rep.appTally', {done: tally.installed, total: tally.total})}</div>
+      ${rows}
+    </div>`;
   }
 
   // One counter tile. A colour-coded tile at zero would draw the eye to nothing,
@@ -11736,12 +12289,23 @@
   function installerInstallCount(list){
     let n = 0;
     list.forEach(r=>{
-      const apps = (r.apps || []).length;
-      if(!apps) return;
-      const done = r.mode === 'batch'
-        ? !!(r.counts && r.counts.scheduled === 0)
-        : r.status === 'installed';
-      if(done) n += apps;
+      const apps = (r.apps || []);
+      if(!apps.length) return;
+      if(r.mode === 'batch'){
+        if(!(r.counts && r.counts.scheduled === 0)) return;
+        // An application that joined the rollout late did not reach the targets that
+        // were already closed, so it is only counted once it has had all the ones it
+        // was planned for. Counting it with the rest is how a rollout reported four
+        // completed installations when only three had happened everywhere.
+        apps.forEach(a=>{
+          const c = appCoverage(a, r);
+          if(c.planned > 0 && c.installed >= c.planned) n += 1;
+        });
+        return;
+      }
+      if(r.status === 'installed'){ n += apps.length; return; }
+      // A partial install counts the applications that went in, not the record.
+      if(r.status === 'partial') n += appResultTally(r).installed;
     });
     return n;
   }
@@ -11775,7 +12339,12 @@
     function needsApprovalGate(r){
       return r.clientApproval && r.clientApproval !== 'approved';
     }
-    const isActive = r => (r.mode==='batch' && r.counts.scheduled>0) || (r.mode==='single' && r.status==='scheduled');
+    // 'partial' counts as active: some applications are still owed on that target,
+    // so the rollout is not something the deployer is finished with. Filing it under
+    // "completed" would drop it out of the panel's default view — which is the
+    // failure this whole status exists to prevent.
+    const isActive = r => (r.mode==='batch' && r.counts.scheduled>0)
+      || (r.mode==='single' && (r.status==='scheduled' || r.status==='partial'));
     const active = all.filter(r => isActive(r) && !r.paused && !needsApprovalGate(r));
     const waiting = all.filter(r => isActive(r) && !r.paused && needsApprovalGate(r));
     const paused = all.filter(r => isActive(r) && r.paused);
@@ -12017,6 +12586,7 @@
         // if this location is later marked successful).
         d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'⚠️', text: tf('dtl.failReason', {reason: reason})});
         d.status = status;
+        syncAppResultsToStatus(d, status);
         d.reportedBy = who;
         d.reportedDate = _s.date; d.reportedTime = _s.time;
         persistDeployment(idx);
@@ -12031,6 +12601,7 @@
       return;
     }
     d.status = status;
+    syncAppResultsToStatus(d, status);
     d.reportedBy = who;
     { const _s = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'}; d.reportedDate = _s.date; d.reportedTime = _s.time; }
     persistDeployment(idx);
@@ -12052,6 +12623,86 @@
       + ' · ' + tnf('notif.reportedByManual', {who}), true, d.id);
   }
 
+  // Report a single-target install per application. This is the case the record
+  // could not express: an install of four applications where the server stopped
+  // answering after the second one is neither installed nor failed, and the
+  // deployer had to claim one of the two and put the truth in a comment.
+  //
+  // The outcome per application is stored on the record (`appResults`) and the
+  // deployment's own status is derived from it — installed, failed, or 'partial'
+  // when the two are mixed. Which applications are still owed is then a fact the
+  // report can carry rather than something a reader has to reconstruct.
+  function reportSingleAppResults(idx){
+    const d = DEPLOYMENTS_DATA[idx];
+    if(!d) return;
+    if(d.paused){ showToast(t('pause.blockedProgress')); return; }
+    const names = deploymentAppNames(d);
+    const checks = Array.from(document.querySelectorAll(`.single-app-check[data-dep="${idx}"]`));
+    if(!checks.length) return;
+    const okSet = new Set(checks.filter(c=>c.checked).map(c=>c.value));
+    const failedNames = names.filter(n=>!okSet.has(n));
+    const reasonEl = document.getElementById('single-fail-reason-' + idx);
+    const reason = reasonEl ? reasonEl.value.trim() : '';
+    // A failure with no explanation is a report nobody can act on, and the field is
+    // right there — so it is required exactly when something failed.
+    if(failedNames.length && !reason){ showToast(t('rep.needFailureReason')); return; }
+
+    const who = actorName();
+    if(!d.assignedTo) d.assignedTo = who;
+    const stamp = (typeof nowStamp === 'function') ? nowStamp() : {date: todayIso(), time:'00:00'};
+    d.appResults = names.map(name=>{
+      const failed = !okSet.has(name);
+      const entry = {name, status: failed ? 'failed' : 'installed', by: who, date: stamp.date, time: stamp.time};
+      if(failed && reason) entry.reason = reason;
+      return entry;
+    });
+    // Derived, never typed: the same rule the backend applies (appProgress.js), so
+    // an automation caller patching appResults lands on the same status as the panel.
+    d.status = statusFromAppResults(d.appResults, names) || 'scheduled';
+    d.reportedBy = who;
+    d.reportedDate = stamp.date;
+    d.reportedTime = stamp.time;
+
+    d.comments = d.comments || [];
+    const okNames = names.filter(n=>okSet.has(n));
+    d.comments.push({date: stamp.date, time: stamp.time, author: who, type:'system',
+      icon: failedNames.length ? '⚠️' : '✅',
+      text: failedNames.length
+        ? tf('dtl.appReportPartial', {done: okNames.length, total: names.length, installed: okNames.join(', ') || '—', failed: failedNames.join(', ')})
+        : tf('dtl.appReportAll', {n: names.length})});
+    if(failedNames.length && reason){
+      d.comments.push({date: stamp.date, time: stamp.time, author: who, type:'system', icon:'⚠️', text: tf('dtl.failReason', {reason})});
+    }
+
+    const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
+    logAudit('changed', 'Deployment',
+      'Reported ' + (d.id||'') + ' — ' + okNames.length + '/' + names.length + ' applications installed',
+      projName, 'aud.d.appReport', {id: d.id||'', done: okNames.length, total: names.length});
+    persistDeployment(idx);
+    renderDeploymentsTable();
+    renderInstallerPanel();
+    highlightInstallerCard(idx);
+    showToast(failedNames.length
+      ? tf('rep.savedPartial', {done: okNames.length, total: names.length})
+      : t('rep.savedAll'));
+
+    // The status is in the subject line, because a channel shows only that in its
+    // preview — and "partially installed" is the case a reader must not miss.
+    const doneStatus = statusLabelNotif(d.status);
+    let body = notifHeader(d, projName)
+      + '\n' + tn('notif.statusLine') + ': ' + doneStatus
+      + '\n' + tnf('notif.appTally', {done: okNames.length, total: names.length});
+    if(failedNames.length){
+      body += '\n' + tnf('notif.appsFailed', {apps: failedNames.join(', ')});
+      if(reason) body += '\n' + tn('rep.correctionReason') + ': ' + reason;
+    }
+    body += '\n' + tnf('notif.reportedByManual', {who});
+    const eventKey = failedNames.length ? 'failure' : 'completed';
+    dispatchEventNotification(eventKey, d.projectKey,
+      'RollDesk — ' + tn(eventKey === 'failure' ? 'ev.failure' : 'ev.completed')
+        + ': ' + doneStatus + ' (' + envLabelNotif(d.env||'') + ')', body, true, d.id);
+  }
+
   function filterTodayBatch(input){
     const q = input.value.toLowerCase().trim();
     const container = input.nextElementSibling;
@@ -12063,12 +12714,38 @@
   function onTodayOkToggle(checkbox){
     const row = checkbox.closest('.today-ok-row');
     const badge = row.querySelector('.today-ok-badge');
+    // The per-application list only matters for a target that failed: on a rollout
+    // of four applications the deployer then says which of them did go in.
+    const detail = row.querySelector('.today-app-detail');
     if(checkbox.checked){
-      badge.innerHTML = '✅ Correct';
+      badge.innerHTML = t('rep.correct');
+      badge.style.color = '#0F7A38';
+      row.style.background = 'var(--green-soft)';
+      if(detail){
+        detail.style.display = 'none';
+        // Marked correct again: whatever was ticked in the detail is no longer part
+        // of the report, so it must not be read back on save.
+        detail.querySelectorAll('.today-app-check').forEach(c=>{ c.checked = false; });
+      }
+    } else {
+      badge.innerHTML = t('rep.failedShort');
+      badge.style.color = '#A81E1E';
+      row.style.background = 'var(--red-soft)';
+      if(detail) detail.style.display = '';
+    }
+  }
+
+  // The same row treatment for the per-application list of a single-target install.
+  function onSingleAppToggle(checkbox){
+    const row = checkbox.closest('.single-app-row');
+    const badge = row && row.querySelector('.single-app-badge');
+    if(!badge) return;
+    if(checkbox.checked){
+      badge.innerHTML = t('rep.correct');
       badge.style.color = '#0F7A38';
       row.style.background = 'var(--green-soft)';
     } else {
-      badge.innerHTML = '❌ Failed';
+      badge.innerHTML = t('rep.failedShort');
       badge.style.color = '#A81E1E';
       row.style.background = 'var(--red-soft)';
     }
@@ -12139,6 +12816,40 @@
     const successList = todayBatch.filter(loc=>!failedSet.has(loc));
     const failedList = todayBatch.filter(loc=>failedSet.has(loc));
 
+    // Which applications failed at each target that failed. On a rollout carrying
+    // one application there is nothing to ask; on one carrying four, a server that
+    // dropped off the network after the second left two installed, and sending the
+    // whole set out again is not the same job as finishing the two that are left.
+    //
+    // The ticked boxes are the ones that *did* install, so an untouched detail
+    // (nothing ticked) means "all of them failed here" — exactly what a failed
+    // target meant before the detail existed. Keyed by row index rather than by
+    // name so a target label with a quote or a bracket in it cannot break the
+    // lookup.
+    const appNames = deploymentAppNames(d);
+    const failedAppsByLoc = new Map();
+    if(appNames.length > 1 && failedList.length){
+      const contradictory = [];
+      Array.from(allChecks).forEach(c=>{
+        if(c.checked) return;
+        const li = c.getAttribute('data-li');
+        const installedHere = Array.from(
+          document.querySelectorAll(`.today-app-check[data-batch="${idx}"][data-scope="${scope}"][data-li="${li}"]`)
+        ).filter(x=>x.checked).map(x=>x.value);
+        if(!installedHere.length) return;              // all failed → nothing to record
+        const failedHere = appNames.filter(n=>!installedHere.includes(n));
+        // Every application ticked on a target marked failed says two opposite
+        // things at once, and guessing which one was meant would store the wrong
+        // one. Ask instead — it is one checkbox either way.
+        if(!failedHere.length){ contradictory.push(c.value); return; }
+        failedAppsByLoc.set(c.value, failedHere);
+      });
+      if(contradictory.length){
+        showToast(tf('rep.allAppsTickedOnFailed', {list: contradictory.join(', ')}));
+        return;
+      }
+    }
+
     getBatchHistoryRows(d); // ensure d.history is initialized before we append to it
     const who = actorName();
     if(!d.assignedTo) d.assignedTo = who;
@@ -12163,11 +12874,25 @@
 
     if(failedList.length){
       d.failedLocations = d.failedLocations || [];
-      failedList.forEach(loc=> recordFailedLocation(d, {location: loc, date: dateStr, time: d.time, reportedDate: rep.date, reportedTime: rep.time, reason: reason || '—'}));
+      failedList.forEach(loc=>{
+        const entry = {location: loc, date: dateStr, time: d.time, reportedDate: rep.date, reportedTime: rep.time, reason: reason || '—'};
+        // Absent means "everything failed here", so only a genuine subset is stored.
+        const failedHere = failedAppsByLoc.get(loc);
+        if(failedHere) entry.failedApps = failedHere;
+        recordFailedLocation(d, entry);
+      });
       // Permanent failure-reason entry per location — survives later success and
       // any force-complete (unlike d.failedLocations, which drives the counter).
       d.comments.push({date: rep.date, time: rep.time, author: who, type:'system', icon:'⚠️',
         text: tf('dtl.failReasonLoc', {locations: failedList.join(', '), reason: reason || '—'})});
+      // A partial install per target is its own line: which applications are still
+      // owed where is the whole content of the return visit, and it would otherwise
+      // live only inside the record.
+      failedAppsByLoc.forEach((failedHere, loc)=>{
+        const installedHere = appNames.filter(n=>!failedHere.includes(n));
+        d.comments.push({date: rep.date, time: rep.time, author: who, type:'system', icon:'⚠️',
+          text: tf('dtl.failPartialApps', {location: loc, failed: failedHere.join(', '), installed: installedHere.join(', ')})});
+      });
     }
     // Complete the reported day (its pending bucket is now empty) and carry any
     // failures over to the next available day — so the panel advances to the
@@ -12197,6 +12922,12 @@
         + ' · ' + tnf('notif.progressLine', {done: d.counts.installed, total: (d.totalLocations || d.counts.installed + d.counts.scheduled), left: d.counts.scheduled});
       if(failedList.length){
         body += '\n' + tnf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
+        // Which applications are still owed where. A recipient reading "3 targets
+        // failed" cannot tell whether those targets received nothing or most of it,
+        // and that is the difference between a repeat rollout and finishing two files.
+        failedAppsByLoc.forEach((failedHere, loc)=>{
+          body += '\n' + tnf('notif.failedPartialApps', {location: loc, failed: failedHere.join(', ')});
+        });
         if(reason) body += '\n' + tn('rep.correctionReason') + ': ' + reason;
       }
       // What happens next. The report used to end with the counts, so a reader
@@ -12217,6 +12948,9 @@
       if(failedList.length){
         let fbody = header
           + '\n' + tnf('notif.failedDayBody', {n: failedList.length, list: failedList.join(', ')});
+        failedAppsByLoc.forEach((failedHere, loc)=>{
+          fbody += '\n' + tnf('notif.failedPartialApps', {location: loc, failed: failedHere.join(', ')});
+        });
         if(reason) fbody += '\n' + tn('rep.correctionReason') + ': ' + reason;
         dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + tn('ev.failure') + ' (' + envLabelNotif(d.env||'') + ')', fbody + byLine, true, d.id);
       }
@@ -12588,7 +13322,7 @@
   function clearDeployFilter(which){
     const set = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
     const resetStatus = () => {
-      deployStatusFilter = { scheduled: true, installed: true, failed: true, rolledback: true, aborted: true };
+      deployStatusFilter = { scheduled: true, installed: true, partial: true, failed: true, rolledback: true, aborted: true };
       refreshDeployStatusMsLabel();
     };
     if(which === 'all'){
@@ -12664,6 +13398,7 @@
       }
       const hasStaged = staged && Object.keys(staged).length;
       actionHtml = `
+        ${appCoverageBlockHtml(r)}
         <label style="margin-bottom:8px;">${t('dtl.dayScheduleLabel')}</label>
         <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
           <button class="mini-btn" onclick="stageShiftDays(${r.idx}, 1)">${t('dtl.shift1')}</button>
@@ -12726,7 +13461,10 @@
     ].join('');
 
     // Action buttons live in the same bar as the deployment ID, pushed to the right.
-    const isActiveDep = (r.mode === 'batch' && r.counts.scheduled > 0) || (r.mode === 'single' && r.status === 'scheduled');
+    // A partially installed rollout is still in flight, so the release manager keeps
+    // the actions that belong to a running one (editing it, pausing it).
+    const isActiveDep = (r.mode === 'batch' && r.counts.scheduled > 0)
+      || (r.mode === 'single' && (r.status === 'scheduled' || r.status === 'partial'));
     const isBatch = r.mode === 'batch';
     const barBtns = [];
     // A draft's schedule must not leave the app as a client-facing document.
@@ -12965,8 +13703,8 @@
     }
 
 
-    const statusLabel = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
-    const statusOptions = ['scheduled','installed','failed','rolledback','aborted'];
+    const statusLabel = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'), partial:t('status.partial'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
+    const statusOptions = ['scheduled','installed','partial','failed','rolledback','aborted'];
     const tbody = document.getElementById('deploy-table');
     let html = '';
     rows.forEach(r=>{
@@ -12982,7 +13720,7 @@
         cells.push(`<td>${lead(`<div style="font-size:13px;">${escapeHtml(r.project.name || r.projectKey || '')}</div>${clientLabel ? `<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${escapeHtml(clientLabel)}</div>` : ''}`)}</td>`);
       }
       const pkgIdCell = packageIdCellHtml(r);
-      const appsCell = `${r.apps.map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${a.name}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${a.version}</div></div>`).join('')}${pkgIdCell}${r.internal ? '<div>'+internalBadge(r)+'</div>' : ''}`;
+      const appsCell = `${r.apps.map(a=>`<div style="margin-bottom:4px;"><div style="font-size:13px;">${a.name}</div><div class="mono" style="font-size:11px; color:var(--text-faint);">v${a.version}</div></div>`).join('')}${pkgIdCell}${r.internal ? '<div>'+internalBadge(r)+'</div>' : ''}${r.testOnly ? '<div>'+testOnlyBadge(r)+'</div>' : ''}`;
       cells.push(`<td style="max-width:150px;">${showProjectCol ? appsCell : lead(appsCell)}</td>`);
 
       if(r.mode === 'batch'){
@@ -13031,8 +13769,8 @@
         cells.push(`<td style="white-space:nowrap; text-align:right;" onclick="event.stopPropagation();"><button class="mini-btn" onclick="toggleEditDeployment(${r.idx})">${t('common.cancel')}</button> <button class="btn small" onclick="saveDeploymentEdit(${r.idx})">${t('common.save')}</button></td>`);
         html += `<tr data-idx="${r.idx}">` + cells.join('') + '</tr>';
       } else {
-        const colors = {scheduled:'#5B6472', installed:'#0F7A38', failed:'#A81E1E', rolledback:'#6B21A8', aborted:'#5B6472'};
-        const bgs = {scheduled:'#EEF0F3', installed:'var(--green-soft)', failed:'var(--red-soft)', rolledback:'#F1E9FB', aborted:'#EEF0F3'};
+        const colors = {scheduled:'#5B6472', installed:'#0F7A38', partial:'#8A5A05', failed:'#A81E1E', rolledback:'#6B21A8', aborted:'#5B6472'};
+        const bgs = {scheduled:'#EEF0F3', installed:'var(--green-soft)', partial:'var(--amber-soft)', failed:'var(--red-soft)', rolledback:'#F1E9FB', aborted:'#EEF0F3'};
         cells.push(`<td>${r.location}</td>`);
         cells.push(`<td>${envTagHtml(r.env)}</td>`);
         cells.push(`<td class="mono">${fmtDate(r.date)}<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(r.time)}</div></td>`);
@@ -13080,9 +13818,23 @@
     stats.innerHTML = deployStatsHtml(total, pending, installed, issues);
   }
 
+  // A release manager setting the status by hand is asserting the whole record's
+  // outcome, so the per-application detail is rewritten to agree with it. Leaving a
+  // stale "2 of 4" beside a status of "installed" would put two contradictory
+  // answers on the same row.
+  function syncAppResultsToStatus(d, status){
+    if(!d || !Array.isArray(d.appResults) || !d.appResults.length) return;
+    if(status !== 'installed' && status !== 'failed'){ return; }
+    const stamp = (typeof nowStamp === 'function') ? nowStamp() : {date: todayIso(), time:'00:00'};
+    d.appResults = deploymentAppNames(d).map(name=>({
+      name, status, by: actorName(), date: stamp.date, time: stamp.time,
+    }));
+  }
+
   function markInstalled(idx){
     const d = DEPLOYMENTS_DATA[idx];
     d.status = 'installed';
+    syncAppResultsToStatus(d, 'installed');
     const _s = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'};
     const who = actorName();
     d.comments = d.comments || [];
@@ -13140,7 +13892,8 @@
     const prev = d.status;
     if(prev === newStatus) return;
     d.status = newStatus;
-    const labels = {scheduled:t('status.scheduled'), installed:t('status.installed'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
+    syncAppResultsToStatus(d, newStatus);
+    const labels = {scheduled:t('status.scheduled'), installed:t('status.installed'), partial:t('status.partial'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
     // Record the status change on the timeline and in the audit log.
     const _s = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
     const who = actorName();

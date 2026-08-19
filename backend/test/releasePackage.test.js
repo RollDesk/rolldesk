@@ -223,6 +223,22 @@ test('deployer instructions belong to the package, under either name', () => {
   assert.equal(normalizePackage(body()).data.data.instructions, undefined);
 });
 
+// A release verified on the test instance and never promoted. Marked by the test
+// team, read by the release manager: the deployment form starts on the test-only
+// path so nobody plans, approves or escalates a production rollout that is not
+// going to happen.
+test('a package can say it is only ever installed on a test environment', () => {
+  assert.equal(normalizePackage(body({ testOnly: true })).data.data.testOnly, true);
+  assert.equal(normalizePackage(body({ testOnly: 'true' })).data.data.testOnly, true);
+  // Absent stays absent rather than storing `false` on every package ever saved.
+  assert.equal(normalizePackage(body()).data.data.testOnly, undefined);
+  assert.equal(normalizePackage(body({ testOnly: false })).data.data.testOnly, undefined);
+  // Only the two spellings above turn it on: a stray string must not be read as
+  // "skip production", because that is what decides whether a rollout is planned.
+  assert.equal(normalizePackage(body({ testOnly: 'yes' })).data.data.testOnly, undefined);
+  assert.equal(normalizePackage(body({ testOnly: 1 })).data.data.testOnly, undefined);
+});
+
 test('an explicit id wins over the body id', () => {
   const r = normalizePackage(body({ id: 'PKG-2026-0009' }), { id: 'PKG-2026-0001' });
   assert.equal(r.data.id, 'PKG-2026-0001');

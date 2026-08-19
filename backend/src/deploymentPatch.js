@@ -4,12 +4,19 @@
 // An automation caller (an `rd_live_…` token in a script or CI job) usually
 // wants to change one field, and doing that over PUT means read-modify-write
 // with the risk of writing back a truncated object. PATCH merges instead.
+import { normalizeAppResults } from './appProgress.js';
 
 // Canonical status values. These are compared as strings in the UI
 // (frontend/app/index.html) and stored in the `status` column, so an unknown
 // value would render as an unstyled pill and break the status filters — reject
 // it at the edge rather than storing it.
-export const DEPLOYMENT_STATUSES = ['scheduled', 'installed', 'failed', 'rolledback', 'aborted'];
+//
+// 'partial' is a single-target rollout that installed some of its applications
+// and not the others — the server stopped answering after the second of four.
+// It is a status of its own because the two neighbours are both wrong: calling
+// it installed hides two applications that never went in, and calling it failed
+// hides two that did, which is what the deployer then has to explain by hand.
+export const DEPLOYMENT_STATUSES = ['scheduled', 'installed', 'partial', 'failed', 'rolledback', 'aborted'];
 
 // Fields that identify or scope a deployment. Changing the project moves the
 // record between authorization scopes (who may read it, whose portal shows it),
@@ -143,6 +150,17 @@ export function mergeDeploymentPatch(current, patch, id) {
 
   if ('internal' in patch && typeof patch.internal !== 'boolean') {
     return { ok: false, error: 'internal must be a boolean' };
+  }
+
+  // The per-application outcome of an install. Shaped rather than stored as it
+  // arrives: it is what the deployer's report says happened, so an entry with no
+  // name or an invented status has to be refused at the edge — the UI reads this
+  // list to decide whether the rollout is installed, partial or failed, and an
+  // unrecognised value there would silently drop out of that decision.
+  if ('appResults' in patch) {
+    const shaped = normalizeAppResults(patch.appResults);
+    if (!shaped.ok) return { ok: false, error: shaped.error };
+    patch = Object.assign({}, patch, { appResults: shaped.data });
   }
 
   const data = Object.assign({}, current || {});

@@ -132,6 +132,21 @@ export function normalizePackage(body, { id, createdBy } = {}) {
   const data = {
     apps,
     issues,
+    // A release that is only ever going to a test environment. Some changes are
+    // verified on the test instance and never promoted, and the process around
+    // that is a different one: the test team tells the operating team directly
+    // and nobody is asked to plan, approve or escalate a production rollout that
+    // will not happen. Without somewhere to say so, every such package looked
+    // like a production release in the making and the extra step had to be
+    // cancelled by hand, over mail, once per package.
+    //
+    // It lives on the package rather than on the deployment because it is a
+    // property of what was tested, decided by the people who tested it — the
+    // release manager planning the rollout is the reader, not the author. The
+    // deployment form starts from it (test-only path preselected) and a rollout
+    // still carries its own path, so a package marked this way cannot be
+    // scheduled to production without someone overriding it deliberately.
+    testOnly: b.testOnly === true || str(b.testOnly) === 'true' ? true : undefined,
     // What the release changes, written once for the package. This is the text
     // the client reads, so it is kept whole rather than reassembled from the
     // issue list.
