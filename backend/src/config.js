@@ -187,4 +187,23 @@ export const config = {
     teamId: (process.env.TEAMS_TEAM_ID || '').trim(),
     channelId: (process.env.TEAMS_CHANNEL_ID || '').trim(),
   },
+  // Web Push (browser notifications). The keypair identifies this instance to the
+  // browsers' push services (VAPID, RFC 8292) and is generated once per
+  // deployment — `npx web-push generate-vapid-keys`. Both halves come from the
+  // environment like every other secret; with either missing, push reports itself
+  // unconfigured and the app behaves exactly as it did before it existed (the
+  // same degradation as the tracker and Teams integrations).
+  //
+  // The keypair is an identity, not an authorisation: rotating it invalidates
+  // every stored subscription, so browsers have to be re-subscribed. That is why
+  // it is not derived from JWT_SECRET — rotating a session secret must not
+  // silently kill notifications.
+  push: {
+    publicKey: (process.env.VAPID_PUBLIC_KEY || '').trim(),
+    privateKey: (process.env.VAPID_PRIVATE_KEY || '').trim(),
+    // Contact address the push service uses if it needs to reach the operator
+    // about this instance's traffic. Falls back to the app URL, which is the one
+    // thing every deployment already has.
+    subject: (process.env.VAPID_SUBJECT || '').trim(),
+  },
 };

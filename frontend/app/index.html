@@ -2420,6 +2420,26 @@
           </div>
         </div>
 
+        <!-- Browser notifications. A push is the only channel that reaches someone
+             who is not looking at RollDesk and not watching a Teams channel, which
+             is why the two moments that start work — a package handed over, a
+             schedule ready — belong here. Kept per browser and opt-in: a
+             notification nobody asked for gets the whole site blocked. -->
+        <div class="card" id="push-card" style="margin-bottom:16px;">
+          <label style="margin-bottom:8px; display:flex; align-items:center;"><span data-i18n="push.title">Browser notifications</span><span class="info-ic" data-i18n-tip="push.note">i</span></label>
+          <div id="push-state" style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:8px;">
+            <span style="font-size:18px;">🔔</span>
+            <div style="flex:1;">
+              <div style="font-size:13px; font-weight:600;" id="push-state-title"></div>
+              <div id="push-state-line" style="font-size:11.5px; color:var(--text-muted); margin-top:2px;"></div>
+            </div>
+            <span id="push-badge" class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; white-space:nowrap;"></span>
+          </div>
+          <div class="card-actions" style="margin-top:10px;" id="push-actions"></div>
+          <div id="push-events" style="margin-top:12px;"></div>
+          <div id="push-devices" style="margin-top:12px;"></div>
+        </div>
+
         <div class="card">
           <label style="margin-bottom:8px;" data-i18n="acc.changePassword">Change password</label>
           <div class="field">
@@ -2778,11 +2798,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.27.0"></script>
-<script src="i18n/en.js?v=0.27.0"></script>
+<script src="i18n/pl.js?v=0.28.0"></script>
+<script src="i18n/en.js?v=0.28.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.27.0';
+  const ROLLDESK_VERSION = '0.28.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -3963,19 +3983,26 @@
     return body;
   }
 
-  async function dispatchEventNotification(eventKey, projectKey, subject, text, includeEmail, deploymentId){
+  async function dispatchEventNotification(eventKey, projectKey, subject, text, includeEmail, deploymentId, packageId){
     const {targets, email} = notifyRecipientsFor(eventKey, projectKey);
     const webhooks = targets.map(w=>({url:w.url, name:w.name}));
     const emails = (includeEmail && email) ? [email] : [];
     // When Teams (Graph) threading is configured server-side, the backend posts
     // to the channel even if no per-client webhook/e-mail is set — so we must not
     // bail out early in that case. `notifGraphReady` is probed at startup.
-    if(!webhooks.length && !emails.length && !notifGraphReady) return; // nothing configured — stay silent
+    // Push is a channel of its own: a project with no webhook and no e-mail on file
+    // can still have people who asked to be notified in their browser, so the
+    // early exit has to know about it too.
+    if(!webhooks.length && !emails.length && !notifGraphReady && !notifPushReady) return; // nothing configured — stay silent
     if(typeof API_CONNECTED === 'undefined' || !API_CONNECTED){ showToast(t('notif.dispatchOffline')); return; }
     try {
       const res = await apiFetch('/api/notifications/notify', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({subject, text, emails, webhooks, deploymentId: deploymentId || null})
+        // eventKey and projectKey are what the server routes the browser
+        // notification by (role, project scope, per-user preference); the actor is
+        // taken from the session there, never from this body.
+        body: JSON.stringify({subject, text, emails, webhooks, deploymentId: deploymentId || null,
+          eventKey, projectKey, packageId: packageId || null})
       });
       let info = {}; try { info = await res.json(); } catch(e){}
       if(res.ok){ showToast(tf('notif.dispatched', {n: info.sent || 0})); }
@@ -4622,6 +4649,9 @@
     if(viewName === 'client') openClientPortal();
     if(viewName === 'packages') renderPackagesTable();
     if(viewName === 'installer') renderInstallerPanel();
+    // Notification permission can be changed in the browser's own settings while
+    // the app is open, so the card is re-read on entry rather than cached.
+    if(viewName === 'account'){ try { refreshPushLocalState(); } catch(e){} }
     if(viewName === 'deployments') renderDeploymentsTable();
     if(viewName === 'schedule') prepareScheduleDates();
     if(viewName === 'projects') renderProjectsList();
@@ -6276,7 +6306,7 @@
       logAudit('notified', 'Notification',
         'Package ' + (pkg.id||'') + ' — ' + tn('ev.' + eventKey) + ' — recipients: ' + recipients,
         projName, 'aud.d.notifyPackage', {id: pkg.id||'', event: t('ev.' + eventKey), recipients});
-      dispatchEventNotification(eventKey, pkg.projectKey, 'RollDesk — ' + tn('ev.' + eventKey), body, false, null);
+      dispatchEventNotification(eventKey, pkg.projectKey, 'RollDesk — ' + tn('ev.' + eventKey), body, false, null, pkg.id || null);
     };
     if(wasNew) fire('packageCreated');
     if(pkg.status === 'ready' && prevStatus !== 'ready') fire('packageReady');
@@ -9793,6 +9823,326 @@
     return res.json();
   }
   // Fetch the signed-in user's tokens and redraw the table.
+  // ---- Browser notifications (Web Push) -----------------------------------
+  // The only channel that reaches someone who is neither looking at RollDesk nor
+  // watching a Teams channel. Two moments justify interrupting a person by
+  // default — a package handed over for scheduling, and a schedule ready for
+  // whoever will install it — and the rest of the matrix is on the server
+  // (backend/src/pushTargets.js), because who may be told what is an
+  // authorization question, not a UI preference.
+  //
+  // A subscription belongs to a *browser*, not to an account: the same person has
+  // one at the office and another on a laptop, and each has to be enabled where it
+  // is used. Hence "on this device" throughout.
+  let pushConfig = null;          // answer of GET /api/push/config
+  let notifPushReady = false;     // instance can push at all (VAPID configured)
+
+  // The browser wants the VAPID public key as bytes; the server sends it as the
+  // base64url the standard defines. No library for eight lines of decoding.
+  function urlBase64ToUint8Array(base64){
+    const padded = String(base64 || '').replace(/-/g, '+').replace(/_/g, '/');
+    const pad = padded.length % 4 ? '='.repeat(4 - (padded.length % 4)) : '';
+    const raw = atob(padded + pad);
+    const out = new Uint8Array(raw.length);
+    for(let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+
+  // Whether this browser can do push at all. Three separate reasons it cannot, and
+  // they need different answers on screen: an old browser, a page not served over
+  // a secure origin (http on a bare IP — the service worker API is simply absent),
+  // and a user who has blocked notifications for the site.
+  function pushSupport(){
+    if(!('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined'){
+      return {ok:false, reason:'unsupported'};
+    }
+    if(!window.isSecureContext) return {ok:false, reason:'insecure'};
+    if(Notification.permission === 'denied') return {ok:false, reason:'denied'};
+    return {ok:true, reason: Notification.permission === 'granted' ? 'granted' : 'default'};
+  }
+
+  async function loadPushConfig(){
+    if(!API_CONNECTED) return;
+    try {
+      const res = await apiFetch('/api/push/config');
+      if(!res.ok) return;                     // client accounts get a 403 — nothing to show
+      pushConfig = await res.json();
+      notifPushReady = !!(pushConfig && pushConfig.configured);
+    } catch(e){ /* leave the card in its "unknown" state */ }
+    renderPushCard();
+  }
+
+  // The registration for this origin, creating it on first use. Registered lazily
+  // rather than on page load: a service worker installed for a user who never
+  // enables notifications is a moving part with nothing to do.
+  async function pushRegistration(){
+    return navigator.serviceWorker.register('/sw.js', {scope: '/'});
+  }
+
+  async function currentPushSubscription(){
+    if(!pushSupport().ok) return null;
+    try {
+      const reg = await navigator.serviceWorker.getRegistration('/');
+      if(!reg) return null;
+      return await reg.pushManager.getSubscription();
+    } catch(e){ return null; }
+  }
+
+  async function enableBrowserNotifications(){
+    const sup = pushSupport();
+    if(sup.reason === 'unsupported'){ showToast(t('push.unsupported')); return; }
+    if(sup.reason === 'insecure'){ showToast(t('push.insecure')); return; }
+    if(!notifPushReady){ showToast(t('push.notConfigured')); return; }
+    // Asked from a click, never on load: a permission prompt nobody invited is how
+    // a site ends up permanently blocked.
+    let perm = Notification.permission;
+    if(perm !== 'granted') perm = await Notification.requestPermission();
+    if(perm !== 'granted'){ showToast(t('push.permissionRefused')); renderPushCard(); return; }
+    try {
+      const reg = await pushRegistration();
+      await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if(!sub){
+        sub = await reg.pushManager.subscribe({
+          // Required by every browser: a push that shows nothing may cost the site
+          // its permission, and the service worker always shows something.
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(pushConfig.publicKey),
+        });
+      }
+      const res = await apiFetch('/api/push/subscribe', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({subscription: sub.toJSON ? sub.toJSON() : sub}),
+      });
+      let info = {}; try { info = await res.json(); } catch(e){}
+      if(!res.ok){ showToast('⚠ ' + (info.error || t('push.saveFailed'))); return; }
+      if(pushConfig) pushConfig.devices = info.devices || [];
+      showToast(t('push.enabled'));
+      logAudit('changed', 'Account', 'Enabled browser notifications on a device', '', 'aud.d.pushEnabled', {});
+    } catch(e){
+      showToast('⚠ ' + t('push.saveFailed'));
+    }
+    renderPushCard();
+  }
+
+  async function disableBrowserNotifications(){
+    try {
+      const sub = await currentPushSubscription();
+      const endpoint = sub && sub.endpoint;
+      if(sub) { try { await sub.unsubscribe(); } catch(e){ /* the row still goes */ } }
+      if(endpoint){
+        const res = await apiFetch('/api/push/subscribe', {
+          method:'DELETE', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({endpoint}),
+        });
+        let info = {}; try { info = await res.json(); } catch(e){}
+        if(pushConfig) pushConfig.devices = info.devices || [];
+      }
+      showToast(t('push.disabled'));
+    } catch(e){ showToast('⚠ ' + t('push.saveFailed')); }
+    renderPushCard();
+  }
+
+  // Revoke a browser other than this one — the laptop that was reinstalled, the
+  // machine someone no longer uses. Without this a stale device keeps receiving
+  // until its push service gives up on it.
+  async function forgetPushDevice(endpoint){
+    try {
+      const res = await apiFetch('/api/push/subscribe', {
+        method:'DELETE', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({endpoint}),
+      });
+      let info = {}; try { info = await res.json(); } catch(e){}
+      if(pushConfig) pushConfig.devices = info.devices || [];
+      showToast(t('push.deviceForgotten'));
+    } catch(e){ showToast('⚠ ' + t('push.saveFailed')); }
+    renderPushCard();
+  }
+
+  async function sendPushTest(){
+    try {
+      const res = await apiFetch('/api/push/test', {method:'POST'});
+      let info = {}; try { info = await res.json(); } catch(e){}
+      if(!res.ok){ showToast('⚠ ' + (info.error || t('push.testFailed'))); return; }
+      // "Sent to zero devices" is the answer to most "it does not work" reports,
+      // so say the number rather than a bare confirmation.
+      showToast(info.sent ? tf('push.testSent', {n: info.sent}) : t('push.testNoDevices'));
+    } catch(e){ showToast('⚠ ' + t('push.testFailed')); }
+  }
+
+  async function setPushPref(eventKey, on){
+    if(!pushConfig) return;
+    pushConfig.prefs = pushConfig.prefs || {};
+    pushConfig.prefs[eventKey] = !!on;
+    try {
+      const res = await apiFetch('/api/push/prefs', {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({prefs: pushConfig.prefs}),
+      });
+      const info = await res.json().catch(()=>({}));
+      if(res.ok && info.prefs) pushConfig.prefs = info.prefs;
+      else showToast('⚠ ' + t('push.saveFailed'));
+    } catch(e){ showToast('⚠ ' + t('push.saveFailed')); }
+    renderPushCard();
+  }
+
+  // Whether an event is on for me: an explicit choice wins, otherwise my role's
+  // default. Mirrors wantsEvent() on the server — the toggles must show what will
+  // actually happen, not a guess.
+  function pushEventOn(eventKey){
+    const prefs = (pushConfig && pushConfig.prefs) || {};
+    if(Object.prototype.hasOwnProperty.call(prefs, eventKey)) return prefs[eventKey] === true;
+    return ((pushConfig && pushConfig.defaults) || []).includes(eventKey);
+  }
+
+  function renderPushCard(){
+    const card = document.getElementById('push-card');
+    if(!card) return;
+    // Client accounts have no browser notifications at all (the routing on the
+    // server excludes them), so the card is hidden rather than shown permanently
+    // off — an control that can never do anything is worse than no control.
+    if(currentLoggedInRole === 'client'){
+      card.style.display = 'none';
+      return;
+    }
+    card.style.display = '';
+    const sup = pushSupport();
+    const titleEl = document.getElementById('push-state-title');
+    const lineEl = document.getElementById('push-state-line');
+    const badge = document.getElementById('push-badge');
+    const actions = document.getElementById('push-actions');
+    const events = document.getElementById('push-events');
+    const devices = document.getElementById('push-devices');
+
+    // One of four states, each with its own next step.
+    let state = 'off';
+    if(!notifPushReady) state = 'instance-off';
+    else if(!sup.ok) state = sup.reason;              // unsupported | insecure | denied
+    else if(pushSubscribedHere) state = 'on';
+
+    const label = {
+      'instance-off': {badge: t('push.badgeOff'),  bg:'#EEF0F3', color:'var(--text-muted)', line: t('push.notConfigured')},
+      unsupported:    {badge: t('push.badgeOff'),  bg:'#EEF0F3', color:'var(--text-muted)', line: t('push.unsupported')},
+      insecure:       {badge: t('push.badgeOff'),  bg:'#EEF0F3', color:'var(--text-muted)', line: t('push.insecure')},
+      denied:         {badge: t('push.badgeBlocked'), bg:'var(--red-soft)', color:'#A81E1E', line: t('push.denied')},
+      off:            {badge: t('push.badgeOff'),  bg:'#EEF0F3', color:'var(--text-muted)', line: t('push.offHere')},
+      on:             {badge: t('push.badgeOn'),   bg:'var(--green-soft)', color:'#0F7A38', line: t('push.onHere')},
+    }[state];
+
+    if(titleEl) titleEl.textContent = t('push.thisDevice');
+    if(lineEl) lineEl.textContent = label.line;
+    if(badge){ badge.textContent = label.badge; badge.style.background = label.bg; badge.style.color = label.color; }
+
+    if(actions){
+      const btns = [];
+      if(state === 'on'){
+        btns.push(`<button class="mini-btn" onclick="disableBrowserNotifications()">${t('push.turnOff')}</button>`);
+        btns.push(`<button class="mini-btn" onclick="sendPushTest()">${t('push.test')}</button>`);
+      } else if(state === 'off'){
+        btns.push(`<button class="btn small" onclick="enableBrowserNotifications()">${t('push.turnOn')}</button>`);
+      }
+      actions.innerHTML = btns.join(' ');
+      actions.style.display = btns.length ? '' : 'none';
+    }
+
+    // The toggles are shown whenever the instance can push, even before this
+    // browser is subscribed: they are per account, so setting them on the laptop
+    // and then enabling the office machine has to work.
+    if(events){
+      const keys = (pushConfig && pushConfig.events) || [];
+      events.style.display = (notifPushReady && keys.length) ? '' : 'none';
+      if(notifPushReady && keys.length){
+        events.innerHTML = `<label style="margin-bottom:6px;">${t('push.whichEvents')}</label>
+          <p class="form-hint" style="margin-top:0;">${t('push.whichEventsNote')}</p>
+          <div style="display:flex; flex-wrap:wrap; gap:6px;">
+            ${keys.map(k=>chkPillHtml(t('ev.' + k), pushEventOn(k), `onchange="setPushPref('${k}', this.checked)"`)).join('')}
+          </div>`;
+      }
+    }
+
+    if(devices){
+      const list = (pushConfig && pushConfig.devices) || [];
+      devices.style.display = list.length ? '' : 'none';
+      if(list.length){
+        devices.innerHTML = `<label style="margin-bottom:6px;">${tf('push.devices', {n: list.length})}</label>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            ${list.map(d=>{
+              const here = pushHereEndpoint && d.endpoint === pushHereEndpoint;
+              return `<div style="display:flex; align-items:center; gap:8px; font-size:12px; padding:6px 8px; border:1px solid var(--line-soft); border-radius:6px;">
+                <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(shortUserAgent(d.userAgent))}${here ? ` <span class="mono" style="font-size:10px; color:var(--cyan);">${t('push.thisOne')}</span>` : ''}</span>
+                <span class="mono" style="font-size:10.5px; color:var(--text-faint);">${d.lastSentAt ? tf('push.lastSent', {date: fmtDate(d.lastSentAt)}) : t('push.neverSent')}</span>
+                <button class="mini-btn" onclick="forgetPushDevice('${escapeHtml(d.endpoint).replace(/'/g, '&#39;')}')">${t('push.forget')}</button>
+              </div>`;
+            }).join('')}
+          </div>`;
+      }
+    }
+  }
+
+  // A user agent is unreadable in a list; the browser and platform are what let
+  // someone recognise which machine a row is. Best-effort by design — an
+  // unrecognised string is shown as it came.
+  function shortUserAgent(ua){
+    const s = String(ua || '').trim();
+    if(!s) return t('push.unknownDevice');
+    const browser = /Edg\//.test(s) ? 'Edge'
+      : /OPR\//.test(s) ? 'Opera'
+      : /Firefox\//.test(s) ? 'Firefox'
+      : /Chrome\//.test(s) ? 'Chrome'
+      : /Safari\//.test(s) ? 'Safari' : '';
+    const os = /Windows/.test(s) ? 'Windows'
+      : /Android/.test(s) ? 'Android'
+      : /(iPhone|iPad)/.test(s) ? 'iOS'
+      : /Mac OS X/.test(s) ? 'macOS'
+      : /Linux/.test(s) ? 'Linux' : '';
+    const label = [browser, os].filter(Boolean).join(' · ');
+    return label || s.slice(0, 60);
+  }
+
+  // Whether *this* browser is subscribed, and under which endpoint — read once on
+  // load and after every change, because the card's whole job is to say what is
+  // true here rather than on the account in general.
+  let pushSubscribedHere = false;
+  let pushHereEndpoint = '';
+  async function refreshPushLocalState(){
+    const sub = await currentPushSubscription();
+    pushSubscribedHere = !!sub;
+    pushHereEndpoint = sub ? sub.endpoint : '';
+    renderPushCard();
+  }
+
+  // On load: if this browser still holds a subscription and permission, make sure
+  // the server still knows about it. A push service may rotate an endpoint, and the
+  // row would then address a subscription that no longer exists.
+  async function ensurePushSubscription(){
+    if(!notifPushReady || !pushSupport().ok || Notification.permission !== 'granted') { await refreshPushLocalState(); return; }
+    try {
+      const reg = await pushRegistration();
+      await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if(!sub){
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(pushConfig.publicKey),
+        });
+      }
+      const res = await apiFetch('/api/push/subscribe', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({subscription: sub.toJSON ? sub.toJSON() : sub}),
+      });
+      if(res.ok){ const info = await res.json().catch(()=>({})); if(pushConfig) pushConfig.devices = info.devices || []; }
+    } catch(e){ /* the card will show this browser as off, which is then true */ }
+    await refreshPushLocalState();
+  }
+
+  // The worker cannot talk to the server, so it asks the page to re-register when
+  // the push service replaces a subscription behind our back.
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.addEventListener('message', (e)=>{
+      if(e.data && e.data.type === 'rolldesk:resubscribe') ensurePushSubscription();
+    });
+  }
+
   async function loadApiTokens(){
     if(!API_CONNECTED) return;
     try {
@@ -10050,6 +10400,16 @@
         const gs = await apiFetch('/api/teams/graph/status');
         if(gs.ok){ const j = await gs.json(); notifGraphReady = !!(j && j.canPost); }
       } catch(e){ /* endpoint may be admin-only or unavailable — ignore */ }
+
+      // Browser notifications: learn whether the instance can push, then make sure
+      // this browser's subscription is still the one the server holds. A push
+      // service may rotate an endpoint, and the stored row would then address a
+      // subscription that no longer exists — the failure mode where notifications
+      // stop with nothing on screen to say so.
+      try {
+        await loadPushConfig();
+        await ensurePushSubscription();
+      } catch(e){ /* push stays off; the account card says so */ }
 
       // Initial data hydration is silent — a "Loaded N deployment(s)" toast used to
       // pop up on every screen (projects, client panel, …) which was confusing.

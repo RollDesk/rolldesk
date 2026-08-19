@@ -17,6 +17,7 @@ import users from './routes/users.js';
 import sso from './routes/sso.js';
 import teams from './routes/teams.js';
 import version from './routes/version.js';
+import push from './routes/push.js';
 import releasePackages from './routes/releasePackages.js';
 
 const app = express();
@@ -44,6 +45,10 @@ app.use('/api/version', requireAuth, version);
 // SSO provider configuration (admin-only, enforced inside). Requires an
 // interactive session — never an API token.
 app.use('/api/sso', requireAuth, sso);
+// Browser notifications: a person's own subscriptions and event preferences.
+// Session-only for the same reason as token and user management — an automation
+// token must not be able to subscribe or unsubscribe somebody's browser.
+app.use('/api/push', requireAuth, push);
 // The data API accepts either a session JWT or a personal access token, so
 // scripts/CI can call it with `Authorization: Bearer rd_live_…`.
 // Attachments are mounted at /api so `/api/deployments/:id/attachments`,

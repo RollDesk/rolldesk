@@ -1,6 +1,6 @@
 {
   "name": "rolldesk-backend",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "description": "RollDesk backend — Express + PostgreSQL + IP allowlist",
   "type": "module",
   "main": "src/index.js",
@@ -25,6 +25,7 @@
     "openid-client": "^6.8.4",
     "otplib": "^12.0.1",
     "pg": "^8.12.0",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "web-push": "^3.6.7"
   }
 }

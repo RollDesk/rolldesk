@@ -41,6 +41,20 @@ server {
         try_files $uri =404;
     }
 
+    # The service worker that receives browser notifications. It must never be
+    # served from cache: the browser compares the bytes it fetches against the
+    # installed worker to decide whether to update, so a cached copy pins the old
+    # one in place — and a notification handler nobody can replace is the worst
+    # kind of stale asset. Served from the app root so its scope covers the whole
+    # application, which is what lets a click focus an already-open tab.
+    location = /sw.js {
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Cache-Control "no-cache" always;
+        add_header Service-Worker-Allowed "/" always;
+        try_files $uri =404;
+    }
+
     # Forward the API to the backend (preserving the real client IP)
     location /api/ {
         # Attachments are uploaded through this proxy and the backend accepts 25 MB per
