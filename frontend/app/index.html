@@ -2798,11 +2798,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.28.0"></script>
-<script src="i18n/en.js?v=0.28.0"></script>
+<script src="i18n/pl.js?v=0.28.1"></script>
+<script src="i18n/en.js?v=0.28.1"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.28.0';
+  const ROLLDESK_VERSION = '0.28.1';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -10135,6 +10135,80 @@
     await refreshPushLocalState();
   }
 
+  // Ask for notification permission on sign-in, rather than waiting for someone to
+  // discover the setting on their account page. The events are on by default for
+  // every role — what is missing until this runs is the browser's own consent, and
+  // that is the one thing an application cannot grant itself: there is no API for
+  // it, by design.
+  //
+  // So this is our own dialog first, and the browser's only after the user says
+  // yes. Two reasons, and the second one is the important one:
+  //
+  //   1. `Notification.requestPermission()` is only honoured from a user gesture —
+  //      Chrome, Edge and Safari reject a call made on page load, and Firefox
+  //      ignores it. The click on our button is that gesture.
+  //   2. The browser's prompt can only be answered once. "Block" is permanent and
+  //      unaskable — after it, no code of ours can ever prompt again, and the user
+  //      has to go into the site settings by hand. Asking ourselves first means a
+  //      "not now" costs nothing: we simply have not spent the one chance.
+  //
+  // Re-asked after a week, not on every load. A dialog on every sign-in is exactly
+  // what teaches people to click the fastest dismissing button, which on the
+  // browser's own prompt is "Block".
+  const PUSH_ASK_KEY = 'rolldesk_push_asked';
+  const PUSH_ASK_AGAIN_DAYS = 7;
+
+  function pushAskedRecently(){
+    try {
+      const at = parseInt(localStorage.getItem(PUSH_ASK_KEY) || '0', 10);
+      if(!at) return false;
+      return (Date.now() - at) < PUSH_ASK_AGAIN_DAYS * 24 * 3600 * 1000;
+    } catch(e){ return false; }
+  }
+  function markPushAsked(){
+    try { localStorage.setItem(PUSH_ASK_KEY, String(Date.now())); } catch(e){}
+  }
+
+  function maybePromptForPush(){
+    // Every reason not to ask, in the order that makes the check cheap.
+    if(!notifPushReady) return;                      // no VAPID keypair on the instance
+    if(currentLoggedInRole === 'client') return;     // clients are excluded entirely
+    const sup = pushSupport();
+    // 'denied' is unaskable and 'granted' is done; 'unsupported'/'insecure' cannot
+    // be fixed by asking. Only a browser that has not decided yet is worth a dialog.
+    if(!sup.ok || sup.reason !== 'default') return;
+    if(pushSubscribedHere) return;
+    if(pushAskedRecently()) return;
+    // Let the app finish painting first: a dialog that lands on top of a spinner
+    // reads as an error, and the whole point is that this one is answered rather
+    // than dismissed.
+    setTimeout(()=>{
+      // Re-check — the user may have signed out, or opened the account page and
+      // enabled it by hand, while the delay ran.
+      if(!notifPushReady || pushSubscribedHere || Notification.permission !== 'default') return;
+      markPushAsked();
+      showAppConfirm(
+        t('push.askTitle'),
+        tf('push.askBody', {events: pushAskExamples()}),
+        // Runs straight from the click, so the browser still counts this as a user
+        // gesture and honours the permission request inside it.
+        ()=>{ enableBrowserNotifications(); },
+        t('push.askOk'),
+        'neutral',
+        ()=>{ showToast(t('push.askLater')); }
+      );
+    }, 1200);
+  }
+
+  // Two or three of the events this account would actually receive, named in the
+  // dialog. "Turn on notifications" answers nothing; "you will be told when a
+  // package is handed over" is why someone says yes.
+  function pushAskExamples(){
+    const keys = ((pushConfig && pushConfig.defaults) || []).slice(0, 3);
+    if(!keys.length) return '';
+    return keys.map(k=>t('ev.' + k).toLowerCase()).join(', ');
+  }
+
   // The worker cannot talk to the server, so it asks the page to re-register when
   // the push service replaces a subscription behind our back.
   if('serviceWorker' in navigator){
@@ -10409,6 +10483,9 @@
       try {
         await loadPushConfig();
         await ensurePushSubscription();
+        // ...and if this browser has never been asked, ask now rather than waiting
+        // for someone to find the setting. See maybePromptForPush.
+        maybePromptForPush();
       } catch(e){ /* push stays off; the account card says so */ }
 
       // Initial data hydration is silent — a "Loaded N deployment(s)" toast used to
