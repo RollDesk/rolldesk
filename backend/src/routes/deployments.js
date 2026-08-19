@@ -10,6 +10,7 @@ import {
 } from '../deploymentPatch.js';
 import { formatStamp } from '../stamp.js';
 import { config } from '../config.js';
+import { notifyEvent as pushEvent } from '../push.js';
 
 const router = Router();
 
@@ -181,6 +182,27 @@ router.post('/:id/decision', async (req, res) => {
   } catch (err) {
     // Non-fatal: the decision itself is saved even if the audit insert fails.
     console.warn('[decision] audit insert failed:', err.message);
+  }
+
+  // A client's decision is the one pushable event that is born on the server: the
+  // client's own browser posts here, and it is not a member of the team channel
+  // that composes the other notification bodies. So this one body is assembled
+  // from data — the id, the project and the client's own words — rather than
+  // prose, which keeps it out of the notification-language question entirely.
+  //
+  // Only a rejection or a comment is pushed: an approval unblocks the rollout
+  // rather than demanding anything, and the release manager meets it in the app.
+  if (decision !== 'approved') {
+    pushEvent({
+      eventKey: 'decision',
+      projectKey: row.project_key,
+      // The client is the actor; they are excluded from the team routing anyway,
+      // but passing it keeps the rule in one place.
+      actorEmail: (req.auth && req.auth.email) || '',
+      subject: 'RollDesk — ' + row.id,
+      text: [row.id, project].filter(Boolean).join(' — ') + (commentText ? '\n' + commentText : ''),
+      deploymentId: row.id,
+    }).catch(() => {});
   }
 
   res.json(await shapeForCaller(req, rowToObj({ id: row.id, data })));

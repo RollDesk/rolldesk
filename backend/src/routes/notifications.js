@@ -14,6 +14,8 @@ import {
   bodyToCardText, hasAppLink, deploymentUrl, linkLabelSlack, linkLabelMarkdown,
   foldSubjectIntoLead,
 } from '../appLink.js';
+import { notifyEvent as pushEvent, pushConfigured } from '../push.js';
+import { isPushEvent } from '../pushTargets.js';
 
 const router = Router();
 
@@ -185,6 +187,26 @@ router.post('/notify', async (req, res) => {
   let webhooks = Array.isArray(b.webhooks) ? b.webhooks : [];
   const deploymentId = b.deploymentId != null ? String(b.deploymentId) : '';
 
+  // Browser notifications ride on the same event, with the body the browser has
+  // already composed in the instance's notification language — which is why this
+  // needed no server-side composer. Who gets interrupted is decided server-side
+  // (role, project scope, per-user preference) because that is an authorization
+  // question, and the actor comes from the session rather than the body so a
+  // caller cannot suppress or redirect somebody else's notification.
+  //
+  // Deliberately not awaited: a notification is a side effect of an action that
+  // has already succeeded, so a slow push service must not turn a saved
+  // deployment into a failed request. pushEvent logs its own failures.
+  pushEvent({
+    eventKey: b.eventKey,
+    projectKey: b.projectKey,
+    actorEmail: (req.auth && req.auth.email) || '',
+    subject,
+    text,
+    deploymentId,
+    packageId: b.packageId != null ? String(b.packageId) : '',
+  }).catch(() => {});
+
   const jobs = [];
 
   // Microsoft Teams via Graph: when configured, post to the channel and thread
@@ -219,7 +241,16 @@ router.post('/notify', async (req, res) => {
     jobs.push(deliverWebhook(url, subject, text, deploymentId).then((r) => ({ type: 'webhook', target: name, ...r })));
   }
 
-  if (!jobs.length) return res.status(422).json({ error: 'No recipients (emails/webhooks) provided' });
+  // A project with no webhook and no e-mail on file is now a normal state rather
+  // than a mistake: the event may still have reached people as a browser
+  // notification, and reporting that as a failure would put a red toast on a
+  // perfectly delivered event.
+  if (!jobs.length) {
+    if (isPushEvent(b.eventKey) && pushConfigured()) {
+      return res.json({ ok: true, sent: 0, failed: 0, results: [], push: true });
+    }
+    return res.status(422).json({ error: 'No recipients (emails/webhooks) provided' });
+  }
 
   const results = await Promise.all(jobs);
   const failed = results.filter((r) => !r.ok);

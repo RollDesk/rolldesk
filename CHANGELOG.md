@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.0] - 2026-08-19
+
+### Added
+- **Browser notifications, routed by role.** A notification left RollDesk only as a webhook post or an e-mail, and both are read where the recipient happens to be looking — so the two moments that actually start work were discovered by opening the app: a package handed over for scheduling, and a schedule ready for whoever will install it. Those two now reach the people who act on them as a native browser notification, which arrives with the RollDesk tab closed as long as the browser is running (Web Push, VAPID). Six more events join them because not knowing them blocks work or costs a wasted trip: the client signing off on a schedule, a deployer being named on a rollout, a target's date moving, a distribution being paused, a failure on a target, and a client rejecting or commenting on a schedule. A release manager, a deployer and a tester each get the subset their role acts on; an administrator sees all of it, because a single-role account that both administers and installs would otherwise hear about nothing. The routing is server-side (`backend/src/pushTargets.js`, pure and unit-tested) because who may be told what is an authorization question: a deployer or tester is limited to the projects they were granted, and **client accounts are excluded entirely** — they have the portal and e-mail, and our operational traffic is not theirs to be interrupted by. Nobody is notified about their own action. Deliberately narrower than the webhook catalogue: a daily report per rollout, or a comment, would train people to block notifications for the whole site, so those stay on the channels they were already on.
+- **Notification settings on the account page.** Enable or disable notifications per browser (a subscription belongs to a device, so the office machine and the laptop are separate), tick the events you want, send yourself a test, and revoke a device you no longer use. An untouched tick means the default for your role, so an event added later reaches you instead of being silently muted — the same rule the per-client webhook map follows. The card explains itself when it cannot work: an unsupported browser, a page served over plain http (a service worker needs a secure origin), permission blocked in the browser's own settings, or an instance with no VAPID keypair configured.
+
+### Changed
+- **An event with no webhook and no e-mail on file is no longer reported as a failed dispatch.** It may have reached people as a browser notification, and a red toast on a delivered event is worse than no toast.
+
+### Operations
+- Browser notifications are **off until an operator generates a VAPID keypair** (`npx web-push generate-vapid-keys`) and sets `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`; with either missing the app behaves exactly as it did before the feature existed. See `.env.example`. Rotating the pair invalidates every stored subscription, so every browser has to be re-enabled — which is why it is not derived from `JWT_SECRET`.
+- The backend needs outbound HTTPS to the browsers' push services (`fcm.googleapis.com`, `updates.push.services.mozilla.com`).
+- Migration `011_push_subscriptions.sql` adds the subscription table and a `notify_prefs` column on `users`. Both are additive; a downgrade leaves them in place and unread.
+- New backend dependency: `web-push` (9 packages transitively). The payload has to be encrypted per subscription (RFC 8291) and the request signed as a VAPID JWT (RFC 8292); Node has the primitives, but the composition is exacting and getting it subtly wrong means notifications that never arrive.
+- nginx serves `/sw.js` with `Cache-Control: no-cache` — the browser compares the fetched bytes against the installed worker to decide whether to update, so a cached copy would pin an old notification handler in place.
+
 ## [0.27.0] - 2026-08-19
 
 ### Added

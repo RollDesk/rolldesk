@@ -93,6 +93,13 @@ services:
       GRAPH_CLIENT_SECRET: ${GRAPH_CLIENT_SECRET:-}
       TEAMS_TEAM_ID: ${TEAMS_TEAM_ID:-}
       TEAMS_CHANNEL_ID: ${TEAMS_CHANNEL_ID:-}
+      # Web Push (browser notifications). Generate the pair once per instance with
+      # `npx web-push generate-vapid-keys` and keep the private half in .env only.
+      # With either value missing, browser notifications report themselves off and
+      # the app behaves exactly as it did before they existed.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       # Update check — the backend queries GitHub releases and caches the result.
       # All optional; the token only raises GitHub's anonymous rate limit.
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
