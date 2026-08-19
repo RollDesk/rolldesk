@@ -16,7 +16,7 @@ import { query } from './db.js';
 import { encryptSecret, decryptSecret } from './sso.js';
 import {
   parseWorkItemId, workItemFromAzure, officeFromTicket, ticketUrl,
-  azureLookupConfigured, haloLookupConfigured,
+  azureLookupConfigured, haloLookupConfigured, workItemLookupUrls,
   DEFAULT_TICKET_FIELD, DEFAULT_TICKET_PATH,
 } from './tracker.js';
 
@@ -123,19 +123,41 @@ export async function lookupWorkItem(projectKey, rawId) {
   const settings = await projectTrackerSettings(projectKey);
   if (!azureLookupConfigured(settings)) return { ok: false, reason: 'work-items-not-configured' };
 
-  const base = `${settings.azureOrgUrl}/${encodeURIComponent(settings.azureProject)}/_apis/wit/workitems/${id}`;
-  let json;
-  try {
-    json = await getJson(`${base}?api-version=7.0`, azureAuthHeader(settings.azurePat));
-  } catch (err) {
-    if (err.status === 404) return { ok: false, reason: 'work-item-not-found' };
-    if (err.status === 401 || err.status === 403) return { ok: false, reason: 'work-items-unauthorized' };
-    console.warn(`[tracker] work item lookup of ${id} failed: ${err.message}`);
-    return { ok: false, reason: 'work-items-unreachable', detail: err.message };
+  // Tried in order: the project's own route first, then the organisation-wide one
+  // for an item filed under a different tracker project (see workItemLookupUrls).
+  // Only a 404 moves on — an unauthorized or unreachable tracker is reported as
+  // it is rather than retried against a URL that will fail the same way.
+  const urls = workItemLookupUrls(settings, id);
+  let json = null, lastErr = null;
+  for (const url of urls) {
+    try {
+      json = await getJson(url, azureAuthHeader(settings.azurePat));
+      break;
+    } catch (err) {
+      lastErr = err;
+      if (err.status === 404) continue;
+      if (err.status === 401 || err.status === 403) return { ok: false, reason: 'work-items-unauthorized' };
+      console.warn(`[tracker] work item lookup of ${id} failed: ${err.message}`);
+      return { ok: false, reason: 'work-items-unreachable', detail: err.message };
+    }
+  }
+  if (!json) {
+    if (lastErr && lastErr.status !== 404) {
+      return { ok: false, reason: 'work-items-unreachable', detail: lastErr.message };
+    }
+    return { ok: false, reason: 'work-item-not-found' };
   }
 
   const issue = workItemFromAzure(json, { ticketField: settings.ticketField });
   if (!issue) return { ok: false, reason: 'work-item-not-found' };
+  // Answering from another tracker project is not an error — the fix is real and
+  // the ids are the ones the deployer needs — but it is worth saying out loud:
+  // either the project's `azureProject` setting is stale, or this release genuinely
+  // carries work from a neighbouring backlog. Silence made a wrong setting look
+  // like a working one.
+  const foundIn = str(issue.project);
+  const crossProject = !!(foundIn && str(settings.azureProject)
+    && foundIn.toLowerCase() !== str(settings.azureProject).toLowerCase());
 
   // The office comes from the service-desk ticket, so it is only available when
   // the work item names a ticket and the service desk is configured. Neither is
@@ -144,7 +166,11 @@ export async function lookupWorkItem(projectKey, rawId) {
   if (issue.ticket && haloLookupConfigured(settings)) {
     office = await lookupTicketOffice(settings, issue.ticket);
   }
-  return { ok: true, issue: Object.assign({}, issue, { office: office || undefined }) };
+  return {
+    ok: true,
+    crossProject: crossProject || undefined,
+    issue: Object.assign({}, issue, { office: office || undefined }),
+  };
 }
 
 // The reporting office for a service-desk ticket. Best-effort by design: a

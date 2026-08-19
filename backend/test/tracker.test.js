@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import {
   parseWorkItemId, normalizeBaseUrl, workItemFromAzure, officeFromTicket,
   normalizeTrackerSettings, azureLookupConfigured, haloLookupConfigured, ticketUrl,
-  trackerLinkPatterns, ticketNumber, hasIdPlaceholder,
+  trackerLinkPatterns, ticketNumber, hasIdPlaceholder, workItemLookupUrls,
   DEFAULT_TICKET_FIELD, DEFAULT_TICKET_PATH, DEFAULT_OFFICE_KEYS,
 } from '../src/tracker.js';
 
@@ -284,4 +284,49 @@ test('the lookup reports itself unconfigured until URL, project and secret are a
   );
   assert.equal(haloLookupConfigured({ haloBaseUrl: 'https://sd.example.com' }), false);
   assert.equal(haloLookupConfigured({ haloBaseUrl: 'https://sd.example.com', haloApiKey: 'k' }), true);
+});
+
+// A work item id is unique across the whole tracker organisation, but the
+// project-scoped route answers 404 for an item filed under a neighbouring
+// project. That is what made the lookup work for one RollDesk project and
+// silently find nothing for the next one over: same organisation, bugs filed in
+// a different tracker project, no title / ticket / state filled in and no
+// explanation on screen.
+test('a work item is looked up under the project first, then organisation-wide', () => {
+  const settings = { azureOrgUrl: 'https://dev.azure.com/Org', azureProject: 'Product Core' };
+  assert.deepEqual(workItemLookupUrls(settings, '41231'), [
+    'https://dev.azure.com/Org/Product%20Core/_apis/wit/workitems/41231?api-version=7.0',
+    'https://dev.azure.com/Org/_apis/wit/workitems/41231?api-version=7.0',
+  ]);
+});
+
+test('with no project configured the organisation-wide route is the only one', () => {
+  assert.deepEqual(workItemLookupUrls({ azureOrgUrl: 'https://dev.azure.com/Org' }, '7'), [
+    'https://dev.azure.com/Org/_apis/wit/workitems/7?api-version=7.0',
+  ]);
+  // Nothing to call without an organisation or an id.
+  assert.deepEqual(workItemLookupUrls({ azureProject: 'P' }, '7'), []);
+  assert.deepEqual(workItemLookupUrls({ azureOrgUrl: 'https://dev.azure.com/Org' }, ''), []);
+  // http is refused for the same reason as everywhere else: the request carries a PAT.
+  assert.deepEqual(workItemLookupUrls({ azureOrgUrl: 'http://dev.azure.com/Org' }, '7'), []);
+});
+
+// Which project the item actually lives in is read so the caller can say the
+// lookup answered from somewhere other than the configured project — a stale
+// setting that works anyway is worth reporting, not hiding.
+test('the work item reports the tracker project it was found in', () => {
+  const item = workItemFromAzure({
+    id: 41231,
+    fields: {
+      'System.Title': 'Report totals are wrong',
+      'System.State': 'Resolved',
+      'System.TeamProject': 'Product Core',
+      [DEFAULT_TICKET_FIELD]: 'PR-0167134',
+    },
+  });
+  assert.equal(item.project, 'Product Core');
+  assert.equal(item.title, 'Report totals are wrong');
+  assert.equal(item.ticket, 'PR-0167134');
+  // Absent stays absent rather than becoming an empty string on the entry.
+  assert.equal(workItemFromAzure({ id: 1, fields: {} }).project, undefined);
 });
