@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.1] - 2026-08-19
+
+### Changed
+- **RollDesk asks for notification permission on sign-in instead of waiting to be found.** The events were already on by default for every role — what was missing was the browser's own consent, and nobody grants that by browsing to a settings card. A dialog now appears shortly after signing in, naming the two or three events this account would actually receive ("you will be told when a package is handed over" is why someone says yes; "turn on notifications" is not), and the browser's prompt follows only if the answer is yes. Answering "not now" costs nothing and is re-asked a week later; it is deliberately not re-asked on every sign-in, because that is precisely what teaches people to click the fastest dismissing button — which on the browser's own prompt is **Block**, and Block is permanent and unaskable by any code afterwards.
+
+### Notes for operators
+- **An application cannot grant the browser's notification permission.** There is no API for it, by design: `Notification.requestPermission()` is only honoured from a user gesture (Chrome, Edge and Safari reject a call made on page load; Firefox ignores it), the prompt can be answered only once, and Chrome shows a muted bell instead of a dialog for sites with a low acceptance rate. Asking through our own dialog first is what protects that single chance.
+- The only way to make notifications genuinely non-optional across a fleet is a **managed browser policy** pushed by Intune or group policy — `NotificationsAllowedForUrls` for Chrome and Edge, `Permissions.Notification.Allow` in `policies.json` for Firefox, set to the instance's own origin. With that in place no prompt appears and the subscription is created on the first sign-in. `.env.example` carries the exact keys.
+- Two limits no policy removes: notifications require HTTPS (a service worker needs a secure origin), and Safari on iOS/iPadOS delivers Web Push only to a site added to the Home Screen — a normal tab there cannot receive it.
+
 ## [0.28.0] - 2026-08-19
 
 ### Added
