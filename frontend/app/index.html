@@ -2011,10 +2011,15 @@
           </div>
           <div class="filter-field">
             <span class="fl-cap" data-i18n="flt.capStatus">Status</span>
+            <!-- „Active" is the default and means „not deployed yet": the packages
+                 list is a work list, and a release that has already gone out is
+                 history. Without this it grew by a row per release for ever. -->
             <select id="package-filter-status" onchange="renderPackagesTable()">
-              <option value="all" data-i18n="client.tabAll">All</option>
-              <option value="ready" data-i18n="pkg.stReady">Ready</option>
+              <option value="active" data-i18n="pkg.fltActive">In progress</option>
+              <option value="ready" data-i18n="pkg.stReady">Handed over</option>
               <option value="draft" data-i18n="pkg.stDraft">Draft</option>
+              <option value="deployed" data-i18n="pkg.fltDeployed">Deployed</option>
+              <option value="all" data-i18n="client.tabAll">All</option>
             </select>
           </div>
           <div class="filter-field" style="flex:1; min-width:180px;">
@@ -2986,11 +2991,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.31.3"></script>
-<script src="i18n/en.js?v=0.31.3"></script>
+<script src="i18n/pl.js?v=0.32.0"></script>
+<script src="i18n/en.js?v=0.32.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.31.3';
+  const ROLLDESK_VERSION = '0.32.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -4822,7 +4827,7 @@
       set('audit-filter-search', '');
     } else if(viewName === 'packages'){
       set('package-filter-project', 'all');
-      set('package-filter-status', 'all');
+      set('package-filter-status', 'active');
       set('package-filter-q', '');
     }
   }
@@ -4997,7 +5002,7 @@
     // from another project (or an older status) landed on a list without the row.
     const setFilter = (id, val)=>{ const el = document.getElementById(id); if(el) el.value = val; };
     setFilter('package-filter-project', 'all');
-    setFilter('package-filter-status', 'all');
+    setFilter('package-filter-status', 'active');
     setFilter('package-filter-q', '');
     renderPackagesTable();
     flashRow(document.querySelector(`#packages-table tr[data-pkg="${cssEscapeAttr(pkgId)}"]`));
@@ -5787,6 +5792,31 @@
     </td></tr>`;
   }
 
+  // Whether a release has actually gone out — derived from the rollouts, never stored.
+  //
+  // A third status would have to be kept in step with what the deployers report, and
+  // would collide with the two halves that already mean something (`draft`/`ready` is
+  // the test team's own path, the approval is the project manager's decision). The
+  // rollouts already know: a package is deployed once one of them has finished.
+  //
+  // „Finished" is the same predicate the deployments list and the deployer panel use
+  // for their „completed" bucket, so the three cannot disagree: a single-target
+  // rollout that is no longer `scheduled` or `partial`, or a multi-target one with
+  // nothing left in the queue.
+  function deploymentFinished(d){
+    if(!d) return false;
+    if(d.mode === 'batch') return !!(d.counts && d.counts.scheduled === 0);
+    return d.status !== 'scheduled' && d.status !== 'partial';
+  }
+
+  function packageDeployments(p){
+    return p ? DEPLOYMENTS_DATA.filter(d => d && d.packageId === p.id) : [];
+  }
+
+  function packageDeployed(p){
+    return packageDeployments(p).some(deploymentFinished);
+  }
+
   // ---- The project manager's clearance -------------------------------------
   // A handed-over package is not yet something to plan a rollout from: the project
   // manager decides whether the release goes out. That step existed in the process
@@ -5822,6 +5852,20 @@
     if(reason === 'draft') return t('pkg.blockedDraft');
     if(reason === 'awaiting-approval') return t('pkg.blockedApproval');
     return '';
+  }
+
+  // „This one has gone out" — said on the row, with the rollout that did it, so a
+  // package filtered out of the default view is recognisable when somebody looks for
+  // it under „Deployed".
+  function packageDeployedHtml(p){
+    const done = packageDeployments(p).filter(deploymentFinished);
+    if(!done.length) return '';
+    const first = done[0];
+    const when = first.date || first.historyStart || '';
+    return `<div style="margin-top:4px;">
+      <span class="mono" style="font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; background:var(--green-soft); color:#0F7A38;" title="${escapeHtml(tf('pkg.deployedTip', {id: first.id || '—'}))}">✓ ${t('pkg.deployedBadge')}</span>
+      <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">${escapeHtml(first.id || '')}${when ? ' · ' + escapeHtml(when) : ''}${done.length > 1 ? ' · ' + tf('pkg.deployedMore', {n: done.length - 1}) : ''}</div>
+    </div>`;
   }
 
   // The clearance as it reads in the packages table: who cleared it and when, the
@@ -6330,7 +6374,12 @@
 
     const visible = RELEASE_PACKAGES.filter(p=>{
       if(proj !== 'all' && p.projectKey !== proj) return false;
-      if(status !== 'all' && p.status !== status) return false;
+      // 'active' and 'deployed' are about the rollouts, the other two about the
+      // package's own status — they are one dropdown because they answer one
+      // question: is this release still my business?
+      if(status === 'active'){ if(packageDeployed(p)) return false; }
+      else if(status === 'deployed'){ if(!packageDeployed(p)) return false; }
+      else if(status !== 'all' && p.status !== status) return false;
       if(!q) return true;
       const hay = [p.id, p.name, p.projectKey, packageAppsLabel(p), p.changes || '',
         packageIssues(p).map(i=>[i.id, issueHaloTicket(i), i.title, i.office].filter(Boolean).join(' ')).join(' ')].join(' ').toLowerCase();
@@ -6427,7 +6476,7 @@
         <td style="font-size:12.5px;">${escapeHtml(projName)}</td>
         <td style="font-size:12.5px;">${packageAppsCellHtml(p)}</td>
         <td>${contentCell}</td>
-        <td>${packageStatusBadgeHtml(p.status)}${p.testOnly ? `<div style="margin-top:4px;"><span class="mono" style="font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; background:var(--cyan-soft); color:var(--cyan);" title="${escapeHtml(t('pkg.testOnlyNote'))}">${t('pkg.testOnlyBadge')}</span></div>` : ''}${packageApprovalHtml(p)}</td>
+        <td>${packageStatusBadgeHtml(p.status)}${p.testOnly ? `<div style="margin-top:4px;"><span class="mono" style="font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; background:var(--cyan-soft); color:var(--cyan);" title="${escapeHtml(t('pkg.testOnlyNote'))}">${t('pkg.testOnlyBadge')}</span></div>` : ''}${packageApprovalHtml(p)}${packageDeployedHtml(p)}</td>
         <td style="white-space:nowrap; text-align:right;" onclick="event.stopPropagation();">${actions}</td>
       </tr>${open ? packageTimelineRowHtml(p) : ''}`;
     }).join('') || `<tr><td colspan="6" style="color:var(--text-faint); font-size:13px;">${RELEASE_PACKAGES.length ? t('pkg.noneMatch') : t('pkg.none')}</td></tr>`;

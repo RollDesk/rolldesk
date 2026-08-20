@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.32.0] - 2026-08-20
+
+### Added
+- **A release that has gone out leaves the packages list.** The list grew by a row per release for ever, so a hundred packages stood between the test team and the two they were working on. It now opens on **W toku** — everything except the releases already deployed — with **Wdrożone** one click away, next to the existing Draft and Handed-over filters and *All*. A deployed package carries a green **Wdrożony** badge naming the rollout that did it and its date, so it is recognisable when somebody does go looking for it.
+- The state is **derived from the rollouts, never stored**: a package counts as deployed once one of its rollouts has finished, using the same predicate the deployments list and the deployer panel use for their *completed* bucket — so the three cannot disagree, and there is no third status to keep in step with what the deployers report (`draft`/`ready` remains the test team's own path and the approval remains the project manager's decision).
+
 ## [0.31.3] - 2026-08-20
 
 ### Changed
