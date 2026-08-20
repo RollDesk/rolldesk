@@ -171,6 +171,94 @@
   .account-menu .am-ic{width:16px; flex-shrink:0; text-align:center; font-size:12px;}
   .account-menu button.am-danger{color:var(--red);}
   .account-menu button.am-danger:hover{background:var(--red-soft);}
+
+  /* ---- Notification bell + drawer ----
+     Every channel RollDesk had delivered somewhere else: a webhook post into a
+     Teams channel, an e-mail into a mailbox, a browser push onto the screen for a
+     few seconds and then nowhere. "What happened while I was elsewhere" had no
+     answer inside the app, so this is the record — next to the avatar, because it
+     is about you rather than about the view underneath. */
+  .bell{
+    position:relative;
+    width:30px; height:30px; border-radius:50%;
+    border:none; background:transparent; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    font-size:15px; line-height:1;
+    /* Muted until there is something to read: a permanently dark bell is a badge
+       that cannot be told apart from an empty one at a glance. */
+    filter:grayscale(1); opacity:0.55;
+  }
+  .bell:hover{background:var(--cyan-soft); opacity:1;}
+  .bell:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+  .bell.has-unread{filter:none; opacity:1;}
+  /* The count, not a dot: "3" and "17" are different mornings. */
+  .bell-badge{
+    position:absolute; top:-3px; right:-4px;
+    min-width:17px; height:17px; padding:0 4px;
+    border-radius:9px; background:var(--red); color:#fff;
+    font-family:var(--font-mono); font-size:9.5px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    border:2px solid var(--paper-raised);
+  }
+  /* A drawer, not a modal: reading a notification is not a task with Cancel and
+     OK, and the view behind stays exactly where the reader left it. */
+  .drawer-scrim{
+    position:fixed; inset:0; z-index:1003;
+    background:rgba(20,24,30,0.30);
+    opacity:0; pointer-events:none; transition:opacity 0.18s ease;
+  }
+  .drawer-scrim.open{opacity:1; pointer-events:auto;}
+  .drawer{
+    position:fixed; top:0; right:0; z-index:1004;
+    width:min(430px, 100vw); height:100vh;
+    background:var(--paper-raised); border-left:1px solid var(--line);
+    box-shadow:-18px 0 48px rgba(12,16,22,0.18);
+    display:flex; flex-direction:column;
+    transform:translateX(101%); transition:transform 0.2s ease;
+  }
+  .drawer.open{transform:translateX(0);}
+  .drawer-head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:16px 18px 12px 18px; border-bottom:1px solid var(--line-soft);}
+  .drawer-head .drawer-title{font-size:15px; font-weight:700; color:var(--ink);}
+  .drawer-head .drawer-sub{font-size:11.5px; color:var(--text-muted); margin-top:3px;}
+  .drawer-close{border:none; background:transparent; cursor:pointer; font-size:22px; line-height:1; color:var(--text-muted); padding:0 2px;}
+  .drawer-close:hover{color:var(--ink);}
+  .drawer-close:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+  .drawer-body{flex:1; overflow-y:auto; padding:14px 18px 18px 18px;}
+  .drawer-foot{border-top:1px solid var(--line-soft); padding:11px 18px; font-size:11.5px; color:var(--text-muted); display:flex; align-items:center; justify-content:space-between; gap:10px;}
+
+  /* One notification. The whole card is the target — a link buried in the text
+     would be a smaller one than a thumb, and the card is what people aim at. */
+  .ntf{
+    display:flex; gap:10px;
+    border:1px solid var(--line-soft); border-radius:10px;
+    padding:11px 12px; margin-bottom:9px;
+    background:var(--paper);
+  }
+  .ntf.unread{background:var(--paper-raised); border-color:#BEE6EB; box-shadow:0 0 0 1px #BEE6EB;}
+  .ntf.link{cursor:pointer;}
+  .ntf.link:hover{border-color:var(--cyan); background:var(--paper-raised);}
+  .ntf.link:focus-visible{outline:2px solid var(--cyan); outline-offset:1px;}
+  .ntf .ntf-ic{width:28px; height:28px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:13px; background:var(--cyan-soft); color:var(--cyan);}
+  .ntf .ntf-main{flex:1; min-width:0;}
+  .ntf .ntf-ev{font-family:var(--font-mono); font-size:9px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cyan); background:var(--cyan-soft); padding:2px 6px; border-radius:4px;}
+  /* Three colours, for the three kinds of news: something is wrong, something
+     finished, something is on hold. The rest share the app's own accent. */
+  .ntf .ntf-ev.failure, .ntf .ntf-ev.decision{color:var(--red); background:var(--red-soft);}
+  .ntf .ntf-ev.completed, .ntf .ntf-ev.scheduleApproved{color:var(--green); background:var(--green-soft);}
+  .ntf .ntf-ev.paused, .ntf .ntf-ev.correction{color:var(--amber); background:var(--amber-soft);}
+  .ntf .ntf-subject{font-size:12.5px; font-weight:600; color:var(--ink); margin-top:5px; overflow-wrap:anywhere;}
+  /* The composed body opens with the id and the project on their own lines, which
+     is exactly what a card needs — and then continues into a changelog, which it
+     does not. Three lines, then the record itself has the rest. */
+  .ntf .ntf-body{
+    font-size:11.5px; color:var(--text-muted); margin-top:3px;
+    white-space:pre-line; overflow-wrap:anywhere;
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .ntf .ntf-meta{font-family:var(--font-mono); font-size:9.5px; color:var(--text-faint); margin-top:6px;}
+  .ntf .ntf-go{align-self:center; flex-shrink:0; font-size:17px; color:var(--text-faint);}
+  .ntf.link:hover .ntf-go{color:var(--cyan);}
+  .ntf-empty{color:var(--text-faint); font-size:12.5px; text-align:center; padding:28px 8px; line-height:1.6;}
   .view{padding:24px; display:none; flex:1; overflow:auto;}
   .view.active{display:block;}
 
@@ -1141,6 +1229,13 @@
       <span class="sub mono" id="topbar-project-slug"></span>
     </div>
     <div style="display:flex; align-items:center; gap:12px;">
+      <!-- The bell: everything the team was told about, for whoever is signed in.
+           Hidden for client accounts, which are excluded from the routing entirely
+           (backend/src/inboxTargets.js) and would only ever see an empty drawer. -->
+      <button class="bell" id="notif-bell" onclick="toggleNotifDrawer(event)" aria-haspopup="dialog" aria-expanded="false" data-i18n-title="ntf.bellTitle" title="Notifications">
+        <span aria-hidden="true">🔔</span>
+        <span class="bell-badge" id="notif-badge" style="display:none;">0</span>
+      </button>
       <div class="lang-menu" id="topbar-lang">
         <button class="lang-menu-btn" onclick="toggleLangMenu(event)" title="Language / Język" aria-haspopup="true">
           <span id="topbar-lang-code">PL</span><span class="caret">▾</span>
@@ -2617,6 +2712,28 @@
 
 <div class="toast" id="toast"><span class="dotgreen"></span><span id="toast-text"></span></div>
 
+<!-- ============ NOTIFICATION DRAWER (the bell) ============
+     Opened from the top bar, closed by the scrim, Escape or the ×. The list is
+     the signed-in account's own notifications, newest first; a card whose event
+     names a record opens it. -->
+<div class="drawer-scrim" id="notif-scrim" onclick="closeNotifDrawer()"></div>
+<aside class="drawer" id="notif-drawer" role="dialog" aria-labelledby="notif-drawer-title" aria-hidden="true">
+  <div class="drawer-head">
+    <div style="min-width:0;">
+      <div class="drawer-title" id="notif-drawer-title" data-i18n="ntf.title">Notifications</div>
+      <div class="drawer-sub" id="notif-drawer-sub"></div>
+    </div>
+    <button class="drawer-close" onclick="closeNotifDrawer()" data-i18n-title="common.close" title="Close" aria-label="Close">×</button>
+  </div>
+  <div class="drawer-body" id="notif-list"></div>
+  <!-- The interruption is configured next to the person it interrupts, in the
+       profile — this only points at it, so the drawer stays a list. -->
+  <div class="drawer-foot">
+    <span data-i18n="ntf.pushHint">Browser notifications are set up in your profile.</span>
+    <button class="mini-btn" onclick="closeNotifDrawer(); goToView('account');" data-i18n="ntf.pushSettings">Settings</button>
+  </div>
+</aside>
+
 <div id="app-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(20,24,30,0.45); z-index:999; align-items:center; justify-content:center;">
   <div class="card" style="max-width:420px; width:90%; background:var(--paper-alt, #fff);">
     <div id="app-modal-title" style="font-weight:600; font-size:14px; margin-bottom:4px;"></div>
@@ -2798,11 +2915,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.28.1"></script>
-<script src="i18n/en.js?v=0.28.1"></script>
+<script src="i18n/pl.js?v=0.29.0"></script>
+<script src="i18n/en.js?v=0.29.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.28.1';
+  const ROLLDESK_VERSION = '0.29.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -3291,6 +3408,9 @@
     } catch(e){}
     // Deployer panel: reporting stats + "To report" list are built in JS.
     try { if(typeof renderInstallerPanel === 'function') renderInstallerPanel(); } catch(e){}
+    // The bell: its cards are built in JS, and applyLanguage() has just replaced
+    // the tooltip that carries the unread count with the plain label.
+    try { renderInboxBadge(); renderInbox(); } catch(e){}
     // New-project view: mode box + location label depend on toggle state, not just data-i18n.
     try { if(typeof updateProjectMode === 'function') updateProjectMode(); } catch(e){}
     try {
@@ -3987,13 +4107,12 @@
     const {targets, email} = notifyRecipientsFor(eventKey, projectKey);
     const webhooks = targets.map(w=>({url:w.url, name:w.name}));
     const emails = (includeEmail && email) ? [email] : [];
-    // When Teams (Graph) threading is configured server-side, the backend posts
-    // to the channel even if no per-client webhook/e-mail is set — so we must not
-    // bail out early in that case. `notifGraphReady` is probed at startup.
-    // Push is a channel of its own: a project with no webhook and no e-mail on file
-    // can still have people who asked to be notified in their browser, so the
-    // early exit has to know about it too.
-    if(!webhooks.length && !emails.length && !notifGraphReady && !notifPushReady) return; // nothing configured — stay silent
+    // There is no "nothing is configured, stay silent" exit any more, and that is
+    // the point of the bell: every dispatch is filed in the recipients' inbox
+    // server-side (backend/src/inbox.js), so an instance with no webhook, no SMTP
+    // and no VAPID keypair still tells its own team what happened. The channels
+    // that need configuration — webhooks, e-mail, Teams via Graph, browser push —
+    // simply contribute nothing when they have none.
     if(typeof API_CONNECTED === 'undefined' || !API_CONNECTED){ showToast(t('notif.dispatchOffline')); return; }
     try {
       const res = await apiFetch('/api/notifications/notify', {
@@ -4005,7 +4124,16 @@
           eventKey, projectKey, packageId: packageId || null})
       });
       let info = {}; try { info = await res.json(); } catch(e){}
-      if(res.ok){ showToast(tf('notif.dispatched', {n: info.sent || 0})); }
+      if(res.ok){
+        // "Sent (0)" was what a project with no webhook and no e-mail used to
+        // report. What actually happened in that case is that the team was told
+        // inside RollDesk, so that is what the toast says.
+        if(info.sent) showToast(tf('notif.dispatched', {n: info.sent}));
+        else if(info.inbox) showToast(tf('notif.filed', {n: info.inbox}));
+        // Neither: no channel configured and the event concerned nobody. Silent, as
+        // it was before the inbox existed — there is nothing for the sender to do.
+      }
+      else if(res.status === 422){ /* no recipients at all — the same silence */ }
       else {
         const failed = (info.results||[]).filter(r=>!r.ok).map(r=>r.target).filter(Boolean).join(', ');
         showToast(tf('notif.dispatchFailed', {list: failed || (info.error || ('HTTP ' + res.status))}));
@@ -4550,6 +4678,12 @@
   // Show/hide navigation entries (and their group labels) for the current role.
   function applyRolePermissions(){
     const role = currentLoggedInRole || 'admin';
+    // The bell has nothing to show a client account: the routing files no
+    // notification for one and the endpoints refuse it, so the control is hidden
+    // rather than left in the top bar opening an empty drawer for ever.
+    const bell = document.getElementById('notif-bell');
+    if(bell) bell.style.display = role === 'client' ? 'none' : '';
+    if(role === 'client'){ closeNotifDrawer(); stopInboxPolling(); }
     document.querySelectorAll('.rail .nav-item[data-view]').forEach(item=>{
       const v = item.getAttribute('data-view');
       item.style.display = viewAllowedForRole(v, role) ? '' : 'none';
@@ -4699,6 +4833,17 @@
       focusDeployment(pendingFocusDeployId);
       return;
     }
+    // #packages/<PKG-id> — the same for a release package, one step earlier in the
+    // process: „package handed over for deployment" is the notification whose
+    // recipient then had to find the package in a filtered list.
+    if(name === 'packages' && parts[1]){
+      pendingFocusPackageId = String(parts[1]).trim();
+      const role = currentLoggedInRole || 'admin';
+      const view = viewAllowedForRole('packages', role) ? 'packages' : defaultViewForRole(role);
+      applyView(view);
+      focusPackage(pendingFocusPackageId);
+      return;
+    }
     applyView(knownViews().has(name) ? name : 'projects');
   }
   window.addEventListener('hashchange', routeFromHash);
@@ -4750,6 +4895,36 @@
     expandedInstallerIdx = idx;
     renderInstallerPanel();
     highlightInstallerCard(idx);
+  }
+
+  // Open one release package by its id — the packages equivalent of
+  // focusDeployment, for a notification (or a push) about a package. The table is
+  // a flat list rather than an expandable one, so "open" means: clear the filters
+  // that could be hiding the row, then flash it where it is. Kept pending like the
+  // deployment id, because a link followed on a cold load arrives before
+  // loadPackages() has filled the list.
+  let pendingFocusPackageId = '';
+  function focusPackage(pkgId){
+    pkgId = String(pkgId || '').trim();
+    if(!pkgId) return;
+    pendingFocusPackageId = pkgId;
+    if(!RELEASE_PACKAGES.some(p => p && String(p.id) === pkgId)) return; // still loading
+    pendingFocusPackageId = '';
+    // The filters belong to whoever was last reading the table; a link to a package
+    // from another project (or an older status) landed on a list without the row.
+    const setFilter = (id, val)=>{ const el = document.getElementById(id); if(el) el.value = val; };
+    setFilter('package-filter-project', 'all');
+    setFilter('package-filter-status', 'all');
+    setFilter('package-filter-q', '');
+    renderPackagesTable();
+    flashRow(document.querySelector(`#packages-table tr[data-pkg="${cssEscapeAttr(pkgId)}"]`));
+  }
+
+  // A package id is `PKG-2026-0007` — safe in a selector as it stands, but the
+  // value comes back from the API and a selector built from data is a selector
+  // that can be broken by data.
+  function cssEscapeAttr(v){
+    return String(v == null ? '' : v).replace(/["\\]/g, '\\$&');
   }
 
   function flashRow(row){
@@ -5435,6 +5610,9 @@
     try { renderDeploymentsTable(); } catch(e){}
     try { renderInstallerPanel(); } catch(e){}
     try { renderClientPortal(currentClientScenario); } catch(e){}
+    // A #packages/<id> link is routed before the list is loaded, so the row it asks
+    // for only exists now — the same retry as pendingFocusDeployId.
+    if(pendingFocusPackageId){ try { focusPackage(pendingFocusPackageId); } catch(e){} }
   }
 
   // Everything that renders an issue id, redrawn when the link patterns change —
@@ -5829,7 +6007,7 @@
             {label:t('pkg.delete'), icon:'🗑', onclick:`deletePackage('${escapeHtml(p.id)}')`, danger:true}
           ])}`
         : `<span style="color:var(--text-faint); font-size:11.5px;">${t('usr.noPerms')}</span>`;
-      return `<tr>
+      return `<tr data-pkg="${escapeHtml(p.id)}">
         <td><span class="mono" style="font-size:12px; font-weight:700;">${escapeHtml(p.id)}</span>${p.name ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">${escapeHtml(p.name)}</div>` : ''}${usedLine}</td>
         <td style="font-size:12.5px;">${escapeHtml(projName)}</td>
         <td style="font-size:12.5px;">${packageAppsCellHtml(p)}</td>
@@ -9166,6 +9344,9 @@
     if(app && app.style.display !== 'none') return;
     const confirm = document.getElementById('confirm-modal-overlay');
     if(confirm && confirm.style.display !== 'none') return;
+    // The notification drawer is not a dialog with an answer, so Escape dismisses
+    // it before anything else it might be sitting over.
+    if(notifDrawerOpen()){ e.preventDefault(); closeNotifDrawer(); return; }
     const msg = document.getElementById('message-modal-overlay');
     if(msg && msg.style.display !== 'none'){ e.preventDefault(); closeMessageModal(); return; }
     const edit = document.getElementById('edit-dep-modal-overlay');
@@ -9823,6 +10004,245 @@
     return res.json();
   }
   // Fetch the signed-in user's tokens and redraw the table.
+  // ---- Notification inbox (the bell) --------------------------------------
+  // The in-app record of every event the team was told about. Until now a
+  // notification existed only where it was delivered — a Teams channel, a mailbox,
+  // a browser popup that is gone once dismissed — so somebody who was in a meeting
+  // had no way back to what happened. The bell keeps it; the push only interrupts
+  // about it, which is why a muted event is still in this list (see
+  // backend/src/inboxTargets.js).
+  //
+  // Everything here is the signed-in account's own: the server files a row per
+  // interested recipient and these endpoints only ever read that account's rows.
+  let INBOX = [];              // newest first, as GET /api/notifications returns
+  let inboxUnread = 0;
+  let inboxTimer = null;
+  let inboxLoading = false;
+  const INBOX_POLL_MS = 30000; // the badge; the list is fetched when opened
+
+  // A glyph per event, so a full drawer can be skimmed without reading it. Only
+  // the events that mean something different at a glance get their own; the rest
+  // share the neutral one, which is better than a wall of distinct icons nobody
+  // learns.
+  const INBOX_ICON = {
+    created: '🗓', approval: '📝', scheduleApproved: '✅', decision: '💬',
+    clientComment: '💬', comment: '💬', started: '▶', assigned: '👤',
+    scheduleChanged: '📅', paused: '⏸', failure: '⚠', correction: '✎',
+    dayReport: '📊', completed: '🏁', packageCreated: '📦', packageReady: '📦',
+  };
+
+  function inboxEventLabel(ev){
+    const key = 'ev.' + String(ev || '');
+    // An event filed before the dictionary caught up must not print
+    // "ev.somethingNew" — t() returns the key itself for anything it lacks.
+    return hasI18nKey(key) ? t(key) : String(ev || '');
+  }
+
+  // Timestamp in the same shape as the change history: a filed notification is
+  // read next to one, and a relative "3 hours ago" is useless for deciding whether
+  // it was before or after the date change further down the list.
+  function inboxWhen(v){
+    if(!v) return '';
+    try {
+      const d = new Date(v);
+      if(isNaN(d.getTime())) return '';
+      const pad = n => String(n).padStart(2,'0');
+      return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+    } catch(e){ return ''; }
+  }
+
+  // Which record a notification is about, if any. A card without one is still
+  // worth showing — it just is not a link.
+  function inboxTarget(n){
+    if(!n) return null;
+    if(n.deploymentId) return {kind:'deployment', id: n.deploymentId};
+    if(n.packageId) return {kind:'package', id: n.packageId};
+    return null;
+  }
+
+  function inboxById(id){
+    return INBOX.find(n => String(n.id) === String(id)) || null;
+  }
+
+  // The badge. Also the bell's own state: greyed out until there is something to
+  // read, so "nothing new" is visible without counting.
+  function renderInboxBadge(){
+    const bell = document.getElementById('notif-bell');
+    const badge = document.getElementById('notif-badge');
+    if(!bell || !badge) return;
+    bell.classList.toggle('has-unread', inboxUnread > 0);
+    // Past 99 the exact number stops being information and starts being clutter.
+    badge.textContent = inboxUnread > 99 ? '99+' : String(inboxUnread);
+    badge.style.display = inboxUnread > 0 ? '' : 'none';
+    bell.setAttribute('title', inboxUnread > 0 ? tf('ntf.bellUnread', {n: inboxUnread}) : t('ntf.bellTitle'));
+  }
+
+  async function refreshInboxCount(){
+    if(!API_CONNECTED || !getToken()) return;
+    if(currentLoggedInRole === 'client') return;   // no inbox for client accounts
+    try {
+      const res = await apiFetch('/api/notifications/unread-count');
+      if(!res.ok) return;                          // 403 for a client account
+      const info = await res.json();
+      inboxUnread = Number(info.unread) || 0;
+      renderInboxBadge();
+    } catch(e){ /* a failed poll changes nothing on screen */ }
+  }
+
+  function startInboxPolling(){
+    if(inboxTimer) clearInterval(inboxTimer);
+    if(currentLoggedInRole === 'client') return;
+    inboxTimer = setInterval(refreshInboxCount, INBOX_POLL_MS);
+  }
+  function stopInboxPolling(){
+    if(inboxTimer){ clearInterval(inboxTimer); inboxTimer = null; }
+  }
+
+  async function loadInbox(){
+    if(!API_CONNECTED || !getToken()) return;
+    inboxLoading = true;
+    renderInbox();
+    try {
+      const res = await apiFetch('/api/notifications');
+      if(!res.ok){ INBOX = []; return; }
+      const info = await res.json();
+      INBOX = Array.isArray(info.notifications) ? info.notifications : [];
+      inboxUnread = Number(info.unread) || 0;
+    } catch(e){
+      INBOX = [];
+    } finally {
+      inboxLoading = false;
+      renderInboxBadge();
+      renderInbox();
+    }
+  }
+
+  function renderInbox(){
+    const list = document.getElementById('notif-list');
+    const sub = document.getElementById('notif-drawer-sub');
+    if(!list) return;
+    if(sub){
+      sub.textContent = inboxUnread > 0 ? tf('ntf.unreadN', {n: inboxUnread}) : t('ntf.allRead');
+    }
+    if(inboxLoading && !INBOX.length){
+      list.innerHTML = `<div class="loading-note"><span class="spinner" aria-hidden="true"></span><span>${escapeHtml(t('ntf.loading'))}</span></div>`;
+      return;
+    }
+    if(!INBOX.length){
+      list.innerHTML = `<div class="ntf-empty">${escapeHtml(t('ntf.empty'))}</div>`;
+      return;
+    }
+    list.innerHTML = INBOX.map(n=>{
+      const target = inboxTarget(n);
+      const ev = String(n.event || '');
+      const ref = target ? target.id : '';
+      const project = n.projectKey && PROJECTS[n.projectKey] ? PROJECTS[n.projectKey].name : (n.projectKey || '');
+      // The id is in the composed body already; the meta line is the when, the who
+      // and the project — the three things the body does not repeat.
+      const meta = [inboxWhen(n.at), n.actorEmail, project].filter(Boolean).join(' · ');
+      // The subject is prefixed "RollDesk — " by every sender, which is noise in a
+      // list where every row is RollDesk.
+      const subject = String(n.subject || '').replace(/^RollDesk\s*[—-]\s*/, '');
+      const clickable = !!target;
+      const attrs = clickable
+        ? ` role="button" tabindex="0" onclick="openNotificationRecord('${escapeHtml(String(n.id))}')"`
+          + ` onkeydown="inboxCardKey(event, '${escapeHtml(String(n.id))}')"`
+          + ` title="${escapeHtml(tf('ntf.open', {id: ref}))}"`
+        : '';
+      return `<div class="ntf${n.read ? '' : ' unread'}${clickable ? ' link' : ''}"${attrs}>
+        <div class="ntf-ic" aria-hidden="true">${INBOX_ICON[ev] || '🔔'}</div>
+        <div class="ntf-main">
+          <div><span class="ntf-ev ${escapeHtml(ev)}">${escapeHtml(inboxEventLabel(ev))}</span></div>
+          <div class="ntf-subject">${escapeHtml(subject)}</div>
+          <div class="ntf-body">${escapeHtml(String(n.body || ''))}</div>
+          <div class="ntf-meta">${escapeHtml(meta)}</div>
+        </div>
+        ${clickable ? '<div class="ntf-go" aria-hidden="true">›</div>' : ''}
+      </div>`;
+    }).join('');
+  }
+
+  function inboxCardKey(e, id){
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openNotificationRecord(id); }
+  }
+
+  // Open what the notification is about. The same addresses a push click uses
+  // (`#deployments/<id>`, `#packages/<id>`), so a notification means the same thing
+  // whether it was read on a phone or in the drawer — and the router already knows
+  // how to route an id to whichever list the reader's role has.
+  function openNotificationRecord(id){
+    const n = inboxById(id);
+    const target = inboxTarget(n);
+    closeNotifDrawer();
+    if(!target) return;
+    const h = '#' + (target.kind === 'deployment' ? 'deployments' : 'packages') + '/' + encodeURIComponent(target.id);
+    // Setting an identical hash fires no event, so the record is focused directly —
+    // the same rule as goToView(). Clicking two notifications about one deployment
+    // must open it both times.
+    if(location.hash === h){
+      if(target.kind === 'deployment') focusDeployment(target.id);
+      else focusPackage(target.id);
+      return;
+    }
+    location.hash = h;
+  }
+
+  // Mark what the reader has just been shown. Only the listed unread ones, not
+  // "everything": a row older than the page was never on screen, and clearing it
+  // would hide something nobody has seen.
+  async function markShownNotificationsRead(){
+    const ids = INBOX.filter(n=>!n.read).map(n=>n.id);
+    if(!ids.length) return;
+    INBOX.forEach(n=>{ n.read = true; });
+    inboxUnread = 0;
+    renderInboxBadge();
+    try {
+      const res = await apiFetch('/api/notifications/read', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ids})
+      });
+      if(res.ok){
+        const info = await res.json().catch(()=>({}));
+        if(typeof info.unread === 'number'){ inboxUnread = info.unread; renderInboxBadge(); }
+      }
+    } catch(e){ /* the next poll corrects the badge */ }
+  }
+
+  function notifDrawerOpen(){
+    const d = document.getElementById('notif-drawer');
+    return !!(d && d.classList.contains('open'));
+  }
+
+  async function openNotifDrawer(){
+    const drawer = document.getElementById('notif-drawer');
+    const scrim = document.getElementById('notif-scrim');
+    const bell = document.getElementById('notif-bell');
+    if(!drawer || !scrim) return;
+    drawer.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
+    scrim.classList.add('open');
+    if(bell) bell.setAttribute('aria-expanded', 'true');
+    // Read on opening rather than on a timer: the list is only looked at here, and
+    // the newest rows may have arrived since the badge last counted them.
+    await loadInbox();
+    // Read means "was shown", so this waits for the list it is acknowledging.
+    if(notifDrawerOpen()) markShownNotificationsRead();
+  }
+
+  function closeNotifDrawer(){
+    const drawer = document.getElementById('notif-drawer');
+    const scrim = document.getElementById('notif-scrim');
+    const bell = document.getElementById('notif-bell');
+    if(drawer){ drawer.classList.remove('open'); drawer.setAttribute('aria-hidden', 'true'); }
+    if(scrim) scrim.classList.remove('open');
+    if(bell) bell.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleNotifDrawer(e){
+    if(e) e.stopPropagation();
+    if(notifDrawerOpen()) closeNotifDrawer();
+    else openNotifDrawer();
+  }
+
   // ---- Browser notifications (Web Push) -----------------------------------
   // The only channel that reaches someone who is neither looking at RollDesk nor
   // watching a Teams channel. Two moments justify interrupting a person by
@@ -10487,6 +10907,14 @@
         // for someone to find the setting. See maybePromptForPush.
         maybePromptForPush();
       } catch(e){ /* push stays off; the account card says so */ }
+
+      // The bell: only the badge on sign-in (the list is fetched when the drawer is
+      // opened, which is the only place it is read), then a poll so an event that
+      // arrives while the tab is open is visible without a reload.
+      try {
+        await refreshInboxCount();
+        startInboxPolling();
+      } catch(e){ /* the bell stays at zero until the next poll */ }
 
       // Initial data hydration is silent — a "Loaded N deployment(s)" toast used to
       // pop up on every screen (projects, client panel, …) which was confusing.
@@ -14961,6 +15389,14 @@
     setToken('');
     authStageToken = '';
     API_CONNECTED = false;
+    // Nothing about the previous account may survive on the login screen: the
+    // drawer would still hold their notifications, and the poll would keep asking
+    // for a count with a token that is gone.
+    stopInboxPolling();
+    closeNotifDrawer();
+    INBOX = [];
+    inboxUnread = 0;
+    renderInboxBadge();
     ['login-password','mfa-enroll-code','mfa-login-code'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
     ['login-error','mfa-enroll-error','mfa-login-error'].forEach(clearAuthError);
     showLoginScreen();
