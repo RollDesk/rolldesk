@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.1] - 2026-08-20
+
+### Changed
+- The control that asks for another package name is a **circular arrow (↻)** beside the name field rather than a die — the same glyph the work-item lookup uses for "read this again", which is what the button does.
+
 ## [0.31.0] - 2026-08-20
 
 ### Added
