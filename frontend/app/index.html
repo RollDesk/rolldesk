@@ -2816,7 +2816,7 @@
     <div id="app-modal-error" style="display:none; font-size:11.5px; color:#A81E1E; margin:-8px 0 12px 0;"></div>
     <div style="display:flex; gap:8px; justify-content:flex-end;">
       <button class="mini-btn" onclick="closeAppModal(false)" data-i18n="common.cancel">Cancel</button>
-      <button class="btn" onclick="closeAppModal(true)" data-i18n="common.ok">OK</button>
+      <button class="btn" id="app-modal-ok" onclick="closeAppModal(true)" data-i18n="common.ok">OK</button>
     </div>
   </div>
 </div>
@@ -2987,11 +2987,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.31.1"></script>
-<script src="i18n/en.js?v=0.31.1"></script>
+<script src="i18n/pl.js?v=0.31.2"></script>
+<script src="i18n/en.js?v=0.31.2"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.31.1';
+  const ROLLDESK_VERSION = '0.31.2';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -5901,7 +5901,7 @@
       } catch(e){
         showToast('⚠ ' + (e.message || t('pkg.apprFailed')));
       }
-    }, t('pkg.apprCommentHint'), true);
+    }, t('pkg.apprCommentHint'), true, null, null, t('pkg.apprBtn'));
   }
 
   // „It is waiting on you" — sent by whoever is blocked by the gate. Without it the
@@ -7107,9 +7107,15 @@
       // Files are attached after the package is stored — a new one has no id to
       // upload against until then. Done before the editor closes so a failed
       // upload is reported while the picked files are still on screen.
+      // Read here, off the save response: the project manager cleared a specific
+      // build, so changing the applications or their versions drops the approval —
+      // and until now the API said so and the editor did not, which is how a package
+      // quietly went back to „waiting" after somebody corrected a version.
+      const approvalCleared = !!(saved && saved.approvalCleared);
       saved = await syncPackageFiles(saved);
       const i = RELEASE_PACKAGES.findIndex(p=>p.id === saved.id);
       if(i >= 0) RELEASE_PACKAGES[i] = saved; else RELEASE_PACKAGES.push(saved);
+      if(approvalCleared) showToast('⚠ ' + t('pkg.apprCleared'));
       logAudit(editingPackageId ? 'changed' : 'added', 'Package',
         (editingPackageId ? 'Updated release package ' : 'Created release package ') + saved.id,
         PROJECTS[projectKey] ? PROJECTS[projectKey].name : projectKey,
@@ -9943,10 +9949,15 @@
   let appModalCallback = null;
   let appModalMultiline = false;
   let appModalValidator = null;
-  // showAppPrompt(title, defaultValue, callback, subtitle, multiline, options, validator)
+  // showAppPrompt(title, defaultValue, callback, subtitle, multiline, options, validator, okLabel)
   // validator(value) -> error string keeps the modal OPEN and shows the message;
   // return falsy to allow OK to close it. Cancel/Escape always close (value = null).
-  function showAppPrompt(title, defaultValue, callback, subtitle, multiline, options, validator){
+  // `okLabel` names the confirming button: a dialog opened by pressing „Zatwierdź"
+  // has to say „Zatwierdź" on the button that does it, or it reads as a form that can
+  // be skipped — and skipping it cancelled the action that opened it.
+  function showAppPrompt(title, defaultValue, callback, subtitle, multiline, options, validator, okLabel){
+    const okBtn = document.getElementById('app-modal-ok');
+    if(okBtn) okBtn.textContent = okLabel || t('common.ok');
     document.getElementById('app-modal-title').textContent = title;
     document.getElementById('app-modal-subtitle').textContent = subtitle || '';
     document.getElementById('app-modal-subtitle').style.display = subtitle ? 'block' : 'none';

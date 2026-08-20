@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.2] - 2026-08-20
+
+### Changed
+- **Package names are `słowo-słowo` in lower case** (`zardzewiały-żubr`) rather than a capitalised phrase: the name sits next to an id and is used as a handle — pasted into a chat message, a branch name, a file name — and a space in the middle is a nuisance in every one of those. A name typed by hand in the old shape still counts as taken, so nothing can end up with two spellings of one name.
+- **A name for every release that never had one.** `npm run name:packages` (with `--dry-run`) names the packages assembled before names existed, oldest first, without touching the ones already named or moving anybody's `updated_at`. Idempotent, so it can be run again after the next import.
+
+### Fixed
+- **"The project manager approved it and it still says waiting."** Pressing *Approve* opened a comment box whose confirming button said only **OK**, so dismissing it — with Escape, the backdrop, or Cancel — silently cancelled the approval that opened it. The button now says **Approve**, and the comment stays optional.
+- **An edit that invalidates an approval says so.** Changing the applications or their versions drops the project manager's approval (they cleared a specific build) and the API has reported that since 0.30.0 — but the editor said nothing, so a corrected version quietly put the release back into *waiting*. Saving now warns that the release has to be approved again.
+- **The approver's name appears on the row without a reload.** The approve and withdraw responses go through the same shaping as the packages list, which is what resolves an address to a display name.
+
 ## [0.31.1] - 2026-08-20
 
 ### Changed

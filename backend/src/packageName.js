@@ -124,20 +124,25 @@ export function nameSpaceSize() {
   return NAME_ADJECTIVES.length * NAME_NOUNS.length;
 }
 
-const capitalise = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
-
 // One name, by index. Pure and total: any pair of indexes yields a name, so a caller
 // may walk the space deterministically (which is how the tests check the grammar).
+//
+// Lower case, one hyphen: `zardzewiały-żubr`. It reads as a handle rather than as a
+// sentence — which is what it is used as, next to an id — and it survives being
+// pasted into a chat message, a branch name or a file name without anybody having to
+// think about the space in the middle.
 export function packageNameAt(adjIndex, nounIndex) {
   const adj = NAME_ADJECTIVES[((adjIndex % NAME_ADJECTIVES.length) + NAME_ADJECTIVES.length) % NAME_ADJECTIVES.length];
   const noun = NAME_NOUNS[((nounIndex % NAME_NOUNS.length) + NAME_NOUNS.length) % NAME_NOUNS.length];
-  return `${capitalise(adj[noun.gender])} ${noun.word}`;
+  return `${adj[noun.gender].toLowerCase()}-${noun.word.toLowerCase()}`;
 }
 
-// Names are compared the way a person would: case and surrounding space are not what
-// makes two names different.
+// Names are compared the way a person would: case, surrounding space and whether the
+// two words were joined by a hyphen or a space are not what makes two names
+// different. A name typed by hand („Zardzewiały żubr") must still count as taken.
 export function normalizeName(name) {
-  return String(name == null ? '' : name).trim().toLowerCase().replace(/\s+/g, ' ');
+  return String(name == null ? '' : name)
+    .trim().toLowerCase().replace(/\s+/g, '-').replace(/-+/g, '-');
 }
 
 // A name nothing in `taken` is already called.
@@ -166,7 +171,7 @@ export function generatePackageName({ taken = [], random = Math.random, attempts
     if (!used.has(normalizeName(name))) return name;
   }
   for (let suffix = 2; ; suffix += 1) {
-    const name = `${packageNameAt(Math.floor(start / NAME_NOUNS.length), start % NAME_NOUNS.length)} ${suffix}`;
+    const name = `${packageNameAt(Math.floor(start / NAME_NOUNS.length), start % NAME_NOUNS.length)}-${suffix}`;
     if (!used.has(normalizeName(name))) return name;
   }
 }

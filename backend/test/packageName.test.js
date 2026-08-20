@@ -40,18 +40,19 @@ test('the adjective agrees with the noun it is put in front of', () => {
   const neut = NAME_NOUNS.findIndex((n) => n.gender === 2);
   assert.ok(masc >= 0 && fem >= 0 && neut >= 0, 'all three genders must appear among the nouns');
   const adj = 3; // 'zardzewiały' / 'zardzewiała' / 'zardzewiałe'
-  assert.equal(packageNameAt(adj, masc), `${cap(NAME_ADJECTIVES[adj][0])} ${NAME_NOUNS[masc].word}`);
-  assert.equal(packageNameAt(adj, fem), `${cap(NAME_ADJECTIVES[adj][1])} ${NAME_NOUNS[fem].word}`);
-  assert.equal(packageNameAt(adj, neut), `${cap(NAME_ADJECTIVES[adj][2])} ${NAME_NOUNS[neut].word}`);
+  assert.equal(packageNameAt(adj, masc), `${NAME_ADJECTIVES[adj][0]}-${NAME_NOUNS[masc].word}`);
+  assert.equal(packageNameAt(adj, fem), `${NAME_ADJECTIVES[adj][1]}-${NAME_NOUNS[fem].word}`);
+  assert.equal(packageNameAt(adj, neut), `${NAME_ADJECTIVES[adj][2]}-${NAME_NOUNS[neut].word}`);
 });
 
-const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-
-test('a name reads like a name: capitalised, two words, no double spaces', () => {
+test('a name is two lower-case words joined by one hyphen', () => {
   for (let a = 0; a < NAME_ADJECTIVES.length; a += 1) {
     for (let n = 0; n < NAME_NOUNS.length; n += 1) {
       const name = packageNameAt(a, n);
-      assert.match(name, /^[A-ZĄĆĘŁŃÓŚŹŻ][^\s]* [^\s]+$/u, `unexpected shape: ${name}`);
+      // No spaces, no capitals, exactly one hyphen between the two words: it is used
+      // as a handle next to an id, not as a sentence.
+      assert.match(name, /^[a-ząćęłńóśźż]+-[a-ząćęłńóśźż]+$/u, `unexpected shape: ${name}`);
+      assert.equal(name, name.toLowerCase(), `not lower case: ${name}`);
     }
   }
 });
@@ -74,13 +75,15 @@ test('a suggestion avoids the names already in use', () => {
   assert.notEqual(normalizeName(second), normalizeName(first));
 });
 
-test('comparison ignores case and stray space, as a person would', () => {
+test('comparison ignores case, stray space and a space where a hyphen belongs', () => {
   const name = packageNameAt(0, 0);
   const again = generatePackageName({
     taken: ['  ' + name.toUpperCase() + '  '], random: seq(0), attempts: 1,
   });
   assert.notEqual(normalizeName(again), normalizeName(name));
-  assert.equal(normalizeName('  Zardzewiały   Żubr '), 'zardzewiały żubr');
+  // A name typed by hand in the older shape still counts as taken.
+  assert.equal(normalizeName('  Zardzewiały   Żubr '), 'zardzewiały-żubr');
+  assert.equal(normalizeName('zardzewiały-żubr'), 'zardzewiały-żubr');
 });
 
 test('with the whole space taken it still returns a name', () => {
@@ -93,12 +96,12 @@ test('with the whole space taken it still returns a name', () => {
   const name = generatePackageName({ taken: all, random: seq(0) });
   assert.ok(name && name.trim(), 'expected a name');
   assert.ok(!all.map(normalizeName).includes(normalizeName(name)), `${name} is already taken`);
-  assert.match(name, /\s\d+$/, `expected a numbered fallback, got ${name}`);
+  assert.match(name, /-\d+$/, `expected a numbered fallback, got ${name}`);
 });
 
 test('a hostile or missing taken-list is tolerated', () => {
   for (const taken of [null, undefined, 'nope', [null, '', '   ']]) {
     const name = generatePackageName({ taken, random: seq(0.5) });
-    assert.ok(name && name.includes(' '), `expected a name for taken=${JSON.stringify(taken)}`);
+    assert.ok(name && name.includes('-'), `expected a name for taken=${JSON.stringify(taken)}`);
   }
 });
