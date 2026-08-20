@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.3] - 2026-08-20
+
+### Changed
+- **The packages list reads like the deployments list.** The row opens on the same chevron, in the same place, rotating the same way — it had a caret of its own that read as a bullet. And the id leads with the name in bold underneath it, rather than the other way round: the id is what every export and every other view refers to, the name is what people say out loud.
+
 ## [0.31.2] - 2026-08-20
 
 ### Changed

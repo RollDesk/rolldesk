@@ -280,13 +280,12 @@
   .drawer-tools .seg button:not(.on):hover{background:var(--cyan-soft); color:var(--cyan);}
   .ntf-empty{color:var(--text-faint); font-size:12.5px; text-align:center; padding:28px 8px; line-height:1.6;}
 
-  /* A package row opens its timeline, so it says so: a pointer, a caret that turns,
-     and the open row tinted to tie it to the panel underneath. */
+  /* A package row opens its timeline. The chevron, the rotation and the tint of an
+     open row all come from the shared `.row-expand` / `tr.is-open` rules above, so a
+     package row behaves exactly like a deployment row — only the pointer is added
+     here. */
   #packages-table tr.pkg-row{cursor:pointer;}
   #packages-table tr.pkg-row:hover{background:var(--cyan-soft);}
-  #packages-table tr.pkg-row.open{background:var(--cyan-soft);}
-  #packages-table .pkg-caret{color:var(--text-faint); font-size:10px;}
-  #packages-table tr.pkg-row.open .pkg-caret{color:var(--cyan);}
 
   /* ---- Work-item suggestions ----
      The dropdown under the id field in the package editor. It hangs off the field
@@ -2987,11 +2986,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.31.2"></script>
-<script src="i18n/en.js?v=0.31.2"></script>
+<script src="i18n/pl.js?v=0.31.3"></script>
+<script src="i18n/en.js?v=0.31.3"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.31.2';
+  const ROLLDESK_VERSION = '0.31.3';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -6414,10 +6413,17 @@
       // ⓘ control: „what happened to this package" is the question asked *about the
       // row*, and the actions cell stops the click so a button never opens it.
       const open = expandedPackageId === p.id;
-      return `<tr data-pkg="${escapeHtml(p.id)}" class="pkg-row${open ? ' open' : ''}" onclick="togglePackageTimeline('${escapeHtml(p.id)}')" title="${escapeHtml(t('pkg.tlToggle'))}">
-        <td><span class="pkg-caret" aria-hidden="true">${open ? '▾' : '▸'}</span> ${p.name
-            ? `<span style="font-size:13px; font-weight:700;">${escapeHtml(p.name)}</span><div class="mono" style="font-size:11px; color:var(--text-muted); margin-top:2px;">${escapeHtml(p.id)}</div>`
-            : `<span class="mono" style="font-size:12px; font-weight:700;">${escapeHtml(p.id)}</span>`}${usedLine}</td>
+      return `<tr data-pkg="${escapeHtml(p.id)}" class="pkg-row${open ? ' is-open' : ''}" onclick="togglePackageTimeline('${escapeHtml(p.id)}')" title="${escapeHtml(t('pkg.tlToggle'))}">
+        <td>${expandableCell(
+          // The same chevron the deployments list uses — one affordance for „this row
+          // opens", rotating when it is open, rather than a second thing that looks
+          // like a bullet. The id leads, because that is what every export and every
+          // other view refers to; the name goes under it, in bold, because that is
+          // what people say out loud.
+          `<span class="mono" style="font-size:12px; font-weight:700;">${escapeHtml(p.id)}</span>`
+          + (p.name ? `<div style="font-size:12.5px; font-weight:700; margin-top:2px;">${escapeHtml(p.name)}</div>` : '')
+          + usedLine
+        )}</td>
         <td style="font-size:12.5px;">${escapeHtml(projName)}</td>
         <td style="font-size:12.5px;">${packageAppsCellHtml(p)}</td>
         <td>${contentCell}</td>
