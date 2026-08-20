@@ -16,7 +16,7 @@ const router = Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // `tester` assembles release packages for the projects they were granted; it has
 // no write access to projects or deployments (see rbac.js requireWriteRole).
-const ROLES = new Set(['admin', 'rm', 'tester', 'installer', 'client']);
+const ROLES = new Set(['admin', 'rm', 'pm', 'tester', 'installer', 'client']);
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 // Everything `serialize` reads, in one place: every route that returns a user has

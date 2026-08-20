@@ -8,6 +8,7 @@ import {
 import {
   mergeDeploymentPatch, summarizeChanges, deploymentColumns, completeBatchRollout,
 } from '../deploymentPatch.js';
+import { isPackageApproved } from '../releasePackage.js';
 import { formatStamp } from '../stamp.js';
 import { config } from '../config.js';
 import { notifyEvent as pushEvent } from '../push.js';
@@ -307,12 +308,42 @@ router.patch('/:id', requireWriteRole, async (req, res) => {
   res.json(rowToObj(updated[0]));
 });
 
+// A rollout may only be planned from a release the project manager has cleared.
+//
+// Enforced here and not only in the schedule form, because the form is a hint and
+// this is the rule: the gate exists so that nothing goes to a client's estate
+// without that decision, and a rule that lives in the browser is a rule a script
+// with a personal access token does not have. Returns an error message or ''.
+//
+// Only a *newly named* package is checked: an existing deployment whose package was
+// later put back into draft must stay saveable, or a status report from the site
+// would start failing over a decision taken behind it.
+async function packageGateError(id, body) {
+  const packageId = String((body && body.packageId) || '').trim();
+  if (!packageId) return '';
+  const { rows: prev } = await query(
+    `SELECT data->>'packageId' AS package_id FROM deployments WHERE id = $1`, [id]
+  );
+  if (prev[0] && String(prev[0].package_id || '') === packageId) return '';
+  const { rows } = await query('SELECT id, status, data FROM release_packages WHERE id = $1', [packageId]);
+  const pkg = rows[0];
+  if (!pkg) return `Unknown release package: ${packageId}`;
+  if (!isPackageApproved({ status: pkg.status, data: pkg.data })) {
+    return pkg.status !== 'ready'
+      ? `Release package ${packageId} has not been handed over for deployment yet`
+      : `Release package ${packageId} is waiting for the project manager's approval`;
+  }
+  return '';
+}
+
 // PUT /api/deployments/:id — create or update (the frontend uses this to save).
 router.put('/:id', requireWriteRole, async (req, res) => {
   const body = req.body || {};
   if (!body.projectKey && !body.project_key) {
     return res.status(422).json({ error: 'Required field: projectKey' });
   }
+  const gate = await packageGateError(req.params.id, body);
+  if (gate) return res.status(409).json({ error: gate });
   const obj = await upsert(req.params.id, body);
   res.json(obj);
 });
@@ -321,6 +352,8 @@ router.put('/:id', requireWriteRole, async (req, res) => {
 router.post('/', requireWriteRole, async (req, res) => {
   const body = req.body || {};
   const id = body.id || ('DEP-' + new Date().getFullYear() + '-' + Date.now().toString().slice(-4));
+  const gate = await packageGateError(id, body);
+  if (gate) return res.status(409).json({ error: gate });
   const obj = await upsert(id, body);
   res.status(201).json(obj);
 });

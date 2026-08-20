@@ -169,6 +169,93 @@ export function normalizePackage(body, { id, createdBy } = {}) {
   };
 }
 
+// ---- Approval for deployment ------------------------------------------------
+//
+// A package handed over by the test team is not yet something to plan a rollout
+// from: the project manager decides whether this release goes out at all. That
+// decision existed in the process and nowhere in RollDesk, so a release manager
+// planned rollouts from packages nobody had cleared, and the clearing itself
+// happened in a mail thread or at a stand-up.
+//
+// It is a flag on the package rather than a third status, for the same reason the
+// business acceptance of an estimate is not a status: `draft`/`ready` is the test
+// team's own path (is the build finished), while this is a decision taken next to
+// it by somebody else. Two readable states beat one column meaning two things.
+const MAX_APPROVAL_COMMENT = 2000;
+
+// The comment is the PM's answer, not a second description of the release: „only
+// after the maintenance window", „skip office X". Optional, and kept whole.
+export function makeApproval({ by, comment, at } = {}) {
+  return {
+    by: clamp(by, 200) || null,
+    at: str(at) || new Date().toISOString(),
+    comment: clamp(comment, MAX_APPROVAL_COMMENT) || undefined,
+  };
+}
+
+// Tolerant read of the stored flag: anything unusable counts as not approved,
+// because the one thing this must never do is wave through a package on a
+// malformed value.
+export function normalizeApproval(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const at = str(raw.at);
+  if (!at) return null;
+  return {
+    by: clamp(raw.by, 200) || null,
+    at,
+    comment: clamp(raw.comment, MAX_APPROVAL_COMMENT) || undefined,
+    // Set by the migration on packages that were already handed over when the
+    // gate was introduced. They keep working — a release waiting on a rollout on
+    // the day of an upgrade must not become unusable — and the UI says why the
+    // record names no approver.
+    legacy: raw.legacy === true ? true : undefined,
+  };
+}
+
+// The approval on a package, whether given the API object or its `data` blob.
+export function packageApproval(pkg) {
+  const p = pkg && typeof pkg === 'object' ? pkg : {};
+  const raw = p.approval !== undefined ? p.approval : (p.data && p.data.approval);
+  return normalizeApproval(raw);
+}
+
+// Whether a rollout may be planned from this package. Both halves are needed: the
+// test team says the build is finished, the project manager says it may go out.
+export function isPackageApproved(pkg) {
+  const p = pkg && typeof pkg === 'object' ? pkg : {};
+  return str(p.status) === 'ready' && !!packageApproval(p);
+}
+
+// Why a package cannot be picked for a deployment, as a key the UI turns into a
+// sentence. A reason rather than a silent omission: a package missing from the
+// picker with no explanation is what sends somebody hunting through the list.
+export function packageBlockReason(pkg) {
+  const p = pkg && typeof pkg === 'object' ? pkg : {};
+  if (str(p.status) !== 'ready') return 'draft';
+  if (!packageApproval(p)) return 'awaiting-approval';
+  return '';
+}
+
+// Whether an approval survives an edit to the package.
+//
+// It survives a correction to the prose — the description, the notes, the
+// instructions, the issue list — because none of that changes what would be
+// installed. It does not survive a change to the applications, their versions,
+// the test-only flag or the status: the project manager cleared a specific build,
+// and silently carrying their approval over to a different one would make the gate
+// decorative. Re-approval is then asked for, which is the honest outcome.
+export function approvalSurvivesEdit(prevData, nextData) {
+  const a = prevData && typeof prevData === 'object' ? prevData : {};
+  const b = nextData && typeof nextData === 'object' ? nextData : {};
+  const fingerprint = (d) => JSON.stringify({
+    apps: (Array.isArray(d.apps) ? d.apps : [])
+      .map((x) => `${str(x && x.name).toLowerCase()}@${str(x && x.version)}`)
+      .sort(),
+    testOnly: d.testOnly === true,
+  });
+  return fingerprint(a) === fingerprint(b);
+}
+
 // DB row -> API object. Mirrors rowToObj in the other routes: the columns that
 // were lifted out of the JSONB are put back on top of it.
 export function packageRowToObj(r) {
@@ -183,7 +270,14 @@ export function packageRowToObj(r) {
       createdAt: r.created_at,
       updatedAt: r.updated_at,
     },
-    r.data && typeof r.data === 'object' ? r.data : {}
+    r.data && typeof r.data === 'object' ? r.data : {},
+    // Normalised rather than passed through, so every reader (the packages table,
+    // the schedule picker, a script) sees the same shape and the same answer to
+    // „may this be deployed".
+    {
+      approval: normalizeApproval(r.data && r.data.approval) || undefined,
+      approved: str(r.status) === 'ready' && !!normalizeApproval(r.data && r.data.approval),
+    }
   );
 }
 

@@ -29,9 +29,16 @@ const lower = (v) => str(v).toLowerCase();
 export const PUSH_EVENT_ROLES = {
   // The two the team asked for.
   //
-  // A package handed over is the release manager's cue to plan the rollout — the
-  // moment that used to be discovered by opening the app and looking.
-  packageReady:     ['rm', 'admin'],
+  // A package handed over is the *project manager's* cue: nothing can be planned
+  // from it until they clear the release for deployment (see the approval gate in
+  // releasePackage.js). It used to go to the release manager, who could then plan a
+  // rollout from a package nobody had approved.
+  packageReady:     ['pm', 'admin'],
+  // ...and the clearance itself is the release manager's and the deployer's cue —
+  // this is the moment the rollout can actually be planned. Without it the
+  // approval would be a decision taken in RollDesk that nobody in RollDesk hears
+  // about, which is the mail thread this whole gate replaces.
+  packageApproved:  ['rm', 'installer', 'admin'],
   // A schedule exists, so the person who will install it can see what is coming.
   created:          ['installer', 'admin'],
 

@@ -24,13 +24,41 @@ const emails = (list) => list.map((u) => u.email).sort();
 
 // ---- the catalogue ---------------------------------------------------------
 
-test('every pushable event is also filed, with the same roles', () => {
-  // A second table answering "who cares about a failure" is how the two drift; the
-  // push map is spread into this one rather than restated.
+test('every pushable event is also filed, for at least the roles it is pushed to', () => {
+  // The push map is spread into this one rather than restated, so the two cannot
+  // drift apart on "who cares about a failure". The filed list may be *wider* — a
+  // project manager reads a failure in the drawer without being interrupted by it —
+  // but never narrower: an event that interrupts somebody must leave them a record.
   for (const key of PUSH_EVENTS) {
     assert.ok(isInboxEvent(key), `${key} is pushed but not filed`);
-    assert.deepEqual(rolesForInboxEvent(key), PUSH_EVENT_ROLES[key], `${key}: role lists differ`);
+    const filed = rolesForInboxEvent(key);
+    for (const role of PUSH_EVENT_ROLES[key]) {
+      assert.ok(filed.includes(role), `${key}: pushed to ${role} but not filed for them`);
+    }
   }
+});
+
+// The approval gate: a package handed over is the project manager's business, and
+// only their clearance is the release manager's and the deployer's cue.
+test('a handed-over package goes to the project manager, its approval to the planners', () => {
+  const pm = { id: 9, email: 'pm@dxc.test', role: 'pm', projects: ['pik'] };
+  const all = ALL.concat([pm]);
+  assert.deepEqual(
+    emails(selectInboxUsers({ eventKey: 'packageReady', projectKey: 'pik', users: all })),
+    ['adm@dxc.test', 'pm@dxc.test']
+  );
+  // The release manager hears about it only once it is cleared.
+  const approved = emails(selectInboxUsers({ eventKey: 'packageApproved', projectKey: 'pik', users: all }));
+  assert.ok(approved.includes('rm@dxc.test'));
+  assert.ok(approved.includes('dep@dxc.test'));
+});
+
+test('a project manager is scoped to their own projects like every other scoped role', () => {
+  const pm = { id: 9, email: 'pm@dxc.test', role: 'pm', projects: ['pik'] };
+  assert.deepEqual(
+    selectInboxUsers({ eventKey: 'packageReady', projectKey: 'other', users: [pm] }),
+    []
+  );
 });
 
 test('the events no push exists for are filed anyway', () => {
@@ -133,7 +161,7 @@ test('inboxRecord tolerates an empty event', () => {
 // A guard on the catalogue itself: a role list that names a role nobody has is a
 // silent hole — the event would be dispatched and filed for nobody.
 test('every role named in the catalogue is a real team role', () => {
-  const ROLES = new Set(['admin', 'rm', 'tester', 'installer']);
+  const ROLES = new Set(['admin', 'rm', 'pm', 'tester', 'installer']);
   for (const [key, roles] of Object.entries(INBOX_EVENT_ROLES)) {
     assert.ok(Array.isArray(roles) && roles.length, `${key}: no roles`);
     roles.forEach((r) => assert.ok(ROLES.has(r), `${key}: unknown role ${r}`));

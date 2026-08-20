@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { requireWriteRole, isClient, clientScope } from '../rbac.js';
-import { normalizeTrackerSettings, trackerLinkPatterns } from '../tracker.js';
+import { normalizeTrackerSettings, trackerLinkPatterns, trackerProjects } from '../tracker.js';
 import { trackerSettingsForStorage, trackerStatus } from '../trackerService.js';
 
 const router = Router();
@@ -15,6 +15,10 @@ function publicTracker(raw) {
   const t = raw && typeof raw === 'object' ? raw : {};
   return {
     azureOrgUrl: t.azureOrgUrl || '',
+    // The list is what the form edits; the single name stays for anything reading
+    // the older shape (a project configured before the list existed carries only
+    // that one, which trackerProjects() reads as a one-entry list).
+    azureProjects: trackerProjects(t),
     azureProject: t.azureProject || '',
     // `smProblemField` is what this setting was called before the field names
     // became configurable; a project stored then still carries it.

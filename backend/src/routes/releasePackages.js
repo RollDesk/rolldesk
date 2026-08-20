@@ -8,12 +8,16 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import {
-  isClient, isInstaller, isTester, clientScope, userScope, requirePackageRole,
+  isClient, isScopedRole, clientScope, userScope, requirePackageRole,
+  requirePackageApprovalRole,
 } from '../rbac.js';
 import {
   normalizePackage, packageRowToObj, nextPackageId, stripAdminInfoFromPackage,
+  makeApproval, normalizeApproval, approvalSurvivesEdit,
 } from '../releasePackage.js';
-import { lookupWorkItem, projectTrackerSettings, trackerStatus } from '../trackerService.js';
+import {
+  lookupWorkItem, searchWorkItems, projectTrackerSettings, trackerStatus,
+} from '../trackerService.js';
 import { projectSharesAdminInfo } from '../rbac.js';
 
 const router = Router();
@@ -69,7 +73,9 @@ async function shapePackages(req, rows) {
 // array of project keys (possibly empty — meaning "nothing").
 async function readScope(req) {
   if (isClient(req)) return (await clientScope(req)).projects;
-  if (isInstaller(req) || isTester(req)) return (await userScope(req)).projects;
+  // Every scoped role, so the project manager added for the approval gate is
+  // narrowed to their own projects without this list having to be remembered again.
+  if (isScopedRole(req)) return (await userScope(req)).projects;
   return null; // admin / rm
 }
 
@@ -93,6 +99,20 @@ router.get('/lookup/:project/:workItemId', requirePackageRole, async (req, res) 
   }
   const result = await lookupWorkItem(projectKey, req.params.workItemId);
   res.json(result);
+});
+
+// GET /api/packages/search/:project?q=<fragment> — suggestions while a work item
+// id is being typed, the way the tracker's own search box answers. Same role and
+// project scope as the lookup above, and the same contract: a failure is a 200 with
+// ok:false and an empty list, because typing the id by hand has to keep working
+// whatever the search service says.
+//
+// Declared before /:id so "search" is not read as a package id.
+router.get('/search/:project', requirePackageRole, async (req, res) => {
+  if (await forbiddenProject(req, req.params.project)) {
+    return res.status(403).json({ error: 'Not permitted for this project' });
+  }
+  res.json(await searchWorkItems(req.params.project, req.query.q));
 });
 
 // GET /api/packages/tracker-status/:project — whether the lookup can run at all,
@@ -142,10 +162,10 @@ router.get('/:id', async (req, res) => {
   res.json((await shapePackages(req, [row]))[0]);
 });
 
-// A tester may only write within the projects they were granted; admins and
-// release managers are unscoped, like everywhere else.
+// A tester (and a project manager, who approves) may only act within the projects
+// they were granted; admins and release managers are unscoped, like everywhere else.
 async function forbiddenProject(req, projectKey) {
-  if (!isTester(req)) return false;
+  if (!isScopedRole(req)) return false;
   const { projects } = await userScope(req);
   return !projects.includes(projectKey);
 }
@@ -180,6 +200,13 @@ router.post('/', requirePackageRole, async (req, res) => {
   if (await forbiddenProject(req, shaped.data.projectKey)) {
     return res.status(403).json({ error: 'Not permitted for this project' });
   }
+  // When the test team handed the release over. Recorded here rather than derived,
+  // because `updated_at` moves on every later edit — and the timeline in the
+  // packages view is asked exactly this: „when did this go over the wall".
+  if (shaped.data.status === 'ready') {
+    shaped.data.data.readyAt = new Date().toISOString();
+    shaped.data.data.readyBy = actor || undefined;
+  }
   let id = shaped.data.id;
   if (!id) {
     const { rows } = await query('SELECT id FROM release_packages');
@@ -193,7 +220,7 @@ router.post('/', requirePackageRole, async (req, res) => {
 // reads, so the package is the living record of what the release contains.
 router.put('/:id', requirePackageRole, async (req, res) => {
   const { rows: existing } = await query(
-    'SELECT project_key, created_by FROM release_packages WHERE id = $1',
+    'SELECT project_key, created_by, status, data FROM release_packages WHERE id = $1',
     [req.params.id]
   );
   const prev = existing[0];
@@ -209,7 +236,96 @@ router.put('/:id', requirePackageRole, async (req, res) => {
       || (prev && await forbiddenProject(req, prev.project_key))) {
     return res.status(403).json({ error: 'Not permitted for this project' });
   }
-  res.json(await upsert(req.params.id, shaped.data));
+  // The approval is never taken from the request body — it is written by the two
+  // routes below and by nothing else, so a package cannot approve itself through
+  // an ordinary save. It is carried over from the stored package when the edit did
+  // not change what would be installed, and dropped when it did: the project
+  // manager cleared a specific build (see approvalSurvivesEdit). Since `data` is
+  // replaced wholesale, doing nothing here would silently clear every approval on
+  // the next typo fix.
+  const prevData = (prev && prev.data && typeof prev.data === 'object') ? prev.data : {};
+  // The handover stamp: set on the transition into 'ready', kept as it was on every
+  // later edit (`data` is replaced wholesale, so not carrying it would move the
+  // handover date every time a typo was fixed), and dropped when the package goes
+  // back to being a draft — it has not been handed over any more.
+  if (shaped.data.status === 'ready') {
+    if (prev && prev.status === 'ready' && prevData.readyAt) {
+      shaped.data.data.readyAt = prevData.readyAt;
+      shaped.data.data.readyBy = prevData.readyBy || undefined;
+    } else {
+      shaped.data.data.readyAt = new Date().toISOString();
+      shaped.data.data.readyBy = actor || undefined;
+    }
+  }
+  const storedApproval = normalizeApproval(prevData.approval);
+  const keep = storedApproval
+    && prev.status === shaped.data.status
+    && approvalSurvivesEdit(prevData, shaped.data.data);
+  if (keep) shaped.data.data.approval = storedApproval;
+  const saved = await upsert(req.params.id, shaped.data);
+  // Said out loud in the response so the editor can tell the person that the
+  // release has to be cleared again, rather than leaving them to notice it in the
+  // schedule form a day later.
+  if (storedApproval && !keep) saved.approvalCleared = true;
+  res.json(saved);
+});
+
+// POST /api/packages/:id/approve — the project manager clears a release for
+// deployment, with an optional comment („after the maintenance window", „skip
+// office X"). Until this exists on a package the schedule form will not plan from
+// it: the test team says the build is finished, this says it may go out.
+//
+// Its own route rather than a field on PUT, because it is a different decision by
+// a different person under a different guard — and because a body that could carry
+// `approval` would let whoever edits a package approve it.
+router.post('/:id/approve', requirePackageApprovalRole, async (req, res) => {
+  const { rows } = await query(
+    'SELECT project_key, status, data FROM release_packages WHERE id = $1',
+    [req.params.id]
+  );
+  const row = rows[0];
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  if (await forbiddenProject(req, row.project_key)) {
+    return res.status(403).json({ error: 'Not permitted for this project' });
+  }
+  // A draft has not been handed over yet: approving one would clear a build the
+  // test team is still changing, and the approval would be dropped by their next
+  // save anyway.
+  if (row.status !== 'ready') {
+    return res.status(409).json({ error: 'Only a package handed over for deployment can be approved' });
+  }
+  const approval = makeApproval({
+    by: (req.auth && req.auth.email) || null,
+    comment: (req.body || {}).comment,
+  });
+  const { rows: saved } = await query(
+    `UPDATE release_packages
+        SET data = jsonb_set(data, ARRAY['approval'], $2::jsonb, true), updated_at = now()
+      WHERE id = $1 RETURNING *`,
+    [req.params.id, JSON.stringify(approval)]
+  );
+  const files = await filesByPackage([req.params.id]);
+  res.json(Object.assign(packageRowToObj(saved[0]), { files: files.get(req.params.id) || [] }));
+});
+
+// POST /api/packages/:id/approve/undo — withdraw the approval. The counterpart of
+// the route above and under the same guard: a release cleared and then stopped
+// („hold it until the client answers") has to be stoppable in the register, or the
+// only record of the stop is a message somewhere.
+router.post('/:id/approve/undo', requirePackageApprovalRole, async (req, res) => {
+  const { rows } = await query('SELECT project_key FROM release_packages WHERE id = $1', [req.params.id]);
+  const row = rows[0];
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  if (await forbiddenProject(req, row.project_key)) {
+    return res.status(403).json({ error: 'Not permitted for this project' });
+  }
+  const { rows: saved } = await query(
+    `UPDATE release_packages SET data = data - 'approval', updated_at = now()
+      WHERE id = $1 RETURNING *`,
+    [req.params.id]
+  );
+  const files = await filesByPackage([req.params.id]);
+  res.json(Object.assign(packageRowToObj(saved[0]), { files: files.get(req.params.id) || [] }));
 });
 
 // DELETE /api/packages/:id — refused once a deployment refers to the package,
