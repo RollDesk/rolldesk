@@ -198,6 +198,8 @@ window.RD_I18N.pl = {
   "pkg.thAppUrl": "Link do paczki",
   "pkg.appUrlPh": "https://… lub \\\\serwer\\udzial\\setup.msi",
   "pkg.appUrlNote": "Gdzie leży instalator tej wersji. Adres www staje się linkiem dla wdrożeniowca, a ścieżkę sieciową pokazujemy do skopiowania.",
+  "pkg.appUrlSas": "wymaga tokenu SAS",
+  "pkg.appUrlSasNote": "To adres Azure Storage bez tokenu SAS. Publiczny dostęp na tych kontach jest wyłączony, więc przeglądarka dostaje „PublicAccessNotPermitted\" i wygląda to jak brak możliwości pobrania paczki. Wklej link razem z tokenem (…?sv=…&sig=…) albo daj wdrożeniowcowi ścieżkę, którą otworzy narzędziem logującym się do konta (Storage Explorer, azcopy). RollDesk nie może wygenerować tego tokenu — należy on do konta magazynu.",
   "pkg.buildLink": "paczka",
   "pkg.buildPath": "ścieżka",
   "pkg.buildCopied": "Ścieżka do paczki skopiowana",

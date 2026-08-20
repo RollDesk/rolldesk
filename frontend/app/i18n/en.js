@@ -198,6 +198,8 @@ window.RD_I18N.en = {
   "pkg.thAppUrl": "Link to the build",
   "pkg.appUrlPh": "https://… or \\\\server\\share\\setup.msi",
   "pkg.appUrlNote": "Where the installer for this version is. A web address becomes a link for the deployer; a network share is shown as a path to copy.",
+  "pkg.appUrlSas": "needs a SAS token",
+  "pkg.appUrlSasNote": "This is an Azure Storage address without a SAS token. Public access is switched off on these accounts, so a browser opening it gets „PublicAccessNotPermitted\" and it looks as though the package cannot be downloaded. Paste the link with its token (…?sv=…&sig=…), or hand the deployer a path they open with a tool that signs in (Storage Explorer, azcopy). RollDesk cannot mint the token — it belongs to the storage account.",
   "pkg.buildLink": "build",
   "pkg.buildPath": "path",
   "pkg.buildCopied": "Build path copied",

@@ -6193,6 +6193,26 @@
   // a share is shown as text to copy, because a link to it would silently do
   // nothing in most browsers. Read from the package rather than copied onto the
   // deployment, so correcting a path reaches the rollouts already planned.
+  // A link to a build in Azure Blob Storage only opens for somebody who is
+  // authenticated, and „public access" is switched off on these accounts by policy —
+  // so a bare `https://<account>.blob.core.windows.net/...` answers
+  // `PublicAccessNotPermitted` in the browser and reads as „RollDesk cannot download
+  // the package". What is needed is a link carrying a SAS token (`?sv=…&sig=…`), or a
+  // tool that signs in (Storage Explorer, azcopy).
+  //
+  // RollDesk cannot mint that token — it belongs to the storage account, not to us —
+  // but it can recognise a link that will fail and say so where the link is typed.
+  function buildLinkNeedsSas(url){
+    const u = String(url || '').trim();
+    if(!/^https?:\/\//i.test(u)) return false;
+    let host = '';
+    try { host = new URL(u).hostname.toLowerCase(); } catch(e){ return false; }
+    // The three Azure Storage endpoints a build can sit behind.
+    if(!/\.(blob|dfs|file)\.core\.windows\.net$/.test(host)) return false;
+    // `sig` is the signature of a SAS token, whatever else the query carries.
+    return !/[?&]sig=/i.test(u);
+  }
+
   function buildLinkHtml(app){
     const url = String((app && app.url) || '').trim();
     if(!url) return '';
@@ -6304,7 +6324,8 @@
         // something to copy rather than a link that would appear broken.
         return `<button type="button" class="mini-btn mono" style="font-size:11px;" title="${escapeHtml(url)}" onclick="event.stopPropagation(); copyBuildPath('${escapeHtml(encodeURIComponent(url))}')">⤓ ${escapeHtml(label)}</button>`;
       }
-      return `<a class="mini-btn mono" href="${escapeHtml(url)}" target="_blank" rel="noopener" style="font-size:11px; text-decoration:none;" title="${escapeHtml(url)}" onclick="event.stopPropagation();">⤓ ${escapeHtml(label)}</a>`;
+      const sas = buildLinkNeedsSas(url);
+      return `<a class="mini-btn mono" href="${escapeHtml(url)}" target="_blank" rel="noopener" style="font-size:11px; text-decoration:none;${sas ? ' color:var(--amber);' : ''}" title="${escapeHtml(sas ? t('pkg.appUrlSasNote') : url)}" onclick="event.stopPropagation();">⤓ ${escapeHtml(label)}${sas ? ' ⚠' : ''}</a>`;
     }).filter(Boolean);
     return chips.join('');
   }
@@ -6748,10 +6769,36 @@
         ${options}
         ${addApp}
         <input type="text" class="pkg-app-version mono" value="${escapeHtml(a.version)}" placeholder="${t('pkg.versionPh')}" style="width:150px; font-size:12.5px;" oninput="setPackageApp(${i}, 'version', this.value)">
-        <input type="text" class="pkg-app-url mono" value="${escapeHtml(a.url || '')}" placeholder="${t('pkg.appUrlPh')}" title="${escapeHtml(t('pkg.appUrlNote'))}" style="flex:1.2; min-width:0; font-size:12px;" oninput="setPackageApp(${i}, 'url', this.value)">
+        <input type="text" class="pkg-app-url mono" value="${escapeHtml(a.url || '')}" placeholder="${t('pkg.appUrlPh')}" title="${escapeHtml(t('pkg.appUrlNote'))}" style="flex:1.2; min-width:0; font-size:12px;" oninput="setPackageApp(${i}, 'url', this.value); refreshPackageAppUrlHints();">
+        ${buildLinkNeedsSas(a.url) ? `<span class="pkg-url-warn" title="${escapeHtml(t('pkg.appUrlSasNote'))}" style="flex-shrink:0; color:var(--amber); font-size:11.5px; cursor:help;">⚠ ${escapeHtml(t('pkg.appUrlSas'))}</span>` : ''}
         <button type="button" class="mini-btn" title="${t('pkg.removeRow')}" onclick="removePackageApp(${i})">✕</button>
       </div>`;
     }).join('');
+  }
+
+  // Redraw only the warnings, so typing in the URL field is not interrupted by the
+  // row being rebuilt around the caret.
+  function refreshPackageAppUrlHints(){
+    const wrap = document.getElementById('package-apps-list');
+    if(!wrap) return;
+    const rows = wrap.children;
+    packageDraftApps.forEach((a, i)=>{
+      const row = rows[i];
+      if(!row) return;
+      let warn = row.querySelector('.pkg-url-warn');
+      const needed = buildLinkNeedsSas(a.url);
+      if(needed && !warn){
+        warn = document.createElement('span');
+        warn.className = 'pkg-url-warn';
+        warn.style.cssText = 'flex-shrink:0; color:var(--amber); font-size:11.5px; cursor:help;';
+        warn.title = t('pkg.appUrlSasNote');
+        warn.textContent = '⚠ ' + t('pkg.appUrlSas');
+        const input = row.querySelector('.pkg-app-url');
+        if(input && input.parentNode) input.parentNode.insertBefore(warn, input.nextSibling);
+      } else if(!needed && warn){
+        warn.remove();
+      }
+    });
   }
 
   function newPackageIssueDraft(){ return {id:'', haloTicket:'', title:'', state:'', office:'', lookup:''}; }
