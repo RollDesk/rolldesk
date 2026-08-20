@@ -18,6 +18,7 @@ import {
 import {
   lookupWorkItem, searchWorkItems, projectTrackerSettings, trackerStatus,
 } from '../trackerService.js';
+import { generatePackageName } from '../packageName.js';
 import { projectSharesAdminInfo } from '../rbac.js';
 
 const router = Router();
@@ -143,6 +144,19 @@ router.get('/search/:project', requirePackageRole, async (req, res) => {
     return res.status(403).json({ error: 'Not permitted for this project' });
   }
   res.json(await searchWorkItems(req.params.project, req.query.q));
+});
+
+// GET /api/packages/suggest-name — a name for a release nobody has used yet.
+//
+// Server-side, not in the browser, for one reason: uniqueness. The editor only holds
+// the packages it has loaded (one project, one filter), while „is anything already
+// called this" is a question about the whole instance. It also keeps the word lists
+// in one place with their tests.
+//
+// Declared before /:id so "suggest-name" is not read as a package id.
+router.get('/suggest-name', requirePackageRole, async (_req, res) => {
+  const { rows } = await query('SELECT name FROM release_packages WHERE name IS NOT NULL');
+  res.json({ name: generatePackageName({ taken: rows.map((r) => r.name) }) });
 });
 
 // GET /api/packages/tracker-status/:project — whether the lookup can run at all,

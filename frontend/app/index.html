@@ -2066,8 +2066,14 @@
               <div id="package-tracker-status" style="font-size:11.5px; color:var(--text-muted); margin-top:6px;"></div>
             </div>
             <div class="field">
-              <label data-i18n="pkg.name">Package name (optional)</label>
-              <input type="text" id="package-name-input" data-i18n-ph="pkg.namePh" placeholder="e.g. August hotfix">
+              <label style="display:flex; align-items:center;"><span data-i18n="pkg.name">Package name</span><span class="info-ic" data-i18n-tip="pkg.nameNote">i</span></label>
+              <!-- A release is referred to out loud, and „PKG-2026-0031" is not
+                   something anybody says — so a new package arrives already named and
+                   the name is typed over when it should be something else. -->
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="text" id="package-name-input" data-i18n-ph="pkg.namePh" placeholder="e.g. August hotfix" style="flex:1; min-width:0;">
+                <button type="button" class="mini-btn" id="package-name-roll" data-i18n-title="pkg.nameRollBtn" title="Suggest another name" onclick="rollPackageName()">🎲</button>
+              </div>
             </div>
           </div>
           <div class="toolbar" style="margin:0 0 6px 0;">
@@ -6409,7 +6415,9 @@
       // row*, and the actions cell stops the click so a button never opens it.
       const open = expandedPackageId === p.id;
       return `<tr data-pkg="${escapeHtml(p.id)}" class="pkg-row${open ? ' open' : ''}" onclick="togglePackageTimeline('${escapeHtml(p.id)}')" title="${escapeHtml(t('pkg.tlToggle'))}">
-        <td><span class="pkg-caret" aria-hidden="true">${open ? '▾' : '▸'}</span> <span class="mono" style="font-size:12px; font-weight:700;">${escapeHtml(p.id)}</span>${p.name ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">${escapeHtml(p.name)}</div>` : ''}${usedLine}</td>
+        <td><span class="pkg-caret" aria-hidden="true">${open ? '▾' : '▸'}</span> ${p.name
+            ? `<span style="font-size:13px; font-weight:700;">${escapeHtml(p.name)}</span><div class="mono" style="font-size:11px; color:var(--text-muted); margin-top:2px;">${escapeHtml(p.id)}</div>`
+            : `<span class="mono" style="font-size:12px; font-weight:700;">${escapeHtml(p.id)}</span>`}${usedLine}</td>
         <td style="font-size:12.5px;">${escapeHtml(projName)}</td>
         <td style="font-size:12.5px;">${packageAppsCellHtml(p)}</td>
         <td>${contentCell}</td>
@@ -6474,6 +6482,40 @@
     renderPackageFiles(kind);
   }
 
+  // A name for a release, from the backend — it is the only place that knows every
+  // package in the instance, so „nobody is called this yet" is answerable there and
+  // not from the loaded page. Silent on failure: an empty name field is what the
+  // editor had before this existed, and a suggestion is not worth an error.
+  async function suggestPackageName(){
+    if(!API_CONNECTED) return '';
+    try {
+      const res = await apiFetch('/api/packages/suggest-name');
+      if(!res.ok) return '';
+      const info = await res.json();
+      return String((info && info.name) || '');
+    } catch(e){ return ''; }
+  }
+
+  // The 🎲: a different name, but never over something somebody typed — a re-roll
+  // that discards a deliberate name would make the button dangerous to press.
+  async function rollPackageName(){
+    const el = document.getElementById('package-name-input');
+    if(!el) return;
+    const current = el.value.trim();
+    if(current && current !== packageNameSuggested){
+      showAppConfirm(t('pkg.nameRollTitle'), t('pkg.nameRollBody'), async ()=>{
+        const name = await suggestPackageName();
+        if(name){ el.value = name; packageNameSuggested = name; }
+      }, t('pkg.nameRollOk'), 'neutral');
+      return;
+    }
+    const name = await suggestPackageName();
+    if(name){ el.value = name; packageNameSuggested = name; }
+  }
+  // What the field was filled with, so a re-roll can tell „still the suggestion" from
+  // „somebody named this".
+  let packageNameSuggested = '';
+
   function openPackageEditor(id){
     if(!canEditPackages()){ showToast(t('pkg.noPerm')); return; }
     const pkg = id ? packageById(id) : null;
@@ -6489,6 +6531,15 @@
     document.getElementById('package-form-title').textContent = pkg ? t('pkg.editTitle') : t('pkg.newTitle');
     document.getElementById('package-form-sub').textContent = pkg ? pkg.id : '';
     document.getElementById('package-name-input').value = (pkg && pkg.name) || '';
+    packageNameSuggested = '';
+    // Only for a new package, and only into an empty field: an existing release keeps
+    // the name people already know it by.
+    if(!pkg){
+      void suggestPackageName().then((name)=>{
+        const el = document.getElementById('package-name-input');
+        if(el && name && !el.value.trim()){ el.value = name; packageNameSuggested = name; }
+      });
+    }
     document.getElementById('package-notes-input').value = (pkg && pkg.notes) || '';
     document.getElementById('package-changes-input').value = (pkg && pkg.changes) || '';
     // `installerNotes` is what this field was called while it lived on the
