@@ -348,8 +348,9 @@ router.post('/:id/approve', requirePackageApprovalRole, async (req, res) => {
       WHERE id = $1 RETURNING *`,
     [req.params.id, JSON.stringify(approval)]
   );
-  const files = await filesByPackage([req.params.id]);
-  res.json(Object.assign(packageRowToObj(saved[0]), { files: files.get(req.params.id) || [] }));
+  // Through the same shaping as the list, so the row the editor puts back carries the
+  // approver's display name rather than their address (see shapePackages).
+  res.json((await shapePackages(req, saved))[0]);
 });
 
 // POST /api/packages/:id/approve/undo — withdraw the approval. The counterpart of
@@ -368,8 +369,7 @@ router.post('/:id/approve/undo', requirePackageApprovalRole, async (req, res) =>
       WHERE id = $1 RETURNING *`,
     [req.params.id]
   );
-  const files = await filesByPackage([req.params.id]);
-  res.json(Object.assign(packageRowToObj(saved[0]), { files: files.get(req.params.id) || [] }));
+  res.json((await shapePackages(req, saved))[0]);
 });
 
 // DELETE /api/packages/:id — refused once a deployment refers to the package,

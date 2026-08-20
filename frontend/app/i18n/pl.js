@@ -811,6 +811,7 @@ window.RD_I18N.pl = {
   "pkg.apprNoPerm": "Pakiet może zatwierdzić tylko kierownik projektu lub administrator",
   "pkg.apprDraft": "Najpierw przekaż pakiet do wdrożenia (status „Gotowy”)",
   "pkg.apprLegacy": "zatwierdzony automatycznie przy aktualizacji",
+  "pkg.apprCleared": "Zmieniły się aplikacje lub wersje, więc zatwierdzenie kierownika projektu przestało obowiązywać — przed zaplanowaniem wdrożenia wydanie musi zostać zatwierdzone ponownie.",
   "pkg.apprUndoBtn": "Wycofaj zatwierdzenie",
   "pkg.apprUndoTitle": "Wycofaj zatwierdzenie do wdrożenia",
   "pkg.apprUndoBody": "Pakiet wróci do stanu „czeka na zatwierdzenie” i nie będzie można z niego zaplanować nowego wdrożenia. Już zaplanowane wdrożenia zostają bez zmian.",

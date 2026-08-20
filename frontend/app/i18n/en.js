@@ -811,6 +811,7 @@ window.RD_I18N.en = {
   "pkg.apprNoPerm": "Only a project manager or an administrator may approve a package",
   "pkg.apprDraft": "Hand the package over for deployment first (status „Ready”)",
   "pkg.apprLegacy": "approved automatically during the upgrade",
+  "pkg.apprCleared": "The applications or versions changed, so the project manager's approval no longer applies — the release has to be approved again before a rollout can be planned from it.",
   "pkg.apprUndoBtn": "Withdraw the approval",
   "pkg.apprUndoTitle": "Withdraw the deployment approval",
   "pkg.apprUndoBody": "The package goes back to waiting for approval and no new rollout can be planned from it. Rollouts already planned are unaffected.",
