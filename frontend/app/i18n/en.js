@@ -185,7 +185,7 @@ window.RD_I18N.en = {
   "pkg.nameRollBody": "This package already carries a name somebody typed. Suggest a different one in its place?",
   "pkg.nameRollTitle": "Replace the name?",
   "pkg.nameRollBtn": "Suggest another name",
-  "pkg.nameNote": "A name a release can be referred to out loud — an id like PKG-2026-0031 is not something anybody says at a stand-up. A new package arrives with one already suggested (a different one each time, never a name in use); type over it whenever the release deserves its own name, and press the dice for another.",
+  "pkg.nameNote": "A name a release can be referred to out loud — an id like PKG-2026-0031 is not something anybody says at a stand-up. A new package arrives with one already suggested (a different one each time, never a name in use); type over it whenever the release deserves its own name, and press ↻ beside the field for another.",
   "pkg.secWhat": "What is being released",
   "pkg.secHandover": "Handover",
   "pkg.apps": "Applications and versions",
