@@ -14,7 +14,7 @@
 import webpush from 'web-push';
 import { query } from './db.js';
 import { config } from './config.js';
-import { deploymentUrl } from './appLink.js';
+import { deploymentUrl, packageUrl } from './appLink.js';
 import { selectPushUsers, notificationPayload } from './pushTargets.js';
 
 const str = (v) => (v == null ? '' : String(v)).trim();
@@ -160,7 +160,11 @@ export async function sendToUsers(userIds, payload) {
 // archived, with the scope and preferences the routing rules need. Read per event
 // rather than cached — a role change or an opt-out has to take effect at once,
 // the same reasoning as loadViewer in changehub and userScope here.
-async function candidateUsers() {
+//
+// Exported because the in-app inbox (inbox.js) files the same event for the same
+// candidate set under different rules; two copies of this query would be two
+// places to forget `archived = false`.
+export async function candidateUsers() {
   const { rows } = await query(
     `SELECT id, email, role, name, projects, archived, notify_prefs
        FROM users
@@ -188,12 +192,13 @@ export async function notifyEvent({ eventKey, projectKey, actorEmail, subject, t
     const users = await candidateUsers();
     const targets = selectPushUsers({ eventKey, projectKey, actorEmail, users });
     if (!targets.length) return { sent: 0, targets: 0 };
-    // Where the click lands. A deployment has a hash route already used by every
-    // other channel's "open in RollDesk" link; a package has no deep link yet, so
-    // it opens the app and the reader takes it from the packages list.
+    // Where the click lands. Both records have a hash route the app resolves to
+    // the row itself (`#deployments/<id>`, `#packages/<id>`) — the same addresses
+    // the bell drawer opens, so a click means the same thing wherever the
+    // notification was read. Only an event about neither opens the app's front page.
     const url = deploymentId
       ? deploymentUrl(config.appBaseUrl, deploymentId)
-      : (config.appBaseUrl || '');
+      : (packageUrl(config.appBaseUrl, packageId) || config.appBaseUrl || '');
     const payload = notificationPayload({ eventKey, subject, text, url, deploymentId, packageId });
     const result = await sendToUsers(targets.map((u) => u.id), payload);
     return Object.assign({ targets: targets.length }, result);

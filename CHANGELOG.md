@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.0] - 2026-08-20
+
+### Added
+- **A notification drawer in RollDesk itself — the bell in the top bar.** Every channel RollDesk had delivered somewhere else: a webhook post into a Teams channel, an e-mail into a mailbox, a browser notification onto the screen for a few seconds and then nowhere. So "what happened while I was in a meeting" had no answer inside the application, a notification dismissed by accident had never existed, and an instance with no webhook configured told its own team nothing at all. The bell keeps the record — the count of what is new, and the list of what happened, newest first — and the browser notification goes back to being only the interruption. **A card opens the record it is about**: a click (or Enter) on a notification about a rollout opens that deployment, and one about a release package opens that package, so nobody reads an id in the drawer and then searches a filtered list for it. Escape, the × or the page behind it closes the drawer.
+- **The drawer records more than the browser notification interrupts about, and records it even when the interruption is switched off.** All sixteen events of the catalogue are filed, including the ones deliberately left out of the push routing because a phone that buzzes for a daily report gets its notifications blocked within a week — the daily installation status, a corrected install, a comment, an approval request, a package created, a rollout completed. And unticking an event on the account page now means "do not interrupt me", not "do not tell me": the row still appears in the drawer. What the drawer does not relax is who may be told what — the routing is the same server-side authorization as the push (`backend/src/inboxTargets.js`, pure and unit-tested): a deployer or tester only ever sees the projects they were granted, an administrator sees everything, nobody is told about their own action, and **client accounts have no drawer at all** — the bell is not shown to them and the endpoints refuse them.
+- **A release package has an address.** `#packages/<id>` opens that package, the way `#deployments/<id>` has always opened a deployment — it clears the filters that could be hiding the row and highlights it. Browser notifications about a package now land there too, instead of opening the app's front page and leaving the reader to find it.
+
+### Changed
+- **An event with no webhook, no e-mail and no push still reaches the team.** The browser used to stay silent when a project had no channel configured, which meant an instance without webhooks, SMTP and a VAPID keypair notified nobody about anything. Every dispatch is now filed in the recipients' drawer server-side, and the confirmation says what actually happened ("recorded in RollDesk for 4 people") instead of "sent (0)".
+
+### Notes for operators
+- Migration `012_notifications.sql` adds the `notifications` table (one row per recipient, so the unread count is an indexed count rather than a scan). Additive: a downgrade leaves it in place and unread.
+- The drawer is a recent-history view, not an audit trail — filed notifications are **deleted after 90 days**, swept on write. The change history remains the append-only record.
+- Notification bodies are stored as the sender's browser composed them, in the instance's notification language (`NOTIFY_LANG`) — the same text every other channel receives. Only the event label and the drawer's own furniture follow the reader's UI language.
+- No new dependency, no new environment variable, and nothing to configure: the bell works on an instance with no webhook, no SMTP and no VAPID keypair.
+
 ## [0.28.1] - 2026-08-19
 
 ### Changed

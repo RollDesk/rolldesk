@@ -1,9 +1,16 @@
 // Notification endpoints.
-//   POST /api/notifications/test   — send a one-off test to a single webhook/e-mail.
-//   POST /api/notifications/notify — deliver a real event notification to a set of
-//                                    webhooks and/or e-mail addresses at once.
+//   POST /api/notifications/test         — send a one-off test to a single webhook/e-mail.
+//   POST /api/notifications/notify       — deliver a real event notification to a set of
+//                                          webhooks and/or e-mail addresses at once.
+//   GET  /api/notifications              — my own inbox (the bell drawer).
+//   GET  /api/notifications/unread-count — the badge.
+//   POST /api/notifications/read         — mark mine read ({ ids } or { all: true }).
 // Sending happens server-side so there are no browser CORS issues, and the caller
 // always learns per-recipient whether delivery succeeded or failed.
+//
+// The three inbox routes are the in-app record of the same events: every dispatch
+// files a row per interested recipient (inbox.js), so „what happened while I was
+// away" has an answer inside RollDesk and not only in a Teams channel.
 import { Router } from 'express';
 import { sendMail } from '../mailer.js';
 import { config } from '../config.js';
@@ -16,11 +23,20 @@ import {
 } from '../appLink.js';
 import { notifyEvent as pushEvent, pushConfigured } from '../push.js';
 import { isPushEvent } from '../pushTargets.js';
+import { recordEvent, listFor, unreadCountFor, markRead, markAllRead } from '../inbox.js';
 
 const router = Router();
 
 // Sending notifications is a team action — never available to client accounts.
+// The inbox below is the same: the routing files nothing for a client account, so
+// the drawer would be permanently empty and the bell is hidden in the UI.
 router.use(forbidClient);
+
+// Whose inbox. From the session (or the token's owner), never from the body — an
+// account may only read and clear its own notifications.
+function userId(req) {
+  return req.auth && req.auth.sub;
+}
 
 const TEST_TEXT =
   'This is a test message from RollDesk. If you can see it, the notification target is configured correctly.';
@@ -207,6 +223,21 @@ router.post('/notify', async (req, res) => {
     packageId: b.packageId != null ? String(b.packageId) : '',
   }).catch(() => {});
 
+  // The in-app record, for everyone the event concerns — including the people who
+  // muted its push and the events no push exists for (see inboxTargets.js). Awaited
+  // rather than fired off, unlike the push: it is one local INSERT, and the count
+  // is part of what the sender is told, so an event that reached nobody through a
+  // webhook can still report that it was filed. recordEvent never throws.
+  const inbox = await recordEvent({
+    eventKey: b.eventKey,
+    projectKey: b.projectKey,
+    actorEmail: (req.auth && req.auth.email) || '',
+    subject,
+    text,
+    deploymentId,
+    packageId: b.packageId != null ? String(b.packageId) : '',
+  });
+
   const jobs = [];
 
   // Microsoft Teams via Graph: when configured, post to the channel and thread
@@ -243,11 +274,11 @@ router.post('/notify', async (req, res) => {
 
   // A project with no webhook and no e-mail on file is now a normal state rather
   // than a mistake: the event may still have reached people as a browser
-  // notification, and reporting that as a failure would put a red toast on a
-  // perfectly delivered event.
+  // notification or as a row in their inbox, and reporting that as a failure would
+  // put a red toast on a perfectly delivered event.
   if (!jobs.length) {
-    if (isPushEvent(b.eventKey) && pushConfigured()) {
-      return res.json({ ok: true, sent: 0, failed: 0, results: [], push: true });
+    if (inbox.stored || (isPushEvent(b.eventKey) && pushConfigured())) {
+      return res.json({ ok: true, sent: 0, failed: 0, results: [], push: true, inbox: inbox.stored || 0 });
     }
     return res.status(422).json({ error: 'No recipients (emails/webhooks) provided' });
   }
@@ -259,8 +290,36 @@ router.post('/notify', async (req, res) => {
     ok: failed.length === 0,
     sent: results.length - failed.length,
     failed: failed.length,
+    inbox: inbox.stored || 0,
     results,
   });
+});
+
+// ---- The inbox (bell drawer) ----------------------------------------------
+//
+// Always the caller's own. There is deliberately no "everybody's notifications"
+// view: the routing already decides who may be told what, and a shared feed would
+// be the one place that hands a deployer the projects they were not granted.
+
+// GET /api/notifications?limit=60 — newest first, with the badge in the same call
+// so opening the drawer is one request.
+router.get('/', async (req, res) => {
+  const id = userId(req);
+  const notifications = await listFor(id, req.query.limit);
+  res.json({ notifications, unread: await unreadCountFor(id) });
+});
+
+// GET /api/notifications/unread-count — polled by every open tab.
+router.get('/unread-count', async (req, res) => {
+  res.json({ unread: await unreadCountFor(userId(req)) });
+});
+
+// POST /api/notifications/read — { ids: [...] } or { all: true }.
+router.post('/read', async (req, res) => {
+  const id = userId(req);
+  const b = req.body || {};
+  const marked = b.all === true ? await markAllRead(id) : await markRead(id, b.ids);
+  res.json({ marked, unread: await unreadCountFor(id) });
 });
 
 export default router;

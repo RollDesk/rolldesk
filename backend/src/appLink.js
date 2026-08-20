@@ -113,6 +113,15 @@ export function deploymentUrl(appUrl, deploymentId) {
   return `${String(appUrl).trim().replace(/\/+$/, '')}/#deployments/${encodeURIComponent(id)}`;
 }
 
+// URL of one release package, the same idea one level earlier in the process: the
+// app routes `#packages/<id>` to that row, so „package handed over for deployment"
+// opens the package instead of the app's front page and a list to search.
+export function packageUrl(appUrl, packageId) {
+  const id = String(packageId == null ? '' : packageId).trim();
+  if (!id || !isUsableAppUrl(appUrl)) return '';
+  return `${String(appUrl).trim().replace(/\/+$/, '')}/#packages/${encodeURIComponent(id)}`;
+}
+
 // Turn the first occurrence of `label` in the body into a link, in the target's
 // own markup. Every notification body already names its deployment id, so making
 // that the link means no separate "open the app" line: the id is the thing the

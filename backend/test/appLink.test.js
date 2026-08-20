@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {
   appLinkText, appLinkHtml, appLinkSlack, appLinkCardAction, bodyToHtml,
   bodyToCardText, hasAppLink, isUsableAppUrl, APP_LINK_LABEL,
-  deploymentUrl, linkLabelSlack, linkLabelMarkdown,
+  deploymentUrl, packageUrl, linkLabelSlack, linkLabelMarkdown,
   subjectEvent, foldSubjectIntoLead,
 } from '../src/appLink.js';
 
@@ -149,6 +149,19 @@ test('deploymentUrl is empty without a usable base URL or an id', () => {
 
 test('deploymentUrl escapes an id that would otherwise break the URL', () => {
   assert.equal(deploymentUrl(URL_OK, 'DEP 1/2'), 'http://rolldesk.example.com/#deployments/DEP%201%2F2');
+});
+
+// A package event has no deployment to point at, and used to open the app's front
+// page and leave the reader to find the package in the list.
+test('packageUrl points at the package', () => {
+  assert.equal(packageUrl(URL_OK, 'PKG-2026-0007'), 'http://rolldesk.example.com/#packages/PKG-2026-0007');
+  assert.equal(packageUrl('http://rolldesk.example.com/', 'PKG-1'), 'http://rolldesk.example.com/#packages/PKG-1');
+  assert.equal(packageUrl(URL_OK, 'PKG 1/2'), 'http://rolldesk.example.com/#packages/PKG%201%2F2');
+});
+
+test('packageUrl is empty without a usable base URL or an id', () => {
+  for (const bad of ['', null, 'javascript:alert(1)']) assert.equal(packageUrl(bad, 'PKG-1'), '');
+  for (const noId of ['', '   ', null, undefined]) assert.equal(packageUrl(URL_OK, noId), '');
 });
 
 // The id opens every notification body, so linking it in place is what lets the
