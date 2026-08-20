@@ -1041,17 +1041,23 @@
   .deploy-row:hover td{background:var(--line-soft);}
   #users-table tr:hover td{background:var(--line-soft);}
   .queue-row:hover td{background:var(--line-soft);}
-  /* Info (ℹ) icon with a hover popover — used to tuck long helper text away so
-     forms stay compact. The text comes from data-tip (set from i18n). */
+  /* Info (ℹ) icon whose help text is shown in the shared floating tooltip
+     below — used to tuck long helper text away so forms stay compact. The text
+     comes from data-tip (set from i18n). */
   .info-ic{display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; border-radius:50%; border:1px solid var(--text-faint); color:var(--text-faint); font-size:10px; font-weight:700; font-style:italic; cursor:help; position:relative; vertical-align:middle; margin-left:6px; flex-shrink:0;}
   .info-ic:hover{border-color:var(--cyan); color:var(--cyan);}
-  .info-ic::after{content:attr(data-tip); position:absolute; left:0; top:calc(100% + 8px); width:300px; max-width:70vw; background:var(--ink,#1E242C); color:#fff; padding:9px 11px; border-radius:8px; font-size:11.5px; font-style:normal; font-weight:400; line-height:1.55; white-space:normal; text-align:left; opacity:0; visibility:hidden; transition:opacity .12s; z-index:200; box-shadow:0 6px 22px rgba(0,0,0,0.22); pointer-events:none;}
-  .info-ic:hover::after{opacity:1; visibility:visible;}
   /* Compact P / NP target-type badge — hover shows the full Production / Non-production label. */
   .type-badge{display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:18px; padding:0 4px; border-radius:4px; border:1px solid; font-family:var(--font-mono); font-size:9.5px; font-weight:700; letter-spacing:0.02em; flex-shrink:0; position:relative; cursor:help; vertical-align:middle; box-sizing:border-box; line-height:1; user-select:none;}
-  .type-badge::after{content:attr(data-tip); position:absolute; left:50%; transform:translateX(-50%); top:calc(100% + 6px); width:max-content; max-width:220px; background:var(--ink,#1E242C); color:#fff; padding:5px 8px; border-radius:6px; font-size:11px; font-weight:400; letter-spacing:0; line-height:1.35; white-space:nowrap; opacity:0; visibility:hidden; transition:opacity .12s; z-index:200; box-shadow:0 4px 14px rgba(0,0,0,0.2); pointer-events:none;}
-  .type-badge:hover::after{opacity:1; visibility:visible;}
   .type-badge.type-badge-click{cursor:pointer;}
+  /* One tooltip for every [data-tip] host, parked directly under <body> and
+     placed in viewport coordinates by showTip(). Each host used to carry its own
+     ::after popover, which a scrolling panel (the tall "New deployment" form)
+     clipped — and the native `title` added to compensate was then drawn by the
+     browser on top of the popover, so the help text appeared twice, one copy
+     unreadable behind the other. A single fixed layer cannot be clipped, so the
+     `title` duplicate is gone. */
+  .tip-float{position:fixed; left:0; top:0; z-index:2100; width:max-content; max-width:min(300px, 70vw); background:var(--ink,#1E242C); color:#fff; padding:9px 11px; border-radius:8px; font-size:11.5px; font-style:normal; font-weight:400; line-height:1.55; white-space:pre-wrap; text-align:left; opacity:0; visibility:hidden; transition:opacity .12s; box-shadow:0 6px 22px rgba(0,0,0,0.22); pointer-events:none;}
+  .tip-float.show{opacity:1; visibility:visible;}
 </style>
 </head>
 <body>
@@ -2991,11 +2997,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.32.0"></script>
-<script src="i18n/en.js?v=0.32.0"></script>
+<script src="i18n/pl.js?v=0.32.1"></script>
+<script src="i18n/en.js?v=0.32.1"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.32.0';
+  const ROLLDESK_VERSION = '0.32.1';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -3116,6 +3122,63 @@
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
+  // ---- Hover help (data-tip) -------------------------------------------------
+  // One tooltip element, shared by every [data-tip] host (the ℹ icons, the P/NP
+  // badges). It is created once, lives under <body> and is positioned in viewport
+  // coordinates, so no scrolling panel can clip it — which is why these hosts no
+  // longer need a native `title` as a fallback. They must not have one: the
+  // browser would draw its own tooltip over this one and the help text would be
+  // shown twice, overlapping.
+  let tipEl = null;      // the floating element, created on first hover
+  let tipHost = null;    // the element the visible tip belongs to
+  function showTip(host){
+    const text = host.getAttribute('data-tip');
+    if(!text){ hideTip(); return; }
+    if(!tipEl){
+      tipEl = document.createElement('div');
+      tipEl.className = 'tip-float';
+      tipEl.setAttribute('role', 'tooltip');
+      document.body.appendChild(tipEl);
+    }
+    tipHost = host;
+    tipEl.textContent = text;
+    // Show it before measuring: a hidden element still has a box, but only the
+    // final text and the `show` class give the width the placement depends on.
+    tipEl.classList.add('show');
+    const pad = 8, gap = 8;
+    const r = host.getBoundingClientRect();
+    const box = tipEl.getBoundingClientRect();
+    // Left-aligned with the host, pulled back inside the viewport rather than
+    // centred: most hosts sit in a form column, so the text reads from the label.
+    let left = Math.min(r.left, window.innerWidth - pad - box.width);
+    if(left < pad) left = pad;
+    // Below by default, flipped above when there is no room down there.
+    let top = r.bottom + gap;
+    if(top + box.height > window.innerHeight - pad) top = Math.max(pad, r.top - gap - box.height);
+    tipEl.style.left = Math.round(left) + 'px';
+    tipEl.style.top = Math.round(top) + 'px';
+  }
+  function hideTip(host){
+    // A mouseout inside another host must not close that host's tip.
+    if(host && tipHost && host !== tipHost) return;
+    tipHost = null;
+    if(tipEl) tipEl.classList.remove('show');
+  }
+  function tipHostOf(node){
+    return node && node.closest ? node.closest('[data-tip]') : null;
+  }
+  // Delegated, so tips work on rows rendered after load without any wiring.
+  document.addEventListener('mouseover', e=>{
+    const host = tipHostOf(e.target);
+    if(host){ if(host !== tipHost) showTip(host); }
+    else if(tipHost) hideTip();
+  });
+  document.addEventListener('mouseout', e=>{ hideTip(tipHostOf(e.target)); });
+  // The tip is positioned once, in viewport coordinates: any scroll or resize
+  // would leave it pointing at nothing, so it closes instead of chasing the host.
+  window.addEventListener('scroll', ()=>hideTip(), true);
+  window.addEventListener('resize', ()=>hideTip());
+  document.addEventListener('keydown', e=>{ if(e.key === 'Escape') hideTip(); });
   // Canonical env values stay English in data (e.g. "Production"); localize for display.
   // Custom test-environment names are left as-is.
   function envLabel(env){
@@ -3373,15 +3436,17 @@
       if(val != null) el.setAttribute('title', val);
     });
     // Hover tooltips on info (ℹ) icons — the help text lives in a popover instead
-    // of a long paragraph on screen.
+    // of a long paragraph on screen. Deliberately no `title`: the popover is the
+    // floating .tip-float layer, and a native tooltip on the same element would
+    // be drawn over it — the help text shown twice, one copy behind the other.
+    // The visible glyph is only "i", so the text is the accessible name instead.
     document.querySelectorAll('[data-i18n-tip]').forEach(el=>{
       const val = I18N[LANG] && I18N[LANG][el.getAttribute('data-i18n-tip')];
       if(val != null){
         el.setAttribute('data-tip', val);
-        // Native tooltip fallback: the CSS popover can be clipped by a scrolling
-        // panel (e.g. the tall "New deployment" form), which made the hover help
-        // appear to do nothing. `title` guarantees the text is always shown.
-        el.setAttribute('title', val);
+        el.setAttribute('role', 'img');
+        el.setAttribute('aria-label', val);
+        el.removeAttribute('title');
       }
     });
     // refresh the current topbar title in the active language
@@ -8352,8 +8417,10 @@
     const clickable = !!opts.onclick;
     const cls = 'type-badge' + (clickable ? ' type-badge-click' : '');
     const onclk = clickable ? ` onclick="event.stopPropagation(); ${opts.onclick}"` : '';
-    const titleAttr = clickable ? ` title="${tip} — ${escapeHtml(t('proj.typeBadgeToggle'))}"` : ` title="${tip}"`;
-    return `<span class="${cls}" data-tip="${tip}"${titleAttr} role="img" aria-label="${tip}" style="border-color:${color}; color:${color};"${onclk}>${letter}</span>`;
+    // The hint that the badge can be clicked belongs in the same tooltip, not in a
+    // `title` beside it — two tooltips on one element are drawn on top of each other.
+    const hint = clickable ? `${tip} — ${escapeHtml(t('proj.typeBadgeToggle'))}` : tip;
+    return `<span class="${cls}" data-tip="${hint}" role="img" aria-label="${hint}" style="border-color:${color}; color:${color};"${onclk}>${letter}</span>`;
   }
   function typeOptionLabel(tv){
     if(tv === 'Production' || tv === 'Non-production'){
@@ -13754,7 +13821,7 @@
       const stMap = {pending:t('rep.stPending'), commented:t('rep.stCommented'), rejected:t('rep.stRejected')};
       return `<td style="white-space:nowrap;">
         <span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--paper); color:var(--text-muted);">⧗ ${stMap[r.clientApproval]||r.clientApproval||''}</span>
-        <span class="info-ic" data-tip="${escapeHtml(t('rep.appearAfterApproval'))}" title="${escapeHtml(t('rep.appearAfterApproval'))}">i</span>
+        <span class="info-ic" data-tip="${escapeHtml(t('rep.appearAfterApproval'))}" role="img" aria-label="${escapeHtml(t('rep.appearAfterApproval'))}">i</span>
       </td>`;
     }
     if(kind === 'paused'){

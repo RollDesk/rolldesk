@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.32.1] - 2026-08-20
+
+### Fixed
+- **The ℹ hover help is shown once.** Every info icon carried the same sentence twice — the application's dark popover and the browser's own tooltip, drawn on top of it, so the dark copy sat behind the light one and neither could be read. The `title` was there because the popover, being a child of the icon, was clipped by the scrolling panel around it (the tall "New deployment" form), which made the help look like it did nothing. The help text now lives in a single floating layer under `<body>`, positioned in viewport coordinates and flipped above the icon when there is no room below, so nothing can clip it and the native duplicate is gone. The sentence stays available to a screen reader as the icon's accessible name — the visible glyph is only "i". The same fix applies to the compact **P / NP** badges, whose "click to change" hint now sits inside the one tooltip rather than in a second one beside it.
+
 ## [0.32.0] - 2026-08-20
 
 ### Added
