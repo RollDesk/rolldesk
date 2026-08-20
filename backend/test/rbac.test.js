@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { requireWriteRole, requirePackageRole, isScopedRole } from '../src/rbac.js';
+import {
+  requireWriteRole, requirePackageRole, requirePackageApprovalRole, isScopedRole, isPM,
+} from '../src/rbac.js';
 
 // The guards are plain middleware over req.auth.role, so they can be exercised
 // without a database or a server: a fake res records the status/body it was sent
@@ -16,7 +18,7 @@ function run(guard, role) {
   return result;
 }
 
-const ROLES = ['admin', 'rm', 'tester', 'installer', 'client'];
+const ROLES = ['admin', 'rm', 'pm', 'tester', 'installer', 'client'];
 
 test('only admin, rm and installer may write deployments and projects', () => {
   const allowed = ROLES.filter((r) => run(requireWriteRole, r).passed);
@@ -48,8 +50,30 @@ test('a deployer cannot assemble packages and a tester cannot write deployments'
 
 // Read endpoints narrow to the projects on the account for these roles. Missing
 // a role here does not fail loudly — it silently widens what that role can read.
-test('deployers and testers read within their granted projects; nobody else is scoped that way', () => {
+test('deployers, testers and project managers read within their granted projects', () => {
   const scoped = ROLES.filter((r) => isScopedRole({ auth: { role: r } }));
-  assert.deepEqual(scoped, ['tester', 'installer']);
+  assert.deepEqual(scoped, ['pm', 'tester', 'installer']);
   assert.equal(isScopedRole({}), false);
+});
+
+// The approval gate. Who may clear a release is the whole point of the role, so
+// this is the test to read when someone asks why they cannot approve a package.
+test('only a project manager and an administrator may clear a release for deployment', () => {
+  const allowed = ROLES.filter((r) => run(requirePackageApprovalRole, r).passed);
+  assert.deepEqual(allowed, ['admin', 'pm']);
+  // Not the people who assemble the package (that is the gate approving itself),
+  // and not the release manager who is about to plan the rollout from it.
+  assert.equal(run(requirePackageApprovalRole, 'tester').passed, false);
+  assert.equal(run(requirePackageApprovalRole, 'rm').passed, false);
+  assert.equal(run(requirePackageApprovalRole, undefined).passed, false);
+});
+
+test('a project manager writes no deployments and assembles no packages', () => {
+  // Their one power is the clearance; everything else about a release stays with
+  // the roles that had it.
+  assert.equal(run(requireWriteRole, 'pm').passed, false);
+  assert.equal(run(requirePackageRole, 'pm').passed, false);
+  assert.equal(isPM({ auth: { role: 'pm' } }), true);
+  assert.equal(isPM({ auth: { role: 'rm' } }), false);
+  assert.equal(isPM({}), false);
 });

@@ -12,6 +12,8 @@ import {
   parseWorkItemId, normalizeBaseUrl, workItemFromAzure, officeFromTicket,
   normalizeTrackerSettings, azureLookupConfigured, haloLookupConfigured, ticketUrl,
   trackerLinkPatterns, ticketNumber, hasIdPlaceholder, workItemLookupUrls,
+  trackerProjects, MAX_TRACKER_PROJECTS, parseWorkItemFragment, workItemSearchUrl,
+  workItemSearchBody, workItemsFromSearch, SEARCH_TOP,
   DEFAULT_TICKET_FIELD, DEFAULT_TICKET_PATH, DEFAULT_OFFICE_KEYS,
 } from '../src/tracker.js';
 
@@ -300,6 +302,71 @@ test('a work item is looked up under the project first, then organisation-wide',
   ]);
 });
 
+// One product is split across several tracker projects — the bugs of the main
+// application in one, the e-services portal in a second, the next major version in
+// a third. A single configured project left every id from the others to the
+// organisation-wide route, which a project-scoped PAT answers with 403; so the
+// setting is a list and every entry is tried.
+test('every configured tracker project is tried, in order, before the organisation', () => {
+  const settings = {
+    azureOrgUrl: 'https://dev.azure.com/Org',
+    azureProjects: ['PiK', 'PiK 2.0', 'Portal e-usług'],
+  };
+  assert.deepEqual(workItemLookupUrls(settings, '41231'), [
+    'https://dev.azure.com/Org/PiK/_apis/wit/workitems/41231?api-version=7.0',
+    'https://dev.azure.com/Org/PiK%202.0/_apis/wit/workitems/41231?api-version=7.0',
+    'https://dev.azure.com/Org/Portal%20e-us%C5%82ug/_apis/wit/workitems/41231?api-version=7.0',
+    'https://dev.azure.com/Org/_apis/wit/workitems/41231?api-version=7.0',
+  ]);
+});
+
+test('trackerProjects reads a list, a typed string and the single old setting', () => {
+  assert.deepEqual(trackerProjects({ azureProjects: ['A', 'B'] }), ['A', 'B']);
+  // What an admin types into one box.
+  assert.deepEqual(trackerProjects({ azureProjects: ' PiK , PiK 2.0 ,, Portal e-usług ' }),
+    ['PiK', 'PiK 2.0', 'Portal e-usług']);
+  assert.deepEqual(trackerProjects({ azureProjects: 'A\nB;C' }), ['A', 'B', 'C']);
+  // A project configured before the list existed keeps working untouched.
+  assert.deepEqual(trackerProjects({ azureProject: 'PiK' }), ['PiK']);
+  // The list wins when both are present (it is what the form writes).
+  assert.deepEqual(trackerProjects({ azureProjects: ['A'], azureProject: 'B' }), ['A']);
+  // Azure treats project names case-insensitively, so a repeat is not a second request.
+  assert.deepEqual(trackerProjects({ azureProjects: ['PiK', 'pik'] }), ['PiK']);
+  assert.deepEqual(trackerProjects({}), []);
+  assert.deepEqual(trackerProjects(null), []);
+  // Bounded: each entry is a request a failed lookup makes before giving up.
+  assert.equal(trackerProjects({ azureProjects: Array.from({ length: 40 }, (_, i) => 'P' + i) }).length,
+    MAX_TRACKER_PROJECTS);
+});
+
+test('normalizeTrackerSettings stores the list and keeps the primary under the old key', () => {
+  const r = normalizeTrackerSettings({
+    azureOrgUrl: 'https://dev.azure.com/Org',
+    azureProjects: 'PiK, Portal e-usług',
+    ticketPath: DEFAULT_TICKET_PATH,
+  });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.data.azureProjects, ['PiK', 'Portal e-usług']);
+  // So a downgrade — and anything still reading one name — sees a working setting.
+  assert.equal(r.data.azureProject, 'PiK');
+});
+
+test('the work-item lookup counts as configured with any project on the list', () => {
+  const base = { azureOrgUrl: 'https://dev.azure.com/O', azurePat: 'x' };
+  assert.equal(azureLookupConfigured(Object.assign({ azureProjects: ['P', 'Q'] }, base)), true);
+  assert.equal(azureLookupConfigured(Object.assign({ azureProjects: [] }, base)), false);
+  assert.equal(azureLookupConfigured(Object.assign({ azureProject: 'P' }, base)), true);
+});
+
+test('the work item link is built under the first configured project', () => {
+  const { workItemUrl } = trackerLinkPatterns({
+    azureOrgUrl: 'https://dev.azure.com/Org', azureProjects: ['PiK', 'Portal e-usług'],
+  });
+  // Azure resolves /_workitems/edit/<id> to the item's own project, so one pattern
+  // opens an item from either.
+  assert.equal(workItemUrl, 'https://dev.azure.com/Org/PiK/_workitems/edit/{id}');
+});
+
 test('with no project configured the organisation-wide route is the only one', () => {
   assert.deepEqual(workItemLookupUrls({ azureOrgUrl: 'https://dev.azure.com/Org' }, '7'), [
     'https://dev.azure.com/Org/_apis/wit/workitems/7?api-version=7.0',
@@ -329,4 +396,64 @@ test('the work item reports the tracker project it was found in', () => {
   assert.equal(item.ticket, 'PR-0167134');
   // Absent stays absent rather than becoming an empty string on the entry.
   assert.equal(workItemFromAzure({ id: 1, fields: {} }).project, undefined);
+});
+
+// ---- Suggestions while typing an id ----------------------------------------
+//
+// Typing the whole id and hoping was the wrong way round: the tester reads a
+// number off a board and wants to be shown which work item it is, which is what
+// the tracker's own search box does.
+
+test('a fragment is at least two digits', () => {
+  assert.equal(parseWorkItemFragment('4123'), '4123');
+  assert.equal(parseWorkItemFragment(' 41 '), '41');
+  assert.equal(parseWorkItemFragment('#4123'), '4123');
+  // One digit matches most of a backlog — that is a request per keystroke for noise.
+  assert.equal(parseWorkItemFragment('4'), '');
+  for (const bad of ['', '   ', null, undefined, 'abc', 'PR-0167134']) {
+    assert.equal(parseWorkItemFragment(bad), '', `expected '' for ${JSON.stringify(bad)}`);
+  }
+});
+
+test('search runs against the hosted search service, derived from the organisation URL', () => {
+  assert.equal(
+    workItemSearchUrl({ azureOrgUrl: 'https://dev.azure.com/InventOn' }),
+    'https://almsearch.dev.azure.com/InventOn/_apis/search/workitemsearchresults?api-version=7.1'
+  );
+  // Anything that is not hosted Azure DevOps has no search host — the feature is
+  // absent rather than broken, and the id lookup still answers.
+  assert.equal(workItemSearchUrl({ azureOrgUrl: 'https://tfs.example.com/tfs/Coll' }), '');
+  assert.equal(workItemSearchUrl({ azureOrgUrl: 'https://dev.azure.com' }), '');
+  assert.equal(workItemSearchUrl({ azureOrgUrl: 'http://dev.azure.com/Org' }), '');
+  assert.equal(workItemSearchUrl({}), '');
+});
+
+test('the search is scoped to the projects the RollDesk project names', () => {
+  const body = workItemSearchBody('4123', { azureProjects: ['PiK', 'Portal e-usług'] });
+  assert.equal(body.searchText, '4123');
+  assert.equal(body.$top, SEARCH_TOP);
+  assert.deepEqual(body.filters, { 'System.TeamProject': ['PiK', 'Portal e-usług'] });
+  // With none named, the organisation is searched — the same fallback as the lookup.
+  assert.equal(workItemSearchBody('4123', {}).filters, undefined);
+  // Bounded, so a caller cannot ask for the whole backlog.
+  assert.equal(workItemSearchBody('4123', {}, 5000).$top, 50);
+});
+
+test('suggestions are read from either spelling of the field keys', () => {
+  // The search service answers in lower case; the work-item API uses reference names.
+  const items = workItemsFromSearch({
+    results: [
+      { project: { name: 'PiK' }, fields: { 'system.id': '41231', 'system.title': 'Bad driver data', 'system.state': 'Resolved', 'system.workitemtype': 'Bug' } },
+      { fields: { 'System.Id': '41232', 'System.Title': 'Second', 'System.State': 'New' } },
+      { fields: { 'system.title': 'no id — dropped' } },
+      null,
+    ],
+  });
+  assert.deepEqual(items.map((i) => i.id), ['41231', '41232']);
+  assert.equal(items[0].title, 'Bad driver data');
+  assert.equal(items[0].state, 'Resolved');
+  assert.equal(items[0].type, 'Bug');
+  assert.equal(items[0].project, 'PiK');
+  assert.deepEqual(workItemsFromSearch(null), []);
+  assert.deepEqual(workItemsFromSearch({ results: 'nope' }), []);
 });

@@ -54,7 +54,22 @@ export const INBOX_EVENT_ROLES = {
   completed:      ['rm', 'tester', 'admin'],
   // A package exists. `packageReady` (handed over) is the pushed one; creating it
   // is news to the same people, quietly.
-  packageCreated: ['rm', 'tester', 'admin'],
+  packageCreated: ['rm', 'tester', 'admin', 'pm'],
+
+  // Below: the events a role hears about in the drawer but is not interrupted
+  // about. The keys repeat entries from the push map on purpose — the filed list
+  // may be *wider* than the pushed one (see the test that enforces that direction),
+  // and this is where the project manager gets the record of what happened to the
+  // releases they cleared.
+  //
+  // A release the PM approved reaching the client's estate, and a target failing
+  // on the way, are both things a project manager is asked about. Neither is worth
+  // interrupting them for: they are answers to „where is release X", read when the
+  // question comes up.
+  completed:      ['rm', 'tester', 'admin', 'pm'],
+  failure:        ['rm', 'tester', 'admin', 'pm'],
+  // Their own gate, so a second PM on the project sees that a colleague cleared it.
+  packageApproved: ['rm', 'installer', 'admin', 'pm', 'tester'],
 };
 
 // The events this module knows about, in catalogue order.

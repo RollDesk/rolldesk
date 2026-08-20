@@ -8,6 +8,8 @@ import {
   packageIssueIds, packageReportingOffices, prioritizeReportingTargets,
   isInstructionKind, stripAdminInfoFromPackage, PACKAGE_STATUSES, FILE_KINDS,
   requestedFileKind, isInstructionFile, visiblePackageFiles,
+  isPackageApproved, packageBlockReason, makeApproval, normalizeApproval,
+  approvalSurvivesEdit,
 } from '../src/releasePackage.js';
 
 function body(extra) {
@@ -503,4 +505,78 @@ test('the stored list is not mutated by the client-facing filter', () => {
   const files = FILES.map((f) => Object.assign({}, f));
   visiblePackageFiles(files, { isClient: true, sharesAdminInfo: false });
   assert.equal(files.length, 3);
+});
+
+// ---- Approval for deployment ------------------------------------------------
+//
+// The project manager's clearance. The process always had this step and RollDesk
+// never did, so a release manager could plan a rollout from a package nobody had
+// cleared — and the clearance itself lived in a mail thread.
+
+test('a package is deployable only when it is both handed over and approved', () => {
+  const approval = makeApproval({ by: 'pm@dxc.test' });
+  assert.equal(isPackageApproved({ status: 'ready', approval }), true);
+  // Handed over, nobody cleared it: this is the case the gate exists for.
+  assert.equal(isPackageApproved({ status: 'ready' }), false);
+  // Cleared, then put back into draft by the test team.
+  assert.equal(isPackageApproved({ status: 'draft', approval }), false);
+  assert.equal(isPackageApproved({}), false);
+  assert.equal(isPackageApproved(null), false);
+});
+
+test('the block reason says which half is missing', () => {
+  assert.equal(packageBlockReason({ status: 'draft' }), 'draft');
+  assert.equal(packageBlockReason({ status: 'ready' }), 'awaiting-approval');
+  assert.equal(packageBlockReason({ status: 'ready', approval: makeApproval({ by: 'pm@dxc.test' }) }), '');
+});
+
+test('an approval is shaped and its comment bounded', () => {
+  const a = makeApproval({ by: '  pm@dxc.test  ', comment: 'c'.repeat(5000), at: '2026-08-20T10:00:00Z' });
+  assert.equal(a.by, 'pm@dxc.test');
+  assert.equal(a.at, '2026-08-20T10:00:00Z');
+  assert.equal(a.comment.length, 2000);
+  // No comment is the normal case, and stores nothing rather than an empty string.
+  assert.equal(makeApproval({ by: 'pm@dxc.test' }).comment, undefined);
+  // The timestamp is what makes an approval an approval, so a stored blob without
+  // one is not read as one.
+  assert.equal(normalizeApproval({ by: 'pm@dxc.test' }), null);
+  assert.equal(normalizeApproval(null), null);
+  assert.equal(normalizeApproval('yes'), null);
+  assert.equal(normalizeApproval([]), null);
+  // The migration's backfill: approved, with nobody named, and marked as such.
+  const legacy = normalizeApproval({ by: null, at: '2026-08-20T10:00:00Z', legacy: true });
+  assert.equal(legacy.legacy, true);
+  assert.equal(legacy.by, null);
+});
+
+test('an approval survives a correction to the prose but not a change to the build', () => {
+  const base = { apps: [{ name: 'Driver', version: '1.2.3' }], changes: 'first draft' };
+  // The description, the notes and the issue list do not change what is installed.
+  assert.equal(approvalSurvivesEdit(base, Object.assign({}, base, { changes: 'reworded' })), true);
+  assert.equal(approvalSurvivesEdit(base, Object.assign({}, base, { issues: [{ id: '1' }] })), true);
+  // The order of the applications is not a change either.
+  const two = { apps: [{ name: 'A', version: '1' }, { name: 'B', version: '2' }] };
+  const swapped = { apps: [{ name: 'B', version: '2' }, { name: 'A', version: '1' }] };
+  assert.equal(approvalSurvivesEdit(two, swapped), true);
+  // A different version is a different build — the PM cleared the other one.
+  assert.equal(approvalSurvivesEdit(base, { apps: [{ name: 'Driver', version: '1.2.4' }] }), false);
+  // So is an application added or dropped.
+  assert.equal(approvalSurvivesEdit(base, { apps: base.apps.concat([{ name: 'X', version: '9' }]) }), false);
+  assert.equal(approvalSurvivesEdit(base, { apps: [] }), false);
+  // And so is turning it into a test-only release.
+  assert.equal(approvalSurvivesEdit(base, Object.assign({}, base, { testOnly: true })), false);
+});
+
+test('the API object reports the approval and the deployable flag', () => {
+  const row = {
+    id: 'PKG-2026-0007', project_key: 'pik', status: 'ready',
+    data: { apps: [{ name: 'A', version: '1' }], approval: { by: 'pm@dxc.test', at: '2026-08-20T10:00:00Z' } },
+  };
+  const obj = packageRowToObj(row);
+  assert.equal(obj.approved, true);
+  assert.equal(obj.approval.by, 'pm@dxc.test');
+  // A draft with a stale approval blob is not deployable, and says so in one field.
+  assert.equal(packageRowToObj(Object.assign({}, row, { status: 'draft' })).approved, false);
+  // Nothing stored: no approval key at all rather than a null the UI has to test for.
+  assert.equal(packageRowToObj({ id: 'x', status: 'draft', data: {} }).approval, undefined);
 });

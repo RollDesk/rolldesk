@@ -17,6 +17,9 @@ const rm = (over = {}) => ({ id: 1, email: 'rm@dxc.test', role: 'rm', projects: 
 const dep = (over = {}) => ({ id: 2, email: 'dep@dxc.test', role: 'installer', projects: ['pik'], ...over });
 const tester = (over = {}) => ({ id: 3, email: 'test@dxc.test', role: 'tester', projects: ['pik'], ...over });
 const admin = (over = {}) => ({ id: 4, email: 'adm@dxc.test', role: 'admin', projects: [], ...over });
+// The project manager, who clears a release for deployment. Scoped to their own
+// projects, like the deployer and the tester.
+const pm = (over = {}) => ({ id: 6, email: 'pm@dxc.test', role: 'pm', projects: ['pik'], ...over });
 const client = (over = {}) => ({ id: 5, email: 'c@pwpw.test', role: 'client', projects: ['pik'], clientKey: 'pwpw', ...over });
 
 const ALL = [rm(), dep(), tester(), admin(), client()];
@@ -25,10 +28,17 @@ const emails = (list) => list.map((u) => u.email).sort();
 // ---- the matrix ------------------------------------------------------------
 
 test('the two events the team asked for reach the roles that act on them', () => {
-  // A handed-over package is the release manager's cue to plan the rollout.
+  // A handed-over package is the *project manager's* cue: until they clear the
+  // release nothing can be planned from it, so telling the release manager first
+  // was telling them about work they were not yet allowed to do.
   assert.deepEqual(
-    emails(selectPushUsers({ eventKey: 'packageReady', projectKey: 'pik', users: ALL })),
-    ['adm@dxc.test', 'rm@dxc.test']
+    emails(selectPushUsers({ eventKey: 'packageReady', projectKey: 'pik', users: ALL.concat([pm()]) })),
+    ['adm@dxc.test', 'pm@dxc.test']
+  );
+  // The clearance is what the planners are waiting for.
+  assert.deepEqual(
+    emails(selectPushUsers({ eventKey: 'packageApproved', projectKey: 'pik', users: ALL.concat([pm()]) })),
+    ['adm@dxc.test', 'dep@dxc.test', 'rm@dxc.test']
   );
   // A prepared schedule is the deployer's cue that work is coming.
   assert.deepEqual(
@@ -130,16 +140,19 @@ test('an archived account is not notified', () => {
 test('an absent preference means the role default, not off', () => {
   // The same rule as the per-client webhook event map: a missing key read as "off"
   // is how a whole category of notification went quietly undelivered before.
-  assert.equal(wantsEvent({}, 'rm', 'packageReady'), true);
-  assert.equal(wantsEvent(undefined, 'rm', 'packageReady'), true);
+  assert.equal(wantsEvent({}, 'pm', 'packageReady'), true);
+  assert.equal(wantsEvent(undefined, 'pm', 'packageReady'), true);
   assert.equal(wantsEvent(null, 'installer', 'created'), true);
-  // ...but the default is per role: a deployer is not the audience for a handover.
+  // ...but the default is per role: a deployer is not the audience for a handover,
+  // and the release manager now waits for the approval rather than the handover.
   assert.equal(wantsEvent({}, 'installer', 'packageReady'), false);
+  assert.equal(wantsEvent({}, 'rm', 'packageReady'), false);
+  assert.equal(wantsEvent({}, 'rm', 'packageApproved'), true);
   assert.equal(wantsEvent({}, 'tester', 'created'), false);
 });
 
 test('an explicit preference wins in both directions', () => {
-  assert.equal(wantsEvent({ packageReady: false }, 'rm', 'packageReady'), false);
+  assert.equal(wantsEvent({ packageReady: false }, 'pm', 'packageReady'), false);
   // A deployer who wants to see handovers may opt in, even though it is not their default.
   assert.equal(wantsEvent({ packageReady: true }, 'installer', 'packageReady'), true);
   // Anything other than a real `true` is not an opt-in.
@@ -172,9 +185,12 @@ test('a client cannot opt in to anything', () => {
 
 test('the role defaults are the matrix, read back', () => {
   assert.deepEqual(defaultEventsForRole('rm').sort(),
-    ['decision', 'failure', 'packageReady', 'paused', 'scheduleApproved', 'scheduleChanged']);
+    ['decision', 'failure', 'packageApproved', 'paused', 'scheduleApproved', 'scheduleChanged']);
   assert.deepEqual(defaultEventsForRole('installer').sort(),
-    ['assigned', 'created', 'paused', 'scheduleApproved', 'scheduleChanged']);
+    ['assigned', 'created', 'packageApproved', 'paused', 'scheduleApproved', 'scheduleChanged']);
+  // The project manager is interrupted by exactly one thing: a release waiting on
+  // their decision. Everything else about that release is in the bell drawer.
+  assert.deepEqual(defaultEventsForRole('pm').sort(), ['packageReady']);
   assert.deepEqual(defaultEventsForRole('tester').sort(), ['failure']);
   // An admin does everything, so they see everything a team role would.
   assert.deepEqual(defaultEventsForRole('admin').sort(), PUSH_EVENTS.slice().sort());

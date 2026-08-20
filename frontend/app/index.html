@@ -259,6 +259,35 @@
   .ntf .ntf-go{align-self:center; flex-shrink:0; font-size:17px; color:var(--text-faint);}
   .ntf.link:hover .ntf-go{color:var(--cyan);}
   .ntf-empty{color:var(--text-faint); font-size:12.5px; text-align:center; padding:28px 8px; line-height:1.6;}
+
+  /* A package row opens its timeline, so it says so: a pointer, a caret that turns,
+     and the open row tinted to tie it to the panel underneath. */
+  #packages-table tr.pkg-row{cursor:pointer;}
+  #packages-table tr.pkg-row:hover{background:var(--cyan-soft);}
+  #packages-table tr.pkg-row.open{background:var(--cyan-soft);}
+  #packages-table .pkg-caret{color:var(--text-faint); font-size:10px;}
+  #packages-table tr.pkg-row.open .pkg-caret{color:var(--cyan);}
+
+  /* ---- Work-item suggestions ----
+     The dropdown under the id field in the package editor. It hangs off the field
+     rather than sitting in the row, so redrawing the row (the lookup fills it in as
+     the tester types) does not take the list with it. */
+  .pkg-sugg{
+    display:none; position:absolute; z-index:20; top:calc(100% + 3px); left:0;
+    min-width:330px; max-height:260px; overflow-y:auto;
+    background:var(--paper-raised); border:1px solid var(--line);
+    border-radius:8px; box-shadow:0 12px 28px rgba(12,16,22,0.16);
+    padding:4px;
+  }
+  .pkg-sugg.open{display:block;}
+  .pkg-sugg-item{
+    display:block; width:100%; text-align:left; border:none; background:transparent;
+    padding:6px 8px; border-radius:6px; cursor:pointer; font-family:var(--font-sans);
+  }
+  .pkg-sugg-item:hover{background:var(--cyan-soft);}
+  .pkg-sugg-item .mono{font-family:var(--font-mono); font-size:12px; font-weight:700; color:var(--cyan);}
+  .pkg-sugg-item .pkg-sugg-title{display:block; font-size:12px; color:var(--text); margin-top:1px;}
+  .pkg-sugg-item .pkg-sugg-meta{display:block; font-family:var(--font-mono); font-size:10px; color:var(--text-faint); margin-top:1px;}
   .view{padding:24px; display:none; flex:1; overflow:auto;}
   .view.active{display:block;}
 
@@ -1446,8 +1475,8 @@
               <input type="text" id="tracker-azure-url" class="mono" data-i18n-ph="proj.trackerOrgUrlPh" placeholder="https://dev.azure.com/Organisation">
             </div>
             <div class="field">
-              <label data-i18n="proj.trackerProject">Project in the tracker</label>
-              <input type="text" id="tracker-azure-project" class="mono" data-i18n-ph="proj.trackerProjectPh" placeholder="e.g. Core">
+              <label style="display:flex; align-items:center;"><span data-i18n="proj.trackerProject">Projects in the tracker</span><span class="info-ic" data-i18n-tip="proj.trackerProjectNote">i</span></label>
+              <input type="text" id="tracker-azure-project" class="mono" data-i18n-ph="proj.trackerProjectPh" placeholder="e.g. Core, Core 2.0, Portal">
             </div>
             <div class="field">
               <label style="display:flex; align-items:center;"><span data-i18n="proj.trackerTicketField">Field holding the ticket id</span><span class="info-ic" data-i18n-tip="proj.trackerTicketFieldNote">i</span></label>
@@ -2172,6 +2201,7 @@
         <label data-i18n="usr.role">Role</label>
         <div class="radio-row">
           <label class="radio-pill selected"><input type="radio" name="user-role" value="rm" checked onchange="onUserRoleChange()"> <span data-i18n="role.rm">Release Manager</span></label>
+          <label class="radio-pill"><input type="radio" name="user-role" value="pm" onchange="onUserRoleChange()"> <span data-i18n="role.pm">Project Manager</span></label>
           <label class="radio-pill"><input type="radio" name="user-role" value="tester" onchange="onUserRoleChange()"> <span data-i18n="role.tester">Tester</span></label>
           <label class="radio-pill"><input type="radio" name="user-role" value="installer" onchange="onUserRoleChange()"> <span data-i18n="role.installer">Deployer</span></label>
           <label class="radio-pill"><input type="radio" name="user-role" value="client" onchange="onUserRoleChange()"> <span data-i18n="role.client">Client</span></label>
@@ -2915,11 +2945,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.29.0"></script>
-<script src="i18n/en.js?v=0.29.0"></script>
+<script src="i18n/pl.js?v=0.30.0"></script>
+<script src="i18n/en.js?v=0.30.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.29.0';
+  const ROLLDESK_VERSION = '0.30.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -3766,7 +3796,7 @@
   // targets, apps and users are traceable (important for regulated clients).
   // Audit entries accumulate at runtime from real actions — no seed history.
   const AUDIT_LOG = [];
-  const ROLE_SHORT = {admin:'Administrator', rm:'Release Manager', tester:'Tester', installer:'Deployer', client:'Client'};
+  const ROLE_SHORT = {admin:'Administrator', rm:'Release Manager', pm:'Project Manager', tester:'Tester', installer:'Deployer', client:'Client'};
 
   // The signed-in user (from GET /api/auth/me); drives the profile card and the
   // "actor" attributed to audit entries and comments.
@@ -3954,6 +3984,9 @@
     // plans the rollout learnt of a handover by opening the app and looking.
     {key:'packageCreated', label:'Release package created'},
     {key:'packageReady',   label:'Release package handed over for deployment'},
+    // The project manager's clearance — the moment the rollout may actually be
+    // planned, which is what the rest of the team is waiting for.
+    {key:'packageApproved', label:'Release package approved for deployment'},
   ];
   function defaultEventMap(){
     const m = {};
@@ -4099,7 +4132,13 @@
     let body = lines.filter(Boolean).join('\n');
     const changes = (pkg.changes || '').trim();
     if(changes) body += '\n\n' + tn('notif.changelogLabel') + ':\n' + changes;
-    if(pkg.status === 'ready') body += '\n\n' + tn('notif.pkgNeedsSchedule');
+    // What the reader is being asked for. A handed-over package is waiting on the
+    // project manager's decision, so telling them to plan the rollout would be
+    // asking for the step after theirs; the approval notification carries that ask
+    // (see notifyPackageApproved).
+    if(pkg.status === 'ready'){
+      body += '\n\n' + tn(packageApproved(pkg) ? 'notif.pkgNeedsSchedule' : 'notif.pkgNeedsApproval');
+    }
     return body;
   }
 
@@ -4472,9 +4511,10 @@
       hint.style.display = 'block';
       hint.textContent = 'The e-mail must come from the selected client\'s domain — sign-in is done via the company e-mail address.';
       onUserClientChange();
-    } else if(role === 'installer' || role === 'tester'){
-      // Both are scoped roles: a deployer reports on the projects they were
-      // granted, a tester assembles packages for them.
+    } else if(role === 'installer' || role === 'tester' || role === 'pm'){
+      // All three are scoped roles: a deployer reports on the projects they were
+      // granted, a tester assembles packages for them, and a project manager
+      // clears the releases of the projects they manage.
       clientField.style.display = 'none';
       projectsField.style.display = 'block';
       hint.style.display = 'none';
@@ -4654,16 +4694,16 @@
     projects:    ['admin','rm'],
     schedule:    ['admin','rm'],
     apps:        ['admin','rm'],
-    deployments: ['admin','rm'],
-    packages:    ['admin','rm','tester'],
+    deployments: ['admin','rm','pm'],
+    packages:    ['admin','rm','tester','pm'],
     installer:   ['admin','installer'],
     client:      ['admin','client'],
     users:       ['admin'],
     clients:     ['admin'],
     sso:         ['admin'],
     audit:       ['admin','rm'],
-    account:     ['admin','rm','tester','installer','client'],
-    help:        ['admin','rm','tester','installer','client'],
+    account:     ['admin','rm','pm','tester','installer','client'],
+    help:        ['admin','rm','pm','tester','installer','client'],
   };
   function viewAllowedForRole(view, role){
     const allowed = VIEW_ROLES[view];
@@ -4672,7 +4712,7 @@
   function defaultViewForRole(role){
     if(role === 'client') return 'client';
     if(role === 'installer') return 'installer';
-    if(role === 'tester') return 'packages';
+    if(role === 'tester' || role === 'pm') return 'packages';
     return 'projects';
   }
   // Show/hide navigation entries (and their group labels) for the current role.
@@ -5359,7 +5399,7 @@
 
   const TRACKER_FIELDS = {
     azureOrgUrl: 'tracker-azure-url',
-    azureProject: 'tracker-azure-project',
+    azureProjects: 'tracker-azure-project',
     ticketField: 'tracker-ticket-field',
     haloBaseUrl: 'tracker-halo-url',
     ticketPath: 'tracker-ticket-path',
@@ -5384,7 +5424,17 @@
     cfg = cfg || {};
     Object.entries(TRACKER_FIELDS).forEach(([field, id])=>{
       const el = document.getElementById(id);
-      if(el) el.value = cfg[field] || '';
+      if(!el) return;
+      // The tracker projects are a list on the wire and one box on screen: several
+      // of them is the normal case (one product's bugs are filed under two or three
+      // projects in the same organisation), and the id lookup tries each in turn.
+      if(field === 'azureProjects'){
+        const list = Array.isArray(cfg.azureProjects) ? cfg.azureProjects
+          : (cfg.azureProject ? [cfg.azureProject] : []);
+        el.value = list.join(', ');
+        return;
+      }
+      el.value = cfg[field] || '';
     });
     const patState = document.getElementById('tracker-azure-pat-state');
     if(patState){
@@ -5399,8 +5449,11 @@
     const line = document.getElementById('tracker-status-line');
     if(line){
       const st = cfg.status || {};
+      const projects = Array.isArray(st.azureProjects) ? st.azureProjects
+        : (st.azureProject ? [st.azureProject] : []);
       line.textContent = [
-        t(st.workItems ? 'proj.trackerOnWork' : 'proj.trackerOffWork'),
+        t(st.workItems ? 'proj.trackerOnWork' : 'proj.trackerOffWork')
+          + (st.workItems && projects.length ? ' (' + projects.join(', ') + ')' : ''),
         t(st.tickets ? 'proj.trackerOnDesk' : 'proj.trackerOffDesk'),
       ].join(' · ');
     }
@@ -5593,6 +5646,241 @@
   function canEditPackages(){
     const role = currentLoggedInRole || 'admin';
     return role === 'admin' || role === 'rm' || role === 'tester';
+  }
+
+  // Which package's timeline is open. One at a time, like the deployments list: the
+  // question is „what happened to this release", and two open rows answer it twice.
+  let expandedPackageId = null;
+
+  function togglePackageTimeline(id){
+    expandedPackageId = (expandedPackageId === id) ? null : id;
+    renderPackagesTable();
+  }
+
+  // The life of a release package, in dates. Everything here was already recorded
+  // and nowhere visible: „when did this go in", „when did the PM clear it", „which
+  // rollout picked it up" were answered by asking the three people involved.
+  //
+  // Deliberately includes what has *not* happened yet: a package with no clearance
+  // and no rollout is the normal state of a release in flight, and „⏳ waiting" is
+  // the answer to where it stands.
+  function packageTimeline(p){
+    if(!p) return [];
+    const events = [];
+    const stamp = (v)=> fmtDateTimeShort(v);
+    events.push({
+      icon: '📦',
+      when: stamp(p.createdAt),
+      text: p.createdBy ? tf('pkg.tlCreatedBy', {who: p.createdBy}) : t('pkg.tlCreated'),
+    });
+    // Handed over by the test team. Recorded from 0.30.0 on, so an older package
+    // simply has no line here rather than a made-up one.
+    if(p.status === 'ready'){
+      events.push({
+        icon: '📤',
+        when: p.readyAt ? stamp(p.readyAt) : '',
+        text: p.readyBy ? tf('pkg.tlReadyBy', {who: p.readyBy}) : t('pkg.tlReady'),
+      });
+    }
+    // The project manager's clearance.
+    if(packageApproved(p)){
+      const a = p.approval || {};
+      events.push({
+        icon: '✅',
+        when: stamp(a.at),
+        text: a.legacy
+          ? t('pkg.tlApprovedLegacy')
+          : (a.by ? tf('pkg.tlApprovedBy', {who: a.by}) : t('pkg.tlApproved')),
+        note: a.comment || '',
+      });
+    } else if(p.status === 'ready'){
+      events.push({icon:'⏳', when:'', text: t('pkg.blockedApproval')});
+    }
+    // Every rollout planned from it. A package can feed more than one (the same
+    // build going to the test environment and then to production), so this is a
+    // line each rather than „used by 2".
+    const used = DEPLOYMENTS_DATA.filter(d => d && d.packageId === p.id);
+    used.forEach(d=>{
+      const when = d.createdDate ? (d.createdDate + (d.createdTime ? ' ' + d.createdTime : '')) : '';
+      const start = d.date || d.historyStart || '';
+      events.push({
+        icon: '🚀',
+        when,
+        text: tf('pkg.tlDeployment', {id: d.id || '—', env: envLabel(d.env || '')}),
+        note: start ? tf('pkg.tlDeploymentStart', {date: start, time: d.time || ''}) : '',
+      });
+    });
+    if(!used.length){
+      events.push({icon:'📅', when:'', text: t('pkg.tlNoDeployment')});
+    }
+    return events;
+  }
+
+  // The expanded row under a package. Same shape as the client portal's timeline —
+  // a date column, an icon, the sentence — so the two read as one application.
+  function packageTimelineRowHtml(p){
+    const events = packageTimeline(p);
+    return `<tr class="pkg-tl-row"><td colspan="6" style="background:var(--paper);">
+      <div style="padding:12px 14px;" onclick="event.stopPropagation();">
+        <div style="color:var(--text-muted); font-size:12.5px; margin-bottom:8px; font-weight:600;">${t('pkg.tlTitle')}</div>
+        <div style="border:1px solid var(--line); border-radius:8px; padding:4px 10px; background:var(--paper-raised);">
+          ${events.map(e=>`
+            <div style="display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--line-soft);">
+              <div class="mono" style="width:120px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${escapeHtml(e.when || t('dtl.pending'))}</div>
+              <div style="flex-shrink:0;">${e.icon}</div>
+              <div style="flex:1; font-size:12.5px;">${e.text}${e.note ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">${escapeHtml(e.note)}</div>` : ''}</div>
+            </div>`).join('')}
+        </div>
+      </div>
+    </td></tr>`;
+  }
+
+  // ---- The project manager's clearance -------------------------------------
+  // A handed-over package is not yet something to plan a rollout from: the project
+  // manager decides whether the release goes out. That step existed in the process
+  // and nowhere in RollDesk, so a rollout could be planned from a package nobody
+  // had cleared and the clearing itself happened in a mail thread.
+  //
+  // Deliberately not the roles that assemble a package (that would be the gate
+  // approving itself) nor the release manager who plans from it. Mirrors
+  // PACKAGE_APPROVAL_ROLES in backend/src/rbac.js — the API enforces it, this only
+  // hides the buttons.
+  function canApprovePackages(){
+    const role = currentLoggedInRole || 'admin';
+    return role === 'admin' || role === 'pm';
+  }
+
+  // The browser's copy of isPackageApproved()/packageBlockReason() in
+  // backend/src/releasePackage.js. Both halves are needed: the test team says the
+  // build is finished, the project manager says it may go out.
+  function packageApproved(p){
+    return !!(p && p.status === 'ready' && p.approval && p.approval.at);
+  }
+  function packageBlockReason(p){
+    if(!p) return 'draft';
+    if(p.status !== 'ready') return 'draft';
+    if(!packageApproved(p)) return 'awaiting-approval';
+    return '';
+  }
+  // Why a package cannot be planned from, as a sentence. Shown next to the package
+  // rather than hiding it: a package missing from the picker with no explanation is
+  // what sends somebody hunting through the list.
+  function packageBlockLabel(p){
+    const reason = packageBlockReason(p);
+    if(reason === 'draft') return t('pkg.blockedDraft');
+    if(reason === 'awaiting-approval') return t('pkg.blockedApproval');
+    return '';
+  }
+
+  // The clearance as it reads in the packages table: who cleared it and when, the
+  // comment they left, or the fact that it is still waiting.
+  function packageApprovalHtml(p){
+    if(!p || p.status !== 'ready') return '';
+    if(packageApproved(p)){
+      const a = p.approval || {};
+      // The migration marked packages that were already handed over when the gate
+      // was introduced; they are deployable and name no approver, and saying so
+      // beats an empty „approved by".
+      const who = a.legacy ? t('pkg.apprLegacy') : escapeHtml(a.by || '—');
+      const when = a.at ? fmtDateTimeShort(a.at) : '';
+      const note = a.comment
+        ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${escapeHtml(a.comment)}</div>`
+        : '';
+      return `<div style="margin-top:4px;">
+        <span class="mono" style="font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; background:var(--green-soft); color:#0F7A38;" title="${escapeHtml(t('pkg.apprTitle'))}">✓ ${t('pkg.apprBadge')}</span>
+        <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">${who}${when ? ' · ' + escapeHtml(when) : ''}</div>
+        ${note}
+      </div>`;
+    }
+    return `<div style="margin-top:4px;">
+      <span class="mono" style="font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; background:var(--amber-soft); color:var(--amber);" title="${escapeHtml(t('pkg.blockedApproval'))}">⏳ ${t('pkg.apprWaiting')}</span>
+    </div>`;
+  }
+
+  // A timestamp in the shape used across the app (the audit log, the bell drawer).
+  function fmtDateTimeShort(v){
+    if(!v) return '';
+    try {
+      const d = new Date(v);
+      if(isNaN(d.getTime())) return '';
+      const pad = n => String(n).padStart(2,'0');
+      return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+    } catch(e){ return ''; }
+  }
+
+  // Clear a release for deployment. The comment is optional and is the PM's answer,
+  // not a second description of the release („only after the maintenance window").
+  function approvePackage(id){
+    const pkg = packageById(id);
+    if(!pkg) return;
+    if(!canApprovePackages()){ showToast(t('pkg.apprNoPerm')); return; }
+    if(pkg.status !== 'ready'){ showToast(t('pkg.apprDraft')); return; }
+    showAppPrompt(t('pkg.apprTitle') + ' — ' + pkg.id, '', async (comment)=>{
+      if(comment === null) return;                 // cancelled
+      try {
+        const saved = await apiApprovePackage(id, comment);
+        replacePackageInMemory(saved);
+        renderPackagesTable();
+        renderSchedulePackageSelect();
+        showToast(t('pkg.apprDone'));
+        logAudit('changed', 'Package',
+          'Approved package ' + id + ' for deployment' + (comment ? ' — ' + comment : ''),
+          (PROJECTS[pkg.projectKey]||{}).name || pkg.projectKey,
+          'aud.d.pkgApproved', {id, comment: comment || '—'});
+        // Now the release manager and the deployer can plan the rollout — which is
+        // the whole point of the gate, so it is announced like any other event.
+        notifyPackageApproved(saved || pkg, comment);
+      } catch(e){
+        showToast('⚠ ' + (e.message || t('pkg.apprFailed')));
+      }
+    }, t('pkg.apprCommentHint'), true);
+  }
+
+  function undoPackageApproval(id){
+    const pkg = packageById(id);
+    if(!pkg) return;
+    if(!canApprovePackages()){ showToast(t('pkg.apprNoPerm')); return; }
+    showAppConfirm(t('pkg.apprUndoTitle') + ' — ' + pkg.id, t('pkg.apprUndoBody'), async ()=>{
+      try {
+        const saved = await apiUndoPackageApproval(id);
+        replacePackageInMemory(saved);
+        renderPackagesTable();
+        renderSchedulePackageSelect();
+        showToast(t('pkg.apprUndone'));
+        logAudit('changed', 'Package', 'Withdrew the deployment approval of package ' + id,
+          (PROJECTS[pkg.projectKey]||{}).name || pkg.projectKey, 'aud.d.pkgApprovalUndone', {id});
+      } catch(e){
+        showToast('⚠ ' + (e.message || t('pkg.apprFailed')));
+      }
+    }, t('pkg.apprUndoOk'), 'neutral');
+  }
+
+  // The saved package replaces the loaded copy in place, so the table and the
+  // schedule picker agree without a full reload.
+  function replacePackageInMemory(saved){
+    if(!saved || !saved.id) return;
+    const idx = RELEASE_PACKAGES.findIndex(p => p && p.id === saved.id);
+    if(idx >= 0) RELEASE_PACKAGES[idx] = saved;
+    else RELEASE_PACKAGES.unshift(saved);
+  }
+
+  // „The release is cleared" — the event the planners are waiting for. Composed
+  // here like every other notification body (in the instance's notification
+  // language), with the PM's comment appended when there is one.
+  function notifyPackageApproved(pkg, comment){
+    if(!pkg || !pkg.projectKey) return;
+    const projName = (PROJECTS[pkg.projectKey]||{}).name || pkg.projectKey;
+    let body = buildPackageNotifBody(pkg, projName);
+    const by = (pkg.approval && pkg.approval.by) || actorName();
+    body += '\n' + tn('notif.pkgApprovedBy') + ': ' + by;
+    if(comment) body += '\n' + tn('notif.pkgApprovalComment') + ': ' + comment;
+    body += '\n\n' + tn('notif.pkgApprovedPlan');
+    const recipients = notifySummary('packageApproved', pkg.projectKey, false);
+    logAudit('notified', 'Notification',
+      'Package ' + (pkg.id||'') + ' — ' + tn('ev.packageApproved') + ' — recipients: ' + recipients,
+      projName, 'aud.d.notifyPackage', {id: pkg.id||'', event: t('ev.packageApproved'), recipients});
+    dispatchEventNotification('packageApproved', pkg.projectKey,
+      'RollDesk — ' + tn('ev.packageApproved'), body, false, null, pkg.id || null);
   }
 
   async function loadPackages(){
@@ -6002,19 +6290,38 @@
       const usedLine = usedBy
         ? `<div style="font-size:11px; color:var(--text-muted); margin-top:3px;">${tf('pkg.usedBy', {n: usedBy})}</div>`
         : '';
-      const actions = canEditPackages()
-        ? `<button class="mini-btn icon-btn" onclick="openPackageEditor('${escapeHtml(p.id)}')"><span class="mb-ic" aria-hidden="true">✎</span> ${t('usr.edit')}</button> ${rowMenuHtml('pkg-menu-'+p.id, [
-            {label:t('pkg.delete'), icon:'🗑', onclick:`deletePackage('${escapeHtml(p.id)}')`, danger:true}
-          ])}`
+      // The clearance sits with the row it is about. A project manager does not edit
+      // packages, so for them this is the only control here — which is why it is not
+      // hidden inside the row menu.
+      const approveBtn = (canApprovePackages() && p.status === 'ready' && !packageApproved(p))
+        ? `<button class="mini-btn icon-btn" onclick="approvePackage('${escapeHtml(p.id)}')" title="${escapeHtml(t('pkg.apprTitle'))}"><span class="mb-ic" aria-hidden="true">✓</span> ${t('pkg.apprBtn')}</button> `
+        : '';
+      const rowMenu = rowMenuHtml('pkg-menu-'+p.id, [
+        canApprovePackages() && packageApproved(p)
+          ? {label:t('pkg.apprUndoBtn'), icon:'↩', onclick:`undoPackageApproval('${escapeHtml(p.id)}')`}
+          : null,
+        canEditPackages()
+          ? {label:t('pkg.delete'), icon:'🗑', onclick:`deletePackage('${escapeHtml(p.id)}')`, danger:true}
+          : null,
+      ].filter(Boolean));
+      const editBtn = canEditPackages()
+        ? `<button class="mini-btn icon-btn" onclick="openPackageEditor('${escapeHtml(p.id)}')"><span class="mb-ic" aria-hidden="true">✎</span> ${t('usr.edit')}</button> `
+        : '';
+      const actions = (approveBtn || editBtn || (canApprovePackages() && packageApproved(p)))
+        ? `${approveBtn}${editBtn}${rowMenu}`
         : `<span style="color:var(--text-faint); font-size:11.5px;">${t('usr.noPerms')}</span>`;
-      return `<tr data-pkg="${escapeHtml(p.id)}">
-        <td><span class="mono" style="font-size:12px; font-weight:700;">${escapeHtml(p.id)}</span>${p.name ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">${escapeHtml(p.name)}</div>` : ''}${usedLine}</td>
+      // Clicking the row opens the release's timeline. A row rather than a separate
+      // ⓘ control: „what happened to this package" is the question asked *about the
+      // row*, and the actions cell stops the click so a button never opens it.
+      const open = expandedPackageId === p.id;
+      return `<tr data-pkg="${escapeHtml(p.id)}" class="pkg-row${open ? ' open' : ''}" onclick="togglePackageTimeline('${escapeHtml(p.id)}')" title="${escapeHtml(t('pkg.tlToggle'))}">
+        <td><span class="pkg-caret" aria-hidden="true">${open ? '▾' : '▸'}</span> <span class="mono" style="font-size:12px; font-weight:700;">${escapeHtml(p.id)}</span>${p.name ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">${escapeHtml(p.name)}</div>` : ''}${usedLine}</td>
         <td style="font-size:12.5px;">${escapeHtml(projName)}</td>
         <td style="font-size:12.5px;">${packageAppsCellHtml(p)}</td>
         <td>${contentCell}</td>
-        <td>${packageStatusBadgeHtml(p.status)}${p.testOnly ? `<div style="margin-top:4px;"><span class="mono" style="font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; background:var(--cyan-soft); color:var(--cyan);" title="${escapeHtml(t('pkg.testOnlyNote'))}">${t('pkg.testOnlyBadge')}</span></div>` : ''}</td>
-        <td style="white-space:nowrap; text-align:right;">${actions}</td>
-      </tr>`;
+        <td>${packageStatusBadgeHtml(p.status)}${p.testOnly ? `<div style="margin-top:4px;"><span class="mono" style="font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; background:var(--cyan-soft); color:var(--cyan);" title="${escapeHtml(t('pkg.testOnlyNote'))}">${t('pkg.testOnlyBadge')}</span></div>` : ''}${packageApprovalHtml(p)}</td>
+        <td style="white-space:nowrap; text-align:right;" onclick="event.stopPropagation();">${actions}</td>
+      </tr>${open ? packageTimelineRowHtml(p) : ''}`;
     }).join('') || `<tr><td colspan="6" style="color:var(--text-faint); font-size:13px;">${RELEASE_PACKAGES.length ? t('pkg.noneMatch') : t('pkg.none')}</td></tr>`;
   }
 
@@ -6137,6 +6444,32 @@
     return (p && Array.isArray(p.apps)) ? p.apps.map(a=>a.name) : [];
   }
 
+  // Whether this account may change a project's application list. The dialog writes
+  // to the project, so it is the project write rule that decides — a tester may
+  // assemble packages but not add applications, and the API refuses it either way.
+  function canEditProjects(){
+    const role = currentLoggedInRole || 'admin';
+    return role === 'admin' || role === 'rm';
+  }
+
+  // Open the application dialog from the package editor, for the package's own
+  // project and for one particular row of its application list.
+  function openAppModalForPackage(rowIndex){
+    const sel = document.getElementById('package-project-select');
+    const key = sel ? sel.value : '';
+    if(!key || !PROJECTS[key]){ showToast(t('pkg.addAppNoProject')); return; }
+    if(!canEditProjects()){ showToast(t('pkg.addAppNoPerm')); return; }
+    editingAppIndex = null;
+    appModalProjectKey = key;
+    appModalPackageRow = typeof rowIndex === 'number' ? rowIndex : null;
+    const p = PROJECTS[key];
+    document.getElementById('app-modal-form-title').textContent = t('proj.newApp') + ' — ' + (p.name || key);
+    document.getElementById('app-modal-form-sub').textContent = t('pkg.addAppSub');
+    document.getElementById('app-name').value = '';
+    document.getElementById('app-repo').value = '';
+    openFormModal('app-modal-form');
+  }
+
   // Both lists are project-scoped: the app names and the offices to suggest. So
   // is the work-item lookup, which is why the tracker line is refreshed with them.
   function onPackageProjectChange(){ renderPackageApps(); renderPackageIssues(); refreshPackageTrackerStatus(); }
@@ -6169,8 +6502,12 @@
     if(!st){ box.textContent = t('pkg.trackerUnknown'); return; }
     const parts = [];
     if(st.workItems){
-      parts.push('✓ ' + (st.azureProject
-        ? tf('pkg.trackerOnProject', {project: st.azureProject})
+      // Every project the lookup will ask, in order — with several configured, „on
+      // (PiK)" would understate what an entered id is searched against.
+      const projects = Array.isArray(st.azureProjects) ? st.azureProjects
+        : (st.azureProject ? [st.azureProject] : []);
+      parts.push('✓ ' + (projects.length
+        ? tf('pkg.trackerOnProject', {project: projects.join(', ')})
         : t('pkg.trackerOn')));
     } else {
       parts.push('⚠ ' + t('pkg.trackerOff'));
@@ -6197,8 +6534,16 @@
       // Where the build is. A deployer had to ask for the path of every release,
       // so it is typed once here next to the version it belongs to. A UNC share is
       // as normal as a URL, hence a plain text field.
+      // „The application was never added to the project" is discovered here, in the
+      // middle of assembling a package — and used to mean leaving the half-filled
+      // package to go to Projects and back. Same dialog, same validation, this
+      // project.
+      const addApp = canEditProjects()
+        ? `<button type="button" class="mini-btn" title="${escapeHtml(t('pkg.addAppToProjectTitle'))}" onclick="openAppModalForPackage(${i})">＋</button>`
+        : '';
       return `<div style="display:flex; gap:8px; align-items:center;">
         ${options}
+        ${addApp}
         <input type="text" class="pkg-app-version mono" value="${escapeHtml(a.version)}" placeholder="${t('pkg.versionPh')}" style="width:150px; font-size:12.5px;" oninput="setPackageApp(${i}, 'version', this.value)">
         <input type="text" class="pkg-app-url mono" value="${escapeHtml(a.url || '')}" placeholder="${t('pkg.appUrlPh')}" title="${escapeHtml(t('pkg.appUrlNote'))}" style="flex:1.2; min-width:0; font-size:12px;" oninput="setPackageApp(${i}, 'url', this.value)">
         <button type="button" class="mini-btn" title="${t('pkg.removeRow')}" onclick="removePackageApp(${i})">✕</button>
@@ -6211,6 +6556,13 @@
   function renderPackageIssues(){
     const wrap = document.getElementById('package-issues-list');
     if(!wrap) return;
+    // Where the caret was. The list is redrawn while somebody is typing an id (the
+    // lookup fills the row as they go), and replacing the input they are in would
+    // otherwise throw away their focus and their cursor position mid-number.
+    const active = document.activeElement;
+    const focusId = (active && typeof active.id === 'string' && /^pkg-issue-id-\d+$/.test(active.id))
+      ? active.id : '';
+    const caret = focusId ? active.selectionStart : null;
     const head = document.getElementById('package-issues-head');
     if(head) head.style.display = packageDraftIssues.length ? 'flex' : 'none';
     // The project being edited decides which tracker the ids belong to, so the
@@ -6251,8 +6603,13 @@
         ? `<a href="${escapeHtml(trackerUrlFor(links.workItem, issue.id))}" target="_blank" rel="noopener" title="${escapeHtml(t('pkg.openWorkItem'))}" style="color:var(--cyan); text-decoration:none; font-size:12px;">↗</a>`
         : '';
       return `<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-        <div style="width:130px; display:flex; gap:4px; align-items:center;">
-          <input type="text" class="mono" value="${escapeHtml(issue.id)}" placeholder="${t('pkg.issueIdPh')}" style="flex:1; min-width:0; font-size:12.5px;" oninput="setPackageIssue(${i}, 'id', this.value)" onchange="lookupPackageIssue(${i})">${openLink}
+        <div style="width:130px; display:flex; gap:4px; align-items:center; position:relative;">
+          <input type="text" id="pkg-issue-id-${i}" class="mono" value="${escapeHtml(issue.id)}" placeholder="${t('pkg.issueIdPh')}" style="flex:1; min-width:0; font-size:12.5px;" autocomplete="off"
+                 oninput="onPackageIssueIdInput(${i}, this.value)"
+                 onkeydown="onPackageIssueIdKey(event, ${i})"
+                 onblur="closeIssueSuggestions(${i}, true)"
+                 onchange="lookupPackageIssue(${i})">${openLink}
+          <div class="pkg-sugg" id="pkg-sugg-${i}"></div>
         </div>
         <div style="width:130px; overflow:hidden; text-overflow:ellipsis;">${halo}</div>
         <div style="flex:1.4; min-width:140px; overflow:hidden; text-overflow:ellipsis;">${title}</div>
@@ -6262,6 +6619,133 @@
         ${note}
       </div>`;
     }).join('');
+    if(focusId){
+      const again = document.getElementById(focusId);
+      if(again){
+        again.focus();
+        if(caret != null){ try { again.setSelectionRange(caret, caret); } catch(e){} }
+        // The dropdown lives outside the row's markup, so it is redrawn here rather
+        // than being lost with the row it hung off.
+        const row = parseInt(focusId.replace('pkg-issue-id-', ''), 10);
+        if(!isNaN(row)) renderIssueSuggestions(row);
+      }
+    }
+  }
+
+  // ---- Typing a work item id -----------------------------------------------
+  // Entering an id and waiting was the wrong way round: the tester reads a number
+  // off the board, types the first digits and wants to be shown which work item
+  // that is — which is what the tracker's own search box does. So the fragment is
+  // searched as it is typed, and the full lookup (ticket, office, title, state)
+  // runs by itself as soon as the id is complete. Pressing ⟳ or leaving the field
+  // still works exactly as before.
+  //
+  // One timer per row, and the row's own generation counter, because both answers
+  // arrive out of order when somebody types quickly: a search for „412" must not
+  // overwrite the suggestions for „41231".
+  const issueTypeTimers = {};
+  const issueTypeSeq = {};
+  const ISSUE_SUGGEST_MS = 300;   // long enough not to search every keystroke
+  const ISSUE_LOOKUP_MS = 700;    // ...and longer before spending the full lookup
+
+  function onPackageIssueIdInput(i, value){
+    setPackageIssue(i, 'id', value);
+    const issue = packageDraftIssues[i];
+    if(!issue) return;
+    if(issueTypeTimers[i]) clearTimeout(issueTypeTimers[i]);
+    const raw = String(value || '').trim();
+    // Nothing typed: no suggestions, and no lookup to cancel.
+    if(!raw){ closeIssueSuggestions(i); return; }
+    const seq = (issueTypeSeq[i] = (issueTypeSeq[i] || 0) + 1);
+    issueTypeTimers[i] = setTimeout(()=>{ void suggestPackageIssues(i, raw, seq); }, ISSUE_SUGGEST_MS);
+  }
+
+  // Enter picks the first suggestion (the tracker's own behaviour), Escape closes
+  // the list and leaves what was typed alone.
+  function onPackageIssueIdKey(e, i){
+    const issue = packageDraftIssues[i];
+    if(!issue) return;
+    if(e.key === 'Escape'){ closeIssueSuggestions(i); return; }
+    if(e.key === 'Enter'){
+      const first = (issue.suggest || [])[0];
+      if(first){ e.preventDefault(); pickIssueSuggestion(i, first.id); }
+    }
+  }
+
+  async function suggestPackageIssues(i, raw, seq){
+    const issue = packageDraftIssues[i];
+    if(!issue) return;
+    const sel = document.getElementById('package-project-select');
+    const projectKey = sel ? sel.value : '';
+    if(!projectKey || !API_CONNECTED) return;
+    // The full lookup is what fills the row, and it is worth running by itself once
+    // the id looks complete — that is „od razu sprawdzaj" without a click. It is
+    // debounced further than the search so it does not fire mid-number.
+    if(issueTypeTimers['lookup-' + i]) clearTimeout(issueTypeTimers['lookup-' + i]);
+    issueTypeTimers['lookup-' + i] = setTimeout(()=>{
+      if(seq !== issueTypeSeq[i]) return;                 // still typing
+      if(String((packageDraftIssues[i]||{}).id || '').trim() !== raw) return;
+      void lookupPackageIssue(i);
+    }, Math.max(0, ISSUE_LOOKUP_MS - ISSUE_SUGGEST_MS));
+    // Fewer than two digits matches most of a backlog, so the server refuses it and
+    // there is nothing to show.
+    if(!/^\d{2,12}$/.test(raw)) { closeIssueSuggestions(i); return; }
+    try {
+      const res = await apiFetch(`/api/packages/search/${encodeURIComponent(projectKey)}?q=${encodeURIComponent(raw)}`);
+      if(!res.ok) return;
+      const data = await res.json();
+      if(seq !== issueTypeSeq[i]) return;                 // a later keystroke won
+      issue.suggest = (data && Array.isArray(data.items)) ? data.items : [];
+      renderIssueSuggestions(i);
+    } catch(e){ /* suggestions are a convenience; typing the id still works */ }
+  }
+
+  // Only the dropdown is redrawn, never the row: re-rendering the list would
+  // replace the input the tester is typing into and take the caret with it.
+  function renderIssueSuggestions(i){
+    const box = document.getElementById('pkg-sugg-' + i);
+    if(!box) return;
+    const issue = packageDraftIssues[i];
+    const items = (issue && Array.isArray(issue.suggest)) ? issue.suggest : [];
+    if(!items.length){ box.innerHTML = ''; box.classList.remove('open'); return; }
+    box.innerHTML = items.map(it=>{
+      const meta = [it.type, it.state, it.project].filter(Boolean).join(' · ');
+      // mousedown rather than click: the input's blur fires first and would close
+      // the list before a click could land on it.
+      return `<button type="button" class="pkg-sugg-item" onmousedown="pickIssueSuggestion(${i}, '${escapeHtml(it.id)}')">
+        <span class="mono">${escapeHtml(it.id)}</span>
+        <span class="pkg-sugg-title">${escapeHtml(it.title || '')}</span>
+        ${meta ? `<span class="pkg-sugg-meta">${escapeHtml(meta)}</span>` : ''}
+      </button>`;
+    }).join('');
+    box.classList.add('open');
+  }
+
+  function closeIssueSuggestions(i, delayed){
+    const clear = ()=>{
+      const issue = packageDraftIssues[i];
+      if(issue) issue.suggest = [];
+      const box = document.getElementById('pkg-sugg-' + i);
+      if(box){ box.innerHTML = ''; box.classList.remove('open'); }
+    };
+    // On blur the list has to outlive the event just long enough for a click on it
+    // to be delivered.
+    if(delayed) setTimeout(clear, 150);
+    else clear();
+  }
+
+  function pickIssueSuggestion(i, id){
+    const issue = packageDraftIssues[i];
+    if(!issue) return;
+    issue.id = String(id || '');
+    issue.suggest = [];
+    // A picked suggestion is a deliberate choice, so the full lookup runs at once
+    // rather than waiting for the debounce it just cancelled.
+    issueTypeSeq[i] = (issueTypeSeq[i] || 0) + 1;
+    if(issueTypeTimers[i]) clearTimeout(issueTypeTimers[i]);
+    if(issueTypeTimers['lookup-' + i]) clearTimeout(issueTypeTimers['lookup-' + i]);
+    renderPackageIssues();
+    void lookupPackageIssue(i, true);
   }
 
   // Fill the Halo ticket and the reporting office from the work item id. Called
@@ -6520,17 +7004,30 @@
     const sel = document.getElementById('schedule-package-select');
     if(!sel) return;
     const prev = sel.value;
-    // Only handed-over packages of the project being planned: a draft is still
-    // being assembled, and its version list is not something to schedule against.
-    const usable = RELEASE_PACKAGES.filter(p => p.status === 'ready' && p.projectKey === currentProjectKey);
+    // Handed over *and* cleared by the project manager: the test team says the
+    // build is finished, the PM says it may go out (see packageApproved()). The
+    // backend refuses a deployment naming an uncleared package, so this is the
+    // hint and that is the rule.
+    const ofProject = RELEASE_PACKAGES.filter(p => p.status === 'ready' && p.projectKey === currentProjectKey);
+    const usable = ofProject.filter(packageApproved);
+    // A package waiting on the clearance is still listed — disabled, with the
+    // reason on the row. Hiding it is what sends the release manager hunting
+    // through the packages list for something that is right there.
+    const waiting = ofProject.filter(p => !packageApproved(p));
     // The empty entry is a prompt, not an option: a deployment without a package
     // cannot be confirmed, so leaving it selected fails validation.
     sel.innerHTML = `<option value="">${t('sch.packagePick')}</option>` +
       usable.map(p=>{
         const label = `${p.id}${p.name ? ' — ' + p.name : ''} (${packageAppsLabel(p) || '—'})`;
         return `<option value="${escapeHtml(p.id)}">${escapeHtml(label)}</option>`;
-      }).join('');
-    sel.disabled = !usable.length;
+      }).join('') +
+      (waiting.length
+        ? `<optgroup label="${escapeHtml(t('sch.packageWaitingGroup'))}">` + waiting.map(p=>{
+            const label = `${p.id}${p.name ? ' — ' + p.name : ''} — ${t('pkg.apprWaiting')}`;
+            return `<option value="${escapeHtml(p.id)}" disabled>${escapeHtml(label)}</option>`;
+          }).join('') + '</optgroup>'
+        : '');
+    sel.disabled = !usable.length && !waiting.length;
     if(prev && usable.some(p=>p.id === prev)) sel.value = prev;
     else schedulePackageId = '';
     updateSchedulePackageSummary();
@@ -6547,8 +7044,14 @@
     if(!box) return;
     const pkg = packageById(schedulePackageId);
     if(!pkg){
-      const anyReady = RELEASE_PACKAGES.some(p=>p.status === 'ready' && p.projectKey === currentProjectKey);
-      box.textContent = anyReady ? t('sch.packageHint') : t('sch.packageNoneAvailable');
+      const ofProject = RELEASE_PACKAGES.filter(p=>p.status === 'ready' && p.projectKey === currentProjectKey);
+      const anyUsable = ofProject.some(packageApproved);
+      // „There are no packages" and „the package is waiting for the PM" are
+      // different problems with different next steps, so they are different
+      // sentences: one is for the test team, the other for the project manager.
+      box.textContent = anyUsable
+        ? t('sch.packageHint')
+        : (ofProject.length ? tf('sch.packageWaitingHint', {n: ofProject.length}) : t('sch.packageNoneAvailable'));
       return;
     }
     const offices = packageReportingOffices(pkg);
@@ -8612,11 +9115,25 @@
   }
 
   let editingAppIndex = null;
+  // Which project the application dialog is adding to. Normally the project being
+  // edited in the Projects view, but the package editor opens the same dialog for
+  // *its* project: somebody assembling a package notices there that an application
+  // was never added, and leaving the package to go and add it meant losing the
+  // half-filled package. Cleared when the dialog closes.
+  let appModalProjectKey = '';
+  // The application row in the package editor that asked for a new application, so
+  // the name lands in it instead of being added and then picked by hand.
+  let appModalPackageRow = null;
+  function appModalProject(){
+    return appModalProjectKey || currentProjectKey;
+  }
 
   // Adding and editing an application share one dialog: same fields, same layout,
   // same Cancel/Save footer — only the title and the target record differ.
   function openAppModal(){
     if(!PROJECTS[currentProjectKey]) return;
+    appModalProjectKey = '';
+    appModalPackageRow = null;
     editingAppIndex = null;
     document.getElementById('app-modal-form-title').textContent = t('proj.newApp');
     document.getElementById('app-modal-form-sub').textContent = t('proj.newAppSub');
@@ -8657,7 +9174,9 @@
       return;
     }
     const repoDisplay = repo === '—' ? '—' : repo.replace(/^https?:\/\//,'');
-    const p = PROJECTS[currentProjectKey];
+    const projectKey = appModalProject();
+    const p = PROJECTS[projectKey];
+    if(!p) return;
 
     // Application names must be unique within a project (case-insensitive). When
     // editing, the app being edited is excluded from the comparison.
@@ -8680,15 +9199,30 @@
       logAudit('added', 'Application', 'Added application „' + name + '”', p.name + ' (' + p.clientName + ')', 'aud.d.appAdded', {name});
       showToast('Application „' + name + '” added');
     }
+    // Captured before closing: closeFormModal resets where the dialog was pointing
+    // (so a cancelled dialog cannot write to the wrong project later).
+    const wasPackageRow = appModalPackageRow;
+    const fromPackage = !!appModalProjectKey;
     closeFormModal('app-modal-form');
     editingAppIndex = null;
     // The list lives in the project JSONB, so an added or renamed application only
     // exists in this tab until the project is saved — without this it disappeared
     // on the next refresh.
-    persistProject(currentProjectKey);
-    rebuildAppsTable(p);
+    persistProject(projectKey);
+    // The Projects view is only rebuilt for the project it is showing: called from
+    // the package editor for another project, rebuildAppsTable would render that
+    // project's applications into the table of the one on screen.
+    if(projectKey === currentProjectKey) rebuildAppsTable(p);
     renderProjectsList();
     renderScheduleAppsList();
+    // Back to the package editor with the new application selected on the row that
+    // asked for it — which is the point of being able to add it from there.
+    if(fromPackage){
+      if(wasPackageRow !== null && packageDraftApps[wasPackageRow]){
+        packageDraftApps[wasPackageRow].name = name;
+      }
+      renderPackageApps();
+    }
   }
 
   const CLIENT_SCENARIOS = {};
@@ -9635,6 +10169,11 @@
     if(i >= 0) openFormModals.splice(i, 1);
     delete formModalSnapshots[id];
     clearFormErrors(id);
+    // Whichever way the application dialog was closed — Save, Cancel, Escape or the
+    // backdrop — it stops pointing at the package editor's project. Left set, the
+    // next application added from the Projects view would be written to the wrong
+    // project, which is the kind of bug nobody connects to a dialog they cancelled.
+    if(id === 'app-modal-form'){ appModalProjectKey = ''; appModalPackageRow = null; }
   }
   // Escape closes the topmost form modal, and a click on the backdrop does the
   // same — unless something has been typed into it, in which case the gesture is
@@ -9882,6 +10421,23 @@
       body: JSON.stringify(obj)
     });
     if(!res.ok) throw await apiError(res, 'PUT /api/packages');
+    return res.json();
+  }
+  // The project manager's clearance. Its own endpoints rather than a field on the
+  // package save, because it is a different decision by a different person under a
+  // different guard — and a body that could carry `approval` would let whoever
+  // edits a package approve it.
+  async function apiApprovePackage(id, comment){
+    const res = await apiFetch('/api/packages/' + encodeURIComponent(id) + '/approve', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({comment: comment || ''})
+    });
+    if(!res.ok) throw await apiError(res, 'POST /api/packages/approve');
+    return res.json();
+  }
+  async function apiUndoPackageApproval(id){
+    const res = await apiFetch('/api/packages/' + encodeURIComponent(id) + '/approve/undo', {method:'POST'});
+    if(!res.ok) throw await apiError(res, 'POST /api/packages/approve/undo');
     return res.json();
   }
   async function apiDeletePackage(id){

@@ -123,11 +123,124 @@ export function workItemLookupUrls(settings, id) {
   const workItemId = str(id);
   if (!org || !workItemId) return [];
   const suffix = `/_apis/wit/workitems/${encodeURIComponent(workItemId)}?api-version=7.0`;
-  const project = str(s.azureProject);
   const urls = [];
-  if (project) urls.push(`${org}/${encodeURIComponent(project)}${suffix}`);
+  for (const project of trackerProjects(s)) {
+    urls.push(`${org}/${encodeURIComponent(project)}${suffix}`);
+  }
   urls.push(`${org}${suffix}`);
   return urls;
+}
+
+// How many tracker projects one RollDesk project may name, and how long a name
+// may be. Bounded because the list ends up in a JSONB column read on every load
+// of the project, and because each entry is a request a failed lookup will make
+// before giving up — a list of fifty would turn a typo into a fifty-request wait.
+export const MAX_TRACKER_PROJECTS = 8;
+
+// The tracker projects to search, in order.
+//
+// One product is regularly split across several projects in the same tracker
+// organisation: the bugs of „PiK" are filed under PiK, the ones of the e-services
+// portal under its own project, and the next major version under a third. A single
+// configured project meant every id from the other two fell through to the
+// organisation-wide route — which answers only if the credential is scoped to the
+// whole organisation, and a project-scoped PAT is the common case. So the setting
+// is a list.
+//
+// Accepts what an admin types (comma- or newline-separated) as well as a stored
+// array, and falls back to the single `azureProject` written by versions before
+// the list existed — a project configured then keeps working untouched.
+export function trackerProjects(settings) {
+  const s = settings || {};
+  const raw = s.azureProjects != null ? s.azureProjects : s.azureProject;
+  const list = Array.isArray(raw) ? raw : str(raw).split(/[,\n;]/);
+  const out = [];
+  for (const item of list) {
+    const name = clamp(item, 200);
+    // Case-insensitively unique: Azure treats project names as case-insensitive,
+    // and querying the same project twice only doubles the wait on a miss.
+    if (name && !out.some((v) => v.toLowerCase() === name.toLowerCase())) out.push(name);
+    if (out.length >= MAX_TRACKER_PROJECTS) break;
+  }
+  return out;
+}
+
+// ---- Suggestions while typing an id ----------------------------------------
+//
+// Typing an id and waiting for the row to fill in is the wrong way round: the
+// tester reads a number off a board, types the first digits and wants to be shown
+// which work item that is — which is what the tracker's own search box does. So a
+// fragment is searched, and the exact id is read only once one is chosen.
+//
+// Azure DevOps serves search from a different host to the REST API
+// (almsearch.dev.azure.com), and only for the hosted service. An organisation URL
+// that is not dev.azure.com (an on-premises server, an old visualstudio.com host)
+// yields '' and the feature simply does not appear — the id lookup still works.
+export function workItemSearchUrl(settings) {
+  const s = settings || {};
+  const org = normalizeBaseUrl(s.azureOrgUrl);
+  if (!org) return '';
+  let host = '', name = '';
+  try {
+    const u = new URL(org);
+    host = u.hostname.toLowerCase();
+    name = u.pathname.replace(/^\/+|\/+$/g, '');
+  } catch { return ''; }
+  if (host !== 'dev.azure.com' || !name) return '';
+  return `https://almsearch.dev.azure.com/${name}/_apis/search/workitemsearchresults?api-version=7.1`;
+}
+
+// How many suggestions to ask for. A dropdown is scanned, not read: ten is more
+// than enough to recognise the one you meant, and every extra row is payload.
+export const SEARCH_TOP = 10;
+
+// A fragment of an id, as it is being typed. Digits only and at least two of
+// them: one digit matches most of the backlog, and a search on it would be a
+// request per keystroke returning noise.
+export function parseWorkItemFragment(raw) {
+  const s = str(raw).replace(/^#|^AB#/i, '');
+  return /^\d{2,12}$/.test(s) ? s : '';
+}
+
+// The search request body. Scoped to the projects the RollDesk project names, so
+// suggestions cannot cross into a backlog this project has nothing to do with;
+// with none named the whole organisation is searched, which mirrors the lookup's
+// own fallback.
+export function workItemSearchBody(fragment, settings, top = SEARCH_TOP) {
+  const projects = trackerProjects(settings);
+  const body = { searchText: str(fragment), $skip: 0, $top: Math.max(1, Math.min(top, 50)) };
+  if (projects.length) body.filters = { 'System.TeamProject': projects };
+  return body;
+}
+
+// The suggestions, from whichever spelling of the field keys the search service
+// returns. It answers in lower case ("system.id") while the work-item API uses
+// the reference names ("System.Id"), and an installation is free to surprise us —
+// so both are tried rather than assumed.
+export function workItemsFromSearch(json) {
+  const results = json && Array.isArray(json.results) ? json.results : [];
+  const out = [];
+  for (const r of results) {
+    if (!r || typeof r !== 'object') continue;
+    const f = r.fields && typeof r.fields === 'object' ? r.fields : {};
+    const pick = (...keys) => {
+      for (const k of keys) {
+        const v = f[k] ?? f[k.toLowerCase()];
+        if (v != null && str(v)) return str(v);
+      }
+      return '';
+    };
+    const id = pick('System.Id', 'system.id');
+    if (!/^\d{1,12}$/.test(id)) continue;
+    out.push({
+      id,
+      title: clamp(pick('System.Title', 'system.title'), 300),
+      state: clamp(pick('System.State', 'system.state'), 100),
+      type: clamp(pick('System.WorkItemType', 'system.workitemtype'), 100),
+      project: clamp((r.project && (r.project.name || r.project)) || pick('System.TeamProject'), 200),
+    });
+  }
+  return out;
 }
 
 // Read a configured field name off a payload. The name may address a nested
@@ -248,7 +361,15 @@ export function normalizeTrackerSettings(body) {
     ok: true,
     data: {
       azureOrgUrl,
-      azureProject: clamp(b.azureProject ?? b.azure_project, 200),
+      // The list, and the first entry kept under the old single-project key so a
+      // downgrade (and anything still reading `azureProject`) sees a working
+      // configuration rather than an empty one.
+      azureProjects: trackerProjects({
+        azureProjects: b.azureProjects ?? b.azure_projects ?? b.azureProject ?? b.azure_project,
+      }),
+      azureProject: trackerProjects({
+        azureProjects: b.azureProjects ?? b.azure_projects ?? b.azureProject ?? b.azure_project,
+      })[0] || '',
       // Blank falls back to the common reference name rather than disabling the
       // lookup: an installation that uses it should not have to retype it.
       ticketField: clamp(b.ticketField ?? b.ticket_field ?? b.smProblemField ?? b.sm_problem_field, 200)
@@ -273,7 +394,7 @@ export function normalizeTrackerSettings(body) {
 // id by hand, exactly as before the integration existed.
 export function azureLookupConfigured(settings) {
   const s = settings || {};
-  return !!(str(s.azureOrgUrl) && str(s.azureProject) && str(s.azurePat));
+  return !!(str(s.azureOrgUrl) && trackerProjects(s).length && str(s.azurePat));
 }
 
 export function haloLookupConfigured(settings) {
@@ -309,7 +430,11 @@ export function ticketUrl(settings, id) {
 export function trackerLinkPatterns(settings) {
   const s = settings || {};
   const org = normalizeBaseUrl(s.azureOrgUrl);
-  const project = str(s.azureProject);
+  // The first configured project. With several on file the link is built under one
+  // of them on purpose: Azure resolves /_workitems/edit/<id> to the item's own
+  // project, so a work item from the second project still opens — and the
+  // alternative would be a per-issue pattern the browser cannot derive.
+  const project = trackerProjects(s)[0] || '';
   const workItemUrl = (org && project)
     ? `${org}/${encodeURIComponent(project)}/_workitems/edit/{id}`
     : '';

@@ -41,11 +41,23 @@ export function isTester(req) {
   return !!(req.auth && req.auth.role === 'tester');
 }
 
+// The project manager: the person who decides whether a finished release goes out
+// at all. A role of their own rather than a release manager with an extra button —
+// the two are different people in this process, the release manager plans the
+// rollout of what the project manager has cleared, and giving a PM a release
+// manager's account would hand them every write in the application.
+export function isPM(req) {
+  return !!(req.auth && req.auth.role === 'pm');
+}
+
 // Roles whose reach is the list of projects granted on their account, rather
 // than everything (admin/rm) or a client's own non-internal records. Read
 // endpoints must narrow to `userScope` for these, or a tester assigned to one
 // project would read every other project's deployments.
-const SCOPED_ROLES = new Set(['installer', 'tester']);
+// A project manager manages projects, plural but not all of them: the scope is the
+// point of the role, so a PM approves releases for their own projects and does not
+// see another client's.
+const SCOPED_ROLES = new Set(['installer', 'tester', 'pm']);
 
 export function isScopedRole(req) {
   return SCOPED_ROLES.has((req.auth && req.auth.role) || '');
@@ -81,6 +93,21 @@ export function requirePackageRole(req, res, next) {
   next();
 }
 
+// Who may clear a release for deployment. Deliberately not the roles that assemble
+// packages: a tester approving their own build is the gate approving itself, and a
+// release manager approving what they are about to plan is the same thing one step
+// later. An administrator is included because an instance whose only PM is away
+// must not be a stopped process.
+const PACKAGE_APPROVAL_ROLES = new Set(['admin', 'pm']);
+
+export function requirePackageApprovalRole(req, res, next) {
+  const role = (req.auth && req.auth.role) || '';
+  if (!PACKAGE_APPROVAL_ROLES.has(role)) {
+    return res.status(403).json({ error: 'Not permitted for this role' });
+  }
+  next();
+}
+
 // Project scope for the signed-in account (from the users table). Works for any
 // role; clients and installers are limited to their granted projects, while
 // admins / release managers see everything. Cached per request.
@@ -108,7 +135,7 @@ export async function canReadDeployment(req, dep) {
   if (role === 'admin' || role === 'rm') return true;
   const { projects } = await userScope(req);
   if (role === 'client') return !dep.internal && projects.includes(dep.project_key);
-  return projects.includes(dep.project_key); // installer/tester (and any other scoped role)
+  return projects.includes(dep.project_key); // installer/tester/pm (and any other scoped role)
 }
 
 // Loads a release package's ownership columns for access checks, mirroring
