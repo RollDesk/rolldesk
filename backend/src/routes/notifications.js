@@ -4,7 +4,8 @@
 //                                          webhooks and/or e-mail addresses at once.
 //   GET  /api/notifications              — my own inbox (the bell drawer).
 //   GET  /api/notifications/unread-count — the badge.
-//   POST /api/notifications/read         — mark mine read ({ ids } or { all: true }).
+//   POST /api/notifications/read         — mark mine read or unread again
+//                                          ({ ids }, { ids, read: false } or { all: true }).
 // Sending happens server-side so there are no browser CORS issues, and the caller
 // always learns per-recipient whether delivery succeeded or failed.
 //
@@ -23,7 +24,7 @@ import {
 } from '../appLink.js';
 import { notifyEvent as pushEvent, pushConfigured } from '../push.js';
 import { isPushEvent } from '../pushTargets.js';
-import { recordEvent, listFor, unreadCountFor, markRead, markAllRead } from '../inbox.js';
+import { recordEvent, listFor, unreadCountFor, setRead, markAllRead } from '../inbox.js';
 
 const router = Router();
 
@@ -125,13 +126,32 @@ function buildWebhookPayload(url, title, text, deploymentId) {
 }
 
 // Deliver to one webhook. Never throws — returns a normalised result.
+//
+// Logged, both ways. „The comment never showed up in the Teams channel" was
+// unanswerable: the browser got a toast that whoever pressed the button may not have
+// read, and the server kept no trace at all — so a webhook that had started
+// rejecting one kind of message looked exactly like a webhook nobody had triggered.
+// The host is logged rather than the URL: these URLs carry their own signature.
+function webhookHost(url) {
+  try { return new URL(String(url)).hostname; } catch { return 'unparseable-url'; }
+}
+
 async function deliverWebhook(url, title, text, deploymentId) {
+  const host = webhookHost(url);
   try {
     const r = await postWebhook(url, buildWebhookPayload(url, title, text, deploymentId));
-    if (!r.ok) return { ok: false, status: r.status, error: 'HTTP ' + r.status, detail: (r.text || '').slice(0, 300) };
+    if (!r.ok) {
+      // The body is where a flow explains itself („the request schema does not
+      // match", „flow is turned off"), and it is the whole reason this is logged.
+      console.warn(`[notify] webhook ${host} rejected "${title}" — HTTP ${r.status}: ${(r.text || '').slice(0, 300)}`);
+      return { ok: false, status: r.status, error: 'HTTP ' + r.status, detail: (r.text || '').slice(0, 300) };
+    }
+    console.log(`[notify] webhook ${host} accepted "${title}" (HTTP ${r.status})`);
     return { ok: true, status: r.status };
   } catch (err) {
-    return { ok: false, error: err.name === 'AbortError' ? 'request timed out' : err.message };
+    const msg = err.name === 'AbortError' ? 'request timed out' : err.message;
+    console.warn(`[notify] webhook ${host} failed for "${title}": ${msg}`);
+    return { ok: false, error: msg };
   }
 }
 
@@ -314,11 +334,14 @@ router.get('/unread-count', async (req, res) => {
   res.json({ unread: await unreadCountFor(userId(req)) });
 });
 
-// POST /api/notifications/read — { ids: [...] } or { all: true }.
+// POST /api/notifications/read — { ids: [...] } to clear them, { ids, read: false } to
+// put them back, { all: true } to clear the lot.
 router.post('/read', async (req, res) => {
   const id = userId(req);
   const b = req.body || {};
-  const marked = b.all === true ? await markAllRead(id) : await markRead(id, b.ids);
+  const marked = b.all === true
+    ? await markAllRead(id)
+    : await setRead(id, b.ids, b.read !== false);
   res.json({ marked, unread: await unreadCountFor(id) });
 });
 

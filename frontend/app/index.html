@@ -256,8 +256,28 @@
     display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
   }
   .ntf .ntf-meta{font-family:var(--font-mono); font-size:9.5px; color:var(--text-faint); margin-top:6px;}
-  .ntf .ntf-go{align-self:center; flex-shrink:0; font-size:17px; color:var(--text-faint);}
+  /* The right-hand column of a card: clear/restore, and the chevron that says the
+     card opens something. The ✓ is a real control rather than the unread dot it
+     replaces — a dot said „new" and did nothing about it. */
+  .ntf .ntf-side{display:flex; flex-direction:column; align-items:center; gap:6px; flex-shrink:0; align-self:center;}
+  .ntf .ntf-read{
+    border:1px solid var(--line); background:var(--paper-raised); cursor:pointer;
+    width:24px; height:24px; border-radius:50%; line-height:1; font-size:12px;
+    color:var(--text-muted); display:flex; align-items:center; justify-content:center;
+  }
+  .ntf .ntf-read:hover{border-color:var(--cyan); color:var(--cyan); background:var(--cyan-soft);}
+  .ntf .ntf-read:focus-visible{outline:2px solid var(--cyan); outline-offset:1px;}
+  .ntf .ntf-go{font-size:17px; color:var(--text-faint);}
   .ntf.link:hover .ntf-go{color:var(--cyan);}
+  /* The drawer's own toolbar: which half of the list, and the one bulk action. */
+  .drawer-tools{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 18px 0 18px;}
+  .drawer-tools .seg{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden;}
+  .drawer-tools .seg button{
+    border:none; background:transparent; cursor:pointer; padding:5px 11px;
+    font-family:var(--font-sans); font-size:12px; color:var(--text-muted);
+  }
+  .drawer-tools .seg button.on{background:var(--cyan); color:#fff;}
+  .drawer-tools .seg button:not(.on):hover{background:var(--cyan-soft); color:var(--cyan);}
   .ntf-empty{color:var(--text-faint); font-size:12.5px; text-align:center; padding:28px 8px; line-height:1.6;}
 
   /* A package row opens its timeline, so it says so: a pointer, a caret that turns,
@@ -284,7 +304,7 @@
     display:block; width:100%; text-align:left; border:none; background:transparent;
     padding:6px 8px; border-radius:6px; cursor:pointer; font-family:var(--font-sans);
   }
-  .pkg-sugg-item:hover{background:var(--cyan-soft);}
+  .pkg-sugg-item:hover, .pkg-sugg-item.active{background:var(--cyan-soft);}
   .pkg-sugg-item .mono{font-family:var(--font-mono); font-size:12px; font-weight:700; color:var(--cyan);}
   .pkg-sugg-item .pkg-sugg-title{display:block; font-size:12px; color:var(--text); margin-top:1px;}
   .pkg-sugg-item .pkg-sugg-meta{display:block; font-family:var(--font-mono); font-size:10px; color:var(--text-faint); margin-top:1px;}
@@ -1753,6 +1773,12 @@
         </div>
         <div class="field">
           <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="schedule-internal" style="width:auto;"> <span data-i18n="sch.internal">Internal deployment — not visible to the client</span><span class="info-ic" data-i18n-tip="sch.internalNote">i</span></label>
+          <!-- Two different things that used to be one checkbox. „Internal" hides the
+               rollout from the client; this only says nobody is being asked to sign it
+               off. Without it, a rollout the client had already agreed to out of band
+               sat in the deployer's „waiting for the client" bucket, and the only way
+               to let them install was to record an approval that never happened. -->
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px; margin-top:6px;"><input type="checkbox" id="schedule-no-approval" style="width:auto;"> <span data-i18n="sch.noApproval">No client sign-off needed — the deployer may install straight away</span><span class="info-ic" data-i18n-tip="sch.noApprovalNote">i</span></label>
         </div>
         <div class="field">
           <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="schedule-draft" style="width:auto;"> <span data-i18n="sch.draft">Save as draft — do not notify the client yet</span><span class="info-ic" data-i18n-tip="sch.draftNote">i</span></label>
@@ -2040,8 +2066,14 @@
               <div id="package-tracker-status" style="font-size:11.5px; color:var(--text-muted); margin-top:6px;"></div>
             </div>
             <div class="field">
-              <label data-i18n="pkg.name">Package name (optional)</label>
-              <input type="text" id="package-name-input" data-i18n-ph="pkg.namePh" placeholder="e.g. August hotfix">
+              <label style="display:flex; align-items:center;"><span data-i18n="pkg.name">Package name</span><span class="info-ic" data-i18n-tip="pkg.nameNote">i</span></label>
+              <!-- A release is referred to out loud, and „PKG-2026-0031" is not
+                   something anybody says — so a new package arrives already named and
+                   the name is typed over when it should be something else. -->
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="text" id="package-name-input" data-i18n-ph="pkg.namePh" placeholder="e.g. August hotfix" style="flex:1; min-width:0;">
+                <button type="button" class="mini-btn" id="package-name-roll" data-i18n-title="pkg.nameRollBtn" title="Suggest another name" onclick="rollPackageName()">🎲</button>
+              </div>
             </div>
           </div>
           <div class="toolbar" style="margin:0 0 6px 0;">
@@ -2755,6 +2787,16 @@
     </div>
     <button class="drawer-close" onclick="closeNotifDrawer()" data-i18n-title="common.close" title="Close" aria-label="Close">×</button>
   </div>
+  <!-- What is shown, and the one bulk action. Reading a notification and dealing
+       with it are different things, so nothing here happens by itself: a card is
+       cleared when its ✓ is pressed, or all of them when this is. -->
+  <div class="drawer-tools">
+    <div class="seg" id="notif-seg">
+      <button type="button" id="notif-seg-new" onclick="setInboxFilter('new')" data-i18n="ntf.filterNew">New</button>
+      <button type="button" id="notif-seg-archive" onclick="setInboxFilter('archive')" data-i18n="ntf.filterArchive">Archive</button>
+    </div>
+    <button type="button" class="mini-btn" id="notif-mark-all" onclick="markAllNotificationsRead()" data-i18n="ntf.markAll">Mark all as read</button>
+  </div>
   <div class="drawer-body" id="notif-list"></div>
   <!-- The interruption is configured next to the person it interrupts, in the
        profile — this only points at it, so the drawer stays a list. -->
@@ -2945,11 +2987,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.30.0"></script>
-<script src="i18n/en.js?v=0.30.0"></script>
+<script src="i18n/pl.js?v=0.31.0"></script>
+<script src="i18n/en.js?v=0.31.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.30.0';
+  const ROLLDESK_VERSION = '0.31.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -3672,6 +3714,8 @@
     if(!r) return false;
     if(r.clientApproval) return true;
     if(r.internal) return false;
+    // Said explicitly when the rollout was planned: the client is not being asked.
+    if(r.noApproval) return false;
     const p = PROJECTS[r.projectKey];
     if(approvalPolicyFor(p) === 'none') return false;
     return r.env === 'Production' || !!(p && p.testNeedsApproval);
@@ -5671,7 +5715,9 @@
     events.push({
       icon: '📦',
       when: stamp(p.createdAt),
-      text: p.createdBy ? tf('pkg.tlCreatedBy', {who: p.createdBy}) : t('pkg.tlCreated'),
+      text: (p.createdByName || p.createdBy)
+        ? tf('pkg.tlCreatedBy', {who: escapeHtml(personLabel(p.createdByName, p.createdBy))})
+        : t('pkg.tlCreated'),
     });
     // Handed over by the test team. Recorded from 0.30.0 on, so an older package
     // simply has no line here rather than a made-up one.
@@ -5679,7 +5725,9 @@
       events.push({
         icon: '📤',
         when: p.readyAt ? stamp(p.readyAt) : '',
-        text: p.readyBy ? tf('pkg.tlReadyBy', {who: p.readyBy}) : t('pkg.tlReady'),
+        text: (p.readyByName || p.readyBy)
+          ? tf('pkg.tlReadyBy', {who: escapeHtml(personLabel(p.readyByName, p.readyBy))})
+          : t('pkg.tlReady'),
       });
     }
     // The project manager's clearance.
@@ -5690,8 +5738,13 @@
         when: stamp(a.at),
         text: a.legacy
           ? t('pkg.tlApprovedLegacy')
-          : (a.by ? tf('pkg.tlApprovedBy', {who: a.by}) : t('pkg.tlApproved')),
-        note: a.comment || '',
+          : ((a.byName || a.by)
+              ? tf('pkg.tlApprovedBy', {who: escapeHtml(personLabel(a.byName, a.by))})
+              : t('pkg.tlApproved')),
+        // The project manager's own words, and the reason the whole gate is worth
+        // having a comment field at all („dopiero po okienku serwisowym"). Quoted
+        // and labelled so it reads as theirs rather than as our description.
+        quote: a.comment || '',
       });
     } else if(p.status === 'ready'){
       events.push({icon:'⏳', when:'', text: t('pkg.blockedApproval')});
@@ -5728,7 +5781,7 @@
             <div style="display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--line-soft);">
               <div class="mono" style="width:120px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${escapeHtml(e.when || t('dtl.pending'))}</div>
               <div style="flex-shrink:0;">${e.icon}</div>
-              <div style="flex:1; font-size:12.5px;">${e.text}${e.note ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">${escapeHtml(e.note)}</div>` : ''}</div>
+              <div style="flex:1; font-size:12.5px;">${e.text}${e.note ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">${escapeHtml(e.note)}</div>` : ''}${e.quote ? `<div style="font-size:12px; color:var(--text); margin-top:4px; padding:6px 9px; background:var(--paper); border-left:3px solid var(--cyan); border-radius:0 6px 6px 0;"><span style="color:var(--text-muted); font-size:11px;">${escapeHtml(t('pkg.tlComment'))}:</span> „${escapeHtml(e.quote)}”</div>` : ''}</div>
             </div>`).join('')}
         </div>
       </div>
@@ -5781,7 +5834,7 @@
       // The migration marked packages that were already handed over when the gate
       // was introduced; they are deployable and name no approver, and saying so
       // beats an empty „approved by".
-      const who = a.legacy ? t('pkg.apprLegacy') : escapeHtml(a.by || '—');
+      const who = a.legacy ? t('pkg.apprLegacy') : escapeHtml(personLabel(a.byName, a.by));
       const when = a.at ? fmtDateTimeShort(a.at) : '';
       const note = a.comment
         ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${escapeHtml(a.comment)}</div>`
@@ -5795,6 +5848,21 @@
     return `<div style="margin-top:4px;">
       <span class="mono" style="font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; background:var(--amber-soft); color:var(--amber);" title="${escapeHtml(t('pkg.blockedApproval'))}">⏳ ${t('pkg.apprWaiting')}</span>
     </div>`;
+  }
+
+  // Who did it, as a name. The backend resolves the stored address to the account's
+  // display name (see shapePackages / listFor) — the address stays in the record
+  // because it is the stable identity, but „zatwierdził: pm@dxc.test" is not
+  // something anybody wants to read.
+  function personLabel(name, email){
+    const n = String(name || '').trim();
+    if(n) return n;
+    const e = String(email || '').trim();
+    if(!e) return '—';
+    // No name on file (an account since removed, or an entry written by a script):
+    // the address without its domain is still recognisable, and is not an e-mail
+    // address on screen.
+    return e.includes('@') ? e.split('@')[0] : e;
   }
 
   // A timestamp in the shape used across the app (the audit log, the bell drawer).
@@ -5834,6 +5902,33 @@
         showToast('⚠ ' + (e.message || t('pkg.apprFailed')));
       }
     }, t('pkg.apprCommentHint'), true);
+  }
+
+  // „It is waiting on you" — sent by whoever is blocked by the gate. Without it the
+  // only lever the release manager had was to walk over and ask, and a package can
+  // sit cleared-by-nobody for days while everyone assumes somebody else chased it.
+  //
+  // Deliberately available to the people who cannot approve: an administrator or the
+  // project manager themselves would be nudging themselves.
+  function remindPackageApproval(id){
+    const pkg = packageById(id);
+    if(!pkg) return;
+    if(pkg.status !== 'ready' || packageApproved(pkg)){ showToast(t('pkg.remindNotNeeded')); return; }
+    const projName = (PROJECTS[pkg.projectKey]||{}).name || pkg.projectKey;
+    const recipients = notifySummary('packageReady', pkg.projectKey, false);
+    showAppConfirm(t('pkg.remindTitle'), tf('pkg.remindBody', {id: pkg.id, recipients}), ()=>{
+      let body = buildPackageNotifBody(pkg, projName);
+      body += '\n' + tn('notif.pkgRemindBy') + ': ' + actorName();
+      logAudit('notified', 'Notification',
+        'Reminder to approve package ' + (pkg.id||'') + ' — recipients: ' + recipients,
+        projName, 'aud.d.pkgRemind', {id: pkg.id||'', recipients});
+      // The same event as the handover, so it reaches exactly whoever the handover
+      // reaches (the project manager), with the subject saying it is a reminder.
+      dispatchEventNotification('packageReady', pkg.projectKey,
+        'RollDesk — ' + tn('ev.packageReady') + ' (' + tn('draft.remindTag') + ')',
+        body, false, null, pkg.id || null);
+      showToast(t('pkg.remindDone'));
+    }, t('pkg.remindOk'), 'neutral');
   }
 
   function undoPackageApproval(id){
@@ -6296,6 +6391,11 @@
       const approveBtn = (canApprovePackages() && p.status === 'ready' && !packageApproved(p))
         ? `<button class="mini-btn icon-btn" onclick="approvePackage('${escapeHtml(p.id)}')" title="${escapeHtml(t('pkg.apprTitle'))}"><span class="mb-ic" aria-hidden="true">✓</span> ${t('pkg.apprBtn')}</button> `
         : '';
+      // Blocked by the gate rather than holding it: the one thing they can do about a
+      // package waiting on somebody else is ask.
+      const remindBtn = (!canApprovePackages() && p.status === 'ready' && !packageApproved(p))
+        ? `<button class="mini-btn icon-btn" onclick="remindPackageApproval('${escapeHtml(p.id)}')" title="${escapeHtml(t('pkg.remindTitle'))}"><span class="mb-ic" aria-hidden="true">⏰</span> ${t('pkg.remindBtn')}</button> `
+        : '';
       const rowMenu = rowMenuHtml('pkg-menu-'+p.id, [
         canApprovePackages() && packageApproved(p)
           ? {label:t('pkg.apprUndoBtn'), icon:'↩', onclick:`undoPackageApproval('${escapeHtml(p.id)}')`}
@@ -6307,15 +6407,17 @@
       const editBtn = canEditPackages()
         ? `<button class="mini-btn icon-btn" onclick="openPackageEditor('${escapeHtml(p.id)}')"><span class="mb-ic" aria-hidden="true">✎</span> ${t('usr.edit')}</button> `
         : '';
-      const actions = (approveBtn || editBtn || (canApprovePackages() && packageApproved(p)))
-        ? `${approveBtn}${editBtn}${rowMenu}`
+      const actions = (approveBtn || remindBtn || editBtn || (canApprovePackages() && packageApproved(p)))
+        ? `${approveBtn}${remindBtn}${editBtn}${rowMenu}`
         : `<span style="color:var(--text-faint); font-size:11.5px;">${t('usr.noPerms')}</span>`;
       // Clicking the row opens the release's timeline. A row rather than a separate
       // ⓘ control: „what happened to this package" is the question asked *about the
       // row*, and the actions cell stops the click so a button never opens it.
       const open = expandedPackageId === p.id;
       return `<tr data-pkg="${escapeHtml(p.id)}" class="pkg-row${open ? ' open' : ''}" onclick="togglePackageTimeline('${escapeHtml(p.id)}')" title="${escapeHtml(t('pkg.tlToggle'))}">
-        <td><span class="pkg-caret" aria-hidden="true">${open ? '▾' : '▸'}</span> <span class="mono" style="font-size:12px; font-weight:700;">${escapeHtml(p.id)}</span>${p.name ? `<div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">${escapeHtml(p.name)}</div>` : ''}${usedLine}</td>
+        <td><span class="pkg-caret" aria-hidden="true">${open ? '▾' : '▸'}</span> ${p.name
+            ? `<span style="font-size:13px; font-weight:700;">${escapeHtml(p.name)}</span><div class="mono" style="font-size:11px; color:var(--text-muted); margin-top:2px;">${escapeHtml(p.id)}</div>`
+            : `<span class="mono" style="font-size:12px; font-weight:700;">${escapeHtml(p.id)}</span>`}${usedLine}</td>
         <td style="font-size:12.5px;">${escapeHtml(projName)}</td>
         <td style="font-size:12.5px;">${packageAppsCellHtml(p)}</td>
         <td>${contentCell}</td>
@@ -6380,6 +6482,40 @@
     renderPackageFiles(kind);
   }
 
+  // A name for a release, from the backend — it is the only place that knows every
+  // package in the instance, so „nobody is called this yet" is answerable there and
+  // not from the loaded page. Silent on failure: an empty name field is what the
+  // editor had before this existed, and a suggestion is not worth an error.
+  async function suggestPackageName(){
+    if(!API_CONNECTED) return '';
+    try {
+      const res = await apiFetch('/api/packages/suggest-name');
+      if(!res.ok) return '';
+      const info = await res.json();
+      return String((info && info.name) || '');
+    } catch(e){ return ''; }
+  }
+
+  // The 🎲: a different name, but never over something somebody typed — a re-roll
+  // that discards a deliberate name would make the button dangerous to press.
+  async function rollPackageName(){
+    const el = document.getElementById('package-name-input');
+    if(!el) return;
+    const current = el.value.trim();
+    if(current && current !== packageNameSuggested){
+      showAppConfirm(t('pkg.nameRollTitle'), t('pkg.nameRollBody'), async ()=>{
+        const name = await suggestPackageName();
+        if(name){ el.value = name; packageNameSuggested = name; }
+      }, t('pkg.nameRollOk'), 'neutral');
+      return;
+    }
+    const name = await suggestPackageName();
+    if(name){ el.value = name; packageNameSuggested = name; }
+  }
+  // What the field was filled with, so a re-roll can tell „still the suggestion" from
+  // „somebody named this".
+  let packageNameSuggested = '';
+
   function openPackageEditor(id){
     if(!canEditPackages()){ showToast(t('pkg.noPerm')); return; }
     const pkg = id ? packageById(id) : null;
@@ -6395,6 +6531,15 @@
     document.getElementById('package-form-title').textContent = pkg ? t('pkg.editTitle') : t('pkg.newTitle');
     document.getElementById('package-form-sub').textContent = pkg ? pkg.id : '';
     document.getElementById('package-name-input').value = (pkg && pkg.name) || '';
+    packageNameSuggested = '';
+    // Only for a new package, and only into an empty field: an existing release keeps
+    // the name people already know it by.
+    if(!pkg){
+      void suggestPackageName().then((name)=>{
+        const el = document.getElementById('package-name-input');
+        if(el && name && !el.value.trim()){ el.value = name; packageNameSuggested = name; }
+      });
+    }
     document.getElementById('package-notes-input').value = (pkg && pkg.notes) || '';
     document.getElementById('package-changes-input').value = (pkg && pkg.changes) || '';
     // `installerNotes` is what this field was called while it lived on the
@@ -6461,7 +6606,10 @@
     if(!canEditProjects()){ showToast(t('pkg.addAppNoPerm')); return; }
     editingAppIndex = null;
     appModalProjectKey = key;
-    appModalPackageRow = typeof rowIndex === 'number' ? rowIndex : null;
+    appModalAfterAdd = (name)=>{
+      if(typeof rowIndex === 'number' && packageDraftApps[rowIndex]) packageDraftApps[rowIndex].name = name;
+      renderPackageApps();
+    };
     const p = PROJECTS[key];
     document.getElementById('app-modal-form-title').textContent = t('proj.newApp') + ' — ' + (p.name || key);
     document.getElementById('app-modal-form-sub').textContent = t('pkg.addAppSub');
@@ -6645,8 +6793,12 @@
   // overwrite the suggestions for „41231".
   const issueTypeTimers = {};
   const issueTypeSeq = {};
+  // Which suggestion the arrow keys are on, per row. Nothing is highlighted until a
+  // key moves there, and only a highlighted entry can be taken by Enter — the first
+  // version picked the top match on Enter, which chose a work item for people who
+  // were still typing the number.
+  const issueSuggestActive = {};
   const ISSUE_SUGGEST_MS = 300;   // long enough not to search every keystroke
-  const ISSUE_LOOKUP_MS = 700;    // ...and longer before spending the full lookup
 
   function onPackageIssueIdInput(i, value){
     setPackageIssue(i, 'id', value);
@@ -6656,19 +6808,40 @@
     const raw = String(value || '').trim();
     // Nothing typed: no suggestions, and no lookup to cancel.
     if(!raw){ closeIssueSuggestions(i); return; }
+    issueSuggestActive[i] = -1;
     const seq = (issueTypeSeq[i] = (issueTypeSeq[i] || 0) + 1);
     issueTypeTimers[i] = setTimeout(()=>{ void suggestPackageIssues(i, raw, seq); }, ISSUE_SUGGEST_MS);
   }
 
-  // Enter picks the first suggestion (the tracker's own behaviour), Escape closes
-  // the list and leaves what was typed alone.
+  // The keyboard, and the rule that matters: nothing is chosen unless the person
+  // chose it. ↓/↑ walk the list, Enter takes the highlighted entry and only that,
+  // Escape closes the list and leaves what was typed exactly as typed.
   function onPackageIssueIdKey(e, i){
     const issue = packageDraftIssues[i];
     if(!issue) return;
+    const items = issue.suggest || [];
     if(e.key === 'Escape'){ closeIssueSuggestions(i); return; }
+    if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+      if(!items.length) return;
+      e.preventDefault();
+      const cur = typeof issueSuggestActive[i] === 'number' ? issueSuggestActive[i] : -1;
+      const next = e.key === 'ArrowDown'
+        ? Math.min(items.length - 1, cur + 1)
+        : Math.max(0, (cur < 0 ? 0 : cur) - 1);
+      issueSuggestActive[i] = next;
+      renderIssueSuggestions(i);
+      return;
+    }
     if(e.key === 'Enter'){
-      const first = (issue.suggest || [])[0];
-      if(first){ e.preventDefault(); pickIssueSuggestion(i, first.id); }
+      const active = issueSuggestActive[i];
+      // No highlight: Enter is not a choice, so the list closes and the typed id
+      // stands. The full lookup still runs when the field is left, as it always did.
+      if(typeof active !== 'number' || active < 0 || !items[active]){
+        closeIssueSuggestions(i);
+        return;
+      }
+      e.preventDefault();
+      pickIssueSuggestion(i, items[active].id);
     }
   }
 
@@ -6678,15 +6851,12 @@
     const sel = document.getElementById('package-project-select');
     const projectKey = sel ? sel.value : '';
     if(!projectKey || !API_CONNECTED) return;
-    // The full lookup is what fills the row, and it is worth running by itself once
-    // the id looks complete — that is „od razu sprawdzaj" without a click. It is
-    // debounced further than the search so it does not fire mid-number.
-    if(issueTypeTimers['lookup-' + i]) clearTimeout(issueTypeTimers['lookup-' + i]);
-    issueTypeTimers['lookup-' + i] = setTimeout(()=>{
-      if(seq !== issueTypeSeq[i]) return;                 // still typing
-      if(String((packageDraftIssues[i]||{}).id || '').trim() !== raw) return;
-      void lookupPackageIssue(i);
-    }, Math.max(0, ISSUE_LOOKUP_MS - ISSUE_SUGGEST_MS));
+    // Deliberately no automatic lookup of a half-typed id. „81989" passes through
+    // „8198", which is itself a real work item, so filling the row on a pause put
+    // somebody else's bug on the package while the tester was still typing. The
+    // suggestions below are the immediate answer; the row is filled when a
+    // suggestion is picked, when the field is left (onchange) or when ⟳ is pressed.
+    //
     // Fewer than two digits matches most of a backlog, so the server refuses it and
     // there is nothing to show.
     if(!/^\d{2,12}$/.test(raw)) { closeIssueSuggestions(i); return; }
@@ -6708,11 +6878,12 @@
     const issue = packageDraftIssues[i];
     const items = (issue && Array.isArray(issue.suggest)) ? issue.suggest : [];
     if(!items.length){ box.innerHTML = ''; box.classList.remove('open'); return; }
-    box.innerHTML = items.map(it=>{
+    const active = typeof issueSuggestActive[i] === 'number' ? issueSuggestActive[i] : -1;
+    box.innerHTML = items.map((it, idx)=>{
       const meta = [it.type, it.state, it.project].filter(Boolean).join(' · ');
       // mousedown rather than click: the input's blur fires first and would close
       // the list before a click could land on it.
-      return `<button type="button" class="pkg-sugg-item" onmousedown="pickIssueSuggestion(${i}, '${escapeHtml(it.id)}')">
+      return `<button type="button" class="pkg-sugg-item${idx === active ? ' active' : ''}" onmousedown="pickIssueSuggestion(${i}, '${escapeHtml(it.id)}')">
         <span class="mono">${escapeHtml(it.id)}</span>
         <span class="pkg-sugg-title">${escapeHtml(it.title || '')}</span>
         ${meta ? `<span class="pkg-sugg-meta">${escapeHtml(meta)}</span>` : ''}
@@ -6725,6 +6896,7 @@
     const clear = ()=>{
       const issue = packageDraftIssues[i];
       if(issue) issue.suggest = [];
+      issueSuggestActive[i] = -1;
       const box = document.getElementById('pkg-sugg-' + i);
       if(box){ box.innerHTML = ''; box.classList.remove('open'); }
     };
@@ -6739,11 +6911,10 @@
     if(!issue) return;
     issue.id = String(id || '');
     issue.suggest = [];
-    // A picked suggestion is a deliberate choice, so the full lookup runs at once
-    // rather than waiting for the debounce it just cancelled.
+    issueSuggestActive[i] = -1;
+    // A picked suggestion is a deliberate choice, so the full lookup runs at once.
     issueTypeSeq[i] = (issueTypeSeq[i] || 0) + 1;
     if(issueTypeTimers[i]) clearTimeout(issueTypeTimers[i]);
-    if(issueTypeTimers['lookup-' + i]) clearTimeout(issueTypeTimers['lookup-' + i]);
     renderPackageIssues();
     void lookupPackageIssue(i, true);
   }
@@ -7332,6 +7503,10 @@
 
     const dependsOn = Array.from(document.querySelectorAll('.schedule-dep-check:checked')).map(cb=>cb.value);
     const isInternal = document.getElementById('schedule-internal').checked;
+    // „Nobody is being asked to approve this" — separate from „the client cannot see
+    // it". Recorded on the deployment (noApproval) so every later reader agrees,
+    // rather than being inferred from an empty approval field.
+    const noApprovalWanted = !!(document.getElementById('schedule-no-approval') || {}).checked;
     const draftEl = document.getElementById('schedule-draft');
     const isDraft = !!(draftEl && draftEl.checked) && !isInternal;
     // Only the reference is stored, never a copy of the issue list: the package
@@ -7351,7 +7526,7 @@
     // promoted to production later must not silently rewrite what a finished
     // test-only deployment claimed.
     const packageTestOnly = !!(packageById(schedulePackageId) || {}).testOnly;
-    const commonMeta = {createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, internal: isInternal || undefined, draft: isDraft || undefined, packageId, testOnly: (packageTestOnly && path === 'test-only') || undefined};
+    const commonMeta = {createdBy: actorName(), dependsOn: dependsOn.length ? dependsOn : undefined, internal: isInternal || undefined, noApproval: noApprovalWanted || undefined, draft: isDraft || undefined, packageId, testOnly: (packageTestOnly && path === 'test-only') || undefined};
 
     const created = [];
     const createdIdsStart = DEPLOYMENTS_DATA.length;
@@ -7363,7 +7538,7 @@
     // published (see notifyClientOfDraft). Setting it at creation made every
     // draft read „Oczekuje na akceptację" in the approval column while the row
     // still carried the „Szkic" badge — two contradictory states at once.
-    const testNeedsApproval = !isInternal && !isDraft && !!p.testNeedsApproval && approvalPolicyFor(p) !== 'none';
+    const testNeedsApproval = !isInternal && !isDraft && !noApprovalWanted && !!p.testNeedsApproval && approvalPolicyFor(p) !== 'none';
     if(path === 'test-only' || path === 'test-prod'){
       const envs = testEnvs.length ? testEnvs : (p.testEnvs.length ? [p.testEnvs[0]] : ['Test']);
       envs.forEach(env=>{
@@ -7380,7 +7555,7 @@
 
     // Production deployment
     if(path === 'prod-only' || path === 'test-prod'){
-      const needsApproval = !isInternal && !isDraft && approvalPolicyFor(p) !== 'none';
+      const needsApproval = !isInternal && !isDraft && !noApprovalWanted && approvalPolicyFor(p) !== 'none';
       if(isMultiTarget){
         // Persist the manually-arranged order and day breakdown from the preview so the
         // installer panel rebuilds exactly what the RM planned (not a fresh even split).
@@ -7443,7 +7618,7 @@
 
     const includesProd = created.includes('prod');
     const includesTest = created.includes('test');
-    const needsApproval = !isInternal && approvalPolicyFor(p) !== 'none'
+    const needsApproval = !isInternal && !noApprovalWanted && approvalPolicyFor(p) !== 'none'
       && (includesProd || (includesTest && !!p.testNeedsApproval));
     if(isDraft){
       showToast(t('sch.draftSaved'));
@@ -7476,6 +7651,8 @@
   // Clears the "New deployment" form after saving, so the settings (especially
   // "internal deployment") don't leak into the next deployment.
   function resetScheduleForm(){
+    const noApprovalEl = document.getElementById('schedule-no-approval');
+    if(noApprovalEl) noApprovalEl.checked = false;
     const internal = document.getElementById('schedule-internal');
     if(internal) internal.checked = false;
     const draftCb = document.getElementById('schedule-draft');
@@ -9121,9 +9298,11 @@
   // was never added, and leaving the package to go and add it meant losing the
   // half-filled package. Cleared when the dialog closes.
   let appModalProjectKey = '';
-  // The application row in the package editor that asked for a new application, so
-  // the name lands in it instead of being added and then picked by hand.
-  let appModalPackageRow = null;
+  // What to do with the newly added application. The package editor puts it on the
+  // row that asked; the deployment editor puts it straight onto the rollout. Without
+  // this the dialog added the application to the project and left the person to go
+  // and pick it, which is most of the walk it was meant to save.
+  let appModalAfterAdd = null;
   function appModalProject(){
     return appModalProjectKey || currentProjectKey;
   }
@@ -9133,7 +9312,7 @@
   function openAppModal(){
     if(!PROJECTS[currentProjectKey]) return;
     appModalProjectKey = '';
-    appModalPackageRow = null;
+    appModalAfterAdd = null;
     editingAppIndex = null;
     document.getElementById('app-modal-form-title').textContent = t('proj.newApp');
     document.getElementById('app-modal-form-sub').textContent = t('proj.newAppSub');
@@ -9201,8 +9380,7 @@
     }
     // Captured before closing: closeFormModal resets where the dialog was pointing
     // (so a cancelled dialog cannot write to the wrong project later).
-    const wasPackageRow = appModalPackageRow;
-    const fromPackage = !!appModalProjectKey;
+    const after = appModalAfterAdd;
     closeFormModal('app-modal-form');
     editingAppIndex = null;
     // The list lives in the project JSONB, so an added or renamed application only
@@ -9215,13 +9393,9 @@
     if(projectKey === currentProjectKey) rebuildAppsTable(p);
     renderProjectsList();
     renderScheduleAppsList();
-    // Back to the package editor with the new application selected on the row that
-    // asked for it — which is the point of being able to add it from there.
-    if(fromPackage){
-      if(wasPackageRow !== null && packageDraftApps[wasPackageRow]){
-        packageDraftApps[wasPackageRow].name = name;
-      }
-      renderPackageApps();
+    // Back to whoever opened the dialog, with the new application in hand.
+    if(typeof after === 'function'){
+      try { after(name); } catch(e){ console.warn('after-add hook failed:', e && e.message); }
     }
   }
 
@@ -10173,7 +10347,7 @@
     // backdrop — it stops pointing at the package editor's project. Left set, the
     // next application added from the Projects view would be written to the wrong
     // project, which is the kind of bug nobody connects to a dialog they cancelled.
-    if(id === 'app-modal-form'){ appModalProjectKey = ''; appModalPackageRow = null; }
+    if(id === 'app-modal-form'){ appModalProjectKey = ''; appModalAfterAdd = null; }
   }
   // Escape closes the topmost form modal, and a click on the backdrop does the
   // same — unless something has been typed into it, in which case the gesture is
@@ -10572,6 +10746,15 @@
   // interested recipient and these endpoints only ever read that account's rows.
   let INBOX = [];              // newest first, as GET /api/notifications returns
   let inboxUnread = 0;
+  // Which half of the drawer is shown, and how much of it.
+  //
+  // „New" is the newest ten that have not been dealt with; everything else — read,
+  // or older than those ten — is the archive. Both halves of that matter: the list
+  // keeps ninety days of history, so a drawer showing all of it meant reading the
+  // same twenty notifications every morning, and a list with no way to put one
+  // behind you is a list nobody trusts.
+  let inboxFilter = 'new';
+  const INBOX_PAGE = 10;
   let inboxTimer = null;
   let inboxLoading = false;
   const INBOX_POLL_MS = 30000; // the badge; the list is fetched when opened
@@ -10680,22 +10863,47 @@
     if(sub){
       sub.textContent = inboxUnread > 0 ? tf('ntf.unreadN', {n: inboxUnread}) : t('ntf.allRead');
     }
+    // Which view is on, and whether there is anything to clear.
+    const segNew = document.getElementById('notif-seg-new');
+    const segArchive = document.getElementById('notif-seg-archive');
+    // The counts go on the buttons: „Nowe · 3" answers the question the badge raised,
+    // and the archive's size says whether it is worth opening.
+    if(segNew){
+      segNew.classList.toggle('on', inboxFilter !== 'archive');
+      const n = INBOX.filter(x=>!x.read).length;
+      segNew.textContent = t('ntf.filterNew') + (n ? ' · ' + (n > INBOX_PAGE ? INBOX_PAGE + '+' : n) : '');
+    }
+    if(segArchive){
+      segArchive.classList.toggle('on', inboxFilter === 'archive');
+      const a = inboxArchive().length;
+      segArchive.textContent = t('ntf.filterArchive') + (a ? ' · ' + a : '');
+    }
+    const markAll = document.getElementById('notif-mark-all');
+    if(markAll) markAll.style.display = INBOX.some(n=>!n.read) ? '' : 'none';
     if(inboxLoading && !INBOX.length){
       list.innerHTML = `<div class="loading-note"><span class="spinner" aria-hidden="true"></span><span>${escapeHtml(t('ntf.loading'))}</span></div>`;
       return;
     }
-    if(!INBOX.length){
-      list.innerHTML = `<div class="ntf-empty">${escapeHtml(t('ntf.empty'))}</div>`;
+    const shown = inboxVisible();
+    if(!shown.length){
+      // „Nothing new" and „nothing at all" are different answers, and the first one
+      // has a next step: the other view still holds the history.
+      list.innerHTML = `<div class="ntf-empty">${escapeHtml(
+        inboxFilter === 'archive' ? t('ntf.emptyArchive')
+          : (INBOX.length ? t('ntf.emptyNew') : t('ntf.empty'))
+      )}</div>`;
       return;
     }
-    list.innerHTML = INBOX.map(n=>{
+    list.innerHTML = shown.map(n=>{
       const target = inboxTarget(n);
       const ev = String(n.event || '');
       const ref = target ? target.id : '';
       const project = n.projectKey && PROJECTS[n.projectKey] ? PROJECTS[n.projectKey].name : (n.projectKey || '');
       // The id is in the composed body already; the meta line is the when, the who
       // and the project — the three things the body does not repeat.
-      const meta = [inboxWhen(n.at), n.actorEmail, project].filter(Boolean).join(' · ');
+      const meta = [inboxWhen(n.at),
+        (n.actorName || n.actorEmail) ? personLabel(n.actorName, n.actorEmail) : '',
+        project].filter(Boolean).join(' · ');
       // The subject is prefixed "RollDesk — " by every sender, which is noise in a
       // list where every row is RollDesk.
       const subject = String(n.subject || '').replace(/^RollDesk\s*[—-]\s*/, '');
@@ -10713,7 +10921,12 @@
           <div class="ntf-body">${escapeHtml(String(n.body || ''))}</div>
           <div class="ntf-meta">${escapeHtml(meta)}</div>
         </div>
-        ${clickable ? '<div class="ntf-go" aria-hidden="true">›</div>' : ''}
+        <div class="ntf-side">
+          <button type="button" class="ntf-read" title="${escapeHtml(n.read ? t('ntf.markUnread') : t('ntf.markRead'))}"
+                  aria-label="${escapeHtml(n.read ? t('ntf.markUnread') : t('ntf.markRead'))}"
+                  onclick="setNotificationRead('${escapeHtml(String(n.id))}', ${n.read ? 'false' : 'true'}, event)">${n.read ? '↺' : '✕'}</button>
+          ${clickable ? '<span class="ntf-go" aria-hidden="true">›</span>' : ''}
+        </div>
       </div>`;
     }).join('');
   }
@@ -10743,18 +10956,65 @@
     location.hash = h;
   }
 
-  // Mark what the reader has just been shown. Only the listed unread ones, not
-  // "everything": a row older than the page was never on screen, and clearing it
-  // would hide something nobody has seen.
-  async function markShownNotificationsRead(){
-    const ids = INBOX.filter(n=>!n.read).map(n=>n.id);
-    if(!ids.length) return;
+  function setInboxFilter(which){
+    inboxFilter = which === 'archive' ? 'archive' : 'new';
+    renderInbox();
+  }
+
+  // The newest ten that still want attention. Ten because a drawer is scanned, not
+  // read: what does not fit is not lost, it is one click away in the archive.
+  function inboxNew(){
+    return INBOX.filter(n=>!n.read).slice(0, INBOX_PAGE);
+  }
+
+  // Everything else — cleared, or older than those ten. Newest first, like the rest.
+  function inboxArchive(){
+    const shown = new Set(inboxNew().map(n=>n.id));
+    return INBOX.filter(n=>!shown.has(n.id));
+  }
+
+  function inboxVisible(){
+    return inboxFilter === 'archive' ? inboxArchive() : inboxNew();
+  }
+
+  // Clear one notification, or put it back. Both directions on purpose: „mark as
+  // read" is only safe to press when it can be undone, and „I am not done with this"
+  // is a real state — a rollout somebody has to come back to after lunch.
+  //
+  // Optimistic, then corrected from the response: the drawer has to feel like a
+  // checkbox, not like a form submission.
+  async function setNotificationRead(id, read, ev){
+    if(ev) ev.stopPropagation();
+    const n = inboxById(id);
+    if(!n || !!n.read === !!read) return;
+    n.read = !!read;
+    inboxUnread = Math.max(0, inboxUnread + (read ? -1 : 1));
+    renderInboxBadge();
+    renderInbox();
+    try {
+      const res = await apiFetch('/api/notifications/read', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ids:[id], read: !!read})
+      });
+      if(res.ok){
+        const info = await res.json().catch(()=>({}));
+        if(typeof info.unread === 'number'){ inboxUnread = info.unread; renderInboxBadge(); }
+      }
+    } catch(e){ /* the next poll corrects the badge */ }
+  }
+
+  // Everything, including what is older than the page being shown — this is the
+  // „I have been away for a week" button, and leaving rows behind that the reader
+  // cannot see would make the badge disagree with the drawer for ever.
+  async function markAllNotificationsRead(){
+    if(!inboxUnread && !INBOX.some(n=>!n.read)) return;
     INBOX.forEach(n=>{ n.read = true; });
     inboxUnread = 0;
     renderInboxBadge();
+    renderInbox();
     try {
       const res = await apiFetch('/api/notifications/read', {
-        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ids})
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({all:true})
       });
       if(res.ok){
         const info = await res.json().catch(()=>({}));
@@ -10779,9 +11039,11 @@
     if(bell) bell.setAttribute('aria-expanded', 'true');
     // Read on opening rather than on a timer: the list is only looked at here, and
     // the newest rows may have arrived since the badge last counted them.
+    //
+    // Nothing is marked read by opening the drawer. Doing that made the badge go
+    // quiet while the list still showed everything, which is the worst of both: no
+    // count to act on and no way to put a single notification behind you.
     await loadInbox();
-    // Read means "was shown", so this waits for the list it is acknowledging.
-    if(notifDrawerOpen()) markShownNotificationsRead();
   }
 
   function closeNotifDrawer(){
@@ -12157,8 +12419,16 @@
     const box = document.getElementById('edit-dep-add-row');
     if(!box) return;
     const cands = editDepAppCandidates(r);
+    // „Nothing left to add" is only true of applications the project knows about, so
+    // the way to add one it does not know is offered in both states.
+    const newAppBtn = canEditProjects()
+      ? `<button type="button" class="mini-btn" title="${escapeHtml(t('editdep.addAppNewTitle'))}" onclick="openAppModalForDeployment()">＋ ${escapeHtml(t('editdep.addAppNew'))}</button>`
+      : '';
     if(!cands.length){
-      box.innerHTML = `<div style="font-size:11.5px; color:var(--text-faint);">${escapeHtml(t('editdep.allAppsAdded'))}</div>`;
+      box.innerHTML = `<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <div style="font-size:11.5px; color:var(--text-faint);">${escapeHtml(t('editdep.allAppsAdded'))}</div>
+        ${newAppBtn}
+      </div>`;
       return;
     }
     box.innerHTML = `
@@ -12167,8 +12437,34 @@
           ${cands.map(c=>`<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}${c.version ? ' v' + escapeHtml(c.version) : ''}</option>`).join('')}
         </select>
         <button type="button" class="mini-btn" onclick="addEditDepApp()">+ ${escapeHtml(t('editdep.addApp'))}</button>
+        ${newAppBtn}
       </div>
       <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">${escapeHtml(t('editdep.addAppHint'))}</div>`;
+  }
+
+  // The application the schedule missed is regularly one the project never had — so
+  // „add another application to this rollout" cannot stop at the list of applications
+  // that already exist. Same dialog, this deployment's project, and the new
+  // application goes straight onto the rollout being edited.
+  function openAppModalForDeployment(){
+    const r = DEPLOYMENTS_DATA[editDepIdx];
+    if(!r) return;
+    const key = r.projectKey;
+    if(!key || !PROJECTS[key]){ showToast(t('pkg.addAppNoProject')); return; }
+    if(!canEditProjects()){ showToast(t('pkg.addAppNoPerm')); return; }
+    syncEditDepAppInputs();
+    editingAppIndex = null;
+    appModalProjectKey = key;
+    appModalAfterAdd = (name)=>{
+      if(!editDepApps.some(a=>appKey(a.name) === appKey(name))) editDepApps.push({name, version: ''});
+      renderEditDepApps();
+    };
+    const p = PROJECTS[key];
+    document.getElementById('app-modal-form-title').textContent = t('proj.newApp') + ' — ' + (p.name || key);
+    document.getElementById('app-modal-form-sub').textContent = t('editdep.addAppNewSub');
+    document.getElementById('app-name').value = '';
+    document.getElementById('app-repo').value = '';
+    openFormModal('app-modal-form');
   }
 
   function addEditDepApp(){

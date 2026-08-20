@@ -58,12 +58,17 @@ export async function recordEvent({ eventKey, projectKey, actorEmail, subject, t
 // One person's notifications, newest first, with the unread ones marked.
 export async function listFor(userId, limit = PAGE) {
   const n = Math.min(Math.max(parseInt(limit, 10) || PAGE, 1), 200);
+  // The actor's display name comes along: the address is what is stored (it is the
+  // stable identity), but „Zatwierdził(a): pm@dxc.test" is not what anybody wants to
+  // read on a card. A left join, so an event caused by an account since deleted still
+  // lists — with the address it was recorded under.
   const { rows } = await query(
-    `SELECT id, event, subject, body, project_key, deployment_id, package_id,
-            actor_email, read_at, created_at
-       FROM notifications
-      WHERE user_id = $1
-      ORDER BY created_at DESC, id DESC
+    `SELECT n.id, n.event, n.subject, n.body, n.project_key, n.deployment_id, n.package_id,
+            n.actor_email, u.name AS actor_name, n.read_at, n.created_at
+       FROM notifications n
+       LEFT JOIN users u ON lower(u.email) = lower(n.actor_email)
+      WHERE n.user_id = $1
+      ORDER BY n.created_at DESC, n.id DESC
       LIMIT $2`,
     [userId, n]
   );
@@ -76,6 +81,7 @@ export async function listFor(userId, limit = PAGE) {
     deploymentId: r.deployment_id || '',
     packageId: r.package_id || '',
     actorEmail: r.actor_email || '',
+    actorName: r.actor_name || '',
     read: !!r.read_at,
     at: r.created_at,
   }));
@@ -91,17 +97,28 @@ export async function unreadCountFor(userId) {
   return (rows[0] && rows[0].n) || 0;
 }
 
-// Mark some (or all) of this person's notifications read. Always scoped to the
-// owner: an id from somebody else's drawer must not be markable from here.
-export async function markRead(userId, ids) {
+// Mark some of this person's notifications read — or unread again. Always scoped to
+// the owner: an id from somebody else's drawer must not be markable from here.
+//
+// Both directions, because reading a notification and dealing with it are different
+// things: „I have seen this, clear it" is the common case, and „put it back, I am not
+// done with it" is what makes the first one safe to press.
+export async function setRead(userId, ids, read = true) {
   const list = (Array.isArray(ids) ? ids : []).map((v) => String(v)).filter((v) => /^\d+$/.test(v));
   if (!list.length) return 0;
   const { rowCount } = await query(
-    `UPDATE notifications SET read_at = now()
-      WHERE user_id = $1 AND read_at IS NULL AND id = ANY($2::bigint[])`,
+    read
+      ? `UPDATE notifications SET read_at = now()
+          WHERE user_id = $1 AND read_at IS NULL AND id = ANY($2::bigint[])`
+      : `UPDATE notifications SET read_at = NULL
+          WHERE user_id = $1 AND read_at IS NOT NULL AND id = ANY($2::bigint[])`,
     [userId, list]
   );
   return rowCount;
+}
+
+export async function markRead(userId, ids) {
+  return setRead(userId, ids, true);
 }
 
 export async function markAllRead(userId) {

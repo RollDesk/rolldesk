@@ -18,6 +18,7 @@ import {
 import {
   lookupWorkItem, searchWorkItems, projectTrackerSettings, trackerStatus,
 } from '../trackerService.js';
+import { generatePackageName } from '../packageName.js';
 import { projectSharesAdminInfo } from '../rbac.js';
 
 const router = Router();
@@ -49,11 +50,41 @@ async function filesByPackage(ids) {
   return map;
 }
 
+// Display names for the addresses a package records — who assembled it, who handed
+// it over, who cleared it. The addresses are what is stored (they are the stable
+// identity, and a renamed person must not rewrite history), but an address is not
+// what anybody wants to read on a timeline. Resolved in one query for the whole
+// list rather than per row.
+async function displayNames(emails) {
+  const want = [...new Set(emails.filter(Boolean).map((e) => String(e).trim().toLowerCase()))];
+  const map = new Map();
+  if (!want.length) return map;
+  const { rows } = await query(
+    'SELECT email, name FROM users WHERE lower(email) = ANY($1::text[])', [want]
+  );
+  rows.forEach((r) => { if (r.name) map.set(String(r.email).toLowerCase(), r.name); });
+  return map;
+}
+
 // Rows → API objects, with each package's files attached and the deployer-facing
 // half removed for a client account whose project does not share admin info.
 async function shapePackages(req, rows) {
   const files = await filesByPackage(rows.map((r) => r.id));
   const objs = rows.map((r) => Object.assign(packageRowToObj(r), { files: files.get(r.id) || [] }));
+  // Who did what, by name. Not for a client account: our own team's addresses and
+  // names are internal plumbing to them, and the portal already says only what a
+  // client is meant to read.
+  if (!isClient(req)) {
+    const names = await displayNames(objs.flatMap((o) => [
+      o.createdBy, o.readyBy, o.approval && o.approval.by,
+    ]));
+    const name = (email) => (email ? names.get(String(email).trim().toLowerCase()) : '') || undefined;
+    objs.forEach((o) => {
+      o.createdByName = name(o.createdBy);
+      o.readyByName = name(o.readyBy);
+      if (o.approval && o.approval.by) o.approval.byName = name(o.approval.by);
+    });
+  }
   if (!isClient(req)) return objs;
   // One flag lookup per project, not per package.
   const shareCache = new Map();
@@ -113,6 +144,19 @@ router.get('/search/:project', requirePackageRole, async (req, res) => {
     return res.status(403).json({ error: 'Not permitted for this project' });
   }
   res.json(await searchWorkItems(req.params.project, req.query.q));
+});
+
+// GET /api/packages/suggest-name — a name for a release nobody has used yet.
+//
+// Server-side, not in the browser, for one reason: uniqueness. The editor only holds
+// the packages it has loaded (one project, one filter), while „is anything already
+// called this" is a question about the whole instance. It also keeps the word lists
+// in one place with their tests.
+//
+// Declared before /:id so "suggest-name" is not read as a package id.
+router.get('/suggest-name', requirePackageRole, async (_req, res) => {
+  const { rows } = await query('SELECT name FROM release_packages WHERE name IS NOT NULL');
+  res.json({ name: generatePackageName({ taken: rows.map((r) => r.name) }) });
 });
 
 // GET /api/packages/tracker-status/:project — whether the lookup can run at all,
