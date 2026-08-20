@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.0] - 2026-08-20
+
+### Added
+- **A rollout can say that no client sign-off is needed, without hiding it from the client.** Those were one checkbox: "internal deployment" both hid the rollout from the client *and* waived the approval, so a rollout the client had already agreed to out of band still sat in the deployer's *waiting for the client* bucket — and the only way to let them install was to record an approval that never happened. The schedule form now has **No client sign-off needed** next to the internal flag: the rollout stays visible in the portal, nobody is asked for a decision, no approval request is sent, and the deployer can install straight away. Every view reads the flag, so the record says *approval not required* instead of showing an empty decision.
+- **The notification drawer is something you can act on.** Each card carries an **✕** that marks it read (and a **↺** that puts it back — "I am not done with this" is a real state), plus *Mark all as read* for a week away. The drawer opens on **New**: the ten newest that have not been dealt with, with everything else — cleared, or older than those ten — one click away under **Archive**. Opening the bell no longer marks everything read behind the reader's back, which was the worst of both: a badge that went quiet while the list still showed ninety days of history.
+- **Whoever is blocked by the approval gate can ask for it.** An unapproved package shows **Ask for approval** to everyone who cannot approve it themselves; it sends the handover notification again, marked as a reminder and naming who is asking. Until now the only lever was to walk over to the project manager's desk.
+- **An application can be added to a project from the deployment editor.** The application a schedule missed is regularly one the project never had, so *add another application to this rollout* could not stop at the applications that already exist. The same dialog opens from the rollout being edited, for its project, and the new application goes straight onto the rollout.
+
+### Changed
+- **The timeline and the notification cards name people, not e-mail addresses.** The address stays in the record — it is the stable identity, and a renamed person must not rewrite history — but the display name is resolved server-side and is what is shown. The project manager's approval comment is quoted on the package timeline, where the decision it explains is.
+- **"Ready" no longer claims a release manager may use the package.** It says *Handed over — waiting for the project manager's approval*, which is what the status has meant since 0.30.0.
+
+### Fixed
+- **A work item is no longer chosen for somebody who is still typing its id.** `81989` passes through `8198`, which is itself a real work item, so the automatic lookup filled the row with the wrong bug mid-number — and Enter took the first suggestion whether or not anybody had looked at it. Suggestions are now navigated with ↓/↑ and taken only when one is highlighted; the row is filled when a suggestion is picked, when the field is left, or when ⟳ is pressed.
+
+### Notes for operators
+- **Webhook deliveries are logged**, both accepted and rejected, with the target's host, the subject and the response body on a failure. "The comment never arrived in the Teams channel" was unanswerable before: the browser showed a toast whoever pressed the button may not have read, and the server kept no trace, so a webhook that had started rejecting one kind of message looked exactly like a webhook nobody had triggered. The URL itself is never logged — these carry their own signature.
+- The `noApproval` flag lives in the deployment's JSONB; nothing to migrate, and an older client simply does not set it.
+
 ## [0.30.0] - 2026-08-20
 
 ### Added
