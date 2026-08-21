@@ -10,6 +10,10 @@
 const MAX_APPS = 100;
 const MAX_ISSUES = 500;
 const MAX_TEXT = 2000;
+// An application released as a set of services (see normalizeServices). Portal
+// e-Usług ships nineteen of them; the bound is generous rather than tight because
+// the next such application is not ours to predict.
+const MAX_SERVICES = 200;
 // The description of what the release contains is now one block for the whole
 // package instead of a line per issue, so it needs room for the text that used
 // to be spread over hundreds of entries. The deployer instructions moved here
@@ -23,14 +27,56 @@ const clamp = (v, n) => str(v).slice(0, n);
 
 export const PACKAGE_STATUSES = ['draft', 'ready'];
 
+// The services one application is released as.
+//
+// Some applications are not a single artefact: „Portal e-Usług" is nineteen
+// containers cut from one release, and the version that matters is per service —
+// seventeen at 2.7.0-dev.27504 while the frontend is still on 2.6.0-dev.27503.
+// One row per application could not carry that, and one *package row* per service
+// is not the answer either: the rollout, the install report, the client's
+// changelog and the deployer's worklist are all about the application, so
+// nineteen rows would multiply every one of them.
+//
+// So the services hang off the application entry, and a service's version is the
+// application's unless the entry says otherwise — `version` is stored only when it
+// differs, which is how these releases are actually cut (one train version, a
+// couple of stragglers) and what keeps „Portal e-Usług v2.7.0-dev.27504" true
+// everywhere it is already printed. A service the release does not carry is simply
+// not in the list: not every service goes out every time.
+//
+// Names are the identity, so they are deduplicated case-insensitively — the same
+// service twice with two versions has no meaning a reader could act on.
+function normalizeServices(raw) {
+  if (!Array.isArray(raw)) return undefined;
+  const seen = new Set();
+  const out = [];
+  for (const s of raw.slice(0, MAX_SERVICES)) {
+    // A bare string is accepted so a caller can send ["auth-service", …] and let
+    // every one of them inherit the application's version.
+    const src = typeof s === 'string' ? { name: s } : s;
+    if (!src || typeof src !== 'object') continue;
+    const name = clamp(src.name, 200);
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const version = clamp(src.version, 100);
+    out.push(version ? { name, version } : { name });
+  }
+  return out.length ? out : undefined;
+}
+
 // One application at a specific version. A package with no version is a package
-// nobody can deploy, so both fields are required per entry.
+// nobody can deploy, so both fields are required per entry — and with services
+// that version is also the default every service inherits.
 function normalizeApp(a) {
   if (!a || typeof a !== 'object') return null;
   const name = clamp(a.name, 200);
   const version = clamp(a.version, 100);
   if (!name || !version) return null;
   const out = { name, version };
+  const services = normalizeServices(a.services);
+  if (services) out.services = services;
   // Where the build itself is. A deployer works from the version and then has to
   // find the file, which was a question asked over chat for every rollout — so the
   // address belongs on the package that names the version. Stored as typed: this
@@ -247,9 +293,16 @@ export function packageBlockReason(pkg) {
 export function approvalSurvivesEdit(prevData, nextData) {
   const a = prevData && typeof prevData === 'object' ? prevData : {};
   const b = nextData && typeof nextData === 'object' ? nextData : {};
+  // The services are part of the build, not a detail of it: dropping one from the
+  // release, adding one, or pinning one to a version of its own all change what
+  // would be installed, so they belong in the fingerprint next to the version.
+  const svc = (x) => (Array.isArray(x && x.services) ? x.services : [])
+    .map((s) => `${str(s && s.name).toLowerCase()}@${str(s && s.version)}`)
+    .sort()
+    .join(',');
   const fingerprint = (d) => JSON.stringify({
     apps: (Array.isArray(d.apps) ? d.apps : [])
-      .map((x) => `${str(x && x.name).toLowerCase()}@${str(x && x.version)}`)
+      .map((x) => `${str(x && x.name).toLowerCase()}@${str(x && x.version)}#${svc(x)}`)
       .sort(),
     testOnly: d.testOnly === true,
   });

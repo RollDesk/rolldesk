@@ -63,6 +63,76 @@ test('an application keeps the address of its build', () => {
   assert.equal(long.data.data.apps[0].url.length, 1000);
 });
 
+// An application released as a set of services: nineteen containers cut from one
+// release, most of them on the same version. The application's own version is the
+// default, so a service stores one only when it differs.
+test('an application carries its services, and a service inherits the version', () => {
+  const r = normalizePackage(body({
+    apps: [{
+      name: 'Portal e-Usług',
+      version: '2.7.0-dev.27504',
+      services: [
+        { name: 'auth-service' },
+        { name: 'gateway', version: '  ' },
+        { name: 'frontend', version: ' 2.6.0-dev.27503 ' },
+        'user-service',
+      ],
+    }],
+  }));
+  assert.deepEqual(r.data.data.apps, [{
+    name: 'Portal e-Usług',
+    version: '2.7.0-dev.27504',
+    services: [
+      { name: 'auth-service' },
+      { name: 'gateway' },
+      { name: 'frontend', version: '2.6.0-dev.27503' },
+      { name: 'user-service' },
+    ],
+  }]);
+});
+
+test('a service list is deduplicated, bounded, and absent when it says nothing', () => {
+  const dup = normalizePackage(body({
+    apps: [{
+      name: 'core', version: '3.2.0',
+      // The same service twice has no meaning a reader could act on: the first
+      // entry wins rather than the row being stored with two versions.
+      services: [{ name: 'auth-service', version: '1.0.0' }, { name: 'AUTH-Service', version: '2.0.0' }],
+    }],
+  }));
+  assert.deepEqual(dup.data.data.apps[0].services, [{ name: 'auth-service', version: '1.0.0' }]);
+
+  // Nameless entries are dropped, and an application whose services are all
+  // nameless is an ordinary single-artefact application again.
+  const empty = normalizePackage(body({
+    apps: [{ name: 'core', version: '3.2.0', services: [{ version: '1.0.0' }, { name: '  ' }] }],
+  }));
+  assert.deepEqual(empty.data.data.apps, [{ name: 'core', version: '3.2.0' }]);
+
+  // Not an array (an older caller, or a hostile one) leaves the field off.
+  const bogus = normalizePackage(body({
+    apps: [{ name: 'core', version: '3.2.0', services: 'auth-service' }],
+  }));
+  assert.equal(bogus.data.data.apps[0].services, undefined);
+
+  // Bounded like every other list stored in the JSONB column.
+  const many = normalizePackage(body({
+    apps: [{
+      name: 'core', version: '3.2.0',
+      services: Array.from({ length: 250 }, (_, i) => ({ name: 'svc-' + i })),
+    }],
+  }));
+  assert.equal(many.data.data.apps[0].services.length, 200);
+  assert.equal(many.data.data.apps[0].services[0].name, 'svc-0');
+  // A name long enough to be a payload is cut, not rejected — the same rule the
+  // application name follows.
+  const long = normalizePackage(body({
+    apps: [{ name: 'core', version: '3.2.0', services: [{ name: 's'.repeat(500), version: 'v'.repeat(500) }] }],
+  }));
+  assert.equal(long.data.data.apps[0].services[0].name.length, 200);
+  assert.equal(long.data.data.apps[0].services[0].version.length, 100);
+});
+
 // The description used to live per issue; it is now one block for the package,
 // so an issue entry carries identifiers only.
 test('an issue carries identifiers only — a per-issue description is not stored', () => {
@@ -565,6 +635,19 @@ test('an approval survives a correction to the prose but not a change to the bui
   assert.equal(approvalSurvivesEdit(base, { apps: [] }), false);
   // And so is turning it into a test-only release.
   assert.equal(approvalSurvivesEdit(base, Object.assign({}, base, { testOnly: true })), false);
+
+  // The services are the build too. A release that drops one service, adds one, or
+  // pins one to a version of its own is not the release that was cleared — while
+  // reordering the list is still nothing.
+  const svc = { apps: [{ name: 'Portal', version: '2.7.0', services: [{ name: 'auth' }, { name: 'gateway' }] }] };
+  const reordered = { apps: [{ name: 'Portal', version: '2.7.0', services: [{ name: 'gateway' }, { name: 'auth' }] }] };
+  assert.equal(approvalSurvivesEdit(svc, reordered), true);
+  const dropped = { apps: [{ name: 'Portal', version: '2.7.0', services: [{ name: 'auth' }] }] };
+  assert.equal(approvalSurvivesEdit(svc, dropped), false);
+  const pinned = { apps: [{ name: 'Portal', version: '2.7.0', services: [{ name: 'auth' }, { name: 'gateway', version: '2.6.0' }] }] };
+  assert.equal(approvalSurvivesEdit(svc, pinned), false);
+  // An application that gains a service list at all is a change of the same kind.
+  assert.equal(approvalSurvivesEdit({ apps: [{ name: 'Portal', version: '2.7.0' }] }, svc), false);
 });
 
 test('the API object reports the approval and the deployable flag', () => {
