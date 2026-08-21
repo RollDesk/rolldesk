@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.34.0] - 2026-08-21
+
+### Added
+- **An application can be released as a set of services, each with its own version.** „Portal e-Usług" is nineteen containers cut from one release — seventeen at `2.7.0-dev.27504` while the frontend is still on `2.6.0-dev.27503` — and a package row carrying one application and one version could not say that. It was not expressible by adding the application nineteen times either: the name is the identity everywhere downstream (the install report, the per-application progress, the client's changelog, the worklist), so nineteen rows would have multiplied every one of them. The services now hang off the application, and the release stays one row.
+- **A service inherits the release version unless it says otherwise.** The version box on a service is optional and its placeholder names what it will inherit, so the normal case — one train version, a couple of stragglers — is one version typed once and an override where it differs. What is stored is only the difference, which means correcting the release version afterwards still reaches every service that was not deliberately pinned away from it. „Portal e-Usług v2.7.0-dev.27504" therefore stays true everywhere it was already printed.
+- **Nothing is selected by default, and only the selected services go out.** A release is as often one service out of nineteen as it is all of them, so the list is opt-in with **Wszystkie** / **Żaden** one press away — a pre-ticked list would have quietly claimed eighteen services were going out because nobody went through it. Filling in every service is never required.
+- **The list of services is named once, on the application in its project** (one per line, `:tag` allowed and dropped — the version belongs to a release, not to a catalogue), and a package then only ticks. A service the catalogue does not know can still be added inside the package, so a new service in a release does not block a tester, who cannot edit the project. A service the project has dropped stays on the packages that were assembled with it.
+- **The image list can be pasted.** `📋 Wklej listę` takes what a pipeline prints — `pudo/auth-service:2.7.0-dev.27504`, one per line — ticks what it matches (ignoring any registry path in front of the name), adds what it does not, makes the version most of the list shares the release version when none was typed, and leaves only the ones that differ on their rows. That paste is where these versions come from; retyping nineteen of them by hand is the work this replaces.
+- **Where the services are read:** a `🧩 Serwisy · 18` panel in the action bar of the deployer panel and of the deployments list, with the pinned versions marked and the inherited ones greyed; the count on the application in every list that shows one; the schedule form naming the pinned versions before the rollout is planned; a collapsed block in the client's portal; and the count plus the exceptions in the Teams/e-mail notification — the count and what differs, not nineteen lines of the same string in a message that is cut at 1200 characters anyway.
+- The project manager's approval is **cleared by a change to the services**, exactly as it is by a change to a version: dropping one, adding one or pinning one is a different release from the one that was cleared.
+- Reporting the install stays **per application**: the deployer installs the set, and „Portal e-Usług installed" is the answer the process asks for. The service list is what tells them what the set is.
+
 ## [0.33.1] - 2026-08-21
 
 ### Fixed

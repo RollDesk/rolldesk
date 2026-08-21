@@ -2919,6 +2919,13 @@
         <label data-i18n="proj.repoLink">Repository link</label>
         <input type="text" id="app-repo" class="mono w-long" data-i18n-ph="proj.repoLinkPh" placeholder="https://...">
       </div>
+      <!-- The services this application is released as, when it is not one
+           artefact. Named once here so a package only has to tick the ones that
+           are going out and type the versions that differ — see appServices(). -->
+      <div class="field">
+        <label style="display:flex; align-items:center;"><span data-i18n="proj.appServices">Services</span><span class="info-ic" data-i18n-tip="proj.appServicesNote">i</span></label>
+        <textarea id="app-services" class="mono" rows="6" style="width:100%; box-sizing:border-box; font-size:12.5px;" data-i18n-ph="proj.appServicesPh" placeholder="One per line"></textarea>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="mini-btn" onclick="closeFormModal('app-modal-form')" data-i18n="common.cancel">Cancel</button>
@@ -3000,11 +3007,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.33.1"></script>
-<script src="i18n/en.js?v=0.33.1"></script>
+<script src="i18n/pl.js?v=0.34.0"></script>
+<script src="i18n/en.js?v=0.34.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.33.1';
+  const ROLLDESK_VERSION = '0.34.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -4223,11 +4230,33 @@
     d = d || {};
     const head = (d.id ? d.id + ' — ' : '') + (projName || '');
     const facts = [];
-    const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '')).join(', ');
+    const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '') + notifServiceSuffix(a)).join(', ');
     if(appVer) facts.push(appVer);
     const env = envLabelNotif(d.env || '');
     if(env) facts.push(env);
     return facts.length ? head + '\n' + facts.join(' · ') : head;
+  }
+
+  // „(18 serwisów; frontend 2.6.0-dev.27503)" after an application that ships as a
+  // set of services.
+  //
+  // The count and the exceptions, not the list: nineteen lines of the same version
+  // is what makes a Teams message unreadable, the inbox card is cut at 1200
+  // characters anyway, and the only thing that cannot be worked out from „Portal
+  // e-Usług 2.7.0-dev.27504" is which service is *not* on it. The full list is in
+  // the app, one click from the same notification.
+  const NOTIF_SERVICE_NAMES = 5;
+  function notifServiceSuffix(a){
+    const n = appServiceCount(a);
+    if(!n) return '';
+    const parts = [tnf('notif.servicesN', {n})];
+    const pinned = appServiceOverrides(a);
+    if(pinned.length){
+      const named = pinned.slice(0, NOTIF_SERVICE_NAMES).map(s=>s.name + ' ' + s.version).join(', ');
+      const rest = pinned.length - NOTIF_SERVICE_NAMES;
+      parts.push(named + (rest > 0 ? ' ' + tnf('notif.andNMore', {n: rest}) : ''));
+    }
+    return ' (' + parts.join('; ') + ')';
   }
 
   // Body of the two package events. Same shape as a schedule notification — id
@@ -4239,7 +4268,7 @@
     const lines = [];
     lines.push((pkg.id ? pkg.id + ' — ' : '') + (projName || ''));
     const facts = [];
-    const appsLabel = (pkg.apps||[]).map(a=>a.name + (a.version ? ' v' + a.version : '')).join(', ');
+    const appsLabel = (pkg.apps||[]).map(a=>a.name + (a.version ? ' v' + a.version : '') + notifServiceSuffix(a)).join(', ');
     if(appsLabel) facts.push(appsLabel);
     const issuesN = (pkg.issues||[]).length;
     if(issuesN) facts.push(tnf('notif.pkgIssuesN', {n: issuesN}));
@@ -5716,11 +5745,21 @@
         else if(cmp === 0) hint = tf('sch.appSame', {version: a.version});
       }
       const unknown = !known ? `<div style="font-size:11px; color:#8A5A05; margin-top:5px;">⚠ ${tf('sch.appNotInProject', {app: a.name})}</div>` : '';
+      // How many services this release carries and which of them are pinned to a
+      // version of their own. Named here rather than counted only: the release
+      // manager is planning what the client will be told is going out.
+      const services = appServices(a);
+      const pinned = services.filter(s=>!s.inherited);
+      const svcLine = services.length
+        ? `<div style="font-size:11px; color:var(--text-muted); margin-top:5px;">🧩 ${escapeHtml(tf('svc.nServices', {n: services.length}))}${
+            pinned.length ? ' · ' + escapeHtml(pinned.map(s=>s.name + ' v' + s.version).join(', ')) : ''}</div>`
+        : '';
       return `<div class="schedule-app-row" data-app="${escapeHtml(a.name)}" data-version="${escapeHtml(a.version)}" style="border:1px solid var(--line); border-radius:8px; padding:8px 10px;">
         <div style="display:flex; align-items:center; gap:10px;">
           <span style="flex:1; font-size:13px; font-weight:500;">${escapeHtml(a.name)}</span>
           <span class="mono" style="font-size:12.5px; font-weight:700;">v${escapeHtml(a.version)}</span>
         </div>
+        ${svcLine}
         ${hint ? `<div style="font-size:11px; color:#8A5A05; margin-top:5px;">⚠ ${escapeHtml(hint)}</div>` : ''}
         ${unknown}
       </div>`;
@@ -5728,8 +5767,25 @@
   }
 
   // The applications a deployment will carry: whatever the picked package lists.
+  // Copied, not referenced — including the service list, so what went out on the day
+  // stays readable on the rollout even after the package is corrected for the next
+  // one. Only the services actually selected in the package are there to copy.
   function scheduleAppsFromPackage(){
-    return packageApps(packageById(schedulePackageId)).map(a=>({name:a.name, version:a.version}));
+    return packageApps(packageById(schedulePackageId)).map(a=>{
+      const out = {name:a.name, version:a.version};
+      const services = appServices(a);
+      if(services.length){
+        out.services = ((a && a.services) || [])
+          .map(s=>{
+            const name = String((s && s.name) || '').trim();
+            if(!name) return null;
+            const own = String((s && s.version) || '').trim();
+            return own ? {name, version: own} : {name};
+          })
+          .filter(Boolean);
+      }
+      return out;
+    });
   }
 
   function renderScheduleDeps(){
@@ -6147,7 +6203,73 @@
   function packageApps(pkg){ return (pkg && Array.isArray(pkg.apps)) ? pkg.apps : []; }
   function packageIssues(pkg){ return (pkg && Array.isArray(pkg.issues)) ? pkg.issues : []; }
   function packageAppsLabel(pkg){
-    return packageApps(pkg).map(a=>`${a.name} v${a.version}`).join(', ');
+    return packageApps(pkg).map(a=>`${a.name} v${a.version}${appServiceSuffix(a)}`).join(', ');
+  }
+
+  // ---- Applications released as a set of services --------------------------
+  // Some applications are not one artefact. „Portal e-Usług" is nineteen
+  // containers cut from one release, and the version that matters is per service:
+  // seventeen at 2.7.0-dev.27504 while the frontend is still on 2.6.0-dev.27503.
+  // One application row with one version could not carry that, and one row per
+  // service is not the answer either — the rollout, the install report, the
+  // client's changelog and the deployer's worklist are all about the application,
+  // so nineteen rows would multiply every one of them.
+  //
+  // Hence: the services hang off the application entry, and a service's version is
+  // the application's unless it says otherwise. Inheritance rather than a version
+  // per row because that is how these releases are cut (one train version, a couple
+  // of stragglers), and because it keeps „Portal e-Usług v2.7.0-dev.27504" true
+  // everywhere it is already printed — the schedule, the chips, the notification,
+  // the client's portal. A service the release does not carry is simply not on the
+  // list: not every service goes out every time.
+  //
+  // The same shape is stored on the package and copied onto the deployment planned
+  // from it, so these helpers read both.
+  const MAX_SERVICES_PER_APP = 200;
+
+  // The service names an application declares in its project. Names only — a
+  // version belongs to a release, not to the catalogue.
+  function projectAppServiceNames(projectKey, appName){
+    const p = PROJECTS[projectKey];
+    const app = (p && Array.isArray(p.apps))
+      ? p.apps.find(a => a && appKey(a.name) === appKey(appName))
+      : null;
+    const list = (app && Array.isArray(app.services)) ? app.services : [];
+    return list.map(s => String((s && s.name) || s || '').trim()).filter(Boolean);
+  }
+
+  // The services of one application entry, each with the version it will actually
+  // be installed at. `inherited` is what the UI marks so a reader can tell „same as
+  // the release" from „pinned to something else" without comparing strings.
+  function appServices(a){
+    const list = (a && Array.isArray(a.services)) ? a.services : [];
+    const base = String((a && a.version) || '').trim();
+    return list.map(s=>{
+      const name = String((s && s.name) || '').trim();
+      if(!name) return null;
+      const own = String((s && s.version) || '').trim();
+      return {name, version: own || base, inherited: !own};
+    }).filter(Boolean);
+  }
+  function appServiceCount(a){ return appServices(a).length; }
+  // The services pinned to a version of their own — the short list worth naming
+  // where there is no room for all nineteen (a notification, a one-line label).
+  function appServiceOverrides(a){ return appServices(a).filter(s=>!s.inherited); }
+  // „ (18 serwisów)" after an application's version, for the labels that are read
+  // as one line. Empty for an ordinary single-artefact application.
+  function appServiceSuffix(a){
+    const n = appServiceCount(a);
+    return n ? ' (' + tf('svc.nServices', {n}) + ')' : '';
+  }
+  // Whether this record has anything to show in a services panel at all.
+  function hasServiceApps(d){
+    return ((d && d.apps) || []).some(a => appServiceCount(a) > 0);
+  }
+  // Every service of every application on the record — what the panel's button
+  // counts, so „🧩 Serwisy · 18" is true of a rollout carrying two such
+  // applications as well as of one.
+  function deploymentServiceCount(d){
+    return ((d && d.apps) || []).reduce((n, a) => n + appServiceCount(a), 0);
   }
   // The changelog text a picked package fills in: what the test team wrote about
   // the release, with the ticket ids listed underneath (the changelog also leaves
@@ -6313,9 +6435,15 @@
   function deploymentAppsCellHtml(r){
     return (r.apps||[]).map(a=>{
       const build = buildLinkHtml(packageAppBuild(r, a));
+      // „18 serwisów" on the row rather than only inside the panel: the column says
+      // what is being installed, and for an application released as a set of services
+      // the version alone is not the whole answer. The list itself is one click away
+      // (🧩 in the action bar) — it does not belong in a table cell.
+      const svc = appServiceCount(a);
       return `<div style="margin-bottom:4px;">
         <div style="font-size:13px;">${escapeHtml(a.name)}</div>
         <div class="mono" style="font-size:11px; color:var(--text-faint);">v${escapeHtml(a.version||'')}${build ? ' · ' + build : ''}</div>
+        ${svc ? `<div style="font-size:11px; color:var(--text-muted);">🧩 ${escapeHtml(tf('svc.nServices', {n: svc}))}</div>` : ''}
       </div>`;
     }).join('');
   }
@@ -6325,9 +6453,12 @@
   function packageAppsCellHtml(pkg){
     const apps = packageApps(pkg);
     if(!apps.length) return '<span style="color:var(--text-faint);">—</span>';
-    const rows = apps.map(a=>
-      `<div>${escapeHtml(a.name)} <span class="mono">v${escapeHtml(a.version||'')}</span></div>`
-    ).join('');
+    const rows = apps.map(a=>{
+      const svc = appServiceCount(a);
+      return `<div>${escapeHtml(a.name)} <span class="mono">v${escapeHtml(a.version||'')}</span>`
+        + (svc ? `<span style="color:var(--text-muted); font-size:11px;"> · 🧩 ${escapeHtml(tf('svc.nServices', {n: svc}))}</span>` : '')
+        + `</div>`;
+    }).join('');
     const builds = packageBuildsButtonHtml(pkg);
     return rows + (builds ? `<div style="margin-top:5px;">${builds}</div>` : '');
   }
@@ -6722,7 +6853,15 @@
       renderPackageFiles(kind);
     });
 
-    packageDraftApps = pkg ? packageApps(pkg).map(a=>({name:a.name, version:a.version, url:a.url||''})) : [];
+    // The stored services arrive ticked — they are what this package carries — and
+    // syncDraftServices below folds in the rest of the project's catalogue as
+    // unticked rows, so a service added to the application since is offered too.
+    packageDraftApps = pkg ? packageApps(pkg).map(a=>({
+      name:a.name, version:a.version, url:a.url||'',
+      services: (Array.isArray(a.services) ? a.services : [])
+        .map(s=>({name: String((s && s.name) || '').trim(), version: (s && s.version) || '', on: true, adhoc: false}))
+        .filter(s=>s.name),
+    })) : [];
     packageDraftIssues = pkg
       // `lookedUpFor` is seeded with the stored id so reopening the editor does not
       // re-query the tracker for every row; ⟳ still forces a fresh lookup.
@@ -6730,6 +6869,8 @@
       : [];
     if(!packageDraftApps.length) packageDraftApps = [newPackageAppDraft()];
     if(!packageDraftIssues.length) packageDraftIssues = [newPackageIssueDraft()];
+    packageServicesOpen = new Set();
+    packageDraftApps.forEach((a, i)=>syncDraftServices(i));
     renderPackageApps();
     renderPackageIssues();
     refreshPackageTrackerStatus();
@@ -6768,7 +6909,12 @@
     editingAppIndex = null;
     appModalProjectKey = key;
     appModalAfterAdd = (name)=>{
-      if(typeof rowIndex === 'number' && packageDraftApps[rowIndex]) packageDraftApps[rowIndex].name = name;
+      if(typeof rowIndex === 'number' && packageDraftApps[rowIndex]){
+        packageDraftApps[rowIndex].name = name;
+        // The application may have been created with a service catalogue in the same
+        // dialog; the row has to offer it without being re-picked.
+        syncDraftServices(rowIndex);
+      }
       renderPackageApps();
     };
     const p = PROJECTS[key];
@@ -6776,12 +6922,18 @@
     document.getElementById('app-modal-form-sub').textContent = t('pkg.addAppSub');
     document.getElementById('app-name').value = '';
     document.getElementById('app-repo').value = '';
+    setAppServicesInput([]);
     openFormModal('app-modal-form');
   }
 
   // Both lists are project-scoped: the app names and the offices to suggest. So
   // is the work-item lookup, which is why the tracker line is refreshed with them.
-  function onPackageProjectChange(){ renderPackageApps(); renderPackageIssues(); refreshPackageTrackerStatus(); }
+  function onPackageProjectChange(){
+    // Another project means another application catalogue, so every row's service
+    // list is reconciled before the editor is redrawn.
+    packageDraftApps.forEach((a, i)=>syncDraftServices(i));
+    renderPackageApps(); renderPackageIssues(); refreshPackageTrackerStatus();
+  }
 
   // Whether the selected project can look a work item up, said before an id is
   // typed. Two projects of the same client are configured separately — one may
@@ -6834,12 +6986,12 @@
     const names = packageAppNameOptions();
     wrap.innerHTML = packageDraftApps.map((a,i)=>{
       const options = names.length
-        ? `<select class="pkg-app-name mono" style="flex:1; font-size:12.5px;" onchange="setPackageApp(${i}, 'name', this.value)">
+        ? `<select class="pkg-app-name mono" style="flex:1; font-size:12.5px;" onchange="setPackageAppName(${i}, this.value)">
              <option value="">${t('pkg.pickApp')}</option>
              ${names.map(n=>`<option value="${escapeHtml(n)}" ${n === a.name ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}
              ${(a.name && !names.includes(a.name)) ? `<option value="${escapeHtml(a.name)}" selected>${escapeHtml(a.name)}</option>` : ''}
            </select>`
-        : `<input type="text" class="pkg-app-name mono" value="${escapeHtml(a.name)}" placeholder="${t('pkg.appNamePh')}" style="flex:1; font-size:12.5px;" oninput="setPackageApp(${i}, 'name', this.value)">`;
+        : `<input type="text" class="pkg-app-name mono" value="${escapeHtml(a.name)}" placeholder="${t('pkg.appNamePh')}" style="flex:1; font-size:12.5px;" oninput="setPackageApp(${i}, 'name', this.value)" onchange="setPackageAppName(${i}, this.value)">`;
       // Where the build is. A deployer had to ask for the path of every release,
       // so it is typed once here next to the version it belongs to. A UNC share is
       // as normal as a URL, hence a plain text field.
@@ -6850,15 +7002,242 @@
       const addApp = canEditProjects()
         ? `<button type="button" class="mini-btn" title="${escapeHtml(t('pkg.addAppToProjectTitle'))}" onclick="openAppModalForPackage(${i})">＋</button>`
         : '';
-      return `<div style="display:flex; gap:8px; align-items:center;">
+      return `<div>
+        <div style="display:flex; gap:8px; align-items:center;">
         ${options}
         ${addApp}
-        <input type="text" class="pkg-app-version mono" value="${escapeHtml(a.version)}" placeholder="${t('pkg.versionPh')}" style="width:150px; font-size:12.5px;" oninput="setPackageApp(${i}, 'version', this.value)">
+        <input type="text" class="pkg-app-version mono" value="${escapeHtml(a.version)}" placeholder="${t('pkg.versionPh')}" style="width:150px; font-size:12.5px;" oninput="setPackageApp(${i}, 'version', this.value); refreshPackageServiceHints(${i});">
         <input type="text" class="pkg-app-url mono" value="${escapeHtml(a.url || '')}" placeholder="${t('pkg.appUrlPh')}" title="${escapeHtml(t('pkg.appUrlNote'))}" style="flex:1.2; min-width:0; font-size:12px;" oninput="setPackageApp(${i}, 'url', this.value); refreshPackageAppUrlHints();">
         ${buildLinkNeedsSas(a.url) ? `<span class="pkg-url-warn" title="${escapeHtml(t('pkg.appUrlSasNote'))}" style="flex-shrink:0; color:var(--amber); font-size:11.5px; cursor:help;">⚠ ${escapeHtml(t('pkg.appUrlSas'))}</span>` : ''}
         <button type="button" class="mini-btn" title="${t('pkg.removeRow')}" onclick="removePackageApp(${i})">✕</button>
+        </div>
+        ${packageServicesBlockHtml(a, i)}
       </div>`;
     }).join('');
+  }
+
+  // ---- The services of one draft application --------------------------------
+  // An application released as a set of services is edited here rather than as one
+  // package row per service: see the appServices() header for why the application
+  // stays the unit everywhere else.
+  //
+  // Nothing is ticked by default. A release is as often one service out of nineteen
+  // as it is all of them, and a pre-ticked list would quietly claim eighteen
+  // services are going out because nobody went through it — „Wszystkie" is one press
+  // for the other case. The version box is optional throughout: empty means „the
+  // version of the release above", which is what most of the list is.
+  let packageServicesOpen = new Set();
+
+  function togglePackageServices(i){
+    if(packageServicesOpen.has(i)) packageServicesOpen.delete(i);
+    else packageServicesOpen.add(i);
+    renderPackageApps();
+  }
+
+  // Rebuild a row's service list: the catalogue its project declares first, then
+  // anything the package carries that the catalogue does not know — a service added
+  // for one release, or one the project has dropped since. Ticks and typed versions
+  // survive, keyed by name.
+  function syncDraftServices(i){
+    const row = packageDraftApps[i];
+    if(!row) return;
+    const projSel = document.getElementById('package-project-select');
+    const catalogue = projectAppServiceNames(projSel ? projSel.value : '', row.name);
+    const existing = Array.isArray(row.services) ? row.services : [];
+    const byKey = new Map();
+    existing.forEach(s=>{
+      const k = String((s && s.name) || '').trim().toLowerCase();
+      if(k && !byKey.has(k)) byKey.set(k, s);
+    });
+    const rows = [];
+    catalogue.forEach(name=>{
+      const k = name.toLowerCase();
+      const prev = byKey.get(k);
+      rows.push({name, version: prev ? (prev.version || '') : '', on: prev ? !!prev.on : false, adhoc: false});
+      byKey.delete(k);
+    });
+    byKey.forEach(s=>{
+      const name = String((s && s.name) || '').trim();
+      if(name) rows.push({name, version: s.version || '', on: !!s.on, adhoc: true});
+    });
+    row.services = rows;
+  }
+
+  function draftServices(a){
+    return (a && Array.isArray(a.services)) ? a.services : [];
+  }
+  function draftServicesOn(a){
+    return draftServices(a).filter(s=>s && s.on && String(s.name||'').trim());
+  }
+
+  function packageServicesBlockHtml(a, i){
+    // Offered only once there is an application to attach services to — an empty row
+    // has nothing to list, and the line would be noise on a single-artefact release.
+    if(!String((a && a.name) || '').trim()) return '';
+    const rows = draftServices(a);
+    const on = draftServicesOn(a).length;
+    const open = packageServicesOpen.has(i);
+    const count = rows.length ? ` · <span id="pkg-svc-count-${i}">${on}/${rows.length}</span>` : '';
+    const head = `<button type="button" class="mini-btn" aria-expanded="${open}" onclick="togglePackageServices(${i})" style="font-size:11px;">${open ? '▾' : '▸'} 🧩 ${escapeHtml(t('svc.short'))}${count}</button>`;
+    if(!open){
+      return `<div style="margin:4px 0 2px 2px;">${head}</div>`;
+    }
+    const tools = `<div style="display:flex; gap:6px; flex-wrap:wrap; margin:6px 0;">
+      ${rows.length ? `<button type="button" class="mini-btn" style="font-size:11px;" onclick="setAllPackageServices(${i}, true)">${escapeHtml(t('svc.all'))}</button>
+      <button type="button" class="mini-btn" style="font-size:11px;" onclick="setAllPackageServices(${i}, false)">${escapeHtml(t('svc.none'))}</button>` : ''}
+      <button type="button" class="mini-btn" style="font-size:11px;" title="${escapeHtml(t('svc.pasteNote'))}" onclick="pastePackageServices(${i})">📋 ${escapeHtml(t('svc.paste'))}</button>
+      <button type="button" class="mini-btn" style="font-size:11px;" onclick="addPackageService(${i})">＋ ${escapeHtml(t('svc.addOne'))}</button>
+    </div>`;
+    const inherit = String((a && a.version) || '').trim();
+    const list = rows.map((s, j)=>{
+      const nameCell = s.adhoc
+        ? `<input type="text" class="mono" value="${escapeHtml(s.name || '')}" placeholder="${escapeHtml(t('svc.namePh'))}" style="flex:1; min-width:0; font-size:12px;" oninput="setPackageService(${i}, ${j}, 'name', this.value)">`
+        : `<span class="mono" style="flex:1; min-width:0; font-size:12px;">${escapeHtml(s.name || '')}</span>`;
+      return `<div style="display:flex; gap:8px; align-items:center; padding:2px 0;">
+        <input type="checkbox" ${s.on ? 'checked' : ''} style="width:auto;" aria-label="${escapeHtml(s.name || '')}" onchange="togglePackageService(${i}, ${j}, this.checked)">
+        ${nameCell}
+        <input type="text" class="mono pkg-svc-version" value="${escapeHtml(s.version || '')}" placeholder="${escapeHtml(inherit ? tf('svc.inheritsPh', {version: inherit}) : t('svc.versionPh'))}" style="width:170px; font-size:12px;" oninput="setPackageService(${i}, ${j}, 'version', this.value)">
+        ${s.adhoc ? `<button type="button" class="mini-btn" title="${escapeHtml(t('pkg.removeRow'))}" onclick="removePackageService(${i}, ${j})">✕</button>` : '<span style="width:26px;"></span>'}
+      </div>`;
+    }).join('');
+    const empty = rows.length ? '' : `<div style="font-size:11.5px; color:var(--text-muted);">${escapeHtml(t('svc.emptyCatalogue'))}</div>`;
+    return `<div style="margin:4px 0 8px 2px; padding:8px 10px; border-left:2px solid var(--line); background:var(--paper);">
+      ${head}
+      ${tools}
+      ${empty}
+      ${list}
+    </div>`;
+  }
+
+  // Only the ticked count and the inherit placeholders, so ticking eighteen boxes (or
+  // typing the release version) does not rebuild the list under the pointer.
+  function refreshPackageServiceHints(i){
+    const a = packageDraftApps[i];
+    if(!a) return;
+    const badge = document.getElementById('pkg-svc-count-' + i);
+    if(badge) badge.textContent = draftServicesOn(a).length + '/' + draftServices(a).length;
+    const inherit = String(a.version || '').trim();
+    const ph = inherit ? tf('svc.inheritsPh', {version: inherit}) : t('svc.versionPh');
+    const wrap = document.getElementById('package-apps-list');
+    const row = wrap ? wrap.children[i] : null;
+    if(row) row.querySelectorAll('.pkg-svc-version').forEach(el=>{ el.placeholder = ph; });
+  }
+
+  function setPackageService(i, j, field, value){
+    const s = draftServices(packageDraftApps[i])[j];
+    if(!s) return;
+    s[field] = value;
+    // Typing a name into an ad-hoc row is how it is included: a named service left
+    // unticked would silently not go out.
+    if(field === 'name' && String(value || '').trim()) s.on = true;
+    refreshPackageServiceHints(i);
+  }
+  function togglePackageService(i, j, on){
+    const s = draftServices(packageDraftApps[i])[j];
+    if(!s) return;
+    s.on = !!on;
+    refreshPackageServiceHints(i);
+  }
+  function setAllPackageServices(i, on){
+    draftServices(packageDraftApps[i]).forEach(s=>{ s.on = !!on; });
+    renderPackageApps();
+  }
+  function addPackageService(i){
+    const a = packageDraftApps[i];
+    if(!a) return;
+    a.services = draftServices(a);
+    if(a.services.length >= MAX_SERVICES_PER_APP){ showToast(tf('svc.tooMany', {n: MAX_SERVICES_PER_APP})); return; }
+    a.services.push({name:'', version:'', on:true, adhoc:true});
+    packageServicesOpen.add(i);
+    renderPackageApps();
+  }
+  function removePackageService(i, j){
+    const list = draftServices(packageDraftApps[i]);
+    if(!list[j]) return;
+    list.splice(j, 1);
+    renderPackageApps();
+  }
+
+  // Paste the image list a pipeline prints — `pudo/auth-service:2.7.0-dev.27504`,
+  // one per line. That list is where these versions come from, and ticking nineteen
+  // boxes and retyping nineteen versions from it by hand is the work this feature
+  // exists to remove.
+  //
+  // A pasted line matches a catalogue entry on the name, ignoring any registry path
+  // in front of it (`pudo/gateway` is `gateway`), and anything unmatched is added as
+  // an ad-hoc service. The version most of the list shares becomes the release
+  // version when none was typed, so what stays on the rows is only what differs.
+  function pastePackageServices(i){
+    const a = packageDraftApps[i];
+    if(!a) return;
+    showAppPrompt(t('svc.pasteTitle'), '', (text)=>{
+      if(text == null) return;
+      const parsed = parsePastedServices(text);
+      if(!parsed.length){ showToast(t('svc.pasteNothing')); return; }
+      a.services = draftServices(a);
+      // The dominant version fills the application's own box when it is empty; the
+      // tester can still overwrite it, and every service equal to it then reads as
+      // „inherits" rather than repeating the same string nineteen times.
+      if(!String(a.version || '').trim()){
+        const tally = new Map();
+        parsed.forEach(p=>{ if(p.version) tally.set(p.version, (tally.get(p.version) || 0) + 1); });
+        let best = '', bestN = 0;
+        tally.forEach((n, v)=>{ if(n > bestN){ bestN = n; best = v; } });
+        if(best) a.version = best;
+      }
+      const base = String(a.version || '').trim();
+      let added = 0, matched = 0;
+      parsed.forEach(p=>{
+        const existing = a.services.find(s => serviceNamesMatch(s.name, p.name));
+        const version = (p.version && p.version !== base) ? p.version : '';
+        if(existing){
+          existing.on = true;
+          if(p.version) existing.version = version;
+          matched++;
+        } else if(a.services.length < MAX_SERVICES_PER_APP){
+          a.services.push({name: p.name, version, on: true, adhoc: true});
+          added++;
+        }
+      });
+      packageServicesOpen.add(i);
+      renderPackageApps();
+      showToast(tf('svc.pasteDone', {n: matched + added, added}));
+    }, t('svc.pasteNote'), true);
+  }
+
+  // `pudo/auth-service:2.7.0-dev.27504` → {name, version}. Tolerant on purpose: the
+  // text is pasted from a build log, so bullets, commas and blank lines are normal,
+  // and a line with no tag is a service that will inherit the release version.
+  function parsePastedServices(text){
+    const out = [];
+    const seen = new Set();
+    String(text || '').split(/[\n,;]+/).forEach(raw=>{
+      const line = String(raw || '').replace(/^[\s\-*•]+/, '').trim();
+      if(!line) return;
+      // Split on the last colon: an image name has no colon, a tag does, and a
+      // registry with a port (`host:5000/app:1.2`) puts one in front as well.
+      const at = line.lastIndexOf(':');
+      // A colon before the last '/' belongs to the registry, not to a tag.
+      const isTag = at > -1 && line.indexOf('/', at) === -1;
+      const name = (isTag ? line.slice(0, at) : line).trim().slice(0, 200);
+      const version = (isTag ? line.slice(at + 1) : '').trim().slice(0, 100);
+      if(!name) return;
+      const k = name.toLowerCase();
+      if(seen.has(k)) return;
+      seen.add(k);
+      out.push({name, version});
+    });
+    return out;
+  }
+
+  // Two service names are the same service when they agree after the registry path
+  // is dropped: a catalogue holding `gateway` has to recognise `pudo/gateway`, and a
+  // catalogue holding the full image name has to recognise the short form.
+  function serviceNamesMatch(a, b){
+    const norm = v => String(v || '').trim().toLowerCase();
+    const tail = v => norm(v).split('/').pop();
+    if(!norm(a) || !norm(b)) return false;
+    return norm(a) === norm(b) || tail(a) === tail(b);
   }
 
   // Redraw only the warnings, so typing in the URL field is not interrupted by the
@@ -7199,7 +7578,17 @@
 
   function setPackageApp(i, field, value){ if(packageDraftApps[i]) packageDraftApps[i][field] = value; }
   function setPackageIssue(i, field, value){ if(packageDraftIssues[i]) packageDraftIssues[i][field] = value; }
-  function newPackageAppDraft(){ return {name:'', version:'', url:''}; }
+  // Changing which application a row names changes which services it can carry, so
+  // the list is rebuilt from that application's catalogue. Ticks and typed versions
+  // survive for a service of the same name (syncDraftServices keys by name), which is
+  // what makes correcting a mis-picked application cheap rather than destructive.
+  function setPackageAppName(i, value){
+    if(!packageDraftApps[i]) return;
+    packageDraftApps[i].name = value;
+    syncDraftServices(i);
+    renderPackageApps();
+  }
+  function newPackageAppDraft(){ return {name:'', version:'', url:'', services:[]}; }
   function addPackageApp(){ packageDraftApps.push(newPackageAppDraft()); renderPackageApps(); }
   function addPackageIssue(){ packageDraftIssues.push(newPackageIssueDraft()); renderPackageIssues(); }
   function removePackageApp(i){
@@ -7249,7 +7638,23 @@
     const statusEl = document.querySelector('input[name="package-status"]:checked');
     const status = statusEl ? statusEl.value : 'draft';
     const apps = packageDraftApps
-      .map(a=>({name:(a.name||'').trim(), version:(a.version||'').trim(), url:(a.url||'').trim()}))
+      .map(a=>{
+        const out = {name:(a.name||'').trim(), version:(a.version||'').trim(), url:(a.url||'').trim()};
+        // Only the ticked services go out — a release is as often one service out of
+        // nineteen as it is all of them. A version equal to the application's is
+        // stored as „inherits" rather than as nineteen copies of the same string, so
+        // correcting the release version afterwards still reaches every service that
+        // was not deliberately pinned away from it.
+        const services = draftServices(a)
+          .filter(sv => sv && sv.on && String(sv.name||'').trim())
+          .map(sv => {
+            const name = String(sv.name).trim();
+            const v = String(sv.version||'').trim();
+            return (v && v !== out.version) ? {name, version:v} : {name};
+          });
+        if(services.length) out.services = services;
+        return out;
+      })
       .filter(a=>a.name || a.version);
     const issues = packageDraftIssues
       .map(i=>({id:(i.id||'').trim(), haloTicket:(i.haloTicket||'').trim(), title:(i.title||'').trim(), state:(i.state||'').trim(), office:(i.office||'').trim()}))
@@ -7260,6 +7665,11 @@
     if(!projectKey) errs.push({id:'package-project-select', label:t('sch.project'), msg:t('form.required')});
     if(!apps.length) errs.push({label:t('pkg.apps'), msg:t('pkg.errNeedApp')});
     if(apps.some(a=>!a.name || !a.version)) errs.push({label:t('pkg.apps'), msg:t('pkg.errAppVersion')});
+    // A ticked row with no name is the one service mistake worth blocking: it would
+    // be dropped silently, and „eighteen services" would then be seventeen.
+    if(packageDraftApps.some(a => draftServices(a).some(sv => sv && sv.on && !String(sv.name||'').trim()))){
+      errs.push({label:t('svc.short'), msg:t('svc.errName')});
+    }
     if(issues.some(i=>!i.id)) errs.push({label:t('pkg.issues'), msg:t('pkg.errIssueId')});
     // A ready package fills the deployment changelog, and an empty changelog is
     // what the client would then be sent.
@@ -8371,8 +8781,11 @@
       const lastCell = last
         ? `<span class="mono" style="font-size:12px;">v${escapeHtml(last.version)}</span> <span style="font-size:11px; color:var(--text-muted);">· ${escapeHtml(envLabel(last.env))} · ${escapeHtml(last.date)}</span>`
         : `<span style="color:var(--text-faint); font-size:11.5px;">${t('app.noDeployments')}</span>`;
+      // An application released as a set of services says so here: it changes what
+      // assembling a package for it looks like, so it belongs next to the name.
+      const svc = Array.isArray(a.services) ? a.services.length : 0;
       return `<tr class="app-row" data-idx="${i}" onclick="openAppSettings(${i})" style="cursor:pointer;">
-        <td><strong>${a.name}</strong></td>
+        <td><strong>${a.name}</strong>${svc ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">🧩 ${escapeHtml(tf('svc.nServices', {n: svc}))}</div>` : ''}</td>
         <td>${lastCell}</td>
         <td><button class="mini-btn" onclick="event.stopPropagation(); openAppSettings(${i})">✎ ${t('app.settings')}</button></td>
       </tr>`;
@@ -9513,6 +9926,7 @@
     document.getElementById('app-modal-form-sub').textContent = t('proj.newAppSub');
     document.getElementById('app-name').value = '';
     document.getElementById('app-repo').value = '';
+    setAppServicesInput([]);
     openFormModal('app-modal-form');
   }
 
@@ -9525,11 +9939,49 @@
     document.getElementById('app-modal-form-sub').textContent = t('proj.newAppSub');
     document.getElementById('app-name').value = a.name;
     document.getElementById('app-repo').value = (a.repo && a.repo !== '—') ? ('https://' + a.repo) : '';
+    setAppServicesInput(a.services);
     openFormModal('app-modal-form');
   }
 
   function submitAppModal(){
     addApplication();
+  }
+
+  // The service catalogue, one name per line. A textarea rather than a row per
+  // service because this list is pasted from a release note or a build log —
+  // nineteen lines at once — not typed one at a time.
+  function setAppServicesInput(services){
+    const el = document.getElementById('app-services');
+    if(!el) return;
+    el.value = (Array.isArray(services) ? services : [])
+      .map(s => String((s && s.name) || s || '').trim())
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  // Parse it back. Tolerant on purpose: a pasted image list carries a `:tag` that is
+  // not part of the service's name (a version belongs to a release, not to the
+  // catalogue), and bullets, commas and blank lines come with pasted text.
+  // De-duplicated case-insensitively and bounded, like every stored list.
+  function parseAppServicesInput(){
+    const el = document.getElementById('app-services');
+    const seen = new Set();
+    const out = [];
+    String((el && el.value) || '').split(/[\n,;]+/).forEach(raw=>{
+      let line = String(raw || '').replace(/^[\s\-*•]+/, '').trim();
+      if(!line) return;
+      // `pudo/auth-service:2.7.0-dev.27504` → `pudo/auth-service`. A colon after the
+      // last '/' is a tag; one before it belongs to a registry host and port.
+      const at = line.lastIndexOf(':');
+      if(at > -1 && line.indexOf('/', at) === -1) line = line.slice(0, at).trim();
+      const name = line.slice(0, 200);
+      if(!name) return;
+      const k = name.toLowerCase();
+      if(seen.has(k)) return;
+      seen.add(k);
+      if(out.length < MAX_SERVICES_PER_APP) out.push({name});
+    });
+    return out;
   }
 
   function selectRadioPill(name, value){
@@ -9562,14 +10014,21 @@
     }
     clearFormErrors('app-modal-form');
 
+    const services = parseAppServicesInput();
+
     if(editingAppIndex !== null){
       const a = p.apps[editingAppIndex];
       const prevName = a.name;
       a.name = name; a.repo = repoDisplay;
+      // Emptied on purpose means „this is one artefact again", so the key is
+      // removed rather than left as an empty array nothing would read.
+      if(services.length) a.services = services; else delete a.services;
       logAudit('changed', 'Application', 'Changed settings of application „' + prevName + '”' + (prevName!==name ? ' (new name: „'+name+'”)' : ''), p.name + ' (' + p.clientName + ')', prevName!==name ? 'aud.d.appRenamed' : 'aud.d.appChanged', {prev: prevName, name});
       showToast('Application „' + name + '” settings saved');
     } else {
-      p.apps.push({ name, repo: repoDisplay, locations: p.locations, deployedVersions: [] });
+      const entry = { name, repo: repoDisplay, locations: p.locations, deployedVersions: [] };
+      if(services.length) entry.services = services;
+      p.apps.push(entry);
       logAudit('added', 'Application', 'Added application „' + name + '”', p.name + ' (' + p.clientName + ')', 'aud.d.appAdded', {name});
       showToast('Application „' + name + '” added');
     }
@@ -10081,6 +10540,10 @@
           body += `<div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">${t('dcard.reason')}: ${r.pauseReason ? '„'+escapeHtml(r.pauseReason)+'”' : '—'}</div>`;
         }
         body += changelogCollapsibleHtml(r, rowKey);
+        // Which services the release carries, at which version. Collapsed, like the
+        // changelog next to it: the client's row is a status, and nineteen container
+        // versions are the detail behind it rather than the headline.
+        body += servicesCollapsibleHtml(r, rowKey);
         body += clientAdminInfoHtml(r);
         body += `<div style="margin-top:4px;">
           <div style="color:var(--text-muted); font-size:12.5px; margin-bottom:8px; font-weight:600;">${t('client.timeline')}</div>
@@ -12746,9 +13209,16 @@
     if(!r) return;
     const wrap = document.getElementById('edit-dep-versions');
     const canRemove = editDepApps.length > 1;
+    // An application released as a set of services says so, read-only: the version
+    // box here is the release version every service inherits, and which services are
+    // in the release is the package's decision, not this dialog's.
+    const svcCount = (name)=>{
+      const entry = (r.apps||[]).find(x=>appKey(x.name) === appKey(name));
+      return entry ? appServiceCount(entry) : 0;
+    };
     wrap.innerHTML = editDepApps.map((a,i)=>`
       <div style="display:flex; align-items:center; gap:8px;">
-        <span style="font-size:12.5px; min-width:120px;">${escapeHtml(a.name)}</span>
+        <span style="font-size:12.5px; min-width:120px;">${escapeHtml(a.name)}${svcCount(a.name) ? `<span style="color:var(--text-muted);"> · 🧩 ${escapeHtml(tf('svc.nServices', {n: svcCount(a.name)}))}</span>` : ''}</span>
         <input type="text" class="mono" data-app-idx="${i}" value="${escapeHtml(a.version||'')}" placeholder="1.0.0" style="flex:1; box-sizing:border-box;">
         ${canRemove ? `<button type="button" class="mini-btn" title="${escapeHtml(t('editdep.removeApp'))}" aria-label="${escapeHtml(t('editdep.removeApp'))}: ${escapeHtml(a.name)}" onclick="removeEditDepApp(${i})">✕</button>` : ''}
       </div>`).join('') || `<div style="font-size:12px; color:var(--text-faint);">—</div>`;
@@ -12801,6 +13271,7 @@
     document.getElementById('app-modal-form-sub').textContent = t('editdep.addAppNewSub');
     document.getElementById('app-name').value = '';
     document.getElementById('app-repo').value = '';
+    setAppServicesInput([]);
     openFormModal('app-modal-form');
   }
 
@@ -13448,14 +13919,57 @@
     });
   }
 
+  // The services of a rollout, application by application. This is the deployer's
+  // answer to „what exactly am I putting on this server" — nineteen containers,
+  // each with the version it goes out at. A version pinned away from the release
+  // version is marked, because otherwise the one line that differs reads as a typo;
+  // an inherited one is greyed, because repeating the same string nineteen times in
+  // bold is a wall nobody checks.
+  function deploymentServicesHtml(r){
+    const apps = ((r && r.apps) || []).filter(a => appServiceCount(a) > 0);
+    if(!apps.length) return '';
+    return apps.map(a=>{
+      const list = appServices(a);
+      const pinned = list.filter(s=>!s.inherited).length;
+      const rows = list.map(s=>`<tr>
+        <td class="mono" style="font-size:11.5px; padding:3px 8px 3px 0;">${escapeHtml(s.name)}</td>
+        <td class="mono" style="font-size:11.5px; padding:3px 0; text-align:right; ${s.inherited ? 'color:var(--text-muted);' : 'font-weight:700; color:#8A5A05;'}">v${escapeHtml(s.version)}</td>
+      </tr>`).join('');
+      return `<div style="margin-bottom:10px;">
+        <div style="font-size:11.5px; margin-bottom:4px;">
+          <strong>${escapeHtml(a.name)}</strong>
+          <span class="mono" style="color:var(--text-muted);"> v${escapeHtml(a.version || '')}</span>
+          <span style="color:var(--text-muted);"> · ${escapeHtml(tf('svc.nServices', {n: list.length}))}${pinned ? ' · ' + escapeHtml(tf('svc.nPinned', {n: pinned})) : ''}</span>
+        </div>
+        <div style="max-height:260px; overflow-y:auto;"><table style="width:100%; border-collapse:collapse;"><tbody>${rows}</tbody></table></div>
+      </div>`;
+    }).join('') + `<div style="font-size:11px; color:var(--text-muted);">${escapeHtml(t('svc.legend'))}</div>`;
+  }
+
+  // The same list for the client portal, where nothing has an action bar to hang a
+  // panel on — the collapsed block the changelog already uses there.
+  function servicesCollapsibleHtml(r, idSuffix){
+    const bodyHtml = deploymentServicesHtml(r);
+    if(!bodyHtml) return '';
+    const total = ((r && r.apps) || []).reduce((n, a) => n + appServiceCount(a), 0);
+    return collapsibleBlockHtml({
+      id: 'svc-' + idSuffix,
+      icon: '🧩',
+      showKey: 'svc.show',
+      hideKey: 'svc.hide',
+      titleExtra: tf('svc.nServices', {n: total}),
+      bodyHtml
+    });
+  }
+
   // One-at-a-time detail panels under the deployment / installer action bar.
   // scope: 'w' = deployments list (default), 'i' = installer panel.
   function toggleDepDetailPanel(idx, kind, scope){
     scope = scope || 'w';
     const prefix = scope === 'i' ? 'inst' : 'dep';
     const kinds = scope === 'i'
-      ? ['instr','changelog','timeline','comment','schedule']
-      : ['instr','changelog','timeline','comment'];
+      ? ['instr','changelog','services','timeline','comment','schedule']
+      : ['instr','changelog','services','timeline','comment'];
     const panel = document.getElementById(prefix + '-panel-' + kind + '-' + idx);
     if(!panel) return;
     const willOpen = panel.style.display === 'none';
@@ -13519,6 +14033,10 @@
 
     const instrBody = installerNotesBodyHtml(r);
     const changelogBody = changelogBodyHtml(r);
+    // What the release is made of, when an application ships as a set of services.
+    // Its own panel rather than a line in the instructions: it is a list of
+    // nineteen versions, and it is the one thing the deployer reads while working.
+    const servicesBody = deploymentServicesHtml(r);
     const timelineBody = showTimeline ? installerTimelineEventsHtml(r) : null;
     const commentBody = showComment
       ? `<div class="field" style="margin:0;">
@@ -13542,6 +14060,7 @@
     const panels = [
       depDetailPanelHtml(r.idx, 'instr', instrPanelBody, instrOpen, prefix),
       depDetailPanelHtml(r.idx, 'changelog', changelogBody, false, prefix),
+      depDetailPanelHtml(r.idx, 'services', servicesBody, false, prefix),
       showTimeline ? depDetailPanelHtml(r.idx, 'timeline', timelineBody, timelineOpen, prefix) : '',
       showComment ? depDetailPanelHtml(r.idx, 'comment', commentBody, false, prefix) : '',
       showSchedule ? depDetailPanelHtml(r.idx, 'schedule', scheduleBody, false, prefix) : ''
@@ -13550,6 +14069,9 @@
     const barBtns = [];
     if(instrPanelBody) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-instr-${r.idx}" aria-pressed="${instrOpen ? 'true' : 'false'}" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'instr'${scopeArg})">📋 ${t('rep.instrShort')}</button>`);
     if(changelogBody) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-changelog-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'changelog'${scopeArg})">📄 ${t('rep.changelogShort')}</button>`);
+    // The count is on the button: „Serwisy" alone does not say whether it is worth
+    // opening, and eighteen is the whole reason this panel exists.
+    if(servicesBody) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-services-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'services'${scopeArg})">🧩 ${t('svc.short')} · ${deploymentServiceCount(r)}</button>`);
     if(showTimeline) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-timeline-${r.idx}" aria-pressed="${timelineOpen ? 'true' : 'false'}" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'timeline'${scopeArg})">🕓 ${t('dcard.timeline')}</button>`);
     if(showComment) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-comment-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'comment'${scopeArg})">💬 ${t('dcard.commentShort')}</button>`);
     if(showSchedule){
@@ -15548,9 +16070,14 @@
     // Timeline starts open — it's the primary context when opening a deployment.
     const instrBody = installerNotesBodyHtml(r);
     const changelogBody = changelogBodyHtml(r);
+    // The services of the release, for the reader who plans it rather than installs
+    // it: „which of the nineteen is in this rollout" is the question asked when the
+    // client's schedule is put together, not only on the day.
+    const servicesBody = deploymentServicesHtml(r);
     const detailPanels = [
       depDetailPanelHtml(r.idx, 'instr', instrBody),
       depDetailPanelHtml(r.idx, 'changelog', changelogBody),
+      depDetailPanelHtml(r.idx, 'services', servicesBody),
       depDetailPanelHtml(r.idx, 'timeline', timelineHtml, true),
       depDetailPanelHtml(r.idx, 'comment', commentForm)
     ].join('');
@@ -15566,6 +16093,7 @@
     const canExportSchedule = !!(r.apps && r.apps.length) && !r.draft;
     if(instrBody) barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-instr-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'instr')">📋 ${t('rep.instrShort')}</button>`);
     if(changelogBody) barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-changelog-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'changelog')">📄 ${t('rep.changelogShort')}</button>`);
+    if(servicesBody) barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-services-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'services')">🧩 ${t('svc.short')} · ${deploymentServiceCount(r)}</button>`);
     barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-timeline-${r.idx}" aria-pressed="true" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'timeline')">🕓 ${t('dcard.timeline')}</button>`);
     barBtns.push(`<button type="button" class="mini-btn" id="dep-panel-btn-comment-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'comment')">💬 ${t('dcard.commentShort')}</button>`);
     // PDF only. The XLS is the deployers' worklist and lives in their panel;
