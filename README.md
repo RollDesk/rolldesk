@@ -100,7 +100,7 @@ These settings also decide **where a reader's browser goes** when they click an 
 The UI is organised around the people involved in a release:
 
 - **Release Manager** — defines projects (apps, targets, post-deployment notifications), schedules new deployments, and monitors the deployments board.
-- **Tester** — assembles release packages for the projects they were granted: the application versions tested together, what the release changes, and the ids of the issues it fixes. No access to schedules, targets or client decisions.
+- **Tester** — assembles release packages for the projects they were granted: the application versions tested together, what the release changes, and the ids of the issues it fixes. Reads the deployer panel for those projects — the rollout dates, instructions, progress and reported results — without reporting, correcting, assigning or commenting there. No access to schedules as an editor, to targets, or to client decisions.
 - **Deployer** — a focused panel to carry out the assigned installs and report results.
 - **Client** — a read-oriented view of the schedule and status for the projects they can see, with approval/notes.
 - **Administrator** — manages users, clients, notification rules (email/Teams), and reviews the change history (audit log).
