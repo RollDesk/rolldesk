@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.34.1] - 2026-08-21
+
+### Fixed
+- **A dialog raised from a form now opens in front of it, not behind it.** „Wklej listę" in the package editor put its window *under* the editor: the prompt was at `z-index:999` and the form modals at `1002`, so the dialog that had the keyboard focus was invisible and the page looked frozen. The prompt and the confirmation are second-level — they are raised *by* the forms — so they now sit above all of them (`1011` and `1010`), and the layering is written down next to them.
+- The same bug was hiding a confirmation nobody could answer: **adding an application to a rollout that is already running** is confirmed from inside the edit-deployment dialog, and that confirmation was at `1000` under the dialog's `1001`. Saving appeared to do nothing.
+- **Escape in a prompt no longer closes the form behind it.** The form-modal handler did not check for an open prompt, so cancelling the paste dialog dismissed the package editor with it — and the draft went too.
+
 ## [0.34.0] - 2026-08-21
 
 ### Added
