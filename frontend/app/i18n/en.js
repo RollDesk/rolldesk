@@ -6,6 +6,8 @@ window.RD_I18N.en = {
   "auth.connecting": "Connecting…",
   "auth.backendDown": "Backend unavailable. RollDesk cannot start until it can reach the server.",
   "auth.retry": "Retry",
+  "auth.roleChanged": "Your role is now: {role}. The permissions and the menu have been refreshed — no need to sign in again.",
+  "auth.scopeChanged": "The projects you are assigned to have changed. The deployment list has been refreshed.",
   "auth.setupTitle": "Welcome — set up your admin account",
   "auth.setupDesc": "This is the first run. Create the administrator account used to sign in. There is no default user.",
   "auth.adminEmail": "Admin e-mail",

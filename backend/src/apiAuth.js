@@ -7,7 +7,7 @@
 // login. Token-management endpoints deliberately do NOT use this guard — they
 // require an interactive session so a token cannot mint or revoke other tokens.
 import { query } from './db.js';
-import { bearerToken, verifyToken, hashApiToken, isApiToken } from './auth.js';
+import { bearerToken, verifyToken, hashApiToken, isApiToken, resolveLiveAuth } from './auth.js';
 
 export async function requireApiAuth(req, res, next) {
   const token = bearerToken(req);
@@ -39,11 +39,23 @@ export async function requireApiAuth(req, res, next) {
     }
   }
 
-  // Session JWT path.
+  // Session JWT path. The claim proves who is calling; the role comes from the
+  // account as it is now, exactly like the token lookup above reads `u.role` —
+  // a session lives for 30 days and must not carry a role somebody has since
+  // changed (see liveAuthDecision in auth.js).
+  let claim;
   try {
-    req.auth = verifyToken(token, { stage: 'session' });
-    return next();
+    claim = verifyToken(token, { stage: 'session' });
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+  try {
+    const decision = await resolveLiveAuth(claim);
+    if (!decision.ok) return res.status(decision.status).json({ error: decision.error });
+    req.auth = decision.auth;
+    return next();
+  } catch (err) {
+    console.warn('[apiAuth] Live role lookup failed:', err.message);
+    return res.status(500).json({ error: 'Authentication error' });
   }
 }

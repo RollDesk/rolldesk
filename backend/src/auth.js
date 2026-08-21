@@ -1,12 +1,18 @@
 // Authentication helpers: password hashing, JWT signing/verification and TOTP
 // MFA. The functions here are pure (no DB, no Express) so they can be unit
-// tested in isolation; the Express middleware at the bottom wires them in.
+// tested in isolation; the Express middleware at the bottom wires them in — and
+// is the one place that reads the database, because a session's role is the
+// account's current role rather than whatever the token was minted with
+// (liveAuthDecision holds that rule, and is pure like the rest).
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { authenticator } from 'otplib';
 import qrcode from 'qrcode';
 import { config } from './config.js';
+// The one piece of I/O in this module: a session's role is read from the account
+// on every request rather than trusted from the token (see requireStage).
+import { query } from './db.js';
 
 const SALT_ROUNDS = 10;
 
@@ -133,21 +139,85 @@ export function bearerToken(req) {
   return value.trim();
 }
 
+// --- The role a session may act with ---------------------------------------
+//
+// The session JWT carries the role it was minted with, and `SESSION_TTL` is 30
+// days. So changing somebody's role changed nothing the API enforced until they
+// signed out and in again, while the UI — which asks /api/auth/me, i.e. the
+// database — drew the new role's navigation immediately. Half-applied in the
+// harmless direction is a broken screen: a tester promoted to administrator got
+// an administrator's menu over a tester's permissions, every one of those
+// endpoints answering 403, which is what it looked like when it happened. Applied
+// the other way it is worse than broken — an administrator demoted to tester kept
+// an administrator's writes for up to a month.
+//
+// So the claim proves *who* is calling and the database says *what they may do*.
+// The personal-access-token path in apiAuth.js already worked this way (it reads
+// `u.role` in its lookup); this is the session path catching up, and it is the
+// rule changehub follows for its whole viewer.
+//
+// The decision is split out from the query so it can be tested without a
+// database, like everything else in this module.
+export function liveAuthDecision(claim, row) {
+  if (!row) return { ok: false, status: 401, error: 'Authentication required' };
+  // An archived account is not a permission problem to work around — it is not an
+  // account. 401 rather than 403 so the browser is signed out instead of showing a
+  // screen full of refusals (see apiFetch in the frontend).
+  if (row.archived) return { ok: false, status: 401, error: 'Account disabled' };
+  return {
+    ok: true,
+    auth: Object.assign({}, claim, {
+      role: row.role,
+      // The e-mail can be corrected in the user editor too, and it is what the
+      // notification routing excludes the actor by.
+      email: row.email || (claim && claim.email) || null,
+    }),
+  };
+}
+
+// The same, against the database. Returns the decision; callers apply it.
+export async function resolveLiveAuth(claim) {
+  const id = claim && claim.sub;
+  if (!id) return { ok: false, status: 401, error: 'Authentication required' };
+  const { rows } = await query('SELECT role, email, archived FROM users WHERE id = $1', [id]);
+  return liveAuthDecision(claim, rows[0] || null);
+}
+
 // Requires a valid token at the given stage (default: a full session token).
 // On success attaches the decoded payload to req.auth.
-export function requireStage(stage = 'session') {
-  return function stageGuard(req, res, next) {
+//
+// `live: true` re-reads the account's role from the database (see above). Only a
+// full session wants it: the MFA stage tokens are one step of signing in, and the
+// account they name has not been let in yet.
+export function requireStage(stage = 'session', { live = false } = {}) {
+  return async function stageGuard(req, res, next) {
     const token = bearerToken(req);
     if (!token) return res.status(401).json({ error: 'Authentication required' });
+    let claim;
     try {
-      req.auth = verifyToken(token, { stage });
-      return next();
+      claim = verifyToken(token, { stage });
     } catch (err) {
       const msg = err.code === 'WRONG_STAGE' ? 'Wrong token stage' : 'Invalid or expired token';
       return res.status(401).json({ error: msg });
     }
+    if (!live) {
+      req.auth = claim;
+      return next();
+    }
+    try {
+      const decision = await resolveLiveAuth(claim);
+      if (!decision.ok) return res.status(decision.status).json({ error: decision.error });
+      req.auth = decision.auth;
+      return next();
+    } catch (err) {
+      // A database that cannot answer must not be read as „no permissions": that
+      // would silently degrade every guarded route to a 403 instead of an error
+      // somebody investigates.
+      console.warn('[auth] Live role lookup failed:', err.message);
+      return res.status(500).json({ error: 'Authentication error' });
+    }
   };
 }
 
-// Convenience: guard for a full session.
-export const requireAuth = requireStage('session');
+// Convenience: guard for a full session, with the role as it is now.
+export const requireAuth = requireStage('session', { live: true });
