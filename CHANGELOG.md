@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.1] - 2026-08-21
+
+### Fixed
+- **A changed role takes effect at once, without signing out.** Two testers were promoted to administrator so they could run RollDesk over a holiday, and afterwards they saw almost nothing — an administrator's navigation over a tester's permissions, every screen behind it answering 403. The session JWT carried the role it was minted with and `SESSION_TTL` is **30 days**, while the UI reads the account from `/api/auth/me`, i.e. the database: the change was applied on the half that hides controls and not on the half that enforces them. Signing out and in again fixed it, which is exactly the workaround nobody should need. A session now acts with the role the *account* has — read per request, next to the project scope that was already read that way, and the same way the `rd_live_…` token path always worked.
+- The other direction was the more serious one: **taking a permission away now takes it away.** An administrator demoted to tester (or moved off a project) kept an administrator's writes for as long as their session lasted — up to a month — because nothing re-checked the token's claim. The same lookup closes it, and an account archived while a tab is open is signed out on its next request instead of being left with a working session.
+- **The tab notices, too.** A role or project-scope change reaches an open tab within a minute: the navigation and the current view are re-applied, the rollouts and projects are re-read, and a message names the new role — so „you are an administrator now" arrives where the person is, rather than the next time they happen to sign in.
+
 ## [0.33.0] - 2026-08-21
 
 ### Added

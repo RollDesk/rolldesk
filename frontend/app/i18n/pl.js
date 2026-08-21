@@ -6,6 +6,8 @@ window.RD_I18N.pl = {
   "auth.connecting": "Łączenie…",
   "auth.backendDown": "Backend niedostępny. RollDesk nie może wystartować, dopóki nie połączy się z serwerem.",
   "auth.retry": "Ponów",
+  "auth.roleChanged": "Twoja rola zmieniła się na: {role}. Uprawnienia i menu zostały odświeżone — nie musisz się przelogowywać.",
+  "auth.scopeChanged": "Zmienił się zakres Twoich projektów. Lista wdrożeń została odświeżona.",
   "auth.setupTitle": "Witaj — skonfiguruj konto administratora",
   "auth.setupDesc": "To pierwsze uruchomienie. Utwórz konto administratora do logowania. Nie ma domyślnego użytkownika.",
   "auth.adminEmail": "E-mail administratora",

@@ -3000,11 +3000,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.33.0"></script>
-<script src="i18n/en.js?v=0.33.0"></script>
+<script src="i18n/pl.js?v=0.33.1"></script>
+<script src="i18n/en.js?v=0.33.1"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.33.0';
+  const ROLLDESK_VERSION = '0.33.1';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -11043,6 +11043,71 @@
     } catch(e){ /* a failed poll changes nothing on screen */ }
   }
 
+  // ---- Keeping the signed-in role current ---------------------------------
+  // A role is changed by somebody else, in another browser. „You are an
+  // administrator now" then has to arrive without anybody being told to sign out
+  // and in again — which is what it used to take: two testers were promoted so they
+  // could run RollDesk over a holiday and got an administrator's navigation over a
+  // tester's permissions until they re-authenticated.
+  //
+  // The API applies a role change on the next request now (see liveAuthDecision in
+  // the backend), so the only thing left to catch up is what this tab is drawing.
+  // A poll rather than a push: one small request a minute against the endpoint the
+  // account card already reads, versus a socket for one field.
+  //
+  // The project scope is watched with it: for a deployer, a tester or a project
+  // manager it decides which rollouts they may see at all, so being added to a
+  // project is the same kind of change as being given a role.
+  const ROLE_POLL_MS = 60000;
+  let roleTimer = null;
+
+  function startRolePolling(){
+    if(roleTimer) clearInterval(roleTimer);
+    roleTimer = setInterval(refreshSignedInRole, ROLE_POLL_MS);
+  }
+  function stopRolePolling(){
+    if(roleTimer){ clearInterval(roleTimer); roleTimer = null; }
+  }
+
+  async function refreshSignedInRole(){
+    if(!API_CONNECTED || !getToken()) return;
+    let me = null;
+    try {
+      // A 401 here means the account was archived or removed while the tab was
+      // open; apiFetch signs the tab out, which is the right answer and needs
+      // nothing from us.
+      const res = await apiFetch('/api/auth/me');
+      if(!res.ok) return;
+      me = await res.json();
+    } catch(e){ return; }              // a failed poll changes nothing on screen
+    if(!me || !me.role) return;
+    const prevRole = currentLoggedInRole;
+    const prevScope = ((currentUser && currentUser.projects) || []).map(String).sort().join(',');
+    const nextScope = (Array.isArray(me.projects) ? me.projects : []).map(String).sort().join(',');
+    const roleChanged = me.role !== prevRole;
+    if(!roleChanged && nextScope === prevScope) return;
+
+    applyCurrentUser(me);
+    applyRolePermissions();
+    // The view they are on may not be theirs any more — a release manager moved to
+    // tester keeps neither Projects nor Deployments, and a guarded view rendering
+    // blank is worse than being moved to one that answers.
+    if(!viewAllowedForRole(currentView, currentLoggedInRole)){
+      goToView(defaultViewForRole(currentLoggedInRole));
+    }
+    // Deliberately not applyView() for a view that is still allowed: it resets that
+    // view's filters, and losing them is a surprise nobody asked for. The panels are
+    // redrawn by the refresh below, which is needed anyway — the API answers a
+    // different set of rollouts and projects now.
+    Promise.resolve()
+      .then(()=>refreshProjectsAndClients())
+      .then(()=>refreshDeployments())
+      .catch(()=>{});
+    showToast(roleChanged
+      ? tf('auth.roleChanged', {role: t('role.' + me.role)})
+      : t('auth.scopeChanged'));
+  }
+
   function startInboxPolling(){
     if(inboxTimer) clearInterval(inboxTimer);
     if(currentLoggedInRole === 'client') return;
@@ -12000,6 +12065,11 @@
         await refreshInboxCount();
         startInboxPolling();
       } catch(e){ /* the bell stays at zero until the next poll */ }
+
+      // A role or a project scope changed by an administrator elsewhere reaches this
+      // tab on its own — no sign-out, no reload. Started for every account, client
+      // ones included: their scope decides which projects the portal shows.
+      startRolePolling();
 
       // Initial data hydration is silent — a "Loaded N deployment(s)" toast used to
       // pop up on every screen (projects, client panel, …) which was confusing.
@@ -16553,6 +16623,7 @@
     // drawer would still hold their notifications, and the poll would keep asking
     // for a count with a token that is gone.
     stopInboxPolling();
+    stopRolePolling();
     closeNotifDrawer();
     INBOX = [];
     inboxUnread = 0;

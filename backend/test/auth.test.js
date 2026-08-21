@@ -16,6 +16,7 @@ import {
   maskApiToken,
   isApiToken,
   API_TOKEN_PREFIX,
+  liveAuthDecision,
 } from '../src/auth.js';
 
 const SECRET = 'test-secret-for-unit-tests';
@@ -96,4 +97,36 @@ test('isApiToken only accepts the rd_live_ prefix', () => {
 
 test('two generated tokens are distinct', () => {
   assert.notEqual(generateApiToken().raw, generateApiToken().raw);
+});
+
+// The role a session may act with is the account's role now, not the one the token
+// was minted with — a 30-day session must not carry a permission somebody has
+// already taken away, and a promotion must not need a sign-out to arrive.
+test('a session acts with the role the account has now', () => {
+  const claim = { sub: 7, email: 'old@dxc.test', role: 'tester', stage: 'session' };
+  const d = liveAuthDecision(claim, { role: 'admin', email: 'new@dxc.test', archived: false });
+  assert.equal(d.ok, true);
+  assert.equal(d.auth.role, 'admin');
+  // Everything else the token proved is kept: the subject is who is calling.
+  assert.equal(d.auth.sub, 7);
+  assert.equal(d.auth.stage, 'session');
+  // A corrected e-mail travels with it; the claim's is the fallback.
+  assert.equal(d.auth.email, 'new@dxc.test');
+  assert.equal(liveAuthDecision(claim, { role: 'admin', email: null }).auth.email, 'old@dxc.test');
+  // The claim is not mutated — the caller decides what to do with the decision.
+  assert.equal(claim.role, 'tester');
+});
+
+test('a session whose account is gone or archived is not a session', () => {
+  const claim = { sub: 7, role: 'admin', stage: 'session' };
+  // Deleted between two requests: 401, so the browser signs out rather than
+  // showing a screen of refusals.
+  assert.deepEqual(liveAuthDecision(claim, null), {
+    ok: false, status: 401, error: 'Authentication required',
+  });
+  assert.deepEqual(liveAuthDecision(claim, { role: 'admin', archived: true }), {
+    ok: false, status: 401, error: 'Account disabled',
+  });
+  // No subject to look up is the same answer, without a query.
+  assert.equal(liveAuthDecision({ role: 'admin' }, null).ok, false);
 });
