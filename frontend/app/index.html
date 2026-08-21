@@ -2423,7 +2423,9 @@
          the stat row — the two views are read one after the other. -->
     <div class="section-head">
       <div>
-        <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.installer">Here you report what succeeded and what failed, and add notes — without access to changing the schedule, target order, or client approval.</p>
+        <!-- Swapped for the read-only sentence when whoever is reading cannot report
+             anything here (a tester) — see renderInstallerPanel. -->
+        <p class="section-desc" style="margin-bottom:0;" id="installer-desc" data-i18n="desc.installer">Here you report what succeeded and what failed, and add notes — without access to changing the schedule, target order, or client approval.</p>
       </div>
     </div>
 
@@ -2797,9 +2799,10 @@
     </div>
     <button class="drawer-close" onclick="closeNotifDrawer()" data-i18n-title="common.close" title="Close" aria-label="Close">×</button>
   </div>
-  <!-- What is shown, and the one bulk action. Reading a notification and dealing
-       with it are different things, so nothing here happens by itself: a card is
-       cleared when its ✓ is pressed, or all of them when this is. -->
+  <!-- What is shown, and the one bulk action. A card is cleared by its ✕, by being
+       opened, or simply by having been on screen when the drawer is closed; ↺ puts
+       one back. This button is for the rest — everything older than the page being
+       shown, the „I have been away for a week" case. -->
   <div class="drawer-tools">
     <div class="seg" id="notif-seg">
       <button type="button" id="notif-seg-new" onclick="setInboxFilter('new')" data-i18n="ntf.filterNew">New</button>
@@ -2997,11 +3000,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.32.1"></script>
-<script src="i18n/en.js?v=0.32.1"></script>
+<script src="i18n/pl.js?v=0.33.0"></script>
+<script src="i18n/en.js?v=0.33.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.32.1';
+  const ROLLDESK_VERSION = '0.33.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -3793,7 +3796,7 @@
   const ROLE_INFO = {
     admin:     {label:'Administrator',   desc:'Manages the whole system and defines permissions — the only role that can add and edit users.', color:'#6B21A8', bg:'#F1E9FB'},
     rm:        {label:'Release Manager', desc:'Plans and changes schedules, manages projects and applications.', color:'#0A6E7A', bg:'var(--cyan-soft)'},
-    tester:    {label:'Tester',          desc:'Assembles release packages — the tested versions and the issues they fix — without changing schedules.', color:'#1F4FA8', bg:'#E8EEFB'},
+    tester:    {label:'Tester',          desc:'Assembles release packages — the tested versions and the issues they fix — and reads the deployment schedules of their projects without changing them.', color:'#1F4FA8', bg:'#E8EEFB'},
     installer: {label:'Deployer',        desc:'Marks what succeeded / failed and adds comments — without editing the schedule.', color:'#8A5A05', bg:'#FDF1E1'},
     client:    {label:'Client',          desc:'Approves, proposes reschedules and sees the deployment status of their projects.', color:'#0F7A38', bg:'var(--green-soft)'},
   };
@@ -4809,7 +4812,13 @@
     apps:        ['admin','rm'],
     deployments: ['admin','rm','pm'],
     packages:    ['admin','rm','tester','pm'],
-    installer:   ['admin','installer'],
+    // A tester is here to read, not to report: the packages list said what was
+    // tested together and nothing said when it goes out, so the test team had to ask
+    // for every rollout date. The panel is the schedule of exactly the projects they
+    // are scoped to, so it is the view they were missing — read-only, and the API
+    // says the same (`requireWriteRole` is admin/rm/installer, so a tester cannot
+    // report a result, correct one, assign a deployer or leave a comment).
+    installer:   ['admin','installer','tester'],
     client:      ['admin','client'],
     users:       ['admin'],
     clients:     ['admin'],
@@ -4821,6 +4830,17 @@
   function viewAllowedForRole(view, role){
     const allowed = VIEW_ROLES[view];
     return !allowed || allowed.includes(role);
+  }
+  // Which view resolves a deployment id for this role. Not defaultViewForRole():
+  // a tester's home is the packages list, which does not contain deployments at all,
+  // so a „rollout finished" notification (they are filed for a tester — see
+  // backend/src/inboxTargets.js) used to land them on a list without the record it
+  // named. The deployer panel is where that role reads a rollout.
+  function deploymentViewForRole(role){
+    if(viewAllowedForRole('deployments', role)) return 'deployments';
+    if(viewAllowedForRole('installer', role)) return 'installer';
+    if(viewAllowedForRole('client', role)) return 'client';
+    return defaultViewForRole(role);
   }
   function defaultViewForRole(role){
     if(role === 'client') return 'client';
@@ -4981,7 +5001,7 @@
     if(name === 'deployments' && parts[1]){
       pendingFocusDeployId = String(parts[1]).trim();
       const role = currentLoggedInRole || 'admin';
-      const view = viewAllowedForRole('deployments', role) ? 'deployments' : defaultViewForRole(role);
+      const view = deploymentViewForRole(role);
       applyView(view);
       focusDeployment(pendingFocusDeployId);
       return;
@@ -10935,6 +10955,21 @@
   // behind you is a list nobody trusts.
   let inboxFilter = 'new';
   const INBOX_PAGE = 10;
+  // What the reader has actually had in front of them this time the drawer was
+  // open, and what they explicitly put back.
+  //
+  // Opening the drawer used to change nothing at all, so the badge kept its count
+  // until somebody pressed „mark all as read" — including when they had just read
+  // every card and opened the one they cared about. Having looked at a card now
+  // counts as having read it: every unread card rendered while the drawer is open
+  // is cleared when it closes.
+  //
+  // On close rather than on open, because the unread mark is what makes the new
+  // cards findable while the drawer is on screen — and because ↺ has to stay a real
+  // answer: a card put back is remembered here and survives the flush, so „I am not
+  // done with this" is not undone by closing the drawer.
+  let inboxSeen = new Set();
+  let inboxKeptUnread = new Set();
   let inboxTimer = null;
   let inboxLoading = false;
   const INBOX_POLL_MS = 30000; // the badge; the list is fetched when opened
@@ -11074,6 +11109,15 @@
       )}</div>`;
       return;
     }
+    // Everything drawn below has been in front of the reader, so it is a candidate
+    // for the flush on close (see inboxSeen). Only while the drawer is really open:
+    // a render that nobody is looking at must not clear anything.
+    if(notifDrawerOpen()){
+      shown.forEach(n=>{
+        const id = String(n.id);
+        if(!n.read && !inboxKeptUnread.has(id)) inboxSeen.add(id);
+      });
+    }
     list.innerHTML = shown.map(n=>{
       const target = inboxTarget(n);
       const ev = String(n.event || '');
@@ -11122,6 +11166,11 @@
   function openNotificationRecord(id){
     const n = inboxById(id);
     const target = inboxTarget(n);
+    // Opening what a notification is about is dealing with it, so it is read even if
+    // it had been put back with ↺ earlier in this visit. The flush on close does the
+    // marking; this only makes sure the card is in it.
+    inboxKeptUnread.delete(String(id));
+    if(n && !n.read) inboxSeen.add(String(id));
     closeNotifDrawer();
     if(!target) return;
     const h = '#' + (target.kind === 'deployment' ? 'deployments' : 'packages') + '/' + encodeURIComponent(target.id);
@@ -11167,6 +11216,10 @@
     if(ev) ev.stopPropagation();
     const n = inboxById(id);
     if(!n || !!n.read === !!read) return;
+    // „Put it back" has to outlive the drawer, or closing it would immediately undo
+    // the one gesture that says „I am not finished with this".
+    if(read) inboxSeen.delete(String(id));
+    else { inboxKeptUnread.add(String(id)); inboxSeen.delete(String(id)); }
     n.read = !!read;
     inboxUnread = Math.max(0, inboxUnread + (read ? -1 : 1));
     renderInboxBadge();
@@ -11203,6 +11256,34 @@
     } catch(e){ /* the next poll corrects the badge */ }
   }
 
+  // Clear what was read on screen, as the drawer closes. Optimistic and
+  // fire-and-forget: the drawer is already gone, so there is nothing to wait for,
+  // and the 30-second poll corrects the badge if the request never landed.
+  //
+  // Only cards still unread are sent — one already cleared by its ✕ would otherwise
+  // be counted twice against the badge.
+  function flushInboxSeen(){
+    const ids = Array.from(inboxSeen).filter(id => {
+      const n = inboxById(id);
+      return !!n && !n.read;
+    });
+    inboxSeen = new Set();
+    inboxKeptUnread = new Set();
+    if(!ids.length) return;
+    ids.forEach(id => { const n = inboxById(id); if(n) n.read = true; });
+    inboxUnread = Math.max(0, inboxUnread - ids.length);
+    renderInboxBadge();
+    renderInbox();
+    apiFetch('/api/notifications/read', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ids, read:true})
+    }).then(async res=>{
+      if(!res.ok) return;
+      const info = await res.json().catch(()=>({}));
+      if(typeof info.unread === 'number'){ inboxUnread = info.unread; renderInboxBadge(); }
+    }).catch(()=>{});
+  }
+
   function notifDrawerOpen(){
     const d = document.getElementById('notif-drawer');
     return !!(d && d.classList.contains('open'));
@@ -11220,9 +11301,12 @@
     // Read on opening rather than on a timer: the list is only looked at here, and
     // the newest rows may have arrived since the badge last counted them.
     //
-    // Nothing is marked read by opening the drawer. Doing that made the badge go
-    // quiet while the list still showed everything, which is the worst of both: no
-    // count to act on and no way to put a single notification behind you.
+    // Nothing is marked read by *opening* the drawer — the unread mark is how the
+    // new cards are found in a list that also holds the archive. What was on screen
+    // is cleared when it closes (flushInboxSeen), so the badge answers „arrived
+    // since you last looked" instead of „never pressed the button".
+    inboxSeen = new Set();
+    inboxKeptUnread = new Set();
     await loadInbox();
   }
 
@@ -11230,9 +11314,12 @@
     const drawer = document.getElementById('notif-drawer');
     const scrim = document.getElementById('notif-scrim');
     const bell = document.getElementById('notif-bell');
+    const wasOpen = notifDrawerOpen();
     if(drawer){ drawer.classList.remove('open'); drawer.setAttribute('aria-hidden', 'true'); }
     if(scrim) scrim.classList.remove('open');
     if(bell) bell.setAttribute('aria-expanded', 'false');
+    // After the class is gone, so the re-render inside cannot re-add the same cards.
+    if(wasOpen) flushInboxSeen();
   }
 
   function toggleNotifDrawer(e){
@@ -13349,11 +13436,14 @@
   // Instructions stay always visible below the bar so they cannot be missed.
   function installerActionChromeHtml(r, opts){
     opts = opts || {};
+    // A reader keeps the schedule, the instructions, the changelog and the timeline —
+    // those are the point of the visit — and loses the two writes in the bar.
+    const readOnly = installerPanelReadOnly();
     const showSchedule = !!opts.showSchedule;
-    const showComment = opts.showComment !== false;
+    const showComment = opts.showComment !== false && !readOnly;
     const showTimeline = opts.showTimeline !== false;
     const timelineOpen = opts.timelineOpen !== false;
-    const showAssignee = !!opts.showAssignee;
+    const showAssignee = !!opts.showAssignee && !readOnly;
     const prefix = 'inst';
     const scopeArg = ", 'i'";
 
@@ -13546,13 +13636,23 @@
     </div>`;
   }
 
+  // Whether this panel is being read rather than worked in. A tester reads the
+  // schedule of the projects they were granted; only a role that installs reports
+  // what happened, which is also where the API draws the line — so every control
+  // that writes is left out rather than shown and refused.
+  function installerPanelReadOnly(){
+    return !roleCan(currentLoggedInRole || 'admin', 'canDeploy');
+  }
+
   // Deployments visible in the deployer panel: scoped to the deployer's granted
   // projects (admin/RM see all) and never drafts.
   function installerScopedDeployments(){
     let all = DEPLOYMENTS_DATA.map((d,i)=>Object.assign({idx:i}, d, {
       project: PROJECTS[d.projectKey] || {name: d.projectKey || 'Unknown project', clientName:'', testEnvs:[], apps:[], locationsList:[]}
     }));
-    if(currentLoggedInRole === 'installer'){
+    // Both scoped roles that reach this panel. The API already narrows what it
+    // returns, so this is the second layer rather than the guard.
+    if(currentLoggedInRole === 'installer' || currentLoggedInRole === 'tester'){
       const scope = (currentUser && Array.isArray(currentUser.projects)) ? currentUser.projects.map(String) : [];
       all = all.filter(r => scope.includes(String(r.projectKey)));
     }
@@ -13895,6 +13995,14 @@
   }
 
   function installerActiveDetailHtml(r){
+    // A reader gets the same chrome — schedule, instructions, changelog, timeline —
+    // and none of the report forms, which would have nothing to save.
+    if(installerPanelReadOnly()){
+      return `${installerActionChromeHtml(r, {showSchedule:true, showTimeline:true, timelineOpen:true})}
+        ${depWarningHtml(r)}
+        ${r.mode === 'batch' ? appCoverageBlockHtml(r) + batchCorrectionBlockHtml(r, true) : appResultSummaryHtml(r)}
+        <div style="font-size:12px; color:var(--text-muted);">${t('rep.readOnlyNote')}</div>`;
+    }
     if(r.mode === 'batch'){
       const todayDay = dayIndexForPosition(r, r.counts.installed);
       const todayBatch = todaysPendingBatch(r);
@@ -14053,10 +14161,16 @@
   // hint text; the ids are per-idx and one row is expanded at a time).
   function batchCorrectionBlockHtml(r, inProgress){
     const failed = failedLocationsList(r);
+    const failedNote = failed.length
+      ? `<div style="margin-bottom:8px; font-size:11.5px; color:#A81E1E;">⚠ ${tf('rep.toFinish', {list: failed.map(f=>failedTargetLabel(r, f)).join(', ')})}</div>`
+      : '';
+    // A reader has nothing to correct, but what a rollout still owes is its state,
+    // not an action — so the list stays and only the form goes.
+    if(installerPanelReadOnly()) return failedNote;
     const corrBtn = `<button class="mini-btn" onclick="toggleInstallerCorrection(${r.idx})">${t('rep.reportCorrection')}</button>`;
     return `
       <div style="margin-bottom:10px;">${corrBtn}</div>
-      ${failed.length ? `<div style="margin-bottom:8px; font-size:11.5px; color:#A81E1E;">⚠ ${tf('rep.toFinish', {list: failed.map(f=>failedTargetLabel(r, f)).join(', ')})}</div>` : ''}
+      ${failedNote}
       <div id="correction-form-${r.idx}" style="display:none; margin-top:4px;">
         <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px 0;">${inProgress ? t('rep.correctionHintActive') : t('rep.correctionHint')}</p>
         <div id="correction-${r.idx}-errors" style="display:none; margin-bottom:10px;"></div>
@@ -14093,6 +14207,11 @@
   function installerCompletedDetailHtml(r){
     const corrBtn = `<button class="mini-btn" onclick="toggleInstallerCorrection(${r.idx})">${t('rep.reportCorrection')}</button>`;
     const chrome = installerActionChromeHtml(r, {showSchedule:true, showComment:true, showTimeline:true, timelineOpen:true});
+    // What was reported, without the form that would change it.
+    if(installerPanelReadOnly()){
+      return `${chrome}
+        ${r.mode === 'batch' ? batchCorrectionBlockHtml(r, false) : appResultSummaryHtml(r)}`;
+    }
     if(r.mode === 'batch'){
       const doneBanner = reportedResults[r.idx]
         ? `<div style="margin-bottom:12px;">${alertHtml('success', t('rep.resultSavedComplete'), t('rep.allAccounted'))}</div>`
@@ -14227,6 +14346,15 @@
   function renderInstallerPanel(){
     const wrap = document.getElementById('installer-list');
     if(!wrap) return;
+    // The standing description tells a deployer what to report here, which is not
+    // what a reader is being offered. The key is swapped, not the text, so switching
+    // language still redraws the right sentence.
+    const desc = document.getElementById('installer-desc');
+    if(desc){
+      const descKey = installerPanelReadOnly() ? 'desc.installerRead' : 'desc.installer';
+      desc.setAttribute('data-i18n', descKey);
+      desc.textContent = t(descKey);
+    }
     const scoped = installerScopedDeployments();
     populateInstallerFilterOptions(scoped);
     // After the options exist, so a pill can read the selected option's label.

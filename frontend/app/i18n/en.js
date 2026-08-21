@@ -171,7 +171,7 @@ window.RD_I18N.en = {
   "aud.d.pkgUpdated": "Updated release package {id}",
   "aud.d.pkgDeleted": "Deleted release package {id}",
   "role.tester": "Tester",
-  "roleDesc.tester": "Assembles release packages — the tested versions and the issues they fix — without changing schedules.",
+  "roleDesc.tester": "Assembles release packages — the tested versions and the issues they fix — and reads the deployment schedules of their projects without changing them.",
   "nav.packages": "Packages",
   "topbar.packages": "Release packages",
   "desc.packages": "Packages prepared by the test team: the application versions tested together and the issues they fix. A handed-over package still needs the project manager's approval before a release manager can plan a deployment from it.",
@@ -500,6 +500,7 @@ window.RD_I18N.en = {
   "desc.clients": "Companies the projects are run for. Only an Administrator can add and edit clients.",
   "desc.sso": "Let users of a given e-mail domain sign in through their company identity provider (Microsoft Entra ID / Azure AD, Google, or any OpenID Connect provider) instead of a password. Accounts must already exist — users are added by an Administrator. Only an Administrator can configure SSO.",
   "desc.installer": "Here you report what succeeded and what failed, and add notes — without access to changing the schedule, target order, or client approval.",
+  "desc.installerRead": "The deployment schedules of your projects — dates, instructions, progress and the results reported. Read-only: reporting belongs to the deployer.",
   "desc.account": "Your account, API tokens and activity history.",
   "desc.audit": "Who changed what and when — additions, removals and edits of targets, apps and users.",
   "desc.notifications": "Add recipients (e-mail addresses and webhooks). Each recipient can be enabled or disabled and configured per event.",
@@ -1261,6 +1262,7 @@ window.RD_I18N.en = {
   "rep.testNoApprovalNeeded": "Ready to install",
   "rep.appearAfterApproval": "It will appear for reporting once the client approves the schedule.",
   "rep.assumeSuccess": "By default we assume success — confirm it or report that it failed.",
+  "rep.readOnlyNote": "Read-only — the result is reported by the deployer assigned to this rollout.",
   "rep.confirmInstalled": "✅ Confirm: installed",
   "rep.reportFailed": "⚠️ Report: failed",
   "notif.emails": "E-mail addresses",
@@ -1576,7 +1578,7 @@ window.RD_HELP.en = {
     ],
     [
       "Tester",
-      "Assembles release packages — the tested versions and the issues they fix — for the projects they are assigned to. No access to schedules, targets or client approval."
+      "Assembles release packages — the tested versions and the issues they fix — for the projects they are assigned to. Reads the deployment schedules of those projects in the deployer panel, without editing them, reporting results or approving on the client's behalf."
     ],
     [
       "Deployer",

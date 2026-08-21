@@ -171,7 +171,7 @@ window.RD_I18N.pl = {
   "aud.d.pkgUpdated": "Zaktualizowano pakiet wdrożeniowy {id}",
   "aud.d.pkgDeleted": "Usunięto pakiet wdrożeniowy {id}",
   "role.tester": "Tester",
-  "roleDesc.tester": "Tworzy pakiety wdrożeniowe — przetestowane wersje i poprawione błędy — bez edycji harmonogramów.",
+  "roleDesc.tester": "Tworzy pakiety wdrożeniowe — przetestowane wersje i poprawione błędy — oraz podgląda harmonogramy wdrożeń swoich projektów, bez ich edycji.",
   "nav.packages": "Pakiety",
   "topbar.packages": "Pakiety wdrożeniowe",
   "desc.packages": "Pakiety przygotowane przez zespół testowy: wersje aplikacji przetestowane razem oraz poprawione w nich błędy. Przekazany pakiet musi jeszcze zatwierdzić kierownik projektu — dopiero wtedy menedżer wydań może z niego zaplanować wdrożenie.",
@@ -500,6 +500,7 @@ window.RD_I18N.pl = {
   "desc.clients": "Firmy, dla których realizowane są projekty. Tylko Administrator może dodawać i edytować klientów.",
   "desc.sso": "Pozwól użytkownikom z danej domeny e-mail logować się przez dostawcę tożsamości firmy (Microsoft Entra ID / Azure AD, Google lub dowolny OpenID Connect) zamiast hasłem. Konta muszą już istnieć — dodaje je Administrator. Tylko Administrator może konfigurować SSO.",
   "desc.installer": "Tutaj raportujesz, co się udało, a co nie, i dodajesz komentarze — bez dostępu do zmiany harmonogramu, kolejności celów czy akceptacji klienta.",
+  "desc.installerRead": "Harmonogramy wdrożeń Twoich projektów — terminy, instrukcje, postęp i wyniki instalacji. Tylko do wglądu: raportowanie należy do wdrożeniowca.",
   "desc.account": "Twoje konto, tokeny API i historia aktywności.",
   "desc.audit": "Kto, co i kiedy zmienił — dodania, usunięcia i modyfikacje celów, aplikacji oraz użytkowników.",
   "desc.notifications": "Dodaj odbiorców (adresy e-mail i webhooki). Możesz włączać lub wyłączać każdego odbiorcę i wybierać, o jakich zdarzeniach ma być powiadamiany.",
@@ -1261,6 +1262,7 @@ window.RD_I18N.pl = {
   "rep.testNoApprovalNeeded": "Gotowe do instalacji",
   "rep.appearAfterApproval": "Pojawi się do zaraportowania po zatwierdzeniu harmonogramu przez klienta.",
   "rep.assumeSuccess": "Domyślnie zakładamy sukces — potwierdź lub zgłoś niepowodzenie.",
+  "rep.readOnlyNote": "Podgląd — wynik instalacji raportuje wdrożeniowiec przypisany do tego wdrożenia.",
   "rep.confirmInstalled": "✅ Potwierdź: zainstalowane",
   "rep.reportFailed": "⚠️ Zgłoś: niepowodzenie",
   "notif.emails": "Adresy e-mail",
@@ -1576,7 +1578,7 @@ window.RD_HELP.pl = {
     ],
     [
       "Tester",
-      "Składa pakiety wdrożeniowe — przetestowane wersje i poprawione w nich błędy — dla przypisanych mu projektów. Bez dostępu do harmonogramów, celów i akceptacji klienta."
+      "Składa pakiety wdrożeniowe — przetestowane wersje i poprawione w nich błędy — dla przypisanych mu projektów. Harmonogramy wdrożeń tych projektów widzi w panelu wdrożeniowca, tylko do wglądu: bez edycji, raportowania wyników i akceptacji klienta."
     ],
     [
       "Wdrożeniowiec",

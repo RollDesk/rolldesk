@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.0] - 2026-08-21
+
+### Added
+- **A tester sees the deployment schedules.** The role could reach the packages list and nothing else, so the people who assemble a release had no way to learn when it goes out — they asked. The **deployer panel** is now open to a tester as a reader: the rollouts of the projects they were granted, with the dates, the deployer instructions, the changelog, the per-day schedule, the XLS worklist, the progress and the results that were reported. Read-only, and not by hiding buttons: reporting a result, correcting one, assigning a deployer and commenting are all writes the API refuses for this role (`requireWriteRole` is admin / release manager / deployer), so the panel leaves them out rather than offering something that would come back a 403. The panel's own description says which of the two panels the reader is in.
+- A „rollout finished" notification now **opens the rollout for a tester too**. Those cards are filed for the role (`completed`, `failure`), but the id was routed to whichever view the role had — the packages list, which does not contain deployments — so following one landed on a list without the record it named. It routes to the deployer panel now, and every other role is unaffected.
+
+### Changed
+- **Reading a notification clears it.** The bell's count only ever went down when somebody pressed *Mark all as read*: opening the drawer changed nothing, and neither did opening the one notification you came for — so the badge kept saying 7 to a reader who had read all seven, which is a badge that stops being read. Two things clear a card now: **opening it** (the record it is about is what dealing with it means), and simply **having had it on screen** — everything rendered while the drawer was open is marked read when the drawer closes. The badge answers „arrived since you last looked" instead of „never pressed the button", and *Mark all as read* stays for the rest: anything older than the page being shown, the „I have been away for a week" case.
+- The unread mark itself is unchanged while the drawer is open, because that is what makes the new cards findable in a list that also holds ninety days of archive — and **↺ still means „I am not done with this"**: a card put back is remembered for as long as the drawer stays open and survives the clearing on close, so the one gesture that protects a rollout you have to come back to after lunch is not undone by closing the drawer.
+
 ## [0.32.1] - 2026-08-20
 
 ### Fixed
