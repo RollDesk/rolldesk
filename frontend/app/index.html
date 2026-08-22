@@ -3025,11 +3025,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.34.1"></script>
-<script src="i18n/en.js?v=0.34.1"></script>
+<script src="i18n/pl.js?v=0.34.2"></script>
+<script src="i18n/en.js?v=0.34.2"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.34.1';
+  const ROLLDESK_VERSION = '0.34.2';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -3149,6 +3149,21 @@
     return String(v == null ? '' : v)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  // A click that finished a text selection is not a click on the row. Every list
+  // here opens its detail by clicking the row itself, and opening one re-renders
+  // the whole table — so letting go of the mouse after dragging across a package
+  // id replaced the DOM the selection pointed at, and the highlight vanished
+  // before anyone could press Ctrl+C. Ids are exactly what people copy out of
+  // these tables, so the fix is to let the selection win, not to make the cells
+  // unselectable.
+  //
+  // Safe as a plain "is anything selected" test because the browser collapses the
+  // selection on mousedown: an ordinary click always reaches the handler with
+  // nothing selected, and only the mouseup that ended a drag does not.
+  function rowClickIsSelection(){
+    const sel = window.getSelection ? window.getSelection() : null;
+    return !!(sel && !sel.isCollapsed && String(sel).trim());
   }
   // ---- Hover help (data-tip) -------------------------------------------------
   // One tooltip element, shared by every [data-tip] host (the ℹ icons, the P/NP
@@ -6577,6 +6592,20 @@
       showToast(value);
     }
   }
+  // The package id on the clipboard, the same shape as copyBuildPath. It is the
+  // string every other view, every export and every mail quotes a release by, so
+  // it is the value most often carried out of this app by hand.
+  function copyPackageId(id){
+    const value = String(id || '');
+    if(!value) return;
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(value)
+        .then(()=>showToast(tf('dcard.copiedId', {id: value})))
+        .catch(()=>showToast(value));
+    } else {
+      showToast(value);
+    }
+  }
   // The package's entry for one of a deployment's applications, matched by name
   // and version: a deployment carries the versions it was planned with, and a
   // package edited to a newer version afterwards must not offer that build for a
@@ -6717,7 +6746,7 @@
       // ⓘ control: „what happened to this package" is the question asked *about the
       // row*, and the actions cell stops the click so a button never opens it.
       const open = expandedPackageId === p.id;
-      return `<tr data-pkg="${escapeHtml(p.id)}" class="pkg-row${open ? ' is-open' : ''}" onclick="togglePackageTimeline('${escapeHtml(p.id)}')" title="${escapeHtml(t('pkg.tlToggle'))}">
+      return `<tr data-pkg="${escapeHtml(p.id)}" class="pkg-row${open ? ' is-open' : ''}" onclick="if(rowClickIsSelection())return; togglePackageTimeline('${escapeHtml(p.id)}')" title="${escapeHtml(t('pkg.tlToggle'))}">
         <td>${expandableCell(
           // The same chevron the deployments list uses — one affordance for „this row
           // opens", rotating when it is open, rather than a second thing that looks
@@ -6725,6 +6754,12 @@
           // other view refers to; the name goes under it, in bold, because that is
           // what people say out loud.
           `<span class="mono" style="font-size:12px; font-weight:700;">${escapeHtml(p.id)}</span>`
+          // Selecting the id by hand works now, but a button is still the shorter
+          // way to the one string this whole row is referred to by — the same
+          // icon-only affordance, sitting right of the id, that the deployment id
+          // carries on its action bar. The label lives in the tooltip: a word next
+          // to every id in the list read as noise beside the id itself.
+          + ` <button type="button" class="mini-btn" title="${escapeHtml(t('dcard.copyId'))}" aria-label="${escapeHtml(t('dcard.copyId'))}" style="padding:1px 6px; vertical-align:middle;" onclick="event.stopPropagation(); copyPackageId('${escapeHtml(p.id)}')">${COPY_ICON}</button>`
           + (p.name ? `<div style="font-size:12.5px; font-weight:700; margin-top:2px;">${escapeHtml(p.name)}</div>` : '')
           + usedLine
         )}</td>
@@ -8802,7 +8837,7 @@
       // An application released as a set of services says so here: it changes what
       // assembling a package for it looks like, so it belongs next to the name.
       const svc = Array.isArray(a.services) ? a.services.length : 0;
-      return `<tr class="app-row" data-idx="${i}" onclick="openAppSettings(${i})" style="cursor:pointer;">
+      return `<tr class="app-row" data-idx="${i}" onclick="if(rowClickIsSelection())return; openAppSettings(${i})" style="cursor:pointer;">
         <td><strong>${a.name}</strong>${svc ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">🧩 ${escapeHtml(tf('svc.nServices', {n: svc}))}</div>` : ''}</td>
         <td>${lastCell}</td>
         <td><button class="mini-btn" onclick="event.stopPropagation(); openAppSettings(${i})">✎ ${t('app.settings')}</button></td>
@@ -9500,7 +9535,7 @@
       else if(isExpired){ badgeBg = 'var(--red-soft)'; badgeColor = '#A81E1E'; badgeText = t('acc.expired'); }
       const statusBadge = `<span class="mono" style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:${badgeBg}; color:${badgeColor};">${badgeText}</span>`;
       const expiryText = tok.expiry ? t('acc.until') + ' ' + tokenDay(tok.expiry) : t('acc.noExpiry');
-      html += `<tr class="app-row" onclick="toggleTokenDetails(${tok.id})" style="cursor:pointer;">
+      html += `<tr class="app-row" onclick="if(rowClickIsSelection())return; toggleTokenDetails(${tok.id})" style="cursor:pointer;">
         <td class="mono">${tok.masked}</td>
         <td class="mono">${tokenDay(tok.created)}</td>
         <td class="mono">${expiryText}</td>
@@ -10550,7 +10585,7 @@
       }
       cells.push(`<td style="color:var(--text-faint); font-size:12px; white-space:nowrap;">${isExpanded ? t('client.collapse') : t('client.previewTimeline')}</td>`);
 
-      let html = `<tr class="deploy-row" data-dep="${escapeHtml(rowKey)}" onclick="toggleClientRowDetail('${rowKey}')" style="cursor:pointer;">${cells.join('')}</tr>`;
+      let html = `<tr class="deploy-row" data-dep="${escapeHtml(rowKey)}" onclick="if(rowClickIsSelection())return; toggleClientRowDetail('${rowKey}')" style="cursor:pointer;">${cells.join('')}</tr>`;
       if(isExpanded){
         const timeline = getClientTimeline(r, proj);
         let body = '';
@@ -13815,7 +13850,7 @@
   // Small inline badge showing the deployment's API ID, with a copy icon.
   function deployIdBadge(r){
     if(!r.id) return '';
-    return `<span class="mono" style="display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:700; padding:1px 7px 1px 8px; border-radius:20px; background:#EEF0F3; color:var(--text-muted); margin-left:6px;">${r.id}<button title="Kopiuj ID" onclick="event.stopPropagation(); copyDeploymentId('${r.id}')" style="background:none; border:none; padding:0; margin:0; cursor:pointer; color:var(--text-muted); display:inline-flex; align-items:center;">${COPY_ICON}</button></span>`;
+    return `<span class="mono" style="display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:700; padding:1px 7px 1px 8px; border-radius:20px; background:#EEF0F3; color:var(--text-muted); margin-left:6px;">${r.id}<button title="${escapeHtml(t('dcard.copyId'))}" onclick="event.stopPropagation(); copyDeploymentId('${r.id}')" style="background:none; border:none; padding:0; margin:0; cursor:pointer; color:var(--text-muted); display:inline-flex; align-items:center;">${COPY_ICON}</button></span>`;
   }
 
   // Classify a completed deployment's outcome for badge display.
@@ -14580,7 +14615,7 @@
     // No details/collapse column: the whole row is the control, exactly as in the
     // Deployments list, and a text label pretending to be a button cost a column.
     const open = expandedInstallerIdx === r.idx;
-    let html = `<tr data-idx="${r.idx}" class="deploy-row${open ? ' is-open' : ''}" onclick="toggleInstallerDetails(${r.idx})" style="cursor:pointer;" aria-expanded="${open}">${cells.join('')}</tr>`;
+    let html = `<tr data-idx="${r.idx}" class="deploy-row${open ? ' is-open' : ''}" onclick="if(rowClickIsSelection())return; toggleInstallerDetails(${r.idx})" style="cursor:pointer;" aria-expanded="${open}">${cells.join('')}</tr>`;
     if(open) html += installerDetailRowHtml(r, kind);
     return html;
   }
@@ -16401,7 +16436,7 @@
           </div>${progressExtra}`);
         cells.push(approvalBadgeHtml(r));
         cells.push('<td></td>');
-        html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
+        html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="if(rowClickIsSelection())return; toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
 
       } else if(isEditing){
         const envChoices = [...PROJECTS[r.projectKey].testEnvs, 'Production'];
@@ -16428,7 +16463,7 @@
         </select>${r.paused ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' — ' + r.pauseReason : ''}</div>` : ''}</td>`);
         cells.push(approvalBadgeHtml(r));
         cells.push(`<td style="white-space:nowrap; text-align:right;" onclick="event.stopPropagation();"><button class="mini-btn icon-btn" onclick="toggleEditDeployment(${r.idx})"><span class="mb-ic">✎</span> ${t('usr.edit')}</button></td>`);
-        html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
+        html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="if(rowClickIsSelection())return; toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
 
       }
     });

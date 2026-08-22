@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.34.2] - 2026-08-22
+
+### Fixed
+- **Selecting text in a list row no longer throws the selection away.** Copying a package id off the packages list was impossible: every row opens its detail by clicking the row itself, so releasing the mouse after dragging across the id counted as a click, the row's timeline opened, the whole table was re-rendered — and the selection pointed at nodes that no longer existed. The highlight vanished at the moment of letting go, before anybody could press Ctrl+C. A click that ended a text selection is now not treated as a click on the row, which is safe to decide from „is anything selected" because the browser collapses the selection on mousedown: an ordinary click always reaches the handler with nothing selected. Fixed for all six lists that open on a row click — packages, applications, API tokens, and the deployments list in the release manager's, the deployer's and the client's view — rather than only where it was reported.
+
+### Added
+- **A copy button beside the package id in the packages list.** The id is the string every other view, every export and every mail quotes a release by, so it is the value most often carried out of the app by hand; the deployment id has had this button on its action bar for a while, and the id that heads a package row did not. Icon only, with the label in the tooltip.
+
 ## [0.34.1] - 2026-08-21
 
 ### Fixed
