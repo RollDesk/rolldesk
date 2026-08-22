@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.36.0] - 2026-08-22
+
+### Changed
+- **All three deployment lists now open a rollout the same way: as a page of its own.** The release manager's list had that page, and 0.35.0 replaced it with a row that expanded in place — which turned out to be the worse of the two: the detail carries a day schedule, a target queue and a timeline, and inside a table cell each of those became a scroll pane nested in a scroll pane. The page is back, and the deployer's panel and the client's portal — which had always expanded their rows — now do the same. One interaction for „open this rollout", so somebody who works in two of these views does not carry two mental models. Every page has the same chrome: „← Back to the list", and the row it came from as a heading (applications and versions, then project · environment · date) — a page opened out of a list has to say which row it is. Escape closes it in all three, switching views in the rail closes it, and the scroll offsets of the day plan and the queue survive the re-render that every edit inside the page causes.
+- With the list off screen while a deployment is open, **the package is named again on the action bar** — id, name and a copy button, for every role rather than only the ones that may edit it. Nothing repeats it there now, which is what made it redundant while the row was visible. The client's page carries the same line, since the id heads the fixed-issue list they read.
+
 ## [0.35.1] - 2026-08-22
 
 ### Added
