@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.35.0] - 2026-08-22
+
+### Changed
+- **A deployment opens under its row again, instead of replacing the list with a page of its own.** The page put the record and the list it came from on two screens: a reader who had filtered forty rollouts down to find one had to close the page to glance at the next row, and the list came back scrolled to its top. The row expands in place — the same interaction as the deployer's panel, the packages list and every other expandable row in the app, so „click a row to see it" now means one thing everywhere. Clicking the row again closes it, Escape still closes it, and a `#deployments/<id>` link opens the row and scrolls it into view instead of landing on a page. The heading the page used to print (project, applications, date) was the row's own content, so the detail starts straight at the action bar. The scroll offsets of the day plan and the target queue are preserved across the re-render that every schedule edit causes, exactly as they were on the page.
+- **The package id in a deployment row now carries the package's name** — „📦 PKG-2026-0036 · Sierpniowy hotfix". The id is what gets quoted in a mail and the name is what people say out loud; a row that showed only the id made the reader open the package to find out which one it was.
+- **The browser tab reads „RollDesk : Wdrożenia"** rather than separating the view with an em dash, which in a narrow tab was read as part of the product name.
+
+### Fixed
+- **The package id is no longer printed twice, a centimetre apart.** With the deployment open, its action bar repeated the „📦 PKG-…" that the row directly above already showed, which read as two different packages. The bar keeps only the way through to the package — the „Edit the package" shortcut, which is offered to the roles that may open one — and names the package in its tooltip.
+
 ## [0.34.2] - 2026-08-22
 
 ### Fixed
