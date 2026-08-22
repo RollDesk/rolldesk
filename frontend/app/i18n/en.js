@@ -230,6 +230,7 @@ window.RD_I18N.en = {
   "pkg.buildLink": "build",
   "pkg.buildPath": "path",
   "pkg.buildCopied": "Build path copied",
+  "pkg.copyIdTitle": "Copy the package id",
   "pkg.getBuilds": "Get the builds",
   "pkg.issues": "Fixed issues",
   "pkg.addIssue": "Add issue",

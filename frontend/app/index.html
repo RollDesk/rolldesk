@@ -3023,11 +3023,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.35.0"></script>
-<script src="i18n/en.js?v=0.35.0"></script>
+<script src="i18n/pl.js?v=0.35.1"></script>
+<script src="i18n/en.js?v=0.35.1"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.35.0';
+  const ROLLDESK_VERSION = '0.35.1';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -6628,11 +6628,16 @@
   // people say out loud, and a row that carried only the id made the reader open
   // the package to find out which one it was. The name is not monospaced — it is
   // prose, not an identifier.
+  // The copy button sits on the id here as well as on the packages list, because
+  // this is where the id is usually read from: a rollout is what somebody is asking
+  // about when they need the handover it came from, and retyping „PKG-2026-0036"
+  // into a mail is where the typos came from.
   function packageIdCellHtml(r){
     if(!r || !r.packageId) return '';
     const pkg = packageById(r.packageId);
     const name = (pkg && pkg.name) ? String(pkg.name).trim() : '';
-    return `<div class="mono" style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">📦 ${escapeHtml(r.packageId)}${name ? ` · <span style="font-family:var(--font-sans);">${escapeHtml(name)}</span>` : ''}</div>`;
+    const copyBtn = `<button type="button" class="mini-btn" title="${escapeHtml(t('pkg.copyIdTitle'))}" aria-label="${escapeHtml(t('pkg.copyIdTitle'))}" style="padding:0 4px; margin-left:4px; vertical-align:middle;" onclick="event.stopPropagation(); copyPackageId('${escapeHtml(r.packageId)}')">${COPY_ICON}</button>`;
+    return `<div class="mono" style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">📦 ${escapeHtml(r.packageId)}${copyBtn}${name ? ` · <span style="font-family:var(--font-sans);">${escapeHtml(name)}</span>` : ''}</div>`;
   }
   // The way through to the package, on the action bar of an open deployment.
   //
@@ -6772,7 +6777,7 @@
           // icon-only affordance, sitting right of the id, that the deployment id
           // carries on its action bar. The label lives in the tooltip: a word next
           // to every id in the list read as noise beside the id itself.
-          + ` <button type="button" class="mini-btn" title="${escapeHtml(t('dcard.copyId'))}" aria-label="${escapeHtml(t('dcard.copyId'))}" style="padding:1px 6px; vertical-align:middle;" onclick="event.stopPropagation(); copyPackageId('${escapeHtml(p.id)}')">${COPY_ICON}</button>`
+          + ` <button type="button" class="mini-btn" title="${escapeHtml(t('pkg.copyIdTitle'))}" aria-label="${escapeHtml(t('pkg.copyIdTitle'))}" style="padding:1px 6px; vertical-align:middle;" onclick="event.stopPropagation(); copyPackageId('${escapeHtml(p.id)}')">${COPY_ICON}</button>`
           + (p.name ? `<div style="font-size:12.5px; font-weight:700; margin-top:2px;">${escapeHtml(p.name)}</div>` : '')
           + usedLine
         )}</td>

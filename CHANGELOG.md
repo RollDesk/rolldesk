@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.35.1] - 2026-08-22
+
+### Added
+- **The package id in a deployment row can be copied with one press.** The same button the packages list has, on the id where it is actually read from: somebody asking about a rollout needs the handover it came from, and „PKG-2026-0036" was being retyped into mails by hand. Present in the deployments list, the deployer's panel and the client's portal — every list that names the package a rollout was planned from.
+
 ## [0.35.0] - 2026-08-22
 
 ### Changed

@@ -230,6 +230,7 @@ window.RD_I18N.pl = {
   "pkg.buildLink": "paczka",
   "pkg.buildPath": "ścieżka",
   "pkg.buildCopied": "Ścieżka do paczki skopiowana",
+  "pkg.copyIdTitle": "Kopiuj ID pakietu",
   "pkg.getBuilds": "Pobierz paczki",
   "pkg.issues": "Poprawione błędy",
   "pkg.addIssue": "Dodaj błąd",
