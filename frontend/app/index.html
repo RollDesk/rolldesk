@@ -1987,8 +1987,6 @@
     </div>
    </div>
 
-   <!-- One deployment, full width. Filled by renderDeploymentDetailPage(). -->
-   <div id="deploy-detail-page" style="display:none;"></div>
   </div>
 
   <!-- ============ VIEW: RELEASE PACKAGES ============ -->
@@ -3025,11 +3023,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.34.2"></script>
-<script src="i18n/en.js?v=0.34.2"></script>
+<script src="i18n/pl.js?v=0.35.0"></script>
+<script src="i18n/en.js?v=0.35.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.34.2';
+  const ROLLDESK_VERSION = '0.35.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -4860,7 +4858,9 @@
     return new Set([...document.querySelectorAll('.view')].map(v=>v.id.replace(/^view-/,'')));
   }
   function updateDocumentTitle(viewName){
-    try { document.title = 'RollDesk — ' + titleFor(viewName); } catch(e){ document.title = 'RollDesk'; }
+    // „RollDesk : Wdrożenia" rather than an em dash: the dash reads as part of the
+    // name in a narrow tab, and several views carry one of their own.
+    try { document.title = 'RollDesk : ' + titleFor(viewName); } catch(e){ document.title = 'RollDesk'; }
   }
 
   // ---- Role-based access to views/navigation ----
@@ -5104,10 +5104,12 @@
     Object.keys(deployStatusFilter).forEach(k => { deployStatusFilter[k] = true; });
     ['deploy-filter-client','deploy-filter-project','deploy-filter-app','deploy-filter-env']
       .forEach(id => { const el = document.getElementById(id); if(el) el.value = 'all'; });
-    // A link to one deployment opens that deployment, not the list with a row
-    // highlighted — the detail page is where the id resolves to something to read.
+    // A link to one deployment opens that deployment rather than leaving the reader
+    // to find it: the row expands in place, so it also has to be brought into view
+    // and marked — a filtered list of forty rows does not say which one was meant.
     expandedBatchIdx = idx;
     renderDeploymentsTable();
+    flashRow(document.querySelector(`#deploy-table tr[data-idx="${idx}"]`));
   }
 
   // The client portal: rows are keyed by deployment id, not by index, and its
@@ -6620,20 +6622,31 @@
   // tell from a list which handover a rollout came from. Shown to clients too —
   // the id already heads the fixed-issue list they read, and it is the reference
   // they quote back when asking what a release contains.
+  //
+  // With the package's name beside it, because the two are not interchangeable:
+  // „PKG-2026-0036" is what gets quoted in a mail, „Sierpniowy hotfix" is what
+  // people say out loud, and a row that carried only the id made the reader open
+  // the package to find out which one it was. The name is not monospaced — it is
+  // prose, not an identifier.
   function packageIdCellHtml(r){
     if(!r || !r.packageId) return '';
-    return `<div class="mono" style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">📦 ${escapeHtml(r.packageId)}</div>`;
+    const pkg = packageById(r.packageId);
+    const name = (pkg && pkg.name) ? String(pkg.name).trim() : '';
+    return `<div class="mono" style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">📦 ${escapeHtml(r.packageId)}${name ? ` · <span style="font-family:var(--font-sans);">${escapeHtml(name)}</span>` : ''}</div>`;
   }
-  // The same id on an action bar, beside the deployment id. The way through to the
-  // package is offered only to the roles that may open one — a deployer reads the
-  // id to match the build they were handed, and has nothing to change in it.
+  // The way through to the package, on the action bar of an open deployment.
+  //
+  // The id is deliberately *not* repeated here. This bar hangs directly under the
+  // row it belongs to, and that row already carries „📦 PKG-2026-0036" in its
+  // versions cell — printing it again a centimetre below read as two different
+  // packages. Offered only to the roles that may open one: a deployer reads the id
+  // to match the build they were handed and has nothing to change in it.
   function packageIdChipHtml(r){
-    if(!r || !r.packageId) return '';
-    const id = escapeHtml(r.packageId);
-    const editBtn = canEditPackages()
-      ? ` <button class="mini-btn" style="padding:2px 7px; font-size:10.5px;" onclick="event.stopPropagation(); openPackageEditor('${id}')">${t('editdep.editPackage')}</button>`
-      : '';
-    return `<span class="mono" style="font-size:11px; color:var(--text-muted);">📦 ${id}</span>${editBtn}`;
+    if(!r || !r.packageId || !canEditPackages()) return '';
+    const pkg = packageById(r.packageId);
+    const name = (pkg && pkg.name) ? String(pkg.name).trim() : '';
+    const tip = name ? `${r.packageId} · ${name}` : r.packageId;
+    return `<button class="mini-btn" style="padding:2px 7px; font-size:10.5px;" title="${escapeHtml(tip)}" onclick="event.stopPropagation(); openPackageEditor('${escapeHtml(r.packageId)}')">📦 ${t('editdep.editPackage')}</button>`;
   }
 
   function populatePackageProjectFilter(){
@@ -15875,12 +15888,10 @@
 
   function toggleDeploymentDetails(idx){
     if(expandedBatchIdx === idx){ closeDeploymentDetails(); return; }
+    // One open at a time, like every other list here: two open rollouts answer
+    // „what is happening with this one" twice and bury the rest of the list.
     expandedBatchIdx = idx;
     renderDeploymentsTable();
-    // The list was scrolled to the clicked row; the page that replaced it starts
-    // at its own top.
-    const view = document.getElementById('view-deployments');
-    if(view) view.scrollTop = 0;
   }
 
   let commentClock = 0; // ensures each new comment gets a strictly increasing timestamp
@@ -16219,43 +16230,21 @@
       ${r.paused ? '' : actionHtml}`;
   }
 
-  // ---- The deployment detail page ----
+  // ---- The open deployment, inline under its row ----
   //
-  // Opening a deployment swaps the list for a page about that one rollout, and
-  // "back" swaps it in again. Two pages of one view rather than a modal: the
-  // detail owns editable schedule controls whose handlers re-render it, and a
-  // dialog that redraws itself under the reader would lose the scroll position of
-  // whichever of its panes they were working in.
-  function renderDeploymentDetailPage(){
-    const listPage = document.getElementById('deploy-list-page');
-    const detailPage = document.getElementById('deploy-detail-page');
-    if(!listPage || !detailPage) return;
-    const d = expandedBatchIdx == null ? null : DEPLOYMENTS_DATA[expandedBatchIdx];
-    if(!d){
-      // Also the path taken when the open deployment is deleted or filtered away.
-      listPage.style.display = '';
-      detailPage.style.display = 'none';
-      detailPage.innerHTML = '';
-      return;
-    }
-    const r = Object.assign({idx: expandedBatchIdx}, d, {project: PROJECTS[d.projectKey]});
-    // The pane offsets belong to the tables inside the detail, and every schedule
-    // edit re-renders the whole page — without this, changing one day's date threw
-    // the reader back to day 1.
-    const prev = Array.from(detailPage.querySelectorAll('.dep-detail-scroll, [id^="queue-tbl-"]')).map(p=>p.scrollTop);
-    detailPage.innerHTML = `
-      <div class="section-head">
-        <div>
-          <button class="btn ghost" onclick="closeDeploymentDetails()">${t('dep.backToList')}</button>
-        </div>
-      </div>
-      <h2 class="section-title" style="margin-bottom:2px;">${escapeHtml(deploymentTitle(r))}</h2>
-      <p class="section-desc" style="margin-bottom:16px;">${escapeHtml((r.project && r.project.name) || r.projectKey || '')}${r.env ? ' · ' + escapeHtml(envLabel(r.env)) : ''} · ${escapeHtml(installerDateLabel(r))}</p>
-      <div class="card">${detailBodyHtml(r)}</div>`;
-    const panes = Array.from(detailPage.querySelectorAll('.dep-detail-scroll, [id^="queue-tbl-"]'));
-    panes.forEach((p,i)=>{ if(prev[i]) p.scrollTop = prev[i]; });
-    listPage.style.display = 'none';
-    detailPage.style.display = '';
+  // It was a full-width page of its own for a while, and that put the record and
+  // the list it came from on two screens: a reader who had filtered the list down
+  // to find one rollout had to close the page to glance at the next row, and the
+  // list came back scrolled to the top. It expands in place instead — the same
+  // shape as the deployer's panel, the packages list and every other expandable
+  // row here, so „click a row to see it" means one thing across the app.
+  //
+  // The row above supplies the heading this used to print (project, applications,
+  // date), which is why the detail starts straight at the action bar.
+  function deploymentDetailRowHtml(r, cols){
+    return `<tr><td colspan="${cols}" style="background:var(--paper);">
+      <div style="padding:14px;" onclick="event.stopPropagation();">${detailBodyHtml(r)}</div>
+    </td></tr>`;
   }
 
   function closeDeploymentDetails(){
@@ -16268,12 +16257,9 @@
   }
 
   function renderDeploymentsTable(){
-    // Every action on the detail page (a staged date, a comment, a status change)
-    // calls this, because the two pages share one render entry point. When a
-    // deployment is open it is the page on screen, so redraw that and leave the
-    // list alone — the list is rebuilt on the way back out.
-    renderDeploymentDetailPage();
-    if(expandedBatchIdx != null && DEPLOYMENTS_DATA[expandedBatchIdx]) return;
+    // One render entry point for the list and for the open deployment inside it:
+    // every action on the detail (a staged date, a comment, a status change) calls
+    // this, and the detail is a row of the same table.
     const clientVal = document.getElementById('deploy-filter-client').value;
     const projectVal = document.getElementById('deploy-filter-project').value;
     const appVal = (document.getElementById('deploy-filter-app')||{}).value || 'all';
@@ -16393,11 +16379,11 @@
     let html = '';
     rows.forEach(r=>{
       const cells = [];
-      // Every row but the one being edited inline opens the detail page, so it
-      // gets the chevron in its first cell. No is-open/aria-expanded state: the
-      // row does not expand any more, it navigates, and the list is never on
-      // screen at the same time as the deployment it opened.
+      // Every row but the one being edited inline opens its detail underneath, so
+      // it gets the chevron in its first cell and the open/closed state the rest
+      // of the app's expandable rows carry.
       const isEditing = editingDeployIdx === r.idx;
+      const isOpen = expandedBatchIdx === r.idx;
       const lead = html => (isEditing ? html : expandableCell(html));
       if(showProjectCol){
         const clientLabel = (r.project && r.project.clientName) ? r.project.clientName : '';
@@ -16436,7 +16422,8 @@
           </div>${progressExtra}`);
         cells.push(approvalBadgeHtml(r));
         cells.push('<td></td>');
-        html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="if(rowClickIsSelection())return; toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
+        html += `<tr data-idx="${r.idx}" class="deploy-row${isOpen ? ' is-open' : ''}" onclick="if(rowClickIsSelection())return; toggleDeploymentDetails(${r.idx})" style="cursor:pointer;" aria-expanded="${isOpen}">` + cells.join('') + '</tr>';
+        if(isOpen) html += deploymentDetailRowHtml(r, cols.length);
 
       } else if(isEditing){
         const envChoices = [...PROJECTS[r.projectKey].testEnvs, 'Production'];
@@ -16463,7 +16450,8 @@
         </select>${r.paused ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' — ' + r.pauseReason : ''}</div>` : ''}</td>`);
         cells.push(approvalBadgeHtml(r));
         cells.push(`<td style="white-space:nowrap; text-align:right;" onclick="event.stopPropagation();"><button class="mini-btn icon-btn" onclick="toggleEditDeployment(${r.idx})"><span class="mb-ic">✎</span> ${t('usr.edit')}</button></td>`);
-        html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="if(rowClickIsSelection())return; toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
+        html += `<tr data-idx="${r.idx}" class="deploy-row${isOpen ? ' is-open' : ''}" onclick="if(rowClickIsSelection())return; toggleDeploymentDetails(${r.idx})" style="cursor:pointer;" aria-expanded="${isOpen}">` + cells.join('') + '</tr>';
+        if(isOpen) html += deploymentDetailRowHtml(r, cols.length);
 
       }
     });
@@ -16485,8 +16473,15 @@
     // row you clicked "Edit" on jumped out of sight. Restore the offset.
     const scrollPane = tbody.closest('.table-scroll');
     const prevScroll = scrollPane ? scrollPane.scrollTop : 0;
+    // The same for the panes *inside* an open deployment — the day plan and the
+    // target queue. Every schedule edit re-renders this table, and without their
+    // offsets, changing one day's date threw the reader back to day 1. Matched by
+    // position because the nodes themselves are new ones.
+    const innerPanes = () => Array.from(tbody.querySelectorAll('.dep-detail-scroll, [id^="queue-tbl-"]'));
+    const prevInner = innerPanes().map(p => p.scrollTop);
     tbody.innerHTML = html;
     if(scrollPane) scrollPane.scrollTop = prevScroll;
+    if(prevInner.some(Boolean)) innerPanes().forEach((p, i) => { if(prevInner[i]) p.scrollTop = prevInner[i]; });
 
     const stats = document.getElementById('deploy-stats');
     let total = rows.length, pending = 0, installed = 0, issues = 0;
