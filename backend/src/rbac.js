@@ -7,6 +7,7 @@
 // controls, but the API enforces it too so a client cannot bypass the UI by
 // calling the endpoints directly.
 import { query } from './db.js';
+import { visibleProjectKeys } from './projectClient.js';
 
 // Reject the request when the caller is a client account. Use on any
 // create/update/delete or team-only endpoint.
@@ -22,10 +23,28 @@ export function forbidClient(req, res, next) {
 // read endpoints down to what the client is allowed to see.
 export async function clientScope(req) {
   if (req._clientScope) return req._clientScope;
-  const { rows } = await query('SELECT projects, client_key FROM users WHERE id = $1', [req.auth.sub]);
+  const { rows } = await query('SELECT role, projects, client_key FROM users WHERE id = $1', [req.auth.sub]);
   const row = rows[0] || {};
-  const projects = Array.isArray(row.projects) ? row.projects.map(String) : [];
-  req._clientScope = { projects, clientKey: row.client_key || null };
+  let projects = Array.isArray(row.projects) ? row.projects.map(String) : [];
+  const clientKey = row.client_key || null;
+
+  // For a client account the grant list alone is not the whole rule: a project
+  // can be MOVED to another client (see projectClient.js), and from that moment
+  // the old client's accounts must not read it. The move revokes their grants,
+  // but a grant re-added by hand, or a move interrupted half-way, would still be
+  // one client reading another's deliveries — so the scope is intersected with
+  // the projects that actually belong to this client. Projects whose client was
+  // never recorded are left in, so nothing that worked before stops working.
+  if (row.role === 'client' && clientKey && projects.length) {
+    const { rows: owners } = await query(
+      `SELECT key, data->>'client' AS client FROM projects WHERE key = ANY($1::text[])`,
+      [projects]
+    );
+    const byKey = new Map(owners.map((r) => [String(r.key), r.client || '']));
+    projects = visibleProjectKeys(projects, byKey, clientKey);
+  }
+
+  req._clientScope = { projects, clientKey };
   return req._clientScope;
 }
 
@@ -77,6 +96,19 @@ export function requireWriteRole(req, res, next) {
   const role = (req.auth && req.auth.role) || '';
   if (!WRITE_ROLES.has(role)) {
     return res.status(403).json({ error: 'Not permitted for this role' });
+  }
+  next();
+}
+
+// Reject anyone but an administrator. For the handful of data-API routes that are
+// not "may this role write?" but "may this role change who sees what?" — moving a
+// project to another client is one: it decides which client accounts may read the
+// project's deployments and which webhooks its events are sent to, and clients
+// themselves are administered nowhere else. (The Users routes carry their own
+// copy of this check because that whole router is admin-only.)
+export function requireAdminRole(req, res, next) {
+  if (!req.auth || req.auth.role !== 'admin') {
+    return res.status(403).json({ error: 'Administrator role required' });
   }
   next();
 }

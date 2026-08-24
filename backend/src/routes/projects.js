@@ -1,9 +1,10 @@
 // Project endpoints (with apps stored in the JSONB data column).
 import { Router } from 'express';
-import { query } from '../db.js';
-import { requireWriteRole, isClient, clientScope } from '../rbac.js';
+import { query, pool } from '../db.js';
+import { requireWriteRole, requireAdminRole, isClient, clientScope } from '../rbac.js';
 import { normalizeTrackerSettings, trackerLinkPatterns, trackerProjects } from '../tracker.js';
 import { trackerSettingsForStorage, trackerStatus } from '../trackerService.js';
+import { normalizeClientMove, staleClientGrants } from '../projectClient.js';
 
 const router = Router();
 
@@ -88,6 +89,15 @@ router.put('/:key', requireWriteRole, async (req, res) => {
   const data = Object.assign({}, b);
   ['key','clientName','name','defaultDays','defaultTime','clientVisible'].forEach(k=>delete data[k]);
 
+  // What is already stored for this project, read once: the tracker credentials
+  // this PUT must not lose, and the client that owns it.
+  const { rows: prevRows } = await query(
+    `SELECT client_name, data->'tracker' AS tracker, data->>'client' AS client
+       FROM projects WHERE key = $1`,
+    [req.params.key]
+  );
+  const prev = prevRows[0] || null;
+
   // The tracker block is the one part of `data` that cannot be stored as it
   // arrives: the PAT and the Halo API key are encrypted at rest (as the SSO
   // client secrets are), and a blank secret field means "keep the stored one"
@@ -99,19 +109,30 @@ router.put('/:key', requireWriteRole, async (req, res) => {
     } else {
       const shaped = normalizeTrackerSettings(b.tracker);
       if (!shaped.ok) return res.status(422).json({ error: shaped.error });
-      const { rows: prevRows } = await query(`SELECT data->'tracker' AS tracker FROM projects WHERE key = $1`, [req.params.key]);
       data.tracker = trackerSettingsForStorage(
         shaped.data,
         { azurePat: b.tracker.azurePat, haloApiKey: b.tracker.haloApiKey },
-        prevRows[0] && prevRows[0].tracker
+        prev && prev.tracker
       );
     }
-  } else {
+  } else if (prev && prev.tracker) {
     // A PUT that does not mention the tracker (every existing caller, including
     // the project editor) must not drop credentials an admin set up earlier.
-    const { rows: prevRows } = await query(`SELECT data->'tracker' AS tracker FROM projects WHERE key = $1`, [req.params.key]);
-    const prev = prevRows[0] && prevRows[0].tracker;
-    if (prev) data.tracker = prev;
+    data.tracker = prev.tracker;
+  }
+
+  // Which client owns an existing project is changed only by the move endpoint
+  // below, never by a whole-object save. This PUT replaces the project with what
+  // the browser holds, and a tab that loaded the project before it was moved
+  // still holds the old client — accepting that would silently move the project
+  // back without revoking anything, which is the leak the move endpoint prevents.
+  // A brand-new project (no stored row) takes its client from the body as before.
+  let clientName = b.clientName || 'Client';
+  if (prev && prev.client) {
+    data.client = prev.client;
+    // The display name still follows the body while the key agrees, so renaming a
+    // client and saving one of its projects keeps repairing a stale name.
+    if (String(b.client || '') !== String(prev.client)) clientName = prev.client_name;
   }
 
   const { rows } = await query(
@@ -122,11 +143,109 @@ router.put('/:key', requireWriteRole, async (req, res) => {
            default_days=EXCLUDED.default_days, default_time=EXCLUDED.default_time,
            client_visible=EXCLUDED.client_visible, data=EXCLUDED.data
      RETURNING *`,
-    [req.params.key, b.clientName || 'Client', b.name || req.params.key,
+    [req.params.key, clientName, b.name || req.params.key,
      b.defaultDays || 5, b.defaultTime || '20:00',
      b.clientVisible !== false, data]
   );
   res.json(rowToObj(rows[0]));
+});
+
+// PUT /api/projects/:key/client — move the project under another client.
+//
+// Deliberately its own endpoint rather than a field of the project PUT: the move
+// is not only a rename. It has to revoke the client-side access granted while the
+// project belonged to the old client, and both halves must happen together — a
+// project that has changed hands while the previous client's accounts still hold
+// a grant is exactly the leak this endpoint exists to prevent. So it runs in one
+// transaction, and it is admin-only (see requireAdminRole).
+//
+// Everything else about the project — its key, applications, targets, settings,
+// deployments, release packages and history — is untouched. Deployment events
+// start going to the new client's webhooks, because those are read per project
+// from its client at send time.
+router.put('/:key/client', requireAdminRole, async (req, res) => {
+  const key = req.params.key;
+
+  const { rows: stateRows } = await query(`SELECT data FROM app_state WHERE key = 'clients'`);
+  const shaped = normalizeClientMove(req.body, stateRows.length ? stateRows[0].data : null);
+  if (!shaped.ok) return res.status(422).json({ error: shaped.error });
+  const { clientKey, clientName } = shaped.data;
+
+  const { rows: projRows } = await query('SELECT * FROM projects WHERE key = $1', [key]);
+  if (!projRows.length) return res.status(404).json({ error: 'Not found' });
+  const project = projRows[0];
+  const previous = (project.data && project.data.client) || '';
+
+  // Two active projects of one client with the same name are indistinguishable in
+  // every list and picker, so the target client is checked for the name the
+  // project is bringing with it — the same rule the project rename applies.
+  // `archived` lives in the JSONB, and comparing it as text avoids a cast error
+  // on a value some older client wrote as something other than a JSON boolean.
+  const { rows: dupRows } = await query(
+    `SELECT key FROM projects
+      WHERE key <> $1
+        AND data->>'client' = $2
+        AND lower(name) = lower($3)
+        AND COALESCE(data->>'archived', 'false') <> 'true'
+      LIMIT 1`,
+    [key, clientKey, project.name]
+  );
+  if (dupRows.length) {
+    return res.status(409).json({ error: 'A project with this name already exists for this client' });
+  }
+
+  const conn = await pool.connect();
+  let moved;
+  let revoked = [];
+  try {
+    await conn.query('BEGIN');
+    const { rows: updated } = await conn.query(
+      `UPDATE projects
+          SET client_name = $2,
+              data = jsonb_set(COALESCE(data, '{}'::jsonb), '{client}', to_jsonb($3::text), true)
+        WHERE key = $1
+        RETURNING *`,
+      [key, clientName, clientKey]
+    );
+    moved = updated[0];
+
+    // Client accounts holding this project. Read inside the transaction so a
+    // grant added while the move is in flight is either revoked here or made
+    // after the project already belongs to the new client.
+    const { rows: holders } = await conn.query(
+      `SELECT id, email, name, role, projects, client_key
+         FROM users
+        WHERE role = 'client' AND projects @> to_jsonb($1::text)`,
+      [key]
+    );
+    const stale = staleClientGrants(
+      holders.map((r) => ({
+        id: r.id,
+        email: r.email,
+        name: r.name,
+        role: r.role,
+        projects: Array.isArray(r.projects) ? r.projects.map(String) : [],
+        clientKey: r.client_key,
+      })),
+      key,
+      clientKey
+    );
+    for (const u of stale) {
+      await conn.query('UPDATE users SET projects = $2::jsonb WHERE id = $1', [
+        u.id,
+        JSON.stringify(u.projects.filter((k) => k !== key)),
+      ]);
+    }
+    await conn.query('COMMIT');
+    revoked = stale.map((u) => ({ id: u.id, email: u.email, name: u.name || '' }));
+  } catch (err) {
+    await conn.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    conn.release();
+  }
+
+  res.json({ project: rowToObj(moved), previousClient: previous, revoked });
 });
 
 // GET /api/projects/:key/tracker — what an admin sees in the integration form:

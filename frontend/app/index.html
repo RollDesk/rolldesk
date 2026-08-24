@@ -1362,6 +1362,25 @@
         </div>
       </div>
 
+      <!-- Which client the project is delivered for. A project can change hands
+           (a delivery taken over, two clients merged, or the wrong client picked
+           on day one), and the alternative to moving it was deleting it and
+           starting again — which throws away its deployment history. Admin only:
+           the client decides who may read the project and where its notifications
+           go. Hidden for every other role by renderProjectClientCard(). -->
+      <div class="card" id="project-client-card" style="margin-bottom:18px; display:none;">
+        <h3 class="sub-title" data-i18n="proj.clientCard">Client</h3>
+        <p class="section-desc" data-i18n="proj.clientCardDesc">The client this project is delivered for. Moving the project takes its applications, targets, deployments and history along; the technical key stays unchanged.</p>
+        <div class="field" style="margin-bottom:0;">
+          <label data-i18n="proj.clientLabel">Client</label>
+          <select id="project-client-select" class="w-medium"></select>
+          <p class="form-hint" data-i18n="proj.clientMoveNote">After the move, deployment events go to the new client's webhooks and client-side access granted for the previous client is revoked.</p>
+        </div>
+        <div class="card-actions">
+          <button class="btn" onclick="moveProjectClient()" data-i18n="proj.moveBtn">Move project</button>
+        </div>
+      </div>
+
       <!-- Who on the client side can see this project. Access is granted here (or in
            Users) rather than while creating the project. -->
       <div class="card" style="margin-bottom:18px;">
@@ -3039,11 +3058,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.36.0"></script>
-<script src="i18n/en.js?v=0.36.0"></script>
+<script src="i18n/pl.js?v=0.37.0"></script>
+<script src="i18n/en.js?v=0.37.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.36.0';
+  const ROLLDESK_VERSION = '0.37.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -5303,6 +5322,7 @@
       }
       actionsEl.innerHTML = btns.join('');
     }
+    renderProjectClientCard(key);
     renderProjectAccessTable(key);
   }
 
@@ -5487,6 +5507,9 @@
 
     const nameEl = document.getElementById('project-name-input');
     if(nameEl) nameEl.value = p.name || '';
+    // The client picker belongs to the project too, and switching project is
+    // reached from more places than the tab strip (the schedule picker, a link).
+    renderProjectClientCard(key);
 
     // Deployment defaults (working-day split + start time) — editable per project.
     const ddDays = document.getElementById('project-default-days');
@@ -5563,6 +5586,89 @@
       switchProject(currentProjectKey);
     } catch(e){}
     showToast(tf('proj.nameSaved', {name}));
+  }
+
+  // ---- Moving a project to another client --------------------------------
+  // Only an administrator may move a project: the client decides which client
+  // accounts may read its deployments and which webhooks its events go to. The
+  // API enforces that too — this only hides the card.
+  function renderProjectClientCard(key){
+    const card = document.getElementById('project-client-card');
+    const sel = document.getElementById('project-client-select');
+    if(!card || !sel) return;
+    const p = PROJECTS[key];
+    const show = !!p && isLoggedInAsAdmin();
+    card.style.display = show ? 'block' : 'none';
+    if(!show) return;
+    // A project can only move to a client that exists. Its current client is
+    // always an option even when it is known from the project alone (an instance
+    // that never opened the Clients view has no saved client list).
+    const options = CLIENTS.slice();
+    if(p.client && !options.some(c=>c.key === p.client)) options.push({key:p.client, name:p.clientName || p.client});
+    sel.innerHTML = options.map(c=>`<option value="${escapeHtml(c.key)}">${escapeHtml(c.name || c.key)}</option>`).join('');
+    sel.value = p.client || '';
+    // One client on the instance means there is nowhere to move to.
+    const btn = card.querySelector('.card-actions .btn');
+    if(btn) btn.disabled = options.length < 2;
+  }
+
+  async function moveProjectClient(){
+    if(!isLoggedInAsAdmin()){ showToast(t('proj.moveOnlyAdmin')); return; }
+    const key = currentProjectKey;
+    const p = PROJECTS[key];
+    if(!p) return;
+    const sel = document.getElementById('project-client-select');
+    const target = sel ? sel.value : '';
+    if(!target) return;
+    if(target === p.client){ showToast(t('proj.moveUnchanged')); return; }
+    const to = CLIENTS.find(c=>c.key === target);
+    if(!to){ showToast(t('proj.moveUnknownClient')); return; }
+    // The same rule the rename applies: two active projects of one client with the
+    // same name are indistinguishable in every list and picker. Checked here for a
+    // message naming the real problem; the API refuses it as well.
+    const dupKey = String(p.name || '').trim().toLowerCase();
+    const dup = Object.entries(PROJECTS).some(([k, x]) =>
+      k !== key && !x.archived && x.client === target && String(x.name || '').trim().toLowerCase() === dupKey
+    );
+    if(dup){ showToast(t('proj.dupName')); return; }
+
+    // How many client-side accounts the move takes the project away from — the one
+    // consequence that is not undone by moving the project back.
+    const losing = USERS.filter(u => u.role === 'client' && !u.archived
+      && (u.projects || []).includes(key) && u.clientKey !== target).length;
+    const prevClientName = p.clientName || p.client || '—';
+    const body = tf('proj.moveBody', {
+      project: p.name || key, from: prevClientName, to: to.name || to.key, n: losing,
+    });
+    showAppConfirm(t('proj.moveTitle'), body, async ()=>{
+      let result;
+      try {
+        result = await apiMoveProjectClient(key, target, to.name || to.key);
+      } catch(e){ showToast('⚠ ' + (e.message || t('proj.moveFailed'))); return; }
+      // The backend answers with the stored project, so the client name is the one
+      // the client list defines rather than whatever this tab happened to hold.
+      const moved = (result && result.project) || {};
+      p.client = moved.client || target;
+      p.clientName = moved.clientName || to.name || to.key;
+      // The revoked grants were changed in the database; re-read the directory so
+      // the access card below shows who is left.
+      try { await loadUsers(); } catch(e){}
+      logAudit('changed', 'Project', 'Moved project „' + (p.name || key) + '” from „' + prevClientName + '” to „' + p.clientName + '”', (p.name || key) + ' (' + p.clientName + ')', 'aud.d.projClientMoved', {from: prevClientName, to: p.clientName});
+      try {
+        renderProjectsList();
+        initProjectSelect();
+        populateClientSelect();
+        populateDeployClientFilter();
+        renderClientsTable();
+        renderDeploymentsTable();
+        renderInstallerPanel();
+        switchProject(key);
+      } catch(e){}
+      const revoked = (result && Array.isArray(result.revoked)) ? result.revoked.length : 0;
+      showToast(revoked
+        ? tf('proj.movedRevoked', {client: p.clientName, n: revoked})
+        : tf('proj.moved', {client: p.clientName}));
+    }, t('proj.moveConfirmBtn'));
   }
 
   function saveProjectDefaults(){
@@ -11372,6 +11478,18 @@
       body: JSON.stringify(obj)
     });
     if(!res.ok) throw new Error('PUT /api/projects ' + res.status);
+    return res.json();
+  }
+  // Moving a project to another client is its own endpoint, not a field of the
+  // project save: the backend also revokes the client-side access granted for the
+  // previous client, and the two have to happen together.
+  async function apiMoveProjectClient(key, clientKey, clientName){
+    const res = await apiFetch('/api/projects/' + encodeURIComponent(key) + '/client', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({clientKey, clientName})
+    });
+    if(!res.ok){ let e={}; try{e=await res.json();}catch(_){} throw new Error(e.error || ('PUT /api/projects/client ' + res.status)); }
     return res.json();
   }
   async function apiDeleteProject(key){
