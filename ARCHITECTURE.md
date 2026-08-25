@@ -54,6 +54,7 @@ Adopted architectural decisions for RollDesk. Use this as a checklist when build
 - Roles: admin, release manager, installer, client.
 - The UI hides controls, but the **API enforces** scope (clients cannot bypass the UI).
 - Client: only granted projects, no internal deployments, no project/deployment mutation, no audit.
+- A client account's scope is its grants **intersected with the projects that belong to its client**, so a grant left behind by a project that changed hands is not a way into another client's data (a project with no client recorded is unaffected).
 - Installer: scoped by projects; admin / RM: full access.
 - Visibility policies (e.g. whether the client sees admin notes) live as flags in the project JSONB.
 
@@ -63,6 +64,7 @@ Adopted architectural decisions for RollDesk. Use this as a checklist when build
 - Domain entities: Client → Project → Apps/Targets → Deployment (single vs batch).
 - Explicit lifecycle statuses (`scheduled` / `installed` / `failed` / …); append-only audit trail.
 - Two write shapes per entity: **`PUT` replaces the whole JSONB object** (what the UI, which holds it in memory, needs) and **`PATCH` merges named fields** (what a token-authenticated script needs, without a read-modify-write round trip). `PATCH` never upserts and validates the fields it owns.
+- A project can be **moved to another client** (`PUT /api/projects/:key/client`, admin only) — its own endpoint rather than a field of the project `PUT`, because the move must revoke the previous client's access in the same transaction. The project's technical key never changes: deployments, packages, attachments and user grants point at it, so the key is opaque and the client is read from the project record.
 - Event-driven notifications (email / webhook / optional Teams Graph), opt-in.
 - Notification bodies are composed in the browser, so their language is pinned to the instance (`NOTIFY_LANG`, delivered to the UI by `/api/version`) rather than inherited from whoever triggered the event.
 

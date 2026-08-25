@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.37.0] - 2026-08-25
+
+### Added
+- **A project can be moved to another client.** Until now the client was decided when the project was created and never again: a delivery taken over by another company, two clients merging, or simply the wrong client picked on day one left one way out — delete the project and create it again under the right client, which throws away every deployment ever recorded against it. The project editor has a „Client" card with the client picker and a „Move project" button; the project keeps its applications, targets, deployment defaults, tracker configuration, release packages, deployments and the whole history, and appears under the new client in the tab strip, the Clients view and every filter. Administrators only, because which client a project belongs to decides who may read it.
+- **Moving a project revokes the client-side access granted for the previous client.** The accounts on the „Client-side access" card belong to the client the project used to be delivered for, and after a move their grant would be a window into another company's rollouts — as often as not a competitor's. The move and the revocation happen in one database transaction, the confirmation dialog says how many accounts will lose the project before anything is changed, and the toast afterwards says how many did. Our own deployers, testers and project managers keep their assignments: for them the grant is a work assignment, not a client's view of their own data. Access for the new client's people is granted afterwards on the same card, deliberately not automatic — being a client of ours does not mean everyone there should see the rollouts.
+
+### Fixed
+- **A client account can no longer read a project that belongs to a different client, even if it still holds a grant for it.** The scope of a client account was its list of granted projects alone, so a grant left behind by a move — one re-added by hand, or a move interrupted half-way — was enough to read another client's deployments, packages and attachments. Every read for a client account is now intersected with the projects that actually belong to that client (projects with no client recorded are unaffected, so nothing that worked before stops working). The same reason a whole-project save no longer changes the client of an existing project: a browser tab that loaded the project before it was moved held the old client, and saving anything from it — a renamed target, a new application — would have quietly moved the project back with nobody's access revoked. The client changes through the move only.
+
 ## [0.36.0] - 2026-08-22
 
 ### Changed
