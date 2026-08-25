@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import {
   normalizeAppResults, statusFromAppResults, appJoinedAt, appCoverage,
   appsHaveMixedCoverage, failedAppsAt, APP_RESULT_STATUSES,
+  statusFromServiceResults, serviceResultTally,
 } from '../src/appProgress.js';
 
 // ---- normalizeAppResults ---------------------------------------------------
@@ -65,6 +66,148 @@ test('the stored text is bounded so a hostile payload cannot fill the JSONB', ()
 
 test('the two outcomes are the only ones an application can carry', () => {
   assert.deepEqual(APP_RESULT_STATUSES, ['installed', 'failed']);
+});
+
+// ---- the services of one application result ---------------------------------
+// An application released as a set of containers is installed one container at a
+// time, and the one that will not start is what the next deployer needs named.
+
+test('a service result keeps its name, its version and why it failed', () => {
+  const shaped = normalizeAppResults([{
+    name: 'Portal e-Usług',
+    status: 'failed',
+    services: [
+      { name: ' auth-service ', version: ' 2.7.0-dev.27504 ', status: 'installed' },
+      { name: 'frontend', version: '2.6.0-dev.27503', status: 'failed', reason: '  the image is not in the registry  ' },
+    ],
+  }]);
+  assert.equal(shaped.ok, true);
+  assert.deepEqual(shaped.data[0].services, [
+    { name: 'auth-service', version: '2.7.0-dev.27504', status: 'installed' },
+    { name: 'frontend', version: '2.6.0-dev.27503', status: 'failed', reason: 'the image is not in the registry' },
+  ]);
+});
+
+test('a service with no name or an invented status is refused, like an application', () => {
+  const bad = (services) => normalizeAppResults([{ name: 'Portal', status: 'installed', services }]).ok;
+  assert.equal(bad([{ status: 'installed' }]), false);
+  assert.equal(bad([{ name: 'auth', status: 'scheduled' }]), false);
+  assert.equal(bad([{ name: 'auth' }]), false);
+  assert.equal(bad(['auth']), false);
+  assert.equal(bad('auth'), false);
+});
+
+test('the same service cannot be reported twice for one application', () => {
+  const shaped = normalizeAppResults([{
+    name: 'Portal', status: 'installed',
+    services: [{ name: 'auth', status: 'installed' }, { name: 'AUTH', status: 'installed' }],
+  }]);
+  assert.equal(shaped.ok, false);
+  assert.match(shaped.error, /Duplicate service/);
+});
+
+test('an application cannot be called installed while one of its services failed', () => {
+  // Two answers to one question. Correcting it silently would store a report the
+  // deployer did not save, which is what the whole module refuses to do.
+  const claimed = normalizeAppResults([{
+    name: 'Portal', status: 'installed',
+    services: [{ name: 'auth', status: 'installed' }, { name: 'frontend', status: 'failed' }],
+  }]);
+  assert.equal(claimed.ok, false);
+  assert.match(claimed.error, /services/);
+  // Nor failed while every one of them went in.
+  const denied = normalizeAppResults([{
+    name: 'Portal', status: 'failed',
+    services: [{ name: 'auth', status: 'installed' }],
+  }]);
+  assert.equal(denied.ok, false);
+  // The honest pair: the set is not in, and the record says which part of it is.
+  const partly = normalizeAppResults([{
+    name: 'Portal', status: 'failed',
+    services: [{ name: 'auth', status: 'installed' }, { name: 'frontend', status: 'failed' }],
+  }]);
+  assert.equal(partly.ok, true);
+});
+
+test('an absent or empty service list leaves the application result untouched', () => {
+  // The ordinary single-artefact application, and the same application reported
+  // before anybody ticked its services.
+  const none = normalizeAppResults([{ name: 'Kolektor', status: 'installed' }]);
+  assert.equal(none.ok, true);
+  assert.equal('services' in none.data[0], false);
+  const empty = normalizeAppResults([{ name: 'Kolektor', status: 'failed', services: [] }]);
+  assert.equal(empty.ok, true);
+  assert.equal('services' in empty.data[0], false);
+});
+
+test('the service list is bounded the way the package it comes from is', () => {
+  const many = normalizeAppResults([{
+    name: 'Portal', status: 'installed',
+    services: Array.from({ length: 201 }, (_, i) => ({ name: 's' + i, status: 'installed' })),
+  }]);
+  assert.equal(many.ok, false);
+  assert.match(many.error, /max 200/);
+  const long = normalizeAppResults([{
+    name: 'Portal', status: 'failed',
+    services: [{ name: 'x'.repeat(500), version: 'v'.repeat(500), status: 'failed', reason: 'y'.repeat(5000) }],
+  }]);
+  assert.equal(long.ok, true);
+  assert.equal(long.data[0].services[0].name.length, 200);
+  assert.equal(long.data[0].services[0].version.length, 100);
+  assert.equal(long.data[0].services[0].reason.length, 1000);
+});
+
+test('the services imply the application outcome: all, none, or fourteen of eighteen', () => {
+  const svc = (installed, failed) => [
+    ...Array.from({ length: installed }, (_, i) => ({ name: 'ok' + i, status: 'installed' })),
+    ...Array.from({ length: failed }, (_, i) => ({ name: 'no' + i, status: 'failed' })),
+  ];
+  assert.equal(statusFromServiceResults(svc(18, 0)), 'installed');
+  assert.equal(statusFromServiceResults(svc(0, 18)), 'failed');
+  assert.equal(statusFromServiceResults(svc(14, 4)), 'partial');
+  // Nothing reported on: the caller keeps whatever the application itself says.
+  assert.equal(statusFromServiceResults([]), null);
+  assert.equal(statusFromServiceResults(null), null);
+  assert.equal(statusFromServiceResults(undefined), null);
+  assert.equal(statusFromServiceResults('auth'), null);
+  // A status this module does not know is not counted, so it cannot turn a whole
+  // set partial by itself. Only a hand-written record can carry one.
+  assert.equal(statusFromServiceResults([{ name: 'auth', status: 'scheduled' }]), null);
+});
+
+test('the tally is the figure a partial status is read with', () => {
+  const entry = {
+    name: 'Portal',
+    services: [
+      { name: 'auth', status: 'installed' },
+      { name: 'frontend', status: 'failed' },
+      { name: 'reports', status: 'installed' },
+    ],
+  };
+  assert.deepEqual(serviceResultTally(entry), { installed: 2, failed: 1, total: 3 });
+  assert.deepEqual(serviceResultTally({ name: 'Kolektor' }), { installed: 0, failed: 0, total: 0 });
+  assert.deepEqual(serviceResultTally(null), { installed: 0, failed: 0, total: 0 });
+});
+
+test('one application whose services disagree makes the whole rollout partial', () => {
+  // The reported case: a single application of eighteen containers, seventeen up.
+  // With the application count alone this read as a flat failure, and the next
+  // deployer was sent to install all eighteen again.
+  const results = [{
+    name: 'Portal e-Usług',
+    status: 'failed',
+    services: [{ name: 'auth', status: 'installed' }, { name: 'frontend', status: 'failed' }],
+  }];
+  assert.equal(statusFromAppResults(results, ['Portal e-Usług']), 'partial');
+  // The whole set in, or none of it, still reads as the application says.
+  assert.equal(statusFromAppResults(
+    [{ name: 'Portal', status: 'installed', services: [{ name: 'auth', status: 'installed' }] }],
+    ['Portal']
+  ), 'installed');
+  assert.equal(statusFromAppResults(
+    [{ name: 'Portal', status: 'failed', services: [{ name: 'auth', status: 'failed' }] }],
+    ['Portal']
+  ), 'failed');
 });
 
 // ---- statusFromAppResults --------------------------------------------------

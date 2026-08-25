@@ -3058,11 +3058,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.37.0"></script>
-<script src="i18n/en.js?v=0.37.0"></script>
+<script src="i18n/pl.js?v=0.38.0"></script>
+<script src="i18n/en.js?v=0.38.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.37.0';
+  const ROLLDESK_VERSION = '0.38.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -3399,7 +3399,10 @@
         ? (r.totalLocations ? (r.counts.installed || 0) / r.totalLocations : 0)
         : (r.status === 'scheduled' ? 0
           : (r.status === 'partial'
-            ? (function(){ const x = appResultTally(r); return x.total ? x.installed / x.total : 0.5; })()
+            // Counted in whatever the report was made in, so a rollout of eighteen
+            // containers with seventeen up sorts near the finished ones rather than
+            // with the untouched ones, which "0 of 1 applications" made it do.
+            ? (function(){ const x = reportedTally(r); return x.total ? x.done / x.total : 0.5; })()
             : 1));
       case 'approval':  return r.draft ? '0' : (r.clientApproval || (r.env === 'Production' ? 'pending' : ''));
       // The client portal's own column shows a decision-or-status badge, so it
@@ -6410,6 +6413,27 @@
     }).filter(Boolean);
   }
   function appServiceCount(a){ return appServices(a).length; }
+
+  // The services of one of a deployment's applications, falling back to the
+  // package's own entry when the deployment carries none.
+  //
+  // The list is copied onto the deployment when it is planned (scheduleAppsFromPackage),
+  // which leaves a gap the deployer felt: a rollout planned before the services were
+  // ticked on its package — or before packages carried services at all — has an
+  // application with no service list, so the panel had nothing to show and the
+  // eighteen versions could only be found by opening the package editor. The
+  // fallback only fills that gap: a deployment that has its own copy keeps it, so
+  // correcting a package for the next release still cannot rewrite what went out.
+  //
+  // Matched by name *and* version, the rule packageAppBuild uses: a package edited
+  // to a newer version afterwards describes a different release, and its services
+  // are not the ones this rollout was planned with.
+  function deploymentAppServices(r, app){
+    const own = appServices(app);
+    if(own.length) return own;
+    return appServices(packageAppBuild(r, app));
+  }
+  function deploymentAppServiceCount(r, app){ return deploymentAppServices(r, app).length; }
   // The services pinned to a version of their own — the short list worth naming
   // where there is no room for all nineteen (a notification, a one-line label).
   function appServiceOverrides(a){ return appServices(a).filter(s=>!s.inherited); }
@@ -6421,13 +6445,13 @@
   }
   // Whether this record has anything to show in a services panel at all.
   function hasServiceApps(d){
-    return ((d && d.apps) || []).some(a => appServiceCount(a) > 0);
+    return ((d && d.apps) || []).some(a => deploymentAppServiceCount(d, a) > 0);
   }
   // Every service of every application on the record — what the panel's button
   // counts, so „🧩 Serwisy · 18" is true of a rollout carrying two such
   // applications as well as of one.
   function deploymentServiceCount(d){
-    return ((d && d.apps) || []).reduce((n, a) => n + appServiceCount(a), 0);
+    return ((d && d.apps) || []).reduce((n, a) => n + deploymentAppServiceCount(d, a), 0);
   }
   // The changelog text a picked package fills in: what the test team wrote about
   // the release, with the ticket ids listed underneath (the changelog also leaves
@@ -6597,7 +6621,7 @@
       // what is being installed, and for an application released as a set of services
       // the version alone is not the whole answer. The list itself is one click away
       // (🧩 in the action bar) — it does not belong in a table cell.
-      const svc = appServiceCount(a);
+      const svc = deploymentAppServiceCount(r, a);
       return `<div style="margin-bottom:4px;">
         <div style="font-size:13px;">${escapeHtml(a.name)}</div>
         <div class="mono" style="font-size:11px; color:var(--text-faint);">v${escapeHtml(a.version||'')}${build ? ' · ' + build : ''}</div>
@@ -10596,9 +10620,9 @@
     // is the same misreport the deployer panel was fixed to stop producing.
     const partly = clientDeploymentStatus(r) === 'partial';
     if(partly){
-      const tally = appResultTally(r);
+      const tally = reportedTally(r);
       const label = tally.total
-        ? tf('client.partialApps', {done: tally.installed, total: tally.total})
+        ? tf(tally.kind === 'svc' ? 'client.partialSvc' : 'client.partialApps', {done: tally.done, total: tally.total})
         : t('status.partial');
       return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:#FDF1E1; color:#8A5A05;">⚠ ${label}</span>`;
     }
@@ -12862,27 +12886,63 @@
   // running rollout inherited every target that was already closed.
   const APP_RESULT_STATUSES = ['installed', 'failed'];
 
+  // The application-level outcome its services imply: null (none reported),
+  // 'installed' (the whole set went in), 'failed' (none of it), 'partial' —
+  // fourteen of eighteen containers.
+  function statusFromServiceResults(services){
+    let installed = 0, failed = 0;
+    (Array.isArray(services) ? services : []).forEach(s=>{
+      const status = String((s && s.status) || '').trim();
+      if(status === 'installed') installed++;
+      else if(status === 'failed') failed++;
+    });
+    if(!installed && !failed) return null;
+    if(!failed) return 'installed';
+    if(!installed) return 'failed';
+    return 'partial';
+  }
+
+  // How many services of one application result went in — the "14/18" a partial
+  // status is read with, where the application count would say "0/1".
+  function serviceResultTally(entry){
+    const list = (entry && Array.isArray(entry.services)) ? entry.services : [];
+    let installed = 0, failed = 0;
+    list.forEach(s=>{
+      const status = String((s && s.status) || '').trim();
+      if(status === 'installed') installed++;
+      else if(status === 'failed') failed++;
+    });
+    return {installed, failed, total: list.length};
+  }
+
   // The deployment status implied by the per-application outcomes:
   // null (nothing reported), 'installed', 'failed', or 'partial' for anything in
   // between — including an application nobody has reported on yet, which is what
   // an application added mid-rollout looks like.
+  //
+  // An application whose services disagree makes the record partial on its own,
+  // even as the only application on it: eighteen containers with seventeen up is
+  // the same fact as two of four applications.
   function statusFromAppResults(results, appNames){
     const norm = v => String(v == null ? '' : v).trim().toLowerCase();
     const byName = new Map();
     (Array.isArray(results) ? results : []).forEach(r=>{
       const k = norm(r && r.name);
-      if(k) byName.set(k, String((r && r.status) || '').trim());
+      if(k) byName.set(k, r);
     });
     if(!byName.size) return null;
     const names = (Array.isArray(appNames) ? appNames : []).map(norm).filter(Boolean);
     const wanted = names.length ? names : [...byName.keys()];
-    let installed = 0, failed = 0, missing = 0;
+    let installed = 0, failed = 0, missing = 0, mixed = 0;
     wanted.forEach(k=>{
-      const s = byName.get(k);
+      const entry = byName.get(k);
+      const s = String((entry && entry.status) || '').trim();
+      if(statusFromServiceResults(entry && entry.services) === 'partial') mixed++;
       if(s === 'installed') installed++;
       else if(s === 'failed') failed++;
       else missing++;
     });
+    if(mixed) return 'partial';
     if(installed && !failed && !missing) return 'installed';
     if(failed && !installed && !missing) return 'failed';
     return 'partial';
@@ -12946,6 +13006,18 @@
     return deploymentAppNames(d).length > 1;
   }
 
+  // Whether the report needs a checklist rather than two buttons. Two applications
+  // need one, and so does *one* application released as a set of services: the
+  // deployer installs eighteen containers one at a time, and „Potwierdź
+  // zainstalowane" asked them to vouch for eighteen versions they were never shown.
+  // That is the panel the deployer reported as empty — the list existed only behind
+  // a collapsed button, and on a single-application rollout the form itself said
+  // nothing about what was going out.
+  function needsAppChecklist(d){
+    if(isMultiAppDeployment(d)) return true;
+    return ((d && d.apps) || []).some(a => deploymentAppServiceCount(d, a) > 0);
+  }
+
   // The per-application outcomes stored on a single-target deployment, indexed by
   // lower-cased name.
   function appResultMap(d){
@@ -12953,6 +13025,17 @@
     ((d && d.appResults) || []).forEach(r=>{
       const k = String((r && r.name) || '').trim().toLowerCase();
       if(k) map.set(k, r);
+    });
+    return map;
+  }
+
+  // The per-service outcomes of one application result, indexed by lower-cased
+  // service name — so a re-opened report starts from what was last saved.
+  function serviceResultMap(entry){
+    const map = new Map();
+    ((entry && entry.services) || []).forEach(s=>{
+      const k = String((s && s.name) || '').trim().toLowerCase();
+      if(k) map.set(k, s);
     });
     return map;
   }
@@ -12969,6 +13052,57 @@
       if(r.status === 'installed') installed++; else if(r.status === 'failed') failed++;
     });
     return {installed, failed, total: names.length, reported: installed + failed};
+  }
+
+  // What a „partly installed" record is counted in. Applications by default —
+  // „2/4" — but the services when every reported application is a set of them: a
+  // rollout of one application carrying eighteen containers said „0 of 1
+  // applications", which is true of the application and useless about the install,
+  // and on the client's badge it read as a rollout that achieved nothing.
+  //
+  // A mixed record (one application of services beside an ordinary one) keeps the
+  // application count: it is the only figure both halves can be counted in.
+  //
+  // `kind` is what the caller picks its wording with — every label naming a unit
+  // has both, because „0 of 1 applications" and „17 of 18 services" are different
+  // sentences and not a substitution.
+  function reportedTally(r){
+    const results = (r && r.appResults) || [];
+    if(!results.length) return {done: 0, total: 0, kind: 'app'};
+    const tallies = results.map(x=>serviceResultTally(x));
+    if(tallies.every(x=>x.total > 0)){
+      return {
+        done: tallies.reduce((n, x)=>n + x.installed, 0),
+        total: tallies.reduce((n, x)=>n + x.total, 0),
+        kind: 'svc',
+      };
+    }
+    const tally = appResultTally(r);
+    return {done: tally.installed, total: tally.total, kind: 'app'};
+  }
+
+  // The same figure as a label, for the panel and the row that show it bare.
+  function reportedTallyLabel(r){
+    const tally = reportedTally(r);
+    if(!tally.total) return '';
+    return tf(tally.kind === 'svc' ? 'rep.svcTally' : 'rep.appTally', {done: tally.done, total: tally.total});
+  }
+
+  // The names behind that figure: the applications that went in, or — when the
+  // count is in services — the services that did. What a reader is told alongside
+  // „partly installed", so they do not have to open the record to ask which part.
+  function reportedInstalledNames(r){
+    const results = (r && r.appResults) || [];
+    if(reportedTally(r).kind === 'svc'){
+      const out = [];
+      results.forEach(x=>{
+        (x.services || []).forEach(s=>{
+          if(s && s.status === 'installed') out.push(s.name);
+        });
+      });
+      return out;
+    }
+    return results.filter(x=>x && x.status === 'installed').map(x=>x.name);
   }
 
   // Number of targets planned for a given day. Honours the RM's manual per-day
@@ -13931,10 +14065,14 @@
       events.push({date: date, time, icon:'✅', text: (d.env==='Production' ? tf('tl.prodDone', {n: locN}) : t('tl.testDone'))});
     } else if(status === 'partial'){
       // Which applications did go in, named: "partly installed" alone leaves the
-      // client to ask the question the record can already answer.
-      const tally = appResultTally(d);
-      const okApps = ((d.appResults)||[]).filter(x=>x && x.status === 'installed').map(x=>x.name).join(', ');
-      events.push({date: date, time, icon:'⚠️', text: tf('tl.partialDone', {done: tally.installed, total: tally.total, apps: okApps || '—'})});
+      // client to ask the question the record can already answer. Named in whatever
+      // the rollout was counted in — for a release of eighteen containers the
+      // applications are one line saying nothing, the services are the answer.
+      const tally = reportedTally(d);
+      const okNames = reportedInstalledNames(d).join(', ');
+      events.push({date: date, time, icon:'⚠️',
+        text: tf(tally.kind === 'svc' ? 'tl.partialDoneSvc' : 'tl.partialDone',
+          {done: tally.done, total: tally.total, apps: okNames || '—'})});
     } else if(status === 'scheduled'){
       if(d.env === 'Production' && d.clientApproval === 'approved'){
         events.push({date, time, icon:'📅', text: tf('tl.prodWillStart', {date, time, n: locN})});
@@ -14196,10 +14334,10 @@
   // an inherited one is greyed, because repeating the same string nineteen times in
   // bold is a wall nobody checks.
   function deploymentServicesHtml(r){
-    const apps = ((r && r.apps) || []).filter(a => appServiceCount(a) > 0);
+    const apps = ((r && r.apps) || []).filter(a => deploymentAppServiceCount(r, a) > 0);
     if(!apps.length) return '';
     return apps.map(a=>{
-      const list = appServices(a);
+      const list = deploymentAppServices(r, a);
       const pinned = list.filter(s=>!s.inherited).length;
       const rows = list.map(s=>`<tr>
         <td class="mono" style="font-size:11.5px; padding:3px 8px 3px 0;">${escapeHtml(s.name)}</td>
@@ -14221,7 +14359,7 @@
   function servicesCollapsibleHtml(r, idSuffix){
     const bodyHtml = deploymentServicesHtml(r);
     if(!bodyHtml) return '';
-    const total = ((r && r.apps) || []).reduce((n, a) => n + appServiceCount(a), 0);
+    const total = deploymentServiceCount(r);
     return collapsibleBlockHtml({
       id: 'svc-' + idSuffix,
       icon: '🧩',
@@ -14327,10 +14465,16 @@
       : null;
     const instrOpen = !!instrBody && showSchedule;
 
+    // „What am I putting on this server" is the first thing the deployer needs, and
+    // behind a collapsed button it was not found: the panel was reported as showing
+    // nothing about the eighteen services, which could then only be read by opening
+    // the release package. So it starts open — except where the report checklist
+    // below already lists every service with a tick beside it, which is the same
+    // list twice.
     const panels = [
       depDetailPanelHtml(r.idx, 'instr', instrPanelBody, instrOpen, prefix),
       depDetailPanelHtml(r.idx, 'changelog', changelogBody, false, prefix),
-      depDetailPanelHtml(r.idx, 'services', servicesBody, false, prefix),
+      depDetailPanelHtml(r.idx, 'services', servicesBody, !!opts.servicesOpen, prefix),
       showTimeline ? depDetailPanelHtml(r.idx, 'timeline', timelineBody, timelineOpen, prefix) : '',
       showComment ? depDetailPanelHtml(r.idx, 'comment', commentBody, false, prefix) : '',
       showSchedule ? depDetailPanelHtml(r.idx, 'schedule', scheduleBody, false, prefix) : ''
@@ -14341,7 +14485,7 @@
     if(changelogBody) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-changelog-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'changelog'${scopeArg})">📄 ${t('rep.changelogShort')}</button>`);
     // The count is on the button: „Serwisy" alone does not say whether it is worth
     // opening, and eighteen is the whole reason this panel exists.
-    if(servicesBody) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-services-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'services'${scopeArg})">🧩 ${t('svc.short')} · ${deploymentServiceCount(r)}</button>`);
+    if(servicesBody) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-services-${r.idx}" aria-pressed="${opts.servicesOpen ? 'true' : 'false'}" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'services'${scopeArg})">🧩 ${t('svc.short')} · ${deploymentServiceCount(r)}</button>`);
     if(showTimeline) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-timeline-${r.idx}" aria-pressed="${timelineOpen ? 'true' : 'false'}" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'timeline'${scopeArg})">🕓 ${t('dcard.timeline')}</button>`);
     if(showComment) barBtns.push(`<button type="button" class="mini-btn" id="${prefix}-panel-btn-comment-${r.idx}" aria-pressed="false" onclick="event.stopPropagation(); toggleDepDetailPanel(${r.idx}, 'comment'${scopeArg})">💬 ${t('dcard.commentShort')}</button>`);
     if(showSchedule){
@@ -14393,9 +14537,11 @@
     // label, because "partially installed" without it sends the reader looking
     // for how much of it happened.
     if(r.status === 'partial'){
-      const tally = appResultTally(r);
+      const tally = reportedTally(r);
       return {
-        label: tally.total ? tf('outc.partialApps', {done: tally.installed, total: tally.total}) : t('outc.partial'),
+        label: tally.total
+          ? tf(tally.kind === 'svc' ? 'outc.partialSvc' : 'outc.partialApps', {done: tally.done, total: tally.total})
+          : t('outc.partial'),
         icon:'⚠', color:'#8A5A05', bg:'#FDF1E1',
       };
     }
@@ -14817,9 +14963,9 @@
     const st = r.status || 'scheduled';
     // "Partially installed" with no number sends the reader looking for how much of
     // it happened, which is the one fact the record now holds.
-    const tally = st === 'partial' ? appResultTally(r) : null;
-    const tallyLine = (tally && tally.total)
-      ? `<div class="mono" style="font-size:10.5px; color:#8A5A05; margin-top:3px;">${tf('rep.appTally', {done: tally.installed, total: tally.total})}</div>`
+    const label = st === 'partial' ? reportedTallyLabel(r) : '';
+    const tallyLine = label
+      ? `<div class="mono" style="font-size:10.5px; color:#8A5A05; margin-top:3px;">${escapeHtml(label)}</div>`
       : '';
     return `<td><span class="pill ${st}">${statusLabel[st]||st}</span>${tallyLine}${r.paused ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}</div>` : ''}</td>`;
   }
@@ -14882,7 +15028,7 @@
     }
     if(kind === 'waiting'){
       const hasMeta = !!(installerNotesBodyHtml(r) || changelogBodyHtml(r));
-      return `${installerActionChromeHtml(r, {showSchedule:false, showComment:false, showTimeline:false, showAssignee:false})}
+      return `${installerActionChromeHtml(r, {showSchedule:false, showComment:false, showTimeline:false, showAssignee:false, servicesOpen:true})}
         ${hasMeta ? '' : `<div style="font-size:12px; color:var(--text-muted);">${t('rep.waitingNoNotes')}</div>`}`;
     }
     if(kind === 'completed'){
@@ -14896,7 +15042,7 @@
     // A reader gets the same chrome — schedule, instructions, changelog, timeline —
     // and none of the report forms, which would have nothing to save.
     if(installerPanelReadOnly()){
-      return `${installerActionChromeHtml(r, {showSchedule:true, showTimeline:true, timelineOpen:true})}
+      return `${installerActionChromeHtml(r, {showSchedule:true, showTimeline:true, timelineOpen:true, servicesOpen:true})}
         ${depWarningHtml(r)}
         ${r.mode === 'batch' ? appCoverageBlockHtml(r) + batchCorrectionBlockHtml(r, true) : appResultSummaryHtml(r)}
         <div style="font-size:12px; color:var(--text-muted);">${t('rep.readOnlyNote')}</div>`;
@@ -14917,7 +15063,9 @@
           </div>
           <button class="btn" onclick="dismissReportConfirmation(${r.idx})">${tf('rep.nextDay', {day: todayDay, n: todayBatch.length})}</button>`;
       }
-      return `${installerActionChromeHtml(r, {showSchedule:true, showComment:true, showTimeline:true, timelineOpen:true, showAssignee:true})}
+      // A batch rollout is still reported per target, so nothing below lists the
+      // services — the panel is where the deployer reads what goes on each server.
+      return `${installerActionChromeHtml(r, {showSchedule:true, showComment:true, showTimeline:true, timelineOpen:true, showAssignee:true, servicesOpen:true})}
         ${depWarningHtml(r)}
         ${appCoverageBlockHtml(r)}
         <label style="margin-bottom:6px;">${tf('rep.todaysBatch', {n: todayBatch.length})}</label>
@@ -14934,7 +15082,9 @@
     // an install that stops half-way (the server drops off the network after the
     // second of four) has no honest answer among "installed" and "failed", and the
     // deployer used to have to pick one of them and explain the rest by hand.
-    if(isMultiAppDeployment(r)){
+    // The same is true of one application released as eighteen containers, which is
+    // why the checklist is not reserved for a multi-application rollout.
+    if(needsAppChecklist(r)){
       return `${installerActionChromeHtml(r, {showSchedule:true, showComment:true, showTimeline:true, timelineOpen:true, showAssignee:true})}
         ${depWarningHtml(r)}
         ${singleAppReportHtml(r)}`;
@@ -14987,23 +15137,77 @@
   function singleAppReportHtml(r){
     const results = appResultMap(r);
     const reported = !!(r.appResults && r.appResults.length);
-    return `<p style="font-size:12px; color:var(--text-muted); margin:0 0 10px 0;">${t(reported ? 'rep.perAppAgainHint' : 'rep.perAppHint')}</p>
+    const services = hasServiceApps(r);
+    const hint = services
+      ? t(reported ? 'rep.perServiceAgainHint' : 'rep.perServiceHint')
+      : t(reported ? 'rep.perAppAgainHint' : 'rep.perAppHint');
+    return `<p style="font-size:12px; color:var(--text-muted); margin:0 0 10px 0;">${hint}</p>
       <div style="display:flex; flex-direction:column; gap:6px; border:1px solid var(--line); border-radius:6px; padding:8px; margin-bottom:10px;">
-        ${deploymentAppNames(r).map((name, ai)=>{
-          const version = ((r.apps||[])[ai] || {}).version || '';
-          const prev = results.get(name.toLowerCase());
-          // Default to installed: an untouched form reports the normal outcome, and
-          // a re-opened one starts from what is on the record.
-          const ok = !prev || prev.status === 'installed';
-          return `<label class="single-app-row" style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; padding:6px 8px; border-radius:6px; background:var(--${ok ? 'green' : 'red'}-soft); cursor:pointer;">
-            <input type="checkbox" class="single-app-check" data-dep="${r.idx}" value="${escapeHtml(name)}" ${ok ? 'checked' : ''} style="width:auto;" onchange="onSingleAppToggle(this)">
-            ${escapeHtml(name)}${version ? ` <span class="mono" style="font-size:11px; color:var(--text-faint);">v${escapeHtml(version)}</span>` : ''}
-            <span class="single-app-badge mono" style="margin-left:auto; font-size:11px; font-weight:700; color:${ok ? '#0F7A38' : '#A81E1E'};">${ok ? t('rep.correct') : t('rep.failedShort')}</span>
-          </label>`;
-        }).join('')}
+        ${(r.apps||[]).map((app, ai)=>singleAppReportRowHtml(r, app, ai, results)).join('')}
+        ${services ? `<div style="font-size:11px; color:var(--text-muted);">${escapeHtml(t('svc.legend'))}</div>` : ''}
       </div>
-      <textarea id="single-fail-reason-${r.idx}" placeholder="${t('rep.failureReasonUncheckedApps')}">${escapeHtml(lastAppFailureReason(r))}</textarea>
+      <textarea id="single-fail-reason-${r.idx}" placeholder="${t(services ? 'rep.failureReasonUncheckedSvc' : 'rep.failureReasonUncheckedApps')}">${escapeHtml(lastAppFailureReason(r))}</textarea>
       <button class="btn" style="margin-top:8px;" onclick="reportSingleAppResults(${r.idx})">${t('rep.saveResult')}</button>`;
+  }
+
+  // One application of the report. An ordinary application is one row with one tick.
+  // An application released as a set of services is that row plus a tick per
+  // service, because that is how it is installed — eighteen containers, one at a
+  // time, each at the version the release pins it to.
+  //
+  // The whole set arrives ticked, and „Wszystkie" / „Żaden" on the header keep the
+  // normal answer one press: the deployer confirms the release went out without
+  // clicking eighteen times, and unticks only what did not come up. The version is
+  // printed on every line — „prawidłowo zainstalowana" is a claim about a version,
+  // and a name alone cannot be checked against what is running.
+  function singleAppReportRowHtml(r, app, ai, results){
+    const name = String((app && app.name) || '').trim();
+    if(!name) return '';
+    const version = String((app && app.version) || '').trim();
+    const prev = results.get(name.toLowerCase());
+    const services = deploymentAppServices(r, app);
+    const verHtml = version ? ` <span class="mono" style="font-size:11px; color:var(--text-faint);">v${escapeHtml(version)}</span>` : '';
+    // Default to installed: an untouched form reports the normal outcome, and a
+    // re-opened one starts from what is on the record.
+    if(!services.length){
+      const ok = !prev || prev.status === 'installed';
+      return `<label class="single-app-row" data-dep="${r.idx}" data-ai="${ai}" style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; padding:6px 8px; border-radius:6px; background:var(--${ok ? 'green' : 'red'}-soft); cursor:pointer;">
+        <input type="checkbox" class="single-app-check" data-dep="${r.idx}" data-ai="${ai}" value="${escapeHtml(name)}" ${ok ? 'checked' : ''} style="width:auto;" onchange="onSingleAppToggle(this)">
+        ${escapeHtml(name)}${verHtml}
+        <span class="single-app-badge mono" style="margin-left:auto; font-size:11px; font-weight:700; color:${ok ? '#0F7A38' : '#A81E1E'};">${ok ? t('rep.correct') : t('rep.failedShort')}</span>
+      </label>`;
+    }
+    const saved = serviceResultMap(prev);
+    const rows = services.map(s=>{
+      const was = saved.get(s.name.toLowerCase());
+      const ok = !was || was.status === 'installed';
+      return `<label class="single-svc-row" data-dep="${r.idx}" data-ai="${ai}" style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400; padding:4px 8px 4px 26px; border-radius:6px; background:var(--${ok ? 'green' : 'red'}-soft); cursor:pointer; margin:0;">
+        <input type="checkbox" class="single-svc-check" data-dep="${r.idx}" data-ai="${ai}" value="${escapeHtml(s.name)}" data-version="${escapeHtml(s.version)}" ${ok ? 'checked' : ''} style="width:auto;" onchange="onSingleServiceToggle(this)">
+        <span class="mono" style="flex:1;">${escapeHtml(s.name)}</span>
+        <span class="mono" style="font-size:11px; ${s.inherited ? 'color:var(--text-muted);' : 'font-weight:700; color:#8A5A05;'}">v${escapeHtml(s.version)}</span>
+        <span class="single-svc-badge mono" style="width:14px; text-align:right; font-weight:700; color:${ok ? '#0F7A38' : '#A81E1E'};">${ok ? '✓' : '✕'}</span>
+      </label>`;
+    }).join('');
+    const done = services.filter(s=>{
+      const was = saved.get(s.name.toLowerCase());
+      return !was || was.status === 'installed';
+    }).length;
+    const allOk = done === services.length;
+    return `<div class="single-app-group" data-dep="${r.idx}" data-ai="${ai}" style="border:1px solid var(--line); border-radius:6px; overflow:hidden;">
+      <div class="single-app-head" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:6px 8px; background:var(--${allOk ? 'green' : 'red'}-soft);">
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; cursor:pointer; margin:0;">
+          <input type="checkbox" class="single-app-check" data-dep="${r.idx}" data-ai="${ai}" value="${escapeHtml(name)}" ${allOk ? 'checked' : ''} style="width:auto;" onchange="onSingleAppToggle(this)">
+          ${escapeHtml(name)}${verHtml}
+        </label>
+        <span class="single-app-tally mono" style="font-size:11px; color:var(--text-muted);">${escapeHtml(tf('rep.svcTally', {done, total: services.length}))}</span>
+        <span style="margin-left:auto; display:flex; gap:6px; align-items:center;">
+          <button type="button" class="mini-btn" style="font-size:10.5px; padding:2px 7px;" onclick="event.stopPropagation(); setSingleAppServices(${r.idx}, ${ai}, true)">${t('svc.all')}</button>
+          <button type="button" class="mini-btn" style="font-size:10.5px; padding:2px 7px;" onclick="event.stopPropagation(); setSingleAppServices(${r.idx}, ${ai}, false)">${t('svc.none')}</button>
+          <span class="single-app-badge mono" style="font-size:11px; font-weight:700; color:${allOk ? '#0F7A38' : '#A81E1E'};">${allOk ? t('rep.correct') : t('rep.failedShort')}</span>
+        </span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:2px; padding:6px 8px;">${rows}</div>
+    </div>`;
   }
 
   // The reason last given for a failed application, so a re-opened report does not
@@ -15118,10 +15322,11 @@
         ${doneBanner}
         ${batchCorrectionBlockHtml(r, false)}`;
     }
-    // Several applications on one target: the correction is the report, re-opened.
-    // A whole-record flip cannot express "the two that failed have now gone in",
-    // which is the correction actually being made after a server came back.
-    if(isMultiAppDeployment(r)){
+    // Several applications on one target — or one application of several services:
+    // the correction is the report, re-opened. A whole-record flip cannot express
+    // "the two that failed have now gone in", which is the correction actually being
+    // made after a server came back.
+    if(needsAppChecklist(r)){
       return `${chrome}
         ${appResultSummaryHtml(r)}
         ${singleAppReportHtml(r)}`;
@@ -15151,15 +15356,31 @@
     const tally = appResultTally(r);
     const rows = results.map(x=>{
       const ok = x.status === 'installed';
-      return `<div style="display:flex; gap:8px; align-items:baseline; font-size:12px;">
-        <span style="min-width:16px; color:${ok ? '#0F7A38' : '#A81E1E'};">${ok ? '✓' : '✕'}</span>
-        <span style="min-width:140px;">${escapeHtml(x.name || '—')}</span>
-        ${x.reason ? `<span style="font-size:11px; color:var(--text-muted);">${escapeHtml(x.reason)}</span>` : ''}
+      // The containers, for an application released as a set of them: „14/18" and
+      // the ones that are still owed, because that is the work left rather than the
+      // whole application again.
+      const svc = serviceResultTally(x);
+      const owed = ((x.services || []).filter(s=>s && s.status !== 'installed'))
+        .map(s=>s.name + (s.version ? ' v' + s.version : ''));
+      const svcLine = svc.total
+        ? `<div style="font-size:11px; color:var(--text-muted); margin-left:24px;">🧩 ${escapeHtml(tf('rep.svcTally', {done: svc.installed, total: svc.total}))}${
+            owed.length ? ' · ' + escapeHtml(tf('rep.svcOwed', {list: owed.join(', ')})) : ''}</div>`
+        : '';
+      return `<div style="font-size:12px;">
+        <div style="display:flex; gap:8px; align-items:baseline;">
+          <span style="min-width:16px; color:${ok ? '#0F7A38' : '#A81E1E'};">${ok ? '✓' : '✕'}</span>
+          <span style="min-width:140px;">${escapeHtml(x.name || '—')}</span>
+          ${x.reason ? `<span style="font-size:11px; color:var(--text-muted);">${escapeHtml(x.reason)}</span>` : ''}
+        </div>
+        ${svcLine}
       </div>`;
     }).join('');
     const failed = tally.total - tally.installed;
+    // The heading counts what the rollout was actually reported in — see
+    // reportedTallyLabel: on one application of eighteen containers „0/1" is the
+    // wrong headline for seventeen of them being up.
     return `<div class="alert ${failed ? 'alert-warning' : 'alert-info'}" style="margin:0 0 12px 0; display:block;" role="status">
-      <div style="font-size:11.5px; font-weight:700; margin-bottom:6px;">${failed ? '⚠ ' : '✓ '}${tf('rep.appTally', {done: tally.installed, total: tally.total})}</div>
+      <div style="font-size:11.5px; font-weight:700; margin-bottom:6px;">${failed ? '⚠ ' : '✓ '}${escapeHtml(reportedTallyLabel(r))}</div>
       ${rows}
     </div>`;
   }
@@ -15564,26 +15785,57 @@
     const d = DEPLOYMENTS_DATA[idx];
     if(!d) return;
     if(d.paused){ showToast(t('pause.blockedProgress')); return; }
-    const names = deploymentAppNames(d);
     const checks = Array.from(document.querySelectorAll(`.single-app-check[data-dep="${idx}"]`));
     if(!checks.length) return;
-    const okSet = new Set(checks.filter(c=>c.checked).map(c=>c.value));
-    const failedNames = names.filter(n=>!okSet.has(n));
+    // What the form says, application by application. An application released as a
+    // set of services is read from its service rows and its own status derived from
+    // them: „installed" means the whole set is up, and anything less is not
+    // installed however few containers are missing (the same rule appProgress.js
+    // enforces on the way in, so a hand-written PATCH cannot store the pair the
+    // panel would refuse to produce).
+    const stamp = (typeof nowStamp === 'function') ? nowStamp() : {date: todayIso(), time:'00:00'};
+    const who = actorName();
     const reasonEl = document.getElementById('single-fail-reason-' + idx);
     const reason = reasonEl ? reasonEl.value.trim() : '';
+    const names = [];
+    const failedNames = [];
+    const failedServices = [];
+    const results = [];
+    (d.apps || []).forEach((app, ai)=>{
+      const name = String((app && app.name) || '').trim();
+      if(!name) return;
+      names.push(name);
+      const svcChecks = singleAppServiceChecks(idx, ai);
+      const box = checks.find(c=>Number(c.dataset.ai) === ai);
+      const entry = {name, status: 'installed', by: who, date: stamp.date, time: stamp.time};
+      if(svcChecks.length){
+        entry.services = svcChecks.map(c=>{
+          const svc = {name: c.value, status: c.checked ? 'installed' : 'failed'};
+          const version = c.dataset.version || '';
+          if(version) svc.version = version;
+          if(!c.checked) failedServices.push(svc.name + (version ? ' v' + version : ''));
+          return svc;
+        });
+        entry.status = statusFromServiceResults(entry.services) === 'installed' ? 'installed' : 'failed';
+      } else {
+        entry.status = (box && box.checked) ? 'installed' : 'failed';
+      }
+      if(entry.status !== 'installed'){
+        failedNames.push(name);
+        // The reason belongs to the application rather than being copied onto each
+        // of the four containers that did not come up: it is one explanation, and
+        // repeating it per service would print it four times wherever it is read.
+        if(reason) entry.reason = reason;
+      }
+      results.push(entry);
+    });
+    if(!results.length) return;
     // A failure with no explanation is a report nobody can act on, and the field is
     // right there — so it is required exactly when something failed.
     if(failedNames.length && !reason){ showToast(t('rep.needFailureReason')); return; }
 
-    const who = actorName();
     if(!d.assignedTo) d.assignedTo = who;
-    const stamp = (typeof nowStamp === 'function') ? nowStamp() : {date: todayIso(), time:'00:00'};
-    d.appResults = names.map(name=>{
-      const failed = !okSet.has(name);
-      const entry = {name, status: failed ? 'failed' : 'installed', by: who, date: stamp.date, time: stamp.time};
-      if(failed && reason) entry.reason = reason;
-      return entry;
-    });
+    d.appResults = results;
     // Derived, never typed: the same rule the backend applies (appProgress.js), so
     // an automation caller patching appResults lands on the same status as the panel.
     d.status = statusFromAppResults(d.appResults, names) || 'scheduled';
@@ -15592,36 +15844,64 @@
     d.reportedTime = stamp.time;
 
     d.comments = d.comments || [];
-    const okNames = names.filter(n=>okSet.has(n));
+    const failedSet = new Set(failedNames);
+    const okNames = names.filter(n=>!failedSet.has(n));
+    // The figures the report is quoted with, in whatever unit it was made in: on a
+    // release of eighteen containers „0 of 1 applications. Installed: —" is a true
+    // sentence that reads as „nothing went in", and it is the one that reached the
+    // timeline, the toast, the audit trail and the channel.
+    const counted = reportedTally(d);
+    const svcCounted = counted.kind === 'svc';
     d.comments.push({date: stamp.date, time: stamp.time, author: who, type:'system',
       icon: failedNames.length ? '⚠️' : '✅',
       text: failedNames.length
-        ? tf('dtl.appReportPartial', {done: okNames.length, total: names.length, installed: okNames.join(', ') || '—', failed: failedNames.join(', ')})
-        : tf('dtl.appReportAll', {n: names.length})});
+        ? (svcCounted
+            ? tf('dtl.svcReportPartial', {done: counted.done, total: counted.total})
+            : tf('dtl.appReportPartial', {done: okNames.length, total: names.length, installed: okNames.join(', ') || '—', failed: failedNames.join(', ')}))
+        : (svcCounted
+            ? tf('dtl.svcReportAll', {n: counted.total})
+            : tf('dtl.appReportAll', {n: names.length}))});
+    // Which containers are still owed, named. „Portal e-Usług failed" sends the next
+    // deployer to install all eighteen again; the four that did not come up are the
+    // work that is actually left.
+    if(failedServices.length){
+      d.comments.push({date: stamp.date, time: stamp.time, author: who, type:'system', icon:'🧩',
+        text: tf('dtl.svcReportFailed', {list: failedServices.join(', ')})});
+    }
     if(failedNames.length && reason){
       d.comments.push({date: stamp.date, time: stamp.time, author: who, type:'system', icon:'⚠️', text: tf('dtl.failReason', {reason})});
     }
 
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
     logAudit('changed', 'Deployment',
-      'Reported ' + (d.id||'') + ' — ' + okNames.length + '/' + names.length + ' applications installed',
-      projName, 'aud.d.appReport', {id: d.id||'', done: okNames.length, total: names.length});
+      'Reported ' + (d.id||'') + ' — ' + counted.done + '/' + counted.total
+        + (svcCounted ? ' services' : ' applications') + ' installed',
+      projName, svcCounted ? 'aud.d.svcReport' : 'aud.d.appReport',
+      {id: d.id||'', done: counted.done, total: counted.total});
     persistDeployment(idx);
     renderDeploymentsTable();
     renderInstallerPanel();
     highlightInstallerCard(idx);
     showToast(failedNames.length
-      ? tf('rep.savedPartial', {done: okNames.length, total: names.length})
-      : t('rep.savedAll'));
+      ? tf(svcCounted ? 'rep.savedPartialSvc' : 'rep.savedPartial', {done: counted.done, total: counted.total})
+      : t(svcCounted ? 'rep.savedAllSvc' : 'rep.savedAll'));
 
     // The status is in the subject line, because a channel shows only that in its
     // preview — and "partially installed" is the case a reader must not miss.
     const doneStatus = statusLabelNotif(d.status);
     let body = notifHeader(d, projName)
       + '\n' + tn('notif.statusLine') + ': ' + doneStatus
-      + '\n' + tnf('notif.appTally', {done: okNames.length, total: names.length});
+      + '\n' + tnf(svcCounted ? 'notif.svcTally' : 'notif.appTally',
+                   {done: counted.done, total: counted.total});
     if(failedNames.length){
-      body += '\n' + tnf('notif.appsFailed', {apps: failedNames.join(', ')});
+      // On a rollout of one application released as a set of services the
+      // application line repeats the header — which already names it, with its
+      // service count — and says „Portal e-Usług failed" over a release that is
+      // seventeen-eighteenths out. The containers are the fact worth sending.
+      if(!svcCounted || names.length > 1){
+        body += '\n' + tnf('notif.appsFailed', {apps: failedNames.join(', ')});
+      }
+      if(failedServices.length) body += '\n' + tnf('notif.servicesFailed', {list: failedServices.join(', ')});
       if(reason) body += '\n' + tn('rep.correctionReason') + ': ' + reason;
     }
     body += '\n' + tnf('notif.reportedByManual', {who});
@@ -15664,7 +15944,15 @@
   }
 
   // The same row treatment for the per-application list of a single-target install.
+  // On an application released as a set of services the tick is a shorthand for the
+  // whole set — „the release went out" in one press rather than eighteen — so it
+  // drives the service rows rather than standing beside them.
   function onSingleAppToggle(checkbox){
+    const group = checkbox.closest('.single-app-group');
+    if(group){
+      setSingleAppServices(Number(checkbox.dataset.dep), Number(checkbox.dataset.ai), checkbox.checked);
+      return;
+    }
     const row = checkbox.closest('.single-app-row');
     const badge = row && row.querySelector('.single-app-badge');
     if(!badge) return;
@@ -15676,6 +15964,60 @@
       badge.innerHTML = t('rep.failedShort');
       badge.style.color = '#A81E1E';
       row.style.background = 'var(--red-soft)';
+    }
+  }
+
+  // One service of one application. Ticked = that container is up at the version on
+  // the row; unticked = it is not, and the reason field below covers what did not go.
+  function onSingleServiceToggle(checkbox){
+    const row = checkbox.closest('.single-svc-row');
+    const badge = row && row.querySelector('.single-svc-badge');
+    if(badge){
+      badge.innerHTML = checkbox.checked ? '✓' : '✕';
+      badge.style.color = checkbox.checked ? '#0F7A38' : '#A81E1E';
+      row.style.background = checkbox.checked ? 'var(--green-soft)' : 'var(--red-soft)';
+    }
+    refreshSingleAppGroup(Number(checkbox.dataset.dep), Number(checkbox.dataset.ai));
+  }
+
+  // „Wszystkie" / „Żaden" on an application's header. A release is as often the
+  // whole set as it is one container out of it, and neither answer should cost
+  // eighteen clicks.
+  function setSingleAppServices(idx, ai, on){
+    singleAppServiceChecks(idx, ai).forEach(c=>{
+      c.checked = !!on;
+      onSingleServiceToggle(c);
+    });
+    refreshSingleAppGroup(idx, ai);
+  }
+
+  function singleAppServiceChecks(idx, ai){
+    return Array.from(document.querySelectorAll(`.single-svc-check[data-dep="${idx}"][data-ai="${ai}"]`));
+  }
+
+  // The header follows its services: the count, the tick and the badge all say what
+  // the rows below add up to, so the deployer can see „14/18" without counting.
+  function refreshSingleAppGroup(idx, ai){
+    const group = document.querySelector(`.single-app-group[data-dep="${idx}"][data-ai="${ai}"]`);
+    if(!group) return;
+    const checks = singleAppServiceChecks(idx, ai);
+    const done = checks.filter(c=>c.checked).length;
+    const allOk = checks.length > 0 && done === checks.length;
+    const head = group.querySelector('.single-app-head');
+    if(head) head.style.background = allOk ? 'var(--green-soft)' : 'var(--red-soft)';
+    const tally = group.querySelector('.single-app-tally');
+    if(tally) tally.textContent = tf('rep.svcTally', {done, total: checks.length});
+    const box = group.querySelector('.single-app-check');
+    if(box){
+      box.checked = allOk;
+      // Some but not all: the tick is neither on nor off, and a plain unticked box
+      // beside „14/18" read as „nothing went in".
+      box.indeterminate = done > 0 && !allOk;
+    }
+    const badge = group.querySelector('.single-app-badge');
+    if(badge){
+      badge.innerHTML = allOk ? t('rep.correct') : t('rep.failedShort');
+      badge.style.color = allOk ? '#0F7A38' : '#A81E1E';
     }
   }
 
@@ -16774,13 +17116,30 @@
   // outcome, so the per-application detail is rewritten to agree with it. Leaving a
   // stale "2 of 4" beside a status of "installed" would put two contradictory
   // answers on the same row.
+  //
+  // The services are rewritten with it, for the same reason and one more: an entry
+  // that says „installed" while one of its services says „failed" is the pair
+  // appProgress.js refuses (a 422 on the next PATCH), so leaving them behind would
+  // store a record the API would not accept.
   function syncAppResultsToStatus(d, status){
     if(!d || !Array.isArray(d.appResults) || !d.appResults.length) return;
     if(status !== 'installed' && status !== 'failed'){ return; }
     const stamp = (typeof nowStamp === 'function') ? nowStamp() : {date: todayIso(), time:'00:00'};
-    d.appResults = deploymentAppNames(d).map(name=>({
-      name, status, by: actorName(), date: stamp.date, time: stamp.time,
-    }));
+    const previous = appResultMap(d);
+    d.appResults = deploymentAppNames(d).map(name=>{
+      const entry = {name, status, by: actorName(), date: stamp.date, time: stamp.time};
+      // The service list stays — it is what went out — but every line now says what
+      // the release manager said about the whole record.
+      const services = ((previous.get(name.toLowerCase()) || {}).services) || [];
+      if(services.length){
+        entry.services = services.map(s=>{
+          const svc = {name: s.name, status};
+          if(s.version) svc.version = s.version;
+          return svc;
+        });
+      }
+      return entry;
+    });
   }
 
   function markInstalled(idx){

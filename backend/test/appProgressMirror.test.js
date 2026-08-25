@@ -30,6 +30,7 @@ const HTML_PATH = path.join(
 // {counts, totalLocations} pair the module takes, so the comparison passes the
 // same numbers through both shapes.
 const MIRRORED = [
+  'statusFromServiceResults', 'serviceResultTally',
   'statusFromAppResults', 'appJoinedAt', 'appCoverage', 'appsHaveMixedCoverage', 'failedAppsAt',
 ];
 
@@ -84,6 +85,55 @@ test('the browser copy derives the same status as the backend', () => {
       ui.statusFromAppResults(results, names),
       backend.statusFromAppResults(results, names),
       `statusFromAppResults(${JSON.stringify(results)}, ${JSON.stringify(names)})`
+    );
+  }
+});
+
+test('the browser copy reads a set of services the same way', () => {
+  // The deployer's panel derives the application's status from its service ticks
+  // before saving, and the backend derives it again when an automation caller
+  // PATCHes the same list — a copy that disagreed would let the panel store the
+  // pair the API refuses (installed, with a service that failed).
+  const ui = loadMirror();
+  const lists = [
+    [{ name: 'auth', status: 'installed' }, { name: 'frontend', status: 'installed' }],
+    [{ name: 'auth', status: 'failed' }, { name: 'frontend', status: 'failed' }],
+    [{ name: 'auth', status: 'installed' }, { name: 'frontend', status: 'failed' }],
+    [{ name: 'auth', status: 'scheduled' }],
+    [],
+    null,
+    undefined,
+    'auth',
+  ];
+  for (const services of lists) {
+    assert.equal(
+      ui.statusFromServiceResults(services),
+      backend.statusFromServiceResults(services),
+      `statusFromServiceResults(${JSON.stringify(services)})`
+    );
+    assert.ok(
+      same(ui.serviceResultTally({ services }), backend.serviceResultTally({ services })),
+      `serviceResultTally(${JSON.stringify(services)})`
+    );
+  }
+  assert.ok(same(ui.serviceResultTally(null), backend.serviceResultTally(null)));
+  assert.ok(same(ui.serviceResultTally({}), backend.serviceResultTally({})));
+
+  // And the deployment status the two derive from those results, including the
+  // reported case: one application of eighteen containers with seventeen up.
+  const cases = [
+    [[{ name: 'Portal', status: 'failed', services: lists[2] }], ['Portal']],
+    [[{ name: 'Portal', status: 'installed', services: lists[0] }], ['Portal']],
+    [[{ name: 'Portal', status: 'failed', services: lists[1] }], ['Portal']],
+    // A set of services beside an ordinary application.
+    [[{ name: 'Portal', status: 'failed', services: lists[2] },
+      { name: 'Kolektor', status: 'installed' }], ['Portal', 'Kolektor']],
+  ];
+  for (const [results, names] of cases) {
+    assert.equal(
+      ui.statusFromAppResults(results, names),
+      backend.statusFromAppResults(results, names),
+      `statusFromAppResults(${JSON.stringify(results)})`
     );
   }
 });
