@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.43.0] - 2026-08-26
+
+### Added
+- **The approval request says how the rollout is spread, and who is in it first.** „399 celów · 4 dni roboczych" on the facts line answers neither of the questions a client opens this mail with: how the plan is shaped, and whether their own office is in the first wave. The body now carries a day per line — the date, the weekday and how many targets that day takes („Dzień 1: czwartek, 2026-08-27 · 6 celów") — and then the first day named target by target, because the first day is a pilot of a handful of offices often enough that it fits in a mail, and it is the day somebody has to be ready for. A reader deciding whether to approve should not have to open the attachment to see the shape of what they are approving.
+- Both are grouped from the same `buildScheduleRows()` the attachment is drawn from, so the body and the PDF cannot disagree about which day a target falls on, and both are bounded: 30 days listed and 25 targets named, with „i kolejne dni: N" / „i N kolejnych" where a release is bigger than that. A single-target deployment gets neither — its date and location are already on the line above.
+
 ## [0.42.3] - 2026-08-26
 
 ### Changed
