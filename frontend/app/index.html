@@ -2351,6 +2351,34 @@
           <p class="form-hint" data-i18n="cli.domainNote">Only people with an e-mail address in this domain can be added as users with the Client role for this client's projects — sign-in is done via the company e-mail.</p>
         </div>
 
+        <!-- The audience of the one document RollDesk sends that a human is expected
+             to answer: the request to approve a production rollout. It was written
+             by hand in Outlook because the app knew no address to send it to — a
+             client's approval lived only in the client portal, which is not where
+             this conversation happens.
+
+             On the client rather than on each project, because it is the same
+             people whichever of their projects is going out. Two lists, because the
+             message has two audiences with different jobs: the client decides, our
+             side is copied — and the copy list is also what the reply goes to (see
+             backend/src/clientMail.js), since the instance sends from a no-reply
+             address and a reply to that reaches nobody. -->
+        <div class="form-section">
+          <div class="toolbar" style="margin:0 0 6px 0;">
+            <div class="form-section-title" style="margin:0;" data-i18n="cli.mailTo">Client's addresses — asked to approve a rollout (To)</div>
+            <button class="mini-btn" type="button" onclick="addClientMailAddress('to')"><span aria-hidden="true">＋</span> <span data-i18n="cli.addAddress">Add address</span></button>
+          </div>
+          <p class="form-hint" style="margin-top:0;" data-i18n="cli.mailToNote">The people at the client who are asked to approve a production rollout. The request is sent from a deployment awaiting their decision, with the versions, the issues the release fixes and a link into RollDesk.</p>
+          <div id="client-mail-to-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+
+          <div class="toolbar" style="margin:14px 0 6px 0;">
+            <div class="form-section-title" style="margin:0;" data-i18n="cli.mailCc">Copied on the message, and where the reply goes (Cc)</div>
+            <button class="mini-btn" type="button" onclick="addClientMailAddress('cc')"><span aria-hidden="true">＋</span> <span data-i18n="cli.addAddress">Add address</span></button>
+          </div>
+          <p class="form-hint" style="margin-top:0;" data-i18n="cli.mailCcNote">Our own side — a service-management or escalation mailbox. These addresses are copied on the same message and are what „Reply" answers to, so the client's decision lands in a mailbox somebody reads instead of the instance's no-reply sender.</p>
+          <div id="client-mail-cc-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+
         <div class="form-section">
           <div class="toolbar" style="margin:0 0 6px 0;">
             <div class="form-section-title" style="margin:0;" data-i18n="client.webhooks">Notification webhooks (Teams / Slack / your own system)</div>
@@ -2904,7 +2932,10 @@
       <div style="width:36px; height:36px; border-radius:50%; background:var(--red-soft); color:#A81E1E; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0;">⚠</div>
       <div style="flex:1;">
         <div id="confirm-modal-title" style="font-weight:600; font-size:14px; margin-bottom:4px;"></div>
-        <div id="confirm-modal-body" style="font-size:12.5px; color:var(--text-muted); line-height:1.5;"></div>
+        <!-- pre-line because a confirmation that lists something — the recipients of
+             a client-facing mail, the channels a reminder goes out on — writes one
+             fact per line, and without it they ran together into a paragraph. -->
+        <div id="confirm-modal-body" style="font-size:12.5px; color:var(--text-muted); line-height:1.5; white-space:pre-line;"></div>
       </div>
     </div>
     <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:18px;">
@@ -3071,11 +3102,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.39.0"></script>
-<script src="i18n/en.js?v=0.39.0"></script>
+<script src="i18n/pl.js?v=0.40.0"></script>
+<script src="i18n/en.js?v=0.40.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.39.0';
+  const ROLLDESK_VERSION = '0.40.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -3728,7 +3759,16 @@
             {label:t('cli.delete'), icon:'🗑', onclick:`deleteClient('${c.key}')`, danger:true}
           ])}`
         : `<span style="color:var(--text-faint); font-size:11.5px;">${t('usr.noPerms')}</span>`;
-      return `<tr><td>${c.name}</td><td class="mono">${c.domain || '—'}</td><td class="mono">${count}</td><td style="white-space:nowrap; text-align:right;">${actions}</td></tr>`;
+      // Whether this client can be asked for an approval by e-mail at all, on the
+      // list rather than only inside the editor: „nobody is on the list" is the
+      // reason the send button reports nothing to do, and it should be visible
+      // without opening every client in turn.
+      const nTo = (Array.isArray(c.mailTo) ? c.mailTo : []).filter(a=>a && a.email).length;
+      const nCc = (Array.isArray(c.mailCc) ? c.mailCc : []).filter(a=>a && a.email).length;
+      const mailLine = nTo
+        ? `<div style="font-size:10.5px; color:var(--text-faint);">✉ ${escapeHtml(tf('cli.mailSummary', {to: nTo, cc: nCc}))}</div>`
+        : `<div style="font-size:10.5px; color:var(--text-faint);">${escapeHtml(t('cli.mailNone'))}</div>`;
+      return `<tr><td>${c.name}${mailLine}</td><td class="mono">${c.domain || '—'}</td><td class="mono">${count}</td><td style="white-space:nowrap; text-align:right;">${actions}</td></tr>`;
     }).join('');
   }
 
@@ -3747,7 +3787,13 @@
     document.getElementById('client-domain-input').value = '';
     // Start a new client with one blank webhook (at least one is required).
     clientDraftWebhooks = [{name:'', url:'', enabled:true, events:defaultEventMap()}];
+    // One blank row in each address list: the lists are optional, but an empty
+    // panel with only an „Add address" button reads as a feature that is off.
+    clientDraftMailTo = [{email:'', name:''}];
+    clientDraftMailCc = [{email:'', name:''}];
     renderClientWebhooks();
+    renderClientMailList('to');
+    renderClientMailList('cc');
     openFormModal('client-modal');
   }
 
@@ -3762,8 +3808,19 @@
     // Deep-copy the client's webhooks into the working draft.
     clientDraftWebhooks = (c.webhooks || []).map(w=>({name:w.name||'', url:w.url||'', enabled:w.enabled!==false, events:Object.assign(defaultEventMap(), w.events||{})}));
     if(!clientDraftWebhooks.length) clientDraftWebhooks = [{name:'', url:'', enabled:true, events:defaultEventMap()}];
+    // Same deep copy for the two address lists, so cancelling the dialog leaves the
+    // stored client untouched.
+    const copyAddresses = (list)=> (Array.isArray(list) ? list : [])
+      .map(a=>({email: String((a && (a.email || a.address)) || '').trim(), name: String((a && a.name) || '').trim()}))
+      .filter(a=>a.email || a.name);
+    clientDraftMailTo = copyAddresses(c.mailTo);
+    clientDraftMailCc = copyAddresses(c.mailCc);
+    if(!clientDraftMailTo.length) clientDraftMailTo = [{email:'', name:''}];
+    if(!clientDraftMailCc.length) clientDraftMailCc = [{email:'', name:''}];
     clearFormErrors('client-form');
     renderClientWebhooks();
+    renderClientMailList('to');
+    renderClientMailList('cc');
     openFormModal('client-modal');
   }
 
@@ -3791,6 +3848,8 @@
     const errs = [];
     if(!name) errs.push({id:'client-name-input', label:t('cli.name'), msg:t('form.required')});
     const webhooks = collectClientWebhooks(errs);
+    const mailTo = collectClientMailList('to', errs);
+    const mailCc = collectClientMailList('cc', errs);
     if(!editingClientKey && name && CLIENTS.some(c=>c.key===slugifyClientName(name))){
       errs.push({id:'client-name-input', label:t('cli.name'), msg:t('form.dupClient')});
     }
@@ -3801,11 +3860,13 @@
       c.name = name;
       c.domain = domain;
       c.webhooks = webhooks;
+      c.mailTo = mailTo;
+      c.mailCc = mailCc;
       Object.values(PROJECTS).forEach(p=>{ if(p.client === editingClientKey) p.clientName = name; });
       showToast('Client „' + name + '” updated');
     } else {
       const key = slugifyClientName(name);
-      CLIENTS.push({key, name, domain, webhooks});
+      CLIENTS.push({key, name, domain, webhooks, mailTo, mailCc});
       showToast('Client „' + name + '” added');
     }
     renderClientsTable();
@@ -4253,7 +4314,13 @@
   // Build a detailed notification body for a created/approval schedule so Teams,
   // Slack and e-mail recipients see who did it and the key facts, not just the
   // project name. Works for both batch and single deployments.
-  function buildScheduleNotifBody(r, projName){
+  //
+  // Split in two: the facts of the rollout (this function) and the notification
+  // built on top of them (buildScheduleNotifBody below). The client's approval
+  // request needs the same opening lines but its own body underneath — the issues
+  // one by one instead of the changelog's id list — and restating „id, project,
+  // versions, environment, start" in a second composer is how the two drift.
+  function scheduleFactsBlock(r, projName){
     r = r || {};
     // Related facts share a line, separated by "·". A label per line reads as an
     // endless list in a Teams channel once the changelog is appended below, and
@@ -4291,14 +4358,18 @@
     if(when) tail.push(tn('notif.start') + ': ' + when);
     if(r.createdBy) tail.push(tn('notif.createdBy') + ': ' + r.createdBy);
     if(tail.length) lines.push(tail.join(' · '));
-    let body = lines.filter(Boolean).join('\n');
+    return lines.filter(Boolean).join('\n');
+  }
+
+  function buildScheduleNotifBody(r, projName){
+    let body = scheduleFactsBlock(r, projName);
     // A freshly created deployment carries no changelog of its own — the text is
     // the package's until someone edits this one rollout — so fall back to the
     // package. Without this the client's very first notification about a release
     // would arrive with no description of it.
-    const changelog = r.changelog || packageChangelogText(packageForDeployment(r));
+    const changelog = (r && r.changelog) || packageChangelogText(packageForDeployment(r));
     if(changelog) body += '\n\n' + tn('notif.changelogLabel') + ':\n' + changelog;
-    if(r.attachment) body += '\n' + tn('notif.attachment') + ': ' + r.attachment;
+    if(r && r.attachment) body += '\n' + tn('notif.attachment') + ': ' + r.attachment;
     // No "open the schedule in RollDesk" line: the backend links the deployment
     // id above, which is both shorter and lands on the right row.
     return body;
@@ -4459,6 +4530,77 @@
   }
   function addClientWebhook(){ clientDraftWebhooks.push({name:'', url:'', enabled:true, events:defaultEventMap()}); renderClientWebhooks(); }
   function removeClientWebhook(i){ clientDraftWebhooks.splice(i,1); renderClientWebhooks(); }
+
+  // ---- The client's e-mail audience -----------------------------------------
+  //
+  // Two working lists while the client editor is open, mirroring
+  // clientDraftWebhooks above: who at the client is asked to approve a rollout,
+  // and who on our side is copied (and answered to). Stored on the client as
+  // `mailTo` / `mailCc`.
+  //
+  // A name next to each address is a label for whoever maintains this list — it is
+  // deliberately *not* sent as a display name in the header: operator-typed text in
+  // a mail header is how a header gets injected, and the backend takes bare
+  // addresses only (see clientMail.js).
+  let clientDraftMailTo = [];
+  let clientDraftMailCc = [];
+  function clientMailDraft(kind){ return kind === 'cc' ? clientDraftMailCc : clientDraftMailTo; }
+  function clientMailListId(kind){ return kind === 'cc' ? 'client-mail-cc-list' : 'client-mail-to-list'; }
+
+  function renderClientMailList(kind){
+    const wrap = document.getElementById(clientMailListId(kind));
+    if(!wrap) return;
+    const rows = clientMailDraft(kind);
+    wrap.innerHTML = rows.map((rec,i)=>`
+      <div style="display:flex; gap:8px; align-items:flex-end;">
+        <div class="field" style="flex:1; min-width:0; margin:0;">
+          <label style="font-size:11px;">${t('cli.addrEmail')}</label>
+          <input type="email" class="mono" value="${escapeHtml(rec.email||'')}" placeholder="${escapeHtml(t('cli.addrEmailPh'))}"
+            onchange="setClientMailField('${kind}', ${i}, 'email', this.value)">
+        </div>
+        <div class="field" style="flex:1; min-width:0; margin:0;">
+          <label style="font-size:11px;">${t('cli.addrName')}</label>
+          <input type="text" value="${escapeHtml(rec.name||'')}" placeholder="${escapeHtml(t('cli.addrNamePh'))}"
+            onchange="setClientMailField('${kind}', ${i}, 'name', this.value)">
+        </div>
+        <button class="mini-btn mini-btn-danger icon-btn" type="button" onclick="removeClientMailAddress('${kind}', ${i})"><span class="mb-ic" aria-hidden="true">🗑</span> ${t('notif.remove')}</button>
+      </div>`).join('')
+      || `<span style="color:var(--text-faint); font-size:12px;">${t(kind === 'cc' ? 'cli.noCopies' : 'cli.noAddresses')}</span>`;
+  }
+  function setClientMailField(kind, i, field, value){
+    const rows = clientMailDraft(kind);
+    if(!rows[i]) return;
+    rows[i][field] = String(value || '').trim();
+  }
+  function addClientMailAddress(kind){ clientMailDraft(kind).push({email:'', name:''}); renderClientMailList(kind); }
+  function removeClientMailAddress(kind, i){ clientMailDraft(kind).splice(i,1); renderClientMailList(kind); }
+
+  // Mirrors normalizeRecipients in backend/src/clientMail.js — the backend
+  // validates and bounds what it is sent regardless, this is so the operator is
+  // told about a typo in the form they typed it in rather than by a failed send.
+  const CLIENT_MAIL_MAX = 50;
+  const CLIENT_MAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  function collectClientMailList(kind, errs){
+    const label = t(kind === 'cc' ? 'cli.mailCc' : 'cli.mailTo');
+    const seen = new Set();
+    const out = [];
+    clientMailDraft(kind).forEach(rec=>{
+      const email = String(rec.email || '').trim();
+      const name = String(rec.name || '').trim();
+      // A row with neither is a blank the operator added and did not fill in.
+      if(!email && !name) return;
+      if(!CLIENT_MAIL_RE.test(email)){ errs.push({label, msg: tf('form.emailInvalid', {value: email || '—'})}); return; }
+      const key = email.toLowerCase();
+      if(seen.has(key)) return;
+      seen.add(key);
+      out.push(name ? {email, name} : {email});
+    });
+    if(out.length > CLIENT_MAIL_MAX){
+      errs.push({label, msg: tf('cli.tooManyAddresses', {n: CLIENT_MAIL_MAX})});
+      return out.slice(0, CLIENT_MAIL_MAX);
+    }
+    return out;
+  }
 
   // Send a one-off test message to a client webhook (server-side, so there are
   // no browser CORS restrictions on the Teams endpoint).
@@ -10566,6 +10708,137 @@
       renderDeploymentsTable();
       showToast(t('draft.reminded') + ' — ' + channels);
     }, t('draft.remindBtn'));
+  }
+
+  // ---- The client's approval request, as an e-mail ---------------------------
+  //
+  // This document was written by hand in Outlook: „these versions are on the test
+  // environment, they fix these tickets, please approve the production rollout".
+  // RollDesk holds every fact in it — the versions from the package, the issues with
+  // their titles, the schedule, the link to the rollout — and knew no address to send
+  // it to, so the one thing the client is actually asked for was the one step that
+  // happened outside the app. The approval request that did exist reached the client
+  // portal and the team's own channels, which is not where that conversation happens.
+  //
+  // On a button rather than automatically, because which rollout is worth asking
+  // about, and when, is a judgement — the test environment has to be in and checked
+  // first — and a client mailed on every published schedule stops reading them.
+
+  // The two lists as stored on the client, cleaned the same way the backend cleans
+  // them (see clientMail.js). Returns the client too, so a caller can name it in
+  // the „nothing configured" message.
+  function clientMailAudienceFor(projectKey){
+    const c = clientForProject(projectKey) || {};
+    const list = (raw)=> (Array.isArray(raw) ? raw : [])
+      .map(a=>({email: String((a && (a.email || a.address)) || '').trim(), name: String((a && a.name) || '').trim()}))
+      .filter(a=>a.email);
+    return {client: c, to: list(c.mailTo), cc: list(c.mailCc)};
+  }
+  // „Katarzyna Załuska <k.zaluska@pwpw.pl>" for the confirmation dialog only — the
+  // header itself carries bare addresses (clientMail.js explains why).
+  function clientMailAddressLabel(list){
+    return (list || []).map(a=>a.name ? a.name + ' <' + a.email + '>' : a.email).join(', ');
+  }
+  // One line per fixed issue: the ticket the client recognises, then what it was.
+  // The changelog's own id list is deliberately not reused — a client reading
+  // „PR-0165668, PR-0165630, PM21435" has to look every one of them up, which is
+  // exactly the mail that was being written by hand instead.
+  function clientMailIssueLines(pkg){
+    return packageIssues(pkg).map(i=>{
+      const ticket = packageIssueTicket(i);
+      const title = String((i && i.title) || '').trim();
+      return [ticket, title].filter(Boolean).join(' — ');
+    }).filter(Boolean);
+  }
+  function clientApprovalMailSubject(r){
+    return 'RollDesk — ' + tn('ev.approval') + ' (' + envLabelNotif((r && r.env) || '') + ')';
+  }
+  // `hasCopy` decides whether the mail may say that a reply reaches us: with no
+  // copy list it would go to the instance's no-reply sender, and telling a client
+  // to reply to an address nobody reads is worse than not mentioning it.
+  function buildClientApprovalMailBody(r, projName, hasCopy){
+    const pkg = packageForDeployment(r);
+    let body = scheduleFactsBlock(r, projName);
+    const issues = clientMailIssueLines(pkg);
+    if(issues.length) body += '\n\n' + tnf('notif.fixedIssuesN', {n: issues.length}) + ':\n' + issues.join('\n');
+    // What the release changes, as the test team wrote it — without the id line
+    // packageChangelogText appends, because the issues above already carry the ids
+    // with what each one was. A rollout whose changelog was edited for this one
+    // client keeps that text: it is what the client was meant to read.
+    const changes = String((r && r.changelog) || (pkg && pkg.changes) || '').trim();
+    if(changes) body += '\n\n' + tn('notif.changelogLabel') + ':\n' + changes;
+    body += '\n\n' + tn('notif.clientApprovalAsk');
+    if(hasCopy) body += '\n' + tn('notif.clientApprovalReply');
+    return body;
+  }
+
+  async function sendClientApprovalMail(idx){
+    if(!canEditDeployments()){ showToast(t('editdep.forbidden')); return; }
+    const r = DEPLOYMENTS_DATA[idx];
+    if(!r || r.draft || !r.clientApproval || r.clientApproval === 'approved') return;
+    const pk = r.projectKey;
+    const p = PROJECTS[pk] || {};
+    const projName = p.name || pk;
+    const {client, to, cc} = clientMailAudienceFor(pk);
+    if(!to.length){
+      // Nothing to send to, and the reason is a setting one view away — so the
+      // message names the client and where its addresses are kept, rather than
+      // reporting „no recipients" and leaving the operator to guess.
+      showToast(tf('clientmail.noAddresses', {client: client.name || p.clientName || '—'}));
+      return;
+    }
+    const subject = clientApprovalMailSubject(r);
+    const text = buildClientApprovalMailBody(r, projName, cc.length > 0);
+    const lines = [tf('clientmail.confirmBody', {id: r.id || '', project: projName})];
+    lines.push(t('clientmail.toLabel') + ': ' + clientMailAddressLabel(to));
+    // Said either way: that the copy list is empty is exactly what the sender needs
+    // to know before a client is asked to reply to a no-reply address.
+    lines.push(cc.length
+      ? t('clientmail.ccLabel') + ': ' + clientMailAddressLabel(cc)
+      : t('clientmail.noCcWarn'));
+    lines.push(t('clientmail.subjectLabel') + ': ' + subject);
+    showAppConfirm(t('clientmail.title'), lines.join('\n'), async ()=>{
+      if(typeof API_CONNECTED === 'undefined' || !API_CONNECTED){ showToast(t('notif.dispatchOffline')); return; }
+      showToast(t('clientmail.sending'));
+      let info = {};
+      try {
+        const res = await apiFetch('/api/notifications/notify', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          // One message to the whole audience, with the copy list also carrying the
+          // reply — see groupEmail in backend/src/routes/notifications.js. No
+          // eventKey: the team already has the approval event in their inbox from
+          // when the schedule was published, and a second identical bell for „we
+          // e-mailed them about it" is noise. The record of this send is the
+          // deployment's own timeline and the audit log, below.
+          body: JSON.stringify({subject, text, emails: to.map(a=>a.email), cc: cc.map(a=>a.email),
+            groupEmail: true, deploymentId: r.id || null})
+        });
+        try { info = await res.json(); } catch(e){}
+        if(!res.ok){
+          const detail = (info.results || []).filter(x=>!x.ok).map(x=>(x.target || '') + ': ' + (x.error || '')).join('; ');
+          showToast(tf('clientmail.failed', {msg: detail || info.error || res.status}));
+          return;
+        }
+      } catch(e){
+        showToast(tf('clientmail.failed', {msg: e.message}));
+        return;
+      }
+      // Recorded only once it actually went out: „we asked the client on this date"
+      // is the fact the rest of the process leans on when a rollout waits.
+      const toLabel = to.map(a=>a.email).join(', ');
+      const ccLabel = cc.map(a=>a.email).join(', ');
+      const _s = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'};
+      r.comments = r.comments || [];
+      r.comments.push({date:_s.date, time:_s.time, author: actorName(), type:'system', icon:'✉',
+        text: tf('dtl.clientMailSent', {to: toLabel})});
+      logAudit('notified', 'Deployment',
+        'E-mailed the client approval request for ' + (r.id||'') + ' — to: ' + toLabel + (ccLabel ? ' — cc: ' + ccLabel : ''),
+        projName + (p.clientName ? ' (' + p.clientName + ')' : ''),
+        'aud.d.clientMailSent', {id: r.id||'', to: toLabel, cc: ccLabel});
+      persistDeployment(idx);
+      renderDeploymentsTable();
+      showToast(tf('clientmail.sent', {n: to.length + cc.length}));
+    }, t('clientmail.send'), 'neutral');
   }
 
   function clientRespondApproval(depId, action){
@@ -16873,6 +17146,17 @@
     if(r.draft && canEditDeployments()) barBtns.push(`<button class="mini-btn icon-btn accent" onclick="event.stopPropagation(); notifyClientOfDraft(${r.idx})"><span class="mb-ic">📣</span> ${t('draft.notifyBtn')}</button>`);
     if(!r.draft && r.clientApproval && r.clientApproval !== 'approved' && canEditDeployments()){
       const remindChannels = notifyChannelsLabel('approval', r.projectKey, false);
+      // The e-mail to the client sits next to the reminder because they answer the
+      // same question — „the client has not decided yet" — through different
+      // channels: the reminder goes to our own channels, this one to the client's
+      // mailbox. The recipients are on the tooltip so the sender can see who it
+      // reaches without opening the dialog; with none configured the button stays
+      // and says so when pressed, because hiding it hides the feature.
+      const mailAudience = clientMailAudienceFor(r.projectKey);
+      const mailTitle = mailAudience.to.length
+        ? clientMailAddressLabel(mailAudience.to) + (mailAudience.cc.length ? ' · cc: ' + clientMailAddressLabel(mailAudience.cc) : '')
+        : t('clientmail.btnNoneTitle');
+      barBtns.push(`<button class="mini-btn icon-btn accent" title="${escapeHtml(mailTitle)}" onclick="event.stopPropagation(); sendClientApprovalMail(${r.idx})"><span class="mb-ic">✉</span> ${t('clientmail.btn')}</button>`);
       barBtns.push(`<button class="mini-btn icon-btn" title="${escapeHtml(remindChannels)}" onclick="event.stopPropagation(); sendApprovalReminder(${r.idx})"><span class="mb-ic">🔔</span> ${t('draft.remindBtn')}</button>`);
     }
     if(isLoggedInAsAdmin()) barBtns.push(`<button class="mini-btn mini-btn-danger" onclick="event.stopPropagation(); deleteDeployment(${r.idx})">${t('cli.delete')}</button>`);

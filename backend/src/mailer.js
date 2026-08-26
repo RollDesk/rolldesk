@@ -16,12 +16,29 @@ function getTransporter() {
   return transporter;
 }
 
-export async function sendMail({ to, subject, text, html }) {
+// `to` may be one address or a list. `cc` and `replyTo` exist for the one message
+// RollDesk sends that a human is expected to answer — the request for a client's
+// approval, where the DXC side is copied and the reply has to reach the service
+// mailbox rather than the no-reply `from` (see clientMail.js). Both are omitted
+// from the message entirely when empty, so every other caller sends exactly the
+// headers it did before.
+export async function sendMail({ to, cc, subject, text, html, replyTo }) {
   const t = getTransporter();
   if (!t) {
     console.warn('[mailer] Sending skipped — SMTP_HOST not set.');
     return { skipped: true };
   }
-  const info = await t.sendMail({ from: config.smtp.from, to, subject, text, html });
+  const list = (v) => (Array.isArray(v) ? v.filter(Boolean) : (v ? [v] : []));
+  const ccList = list(cc);
+  const replyList = list(replyTo);
+  const info = await t.sendMail({
+    from: config.smtp.from,
+    to,
+    cc: ccList.length ? ccList : undefined,
+    replyTo: replyList.length ? replyList.join(', ') : undefined,
+    subject,
+    text,
+    html,
+  });
   return { messageId: info.messageId };
 }
