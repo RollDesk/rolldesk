@@ -203,6 +203,15 @@ async function deliverEmail({ to, cc, replyTo, subject, text, deploymentId, foot
       attachments,
     });
     if (result.skipped) return { ok: false, error: 'E-mail sending is disabled (SMTP_HOST not set)' };
+    // Logged like a webhook delivery is, and for the same reason: „the client got no
+    // schedule" was unanswerable, because a successful send left no trace on the
+    // server at all — so a mail composed by a browser tab too old to send one looked
+    // exactly like a mail whose attachment had failed to render.
+    const audience = [].concat(to || []).length + [].concat(cc || []).length;
+    const carried = attachments && attachments.length
+      ? `${attachments[0].filename} (${Math.round(attachments[0].content.length / 1024)} kB)`
+      : (schedule ? `none: ${attachmentError || 'nothing to attach'}` : 'none requested');
+    console.log(`[notify] e-mail "${subject}" sent to ${audience} recipient(s); attachment: ${carried}`);
     // Sent, but say so when the promised attachment is not on it.
     return { ok: true, messageId: result.messageId, attachmentError };
   } catch (err) {

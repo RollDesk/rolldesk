@@ -3120,16 +3120,26 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.42.0"></script>
-<script src="i18n/en.js?v=0.42.0"></script>
+<script src="i18n/pl.js?v=0.42.1"></script>
+<script src="i18n/en.js?v=0.42.1"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.42.0';
+  const ROLLDESK_VERSION = '0.42.1';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
   let ROLLDESK_LATEST = null;
   let versionCheckState = 'idle'; // idle | checking | ok | error
+  // The version the backend reports (GET /api/version). A tab that was loaded
+  // before the instance was updated keeps running the JavaScript it downloaded —
+  // and this app is one file, so „old tab" means every composer in it is old. That
+  // is not theoretical: three client approval requests went out in one afternoon
+  // from three different versions of this file, one of them without the schedule
+  // the release had just started attaching, and nothing on screen said so.
+  let BACKEND_VERSION = '';
+  function appIsStale(){
+    return !!BACKEND_VERSION && compareVersions(ROLLDESK_VERSION, BACKEND_VERSION) < 0;
+  }
   // Why the last check failed, straight from the backend (e.g. a GitHub rate
   // limit), so the badge tooltip can explain "latest unknown".
   let versionCheckError = null;
@@ -3143,6 +3153,11 @@
       statusHtml = '<span style="font-size:11px; color:var(--text-muted);">checking…</span>';
     } else if(versionCheckState === 'error' || !ROLLDESK_LATEST){
       statusHtml = `<span title="${escapeHtml(versionCheckError || 'Could not reach GitHub')}" style="font-size:11px; color:var(--text-muted);">latest unknown</span>`;
+    } else if(appIsStale()){
+      // The instance has been updated under this tab. Shown before „up to date",
+      // because it is the more urgent of the two: the newest release on GitHub is
+      // somebody else's job, a stale tab is this reader's.
+      statusHtml = `<a href="#" onclick="event.preventDefault(); location.reload();" title="${escapeHtml(tf('ver.staleTip', {version: BACKEND_VERSION}))}" style="font-size:11px; color:#8A5A05; text-decoration:none;">${escapeHtml(tf('ver.stale', {version: BACKEND_VERSION}))}</a>`;
     } else if(compareVersions(ROLLDESK_VERSION, ROLLDESK_LATEST) >= 0){
       statusHtml = '<span title="You have the latest version" style="font-size:11px; color:#0F7A38;">✓ up to date</span>';
     } else {
@@ -3168,6 +3183,7 @@
       if(!res.ok) throw new Error('API ' + res.status);
       const data = await res.json();
       ROLLDESK_LATEST = data.latest || null;
+      BACKEND_VERSION = typeof data.version === 'string' ? data.version : '';
       versionCheckError = data.error || null;
       versionCheckState = ROLLDESK_LATEST ? 'ok' : 'error';
       // NOTIFY_LANG travels with this response (see routes/version.js): the
@@ -11094,6 +11110,10 @@
     lines.push(schedule
       ? tf('clientmail.attachLabel', {file: schedule.filename, n: schedule.rows.length})
       : t('clientmail.attachNone'));
+    // A stale tab composes a stale message: what this dialog is about to send was
+    // built by the JavaScript downloaded before the instance was updated, so parts
+    // added since (the schedule PDF was exactly this) are simply missing from it.
+    if(appIsStale()) lines.push(tf('clientmail.staleWarn', {loaded: ROLLDESK_VERSION, server: BACKEND_VERSION}));
     // „These versions fix these tickets" is the whole point of the document, and the
     // list comes from the release package. A rollout planned without one — or from a
     // package with no issues on it — sends the description and nothing else, which
@@ -13494,6 +13514,12 @@
       // Refresh the update badge now that we're authenticated (/api/version sits
       // behind the session guard, so this can't run during boot).
       checkLatestVersion();
+      // And again every half hour: the badge is the only thing that can tell a tab
+      // left open across a deployment that it is out of date. The backend caches its
+      // answer, so this costs one local request per tab per TTL.
+      if(!window._rdVersionPoll){
+        window._rdVersionPoll = setInterval(()=>{ checkLatestVersion(); }, 30 * 60 * 1000);
+      }
 
       // Probe whether Teams (Graph) notifications are configured so we can post
       // (and thread) even when a client has no webhook/e-mail configured.
