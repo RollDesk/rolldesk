@@ -24,6 +24,7 @@ import {
 import { clientMailAudience } from '../clientMail.js';
 import { normalizeMailFooter } from '../projectMail.js';
 import { renderMailHtml } from '../mailHtml.js';
+import { schedulePdfAttachment } from '../schedulePdf.js';
 import { notifyEvent as pushEvent, pushConfigured } from '../push.js';
 import { isPushEvent } from '../pushTargets.js';
 import { recordEvent, listFor, unreadCountFor, setRead, markAllRead } from '../inbox.js';
@@ -163,7 +164,7 @@ async function deliverWebhook(url, title, text, deploymentId) {
 // by the client-facing approval request, which is one message to a whole audience
 // rather than the per-recipient sends every other event does (see clientMail.js),
 // and the only one signed off by a person.
-async function deliverEmail({ to, cc, replyTo, subject, text, deploymentId, footer, blocks }) {
+async function deliverEmail({ to, cc, replyTo, subject, text, deploymentId, footer, blocks, schedule }) {
   try {
     const depUrl = deploymentUrl(APP_URL, deploymentId);
     const link = depUrl ? { label: deploymentId, url: depUrl } : null;
@@ -174,6 +175,24 @@ async function deliverEmail({ to, cc, replyTo, subject, text, deploymentId, foot
     // else keeps the body-in-a-paragraph it has always had. The plain-text part is
     // the same either way, so a text-only client loses the layout and nothing else.
     const rich = renderMailHtml({ blocks, footer, link, appUrl: APP_URL });
+    // The schedule as a PDF. Drawn per send rather than stored, because the schedule
+    // is edited until the moment it goes out — and never at the cost of the mail: a
+    // document that failed to render is reported back so the sender can follow it up
+    // by hand, which beats a client waiting for an approval request that never came.
+    let attachments;
+    let attachmentError;
+    if (schedule) {
+      try {
+        const file = await schedulePdfAttachment(schedule);
+        if (file) {
+          attachments = [{ filename: file.filename, content: file.content, contentType: file.contentType }];
+          if (file.dropped) console.warn(`[notify] schedule PDF for ${deploymentId || '?'} truncated: ${file.dropped} row(s) over the cap`);
+        }
+      } catch (err) {
+        attachmentError = err.message;
+        console.warn(`[notify] schedule PDF for ${deploymentId || '?'} failed to render: ${err.message}`);
+      }
+    }
     const result = await sendMail({
       to,
       cc,
@@ -181,9 +200,11 @@ async function deliverEmail({ to, cc, replyTo, subject, text, deploymentId, foot
       subject,
       text: parts.text,
       html: rich || parts.html,
+      attachments,
     });
     if (result.skipped) return { ok: false, error: 'E-mail sending is disabled (SMTP_HOST not set)' };
-    return { ok: true, messageId: result.messageId };
+    // Sent, but say so when the promised attachment is not on it.
+    return { ok: true, messageId: result.messageId, attachmentError };
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -221,12 +242,14 @@ router.post('/test', async (req, res) => {
 
 // POST /api/notifications/notify — deliver a real event notification.
 // Body: { subject, text, emails: string[], webhooks: (string | {url,name})[],
-//         cc: string[], groupEmail: boolean, footer: string, blocks: object[] }
+//         cc: string[], groupEmail: boolean, footer: string, blocks: object[],
+//         schedule: { filename, title, subtitle, facts, meta, columns, rows, note } }
 // `groupEmail` sends one message to every address in `emails`, copying `cc` and
 // setting Reply-To to it — the shape the client's approval request needs. `footer`
 // signs that message off, under the link back to the app, and `blocks` is the same
 // message as a laid-out HTML part (see mailHtml.js) — the plain text stays the
-// authoritative copy either way.
+// authoritative copy either way. `schedule` is attached to it as a PDF
+// (schedulePdf.js) — the part of the message a client forwards or prints.
 // Responds with a per-recipient breakdown so the UI can report partial failures.
 router.post('/notify', async (req, res) => {
   const b = req.body || {};
@@ -323,7 +346,8 @@ router.post('/notify', async (req, res) => {
       const target = audience.to.join(', ') + (audience.cc.length ? ` (cc: ${audience.cc.join(', ')})` : '');
       jobs.push(
         deliverEmail({ to: audience.to, cc: audience.cc, replyTo: audience.replyTo, subject, text,
-          deploymentId, footer, blocks: Array.isArray(b.blocks) ? b.blocks : null })
+          deploymentId, footer, blocks: Array.isArray(b.blocks) ? b.blocks : null,
+          schedule: b.schedule && typeof b.schedule === 'object' ? b.schedule : null })
           .then((r) => ({ type: 'email', target, recipients: audience.to.length + audience.cc.length, ...r }))
       );
     }

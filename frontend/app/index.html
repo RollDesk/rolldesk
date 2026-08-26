@@ -3120,11 +3120,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.41.0"></script>
-<script src="i18n/en.js?v=0.41.0"></script>
+<script src="i18n/pl.js?v=0.42.0"></script>
+<script src="i18n/en.js?v=0.42.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.41.0';
+  const ROLLDESK_VERSION = '0.42.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -10877,7 +10877,7 @@
   // `hasCopy` decides whether the mail may say that a reply reaches us: with no
   // copy list it would go to the instance's no-reply sender, and telling a client
   // to reply to an address nobody reads is worse than not mentioning it.
-  function buildClientApprovalMailBody(r, projName, hasCopy){
+  function buildClientApprovalMailBody(r, projName, hasCopy, hasSchedule){
     const pkg = packageForDeployment(r);
     let body = scheduleFactsBlock(r, projName);
     const issues = clientMailIssueLines(pkg);
@@ -10888,6 +10888,10 @@
     // client keeps that text: it is what the client was meant to read.
     const changes = String((r && r.changelog) || (pkg && pkg.changes) || '').trim();
     if(changes) body += '\n\n' + tn('notif.changelogLabel') + ':\n' + changes;
+    // Said in the body as well as being in the envelope: a reader who prints the
+    // mail, or whose client hides attachments behind a paperclip, has to know the
+    // schedule came with it.
+    if(hasSchedule) body += '\n\n' + tn('notif.scheduleAttached');
     body += '\n\n' + tn('notif.clientApprovalAsk');
     if(hasCopy) body += '\n' + tn('notif.clientApprovalReply');
     // No signature here: it travels as its own field so the backend can put it
@@ -10895,6 +10899,61 @@
     // mailBodyParts in backend/src/appLink.js). The ask above ends in a colon, so a
     // signature between it and the link would read as an unfinished sentence.
     return body;
+  }
+
+  // ---- The schedule the mail attaches ---------------------------------------
+  //
+  // Day by day, with the targets planned for each: which office gets it when is the
+  // part the client circulates internally, and a mail body is not what gets
+  // forwarded to twenty branches or printed and taken to a meeting.
+  //
+  // Read through the same helpers the schedule view and the deployer's panel use
+  // (plannedDayCounts for how many targets a day carries, targetCodeAt for which
+  // ones, getDateForDay for when) — so the attachment says exactly what the app
+  // says, including every day the release manager moved by hand.
+  function deploymentScheduleRows(r){
+    r = r || {};
+    if(r.mode !== 'batch'){
+      return [{day: 1, date: r.date || '', targets: r.location ? [String(r.location)] : []}];
+    }
+    const counts = plannedDayCounts(r);
+    const rows = [];
+    let pos = 0;
+    for(let day = 1; day <= (r.days || 1); day++){
+      const n = counts[day - 1] || 0;
+      const targets = [];
+      for(let i = 0; i < n; i++, pos++){
+        const name = targetCodeAt(r, pos);
+        if(name) targets.push(String(name));
+      }
+      rows.push({day, date: getDateForDay(r, day), targets});
+    }
+    return rows;
+  }
+
+  // The attachment as the API takes it: worded here (the notification language, like
+  // the rest of the mail), drawn on the backend (schedulePdf.js). Rows are plain
+  // strings so nothing in the renderer has to know what a column means.
+  function clientApprovalSchedulePayload(r, projName){
+    const f = scheduleFacts(r, projName);
+    const rows = deploymentScheduleRows(r).map(row=>[
+      tnf('dtl.day', {n: row.day}),
+      row.date ? fmtDateDowNotif(row.date) : '',
+      row.targets.join(', '),
+    ]);
+    if(!rows.length) return null;
+    return {
+      // „Harmonogram-DEP-2026-0075.pdf": the id is what tells two attachments apart
+      // in a mailbox that holds a year of them.
+      filename: 'Harmonogram-' + (r.id || 'wdrozenie') + '.pdf',
+      title: tn('pdf.scheduleTitle'),
+      subtitle: (f.id ? f.id + ' - ' : '') + f.title,
+      facts: f.facts,
+      meta: f.meta,
+      columns: [tn('pdf.thDay'), tn('pdf.thDate'), tn('pdf.thTargets')],
+      rows,
+      note: tn('pdf.generatedNote'),
+    };
   }
 
   // The same message as blocks, for the HTML part.
@@ -10912,7 +10971,7 @@
   // built from the same facts as the text above, so the two cannot disagree — and the
   // text part is still sent in full, so a text-only client loses the layout and
   // nothing else.
-  function clientApprovalMailBlocks(r, projName, hasCopy){
+  function clientApprovalMailBlocks(r, projName, hasCopy, hasSchedule){
     const f = scheduleFacts(r, projName);
     const pkg = packageForDeployment(r);
     const blocks = [{kind:'lead', id: f.id, title: f.title}];
@@ -10929,6 +10988,7 @@
     // The ask keeps its wording but loses its trailing colon: in the text part the
     // colon introduces the URL on the next line, and here the link is a button under
     // the sentence, so there is nothing left for it to introduce.
+    if(hasSchedule) blocks.push({kind:'note', text: tn('notif.scheduleAttached')});
     blocks.push({
       kind: 'ask',
       text: tn('notif.clientApprovalAsk').replace(/\s*:\s*$/, ''),
@@ -11021,7 +11081,8 @@
     const p = PROJECTS[pk] || {};
     const projName = p.name || pk;
     const subject = clientApprovalMailSubject(r);
-    const text = buildClientApprovalMailBody(r, projName, cc.length > 0);
+    const schedule = clientApprovalSchedulePayload(r, projName);
+    const text = buildClientApprovalMailBody(r, projName, cc.length > 0, !!schedule);
     const lines = [tf('clientmail.confirmBody', {id: r.id || '', project: projName})];
     lines.push(t('clientmail.toLabel') + ': ' + clientMailAddressLabel(to));
     // Said either way: that the copy list is empty is exactly what the sender needs
@@ -11030,6 +11091,9 @@
       ? t('clientmail.ccLabel') + ': ' + clientMailAddressLabel(cc)
       : t('clientmail.noCcWarn'));
     lines.push(t('clientmail.subjectLabel') + ': ' + subject);
+    lines.push(schedule
+      ? tf('clientmail.attachLabel', {file: schedule.filename, n: schedule.rows.length})
+      : t('clientmail.attachNone'));
     // „These versions fix these tickets" is the whole point of the document, and the
     // list comes from the release package. A rollout planned without one — or from a
     // package with no issues on it — sends the description and nothing else, which
@@ -11054,7 +11118,8 @@
           // deployment's own timeline and the audit log, below.
           body: JSON.stringify({subject, text, emails: to.map(a=>a.email), cc: cc.map(a=>a.email),
             groupEmail: true, deploymentId: r.id || null, footer: projectMailFooter(p),
-            blocks: clientApprovalMailBlocks(r, projName, cc.length > 0)})
+            blocks: clientApprovalMailBlocks(r, projName, cc.length > 0, !!schedule),
+            schedule})
         });
         try { info = await res.json(); } catch(e){}
         if(!res.ok){
@@ -11080,7 +11145,10 @@
         'aud.d.clientMailSent', {id: r.id||'', to: toLabel, cc: ccLabel});
       persistDeployment(idx);
       renderDeploymentsTable();
-      showToast(tf('clientmail.sent', {n: to.length + cc.length}));
+      const attachErr = (info.results || []).map(x=>x.attachmentError).filter(Boolean)[0];
+      showToast(attachErr
+        ? tf('clientmail.sentNoAttachment', {n: to.length + cc.length, msg: attachErr})
+        : tf('clientmail.sent', {n: to.length + cc.length}));
     }, t('clientmail.send'), 'neutral');
   }
 
