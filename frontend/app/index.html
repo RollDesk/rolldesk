@@ -3120,11 +3120,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.42.1"></script>
-<script src="i18n/en.js?v=0.42.1"></script>
+<script src="i18n/pl.js?v=0.42.2"></script>
+<script src="i18n/en.js?v=0.42.2"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.42.1';
+  const ROLLDESK_VERSION = '0.42.2';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -10919,57 +10919,49 @@
 
   // ---- The schedule the mail attaches ---------------------------------------
   //
-  // Day by day, with the targets planned for each: which office gets it when is the
-  // part the client circulates internally, and a mail body is not what gets
-  // forwarded to twenty branches or printed and taken to a meeting.
+  // Deliberately not a schedule of its own: this is the document the deployments
+  // view already exports (exportSchedulePdf / exportScheduleXls), built from the
+  // same buildScheduleRows() — application, version, target code, the project's own
+  // per-target columns, date and weekday, one row per target, in rollout order.
   //
-  // Read through the same helpers the schedule view and the deployer's panel use
-  // (plannedDayCounts for how many targets a day carries, targetCodeAt for which
-  // ones, getDateForDay for when) — so the attachment says exactly what the app
-  // says, including every day the release manager moved by hand.
-  function deploymentScheduleRows(r){
-    r = r || {};
-    if(r.mode !== 'batch'){
-      return [{day: 1, date: r.date || '', targets: r.location ? [String(r.location)] : []}];
-    }
-    const counts = plannedDayCounts(r);
-    const rows = [];
-    let pos = 0;
-    for(let day = 1; day <= (r.days || 1); day++){
-      const n = counts[day - 1] || 0;
-      const targets = [];
-      for(let i = 0; i < n; i++, pos++){
-        const name = targetCodeAt(r, pos);
-        if(name) targets.push(String(name));
-      }
-      rows.push({day, date: getDateForDay(r, day), targets});
-    }
-    return rows;
+  // The client is told the schedule twice, in the app and in the mail, and the two
+  // being „almost the same" is worse than either: a day-grouped summary invented for
+  // the mail meant the file a client filed and the file we export from the row no
+  // longer matched, with nothing saying which was authoritative. One builder, one
+  // schedule. The mail's own PDF renderer (backend/src/schedulePdf.js) only draws it.
+  function clientApprovalSchedulePayload(r){
+    if(!r || r.draft) return null;
+    const rows = buildScheduleRows(r);
+    if(!rows.length) return null;
+    const customFields = scheduleCustomFieldNames(r);
+    return {
+      // The same name the download gives it, so „the schedule you sent us" and „the
+      // schedule I exported" are one file with one name.
+      filename: scheduleFileBase(r) + '.pdf',
+      title: scheduleTitleNotif(r),
+      subtitle: tnf('sch.docSubtitle', {id: r.id || '-', n: rows.length}),
+      columns: [tn('rep.scheduleAppHdr'), tn('rep.scheduleVerHdr'), tn('rep.scheduleCodeHdr'),
+        ...customFields, tn('rep.scheduleDateHdr'), tn('rep.scheduleDayHdr')],
+      rows: rows.map(x=>[
+        x.app, String(x.version == null ? '' : x.version), String(x.code == null ? '' : x.code),
+        ...customFields.map(f=>(x.custom && x.custom[f]) || ''),
+        // The weekday recomputed in the notification language: buildScheduleRows
+        // names it in the operator's UI language, which is right for the on-screen
+        // export and wrong for a document leaving for the client.
+        x.date, fmtDow(x.date, notifyLang()) || x.dow,
+      ]),
+    };
   }
 
-  // The attachment as the API takes it: worded here (the notification language, like
-  // the rest of the mail), drawn on the backend (schedulePdf.js). Rows are plain
-  // strings so nothing in the renderer has to know what a column means.
-  function clientApprovalSchedulePayload(r, projName){
-    const f = scheduleFacts(r, projName);
-    const rows = deploymentScheduleRows(r).map(row=>[
-      tnf('dtl.day', {n: row.day}),
-      row.date ? fmtDateDowNotif(row.date) : '',
-      row.targets.join(', '),
-    ]);
-    if(!rows.length) return null;
-    return {
-      // „Harmonogram-DEP-2026-0075.pdf": the id is what tells two attachments apart
-      // in a mailbox that holds a year of them.
-      filename: 'Harmonogram-' + (r.id || 'wdrozenie') + '.pdf',
-      title: tn('pdf.scheduleTitle'),
-      subtitle: (f.id ? f.id + ' - ' : '') + f.title,
-      facts: f.facts,
-      meta: f.meta,
-      columns: [tn('pdf.thDay'), tn('pdf.thDate'), tn('pdf.thTargets')],
-      rows,
-      note: tn('pdf.generatedNote'),
-    };
+  // scheduleTitle() worded in the notification language: the on-screen export is
+  // titled in the operator's UI language, but a document leaving for the client
+  // follows the instance's (NOTIFY_LANG), like everything else in this mail.
+  function scheduleTitleNotif(r){
+    const p = PROJECTS[r.projectKey] || {};
+    const apps = (r.apps||[]).map(a=>a.name + ' ' + a.version).join(', ');
+    return tnf('sch.docTitle', {
+      project: p.name || r.projectKey, client: p.clientName || '', apps, env: envLabelNotif(r.env),
+    });
   }
 
   // The same message as blocks, for the HTML part.
@@ -11097,7 +11089,7 @@
     const p = PROJECTS[pk] || {};
     const projName = p.name || pk;
     const subject = clientApprovalMailSubject(r);
-    const schedule = clientApprovalSchedulePayload(r, projName);
+    const schedule = clientApprovalSchedulePayload(r);
     const text = buildClientApprovalMailBody(r, projName, cc.length > 0, !!schedule);
     const lines = [tf('clientmail.confirmBody', {id: r.id || '', project: projName})];
     lines.push(t('clientmail.toLabel') + ': ' + clientMailAddressLabel(to));

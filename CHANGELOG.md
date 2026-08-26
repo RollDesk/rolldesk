@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.42.2] - 2026-08-26
+
+### Fixed
+- **The attached schedule is the schedule the app exports, not a second one.** 0.42.0 attached a document invented for the mail: a day-by-day summary with the release facts and a generated-by line. The deployments view has exported a schedule since long before that — application, version, target code, the project's own per-target columns, date and weekday, one row per target (`buildScheduleRows`, behind the „PDF" and „XLS" buttons) — and the client was being sent something that was almost, but not, the same. Two schedules that nearly agree are worse than either: nothing said which one was authoritative. The attachment is now built from the same rows, with the same title, subtitle and columns, and it takes the export's filename too, so „the schedule you sent us" and „the schedule I exported" are one file with one name. Everything the mail's own generator had added on its own is gone, along with the five i18n keys that described it.
+- The weekday in that document is recomputed in the instance's notification language: the on-screen export is titled in the operator's UI language, which is right for a download and wrong for a document leaving for the client.
+- The table is drawn on a landscape page with a width cap per column. On a portrait page a six-column schedule wrapped „Kod celu" onto two lines and broke „2026-08-27" across them, and the application column of a five-application release took a third of the width.
+
 ## [0.42.1] - 2026-08-26
 
 ### Fixed
