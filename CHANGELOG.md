@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **The client's schedule drops the application and version columns.** The title of the document already names every application with its version, so repeating „Kierowca / Lokalny komponent / Kierowca Backend / Kierowca Frontend / TERYT" on all 399 rows only pushed the three things the client reads — which office, which day, which weekday — into a third of the page. The attachment is now target, the project's own per-target columns, date and weekday. The deployments view keeps both columns in its own export, where one sheet per application is the whole point.
+- **„Wygenerowano w RollDesk" is off the schedule's subtitle**, in the attachment and in the deployments view's own export alike: a document titled „Harmonogram wdrożenia - PIK (PWPW)" and carrying that project's targets does not need a line naming the app that printed it. The subtitle is the deployment id and the target count, which are the two things a reader quotes back.
 - The page is portrait for a table this narrow and turns landscape only past four columns, so the client's schedule prints like a list while the deployer's six-column export still gets the width it needs. Spare width is shared out in proportion instead of being given to the widest column, which had left „Województwo" three times the width it needed while „Kod celu" sat at the edge of wrapping — „Świdnica" was arriving broken across two lines.
 
 ## [0.42.2] - 2026-08-26
