@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.42.1] - 2026-08-26
+
+### Fixed
+- **A browser tab left open across an update says so.** The UI is one file, so a tab loaded before the instance was updated keeps composing with the code it downloaded — and that is not theoretical: three client approval requests went out in one afternoon from three different versions of this file, the last of them 68 seconds after the release that started attaching the schedule, without the attachment. Nothing on screen said anything. The version badge now compares what the tab loaded with what the backend reports (`GET /api/version` already carried it) and turns into „⚠ nowa wersja 0.42.0 - odśwież", which reloads on click; the check repeats every half hour, so a tab open all day finds out at all. The confirmation dialog of the client mail says it too, naming both versions, because that is the one message where sending a stale composition reaches somebody outside the team.
+- **A sent client mail is logged, with what it carried.** „The client got no schedule" was unanswerable: a successful send left no trace on the server, so a mail composed by a tab too old to send an attachment looked exactly like a mail whose PDF had failed to render. Deliveries now log the subject, the number of recipients and either the attached file with its size or why there is none — the same treatment webhook deliveries have had since 0.30.0.
+
 ## [0.42.0] - 2026-08-26
 
 ### Added
