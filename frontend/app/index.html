@@ -1768,6 +1768,19 @@
           <label style="display:flex; align-items:center;"><span data-i18n="sch.appsVersions">Applications and versions included in this deployment</span><span class="info-ic" data-i18n-tip="sch.appsVersionsNote">i</span></label>
           <div id="schedule-apps-list" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;"></div>
         </div>
+        <!-- The issues the picked package fixes, listed rather than counted. The
+             order of the rollout is decided from them — the office waiting for a
+             fix must not be the last one to receive it — so a release manager
+             planning the schedule needs them on this form. The summary line above
+             said „fixed issues: 7", which is not something an order can be built
+             from, and the list itself was one view away (the packages table) or in
+             the mail that announced the handover; with notifications off it was
+             nowhere. Read-only, like the applications above: this form picks a
+             package, it does not edit one. -->
+        <div class="field" id="schedule-issues-field">
+          <label style="display:flex; align-items:center;"><span data-i18n="sch.issues">Issues fixed by this release</span><span class="info-ic" data-i18n-tip="sch.issuesNote">i</span></label>
+          <div id="schedule-issues-list" style="margin-top:8px;"></div>
+        </div>
         <!-- No changelog field and no materials panel here. Both are the package's:
              this form picks the package, and what it contains was written once by
              the test team. A copy of the text on the form invited an edit that
@@ -3058,11 +3071,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.38.0"></script>
-<script src="i18n/en.js?v=0.38.0"></script>
+<script src="i18n/pl.js?v=0.39.0"></script>
+<script src="i18n/en.js?v=0.39.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.38.0';
+  const ROLLDESK_VERSION = '0.39.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -5927,6 +5940,56 @@
     }).join('');
   }
 
+  // The issues the picked package fixes, itemised on the form that plans the
+  // rollout — the whole point of this list is that the order of the schedule is
+  // decided from it. Read-only and rendered from the package, like the
+  // applications above.
+  //
+  // Each office is checked against the production targets this deployment actually
+  // covers: an office recorded on a ticket matches a registered target only when
+  // the spelling happens to agree, and a release manager who does not know a name
+  // failed to match is left wondering why the reporters were not moved up. Saying
+  // so on the row is cheaper than discovering it in the generated schedule.
+  function renderScheduleIssuesList(){
+    const wrap = document.getElementById('schedule-issues-list');
+    if(!wrap) return;
+    const pkg = packageById(schedulePackageId);
+    if(!pkg){
+      wrap.innerHTML = `<div style="color:var(--text-faint); font-size:12.5px;">${t('sch.issuesFromPackage')}</div>`;
+      return;
+    }
+    const issues = packageIssues(pkg);
+    if(!issues.length){
+      // A release carrying work no ticket was filed for is normal — the issue list
+      // is optional and the description covers it — so this is a statement, not a
+      // warning. It still has to be said: an empty panel reads as „not loaded yet".
+      wrap.innerHTML = `<div style="color:var(--text-faint); font-size:12.5px;">${escapeHtml(tf('sch.issuesNone', {id: pkg.id}))}</div>`;
+      return;
+    }
+    // Only asked on a path that has a production step: a test-only rollout goes to
+    // one instance, so there is no order for a reporting office to influence.
+    const path = (document.querySelector('input[name="schedule-path"]:checked') || {}).value || 'test-prod';
+    const targets = path === 'test-only' ? [] : scheduleProdTargets();
+    const covered = new Set();
+    targets.forEach(loc=>{
+      const code = String((loc && loc.code) || '').trim().toLowerCase();
+      const label = String((loc && loc.label) || '').trim().toLowerCase();
+      if(code) covered.add(code);
+      if(label) covered.add(label);
+    });
+    const extra = i => (i.office && targets.length && !covered.has(String(i.office).trim().toLowerCase()))
+      ? `<div style="font-size:11px; color:#8A5A05;">⚠ ${escapeHtml(tf('sch.issueOfficeNoTarget', {office: i.office}))}</div>`
+      : '';
+    // A release with a hundred fixed issues must not push the rest of the form off
+    // screen, so a long list scrolls in place. Short ones — the usual case — are
+    // rendered whole, because a scroll pane around four rows only hides them.
+    const scroll = issues.length > 8 ? ' max-height:320px; overflow:auto;' : '';
+    const note = (targets.length && packageReportingOffices(pkg).length)
+      ? `<div style="font-size:11px; color:var(--text-muted); margin-top:6px;">${escapeHtml(t('sch.reporterFirst'))}</div>`
+      : '';
+    wrap.innerHTML = `<div style="${scroll}">${packageIssueRowsHtml(pkg, extra)}</div>${note}`;
+  }
+
   // The applications a deployment will carry: whatever the picked package lists.
   // Copied, not referenced — including the service list, so what went out on the day
   // stays readable on the rollout even after the package is corrected for the next
@@ -6540,16 +6603,17 @@
     return `<span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:12px; color:${color}; background:${bg};">${t(ready ? 'pkg.stReady' : 'pkg.stDraft')}</span>`;
   }
 
-  // The fixed-issue list as it appears on a deployment: identifiers only. Read
-  // live from the package (not copied onto the deployment) so a late fix shows up
-  // everywhere. The Halo ticket leads because that is the id a deployer is asked
-  // about during the rollout; the work item follows it, and the reporting office
-  // is called out because those targets are deployed to first.
-  function packageIssuesBlockHtml(r){
-    const pkg = packageById(r && r.packageId);
-    const issues = packageIssues(pkg);
-    if(!issues.length) return '';
-    const rows = issues.map(i=>{
+  // One row per fixed issue: identifiers only. The Halo ticket leads because that
+  // is the id a deployer is asked about during the rollout; the work item follows
+  // it as the trace back to the test team, and the reporting office is called out
+  // because those targets are deployed to first.
+  //
+  // Shared by the deployment's changelog block and the new-deployment form, so the
+  // release manager building a schedule reads the same list as everyone else.
+  // `extra` appends per-issue context the caller owns — the schedule form uses it
+  // to say whether an office actually matches one of the deployment's targets.
+  function packageIssueRowsHtml(pkg, extra){
+    return packageIssues(pkg).map(i=>{
       const halo = issueHaloTicket(i);
       const ticket = halo ? issueIdHtml(halo, pkg.projectKey) : '<span style="color:var(--text-faint);">—</span>';
       const item = workItemIdHtml(i.id, pkg.projectKey);
@@ -6564,13 +6628,38 @@
       return `<div style="display:flex; gap:10px; align-items:baseline; padding:4px 0; border-bottom:1px solid var(--line-soft);">
         <div style="flex-shrink:0; min-width:110px;">${ticket}</div>
         <div style="flex-shrink:0; min-width:90px; color:var(--text-faint);">${item}</div>
-        <div style="flex:1;">${title}${office}</div>
+        <div style="flex:1;">${title}${office}${extra ? extra(i) : ''}</div>
       </div>`;
     }).join('');
+  }
+
+  // The fixed-issue list as it appears on a deployment. Read live from the package
+  // (not copied onto the deployment) so a late fix shows up everywhere.
+  function packageIssuesBlockHtml(r){
+    const pkg = packageById(r && r.packageId);
+    if(!packageIssues(pkg).length) return '';
     return `<div style="margin-top:10px;">
       <div style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px;">🐞 ${t('pkg.fixedIssues')} <span class="mono" style="font-weight:400;">${escapeHtml(pkg.id)}</span></div>
-      ${rows}
+      ${packageIssueRowsHtml(pkg)}
     </div>`;
+  }
+
+  // The fixed issues one production target reported itself. The rollout order is
+  // built from these — prioritizeReportingTargets lifts the reporters to the front
+  // — so the schedule preview can say which issue put a target where it is instead
+  // of leaving the new order looking arbitrary.
+  //
+  // Matched the same way as prioritizeReportingTargets: case-insensitively against
+  // the target's code and its label, because the office on a ticket is whatever the
+  // service desk recorded and neither side is authoritative. Change both together.
+  function packageIssuesForTarget(pkg, loc){
+    const code = String((loc && loc.code) || '').trim().toLowerCase();
+    const label = String((loc && loc.label) || '').trim().toLowerCase();
+    if(!code && !label) return [];
+    return packageIssues(pkg).filter(i=>{
+      const office = String((i && i.office) || '').trim().toLowerCase();
+      return !!office && ((!!code && office === code) || (!!label && office === label));
+    });
   }
 
   // Where the build for one application version lives, as typed on the package.
@@ -8026,8 +8115,10 @@
     if(prev && usable.some(p=>p.id === prev)) sel.value = prev;
     else schedulePackageId = '';
     updateSchedulePackageSummary();
-    // The applications shown are the package's, so they follow the selection.
+    // The applications and the fixed issues shown are the package's, so they
+    // follow the selection.
     renderScheduleAppsList();
+    renderScheduleIssuesList();
   }
 
   // The package the deployment being planned is based on. A deployment always has
@@ -8071,6 +8162,7 @@
     const pkg = packageById(schedulePackageId);
     updateSchedulePackageSummary();
     renderScheduleAppsList();
+    renderScheduleIssuesList();
     if(!pkg) return;
 
     // An application in the package that the project does not define is still
@@ -8190,6 +8282,9 @@
       limitEl.checked = false;
       onScheduleLimitTargetsChange();
     }
+    // The issue list says whether a reporting office is one of this deployment's
+    // targets, which is a question only a production path asks.
+    renderScheduleIssuesList();
   }
 
   let deploymentSeq = 1000; // monotonic counter so new deployments sort to the top
@@ -8502,8 +8597,10 @@
     const pkgSel = document.getElementById('schedule-package-select');
     if(pkgSel) pkgSel.value = '';
     updateSchedulePackageSummary();
-    // The application list is derived from the package, so it empties with it.
+    // The application and issue lists are derived from the package, so they empty
+    // with it.
     renderScheduleAppsList();
+    renderScheduleIssuesList();
     refreshScheduleTargetCount();
   }
   // ---- Production-target subset for one deployment ----
@@ -8599,6 +8696,9 @@
     const dayEl = document.getElementById('day-count');
     if(dayEl && n <= 1) dayEl.value = 1;
     refreshScheduleModeBadge(n);
+    // Narrowing the scope can drop the very office that reported a fix, so the
+    // issue list is re-read through the funnel every change to the scope passes.
+    renderScheduleIssuesList();
   }
 
   function rebuildScheduleEnvChecklist(checkedEnvs){
@@ -9437,14 +9537,27 @@
     }
 
     let idx = 0;
+    // The issues the release fixes, so a target can say which of them it reported.
+    // The reporters were already lifted to the front of this order and nothing on
+    // the table said why: the row that has to move is chosen from the issues, so
+    // they belong in the row rather than in the package the reader would otherwise
+    // open in a second tab.
+    const pkg = packageById(schedulePackageId);
     dayAssignments.forEach((arr, dayIdx)=>{
       arr.forEach(loc=>{
         const name = escapeHtml(loc.code || '');
         const label = (loc.label && loc.label !== loc.code)
           ? ` <span style="color:var(--text-faint); font-size:11px;">${escapeHtml(loc.label)}</span>`
           : '';
+        const reported = packageIssuesForTarget(pkg, loc);
+        // The ticket ids themselves, not a count: „🐞 PR-0164935" is what a reader
+        // recognises from the mail thread that asked for the fix. The titles hang
+        // off the tooltip, where they cannot widen the column.
+        const bugs = reported.length
+          ? `<div class="mono" style="font-size:11px; color:var(--cyan); margin-top:2px;" title="${escapeHtml(reported.map(i=>[packageIssueTicket(i), i.title].filter(Boolean).join(' — ')).join('\n'))}">🐞 ${escapeHtml(reported.map(packageIssueTicket).filter(Boolean).join(', '))}</div>`
+          : '';
         html += `<tr class="manifest-row">
-          <td>${name}${label}</td>
+          <td>${name}${label}${bugs}</td>
           <td class="mono">${tf('sch.day', {n: dayIdx+1})}</td>
           <td class="mono"><div>${dayLabels[dayIdx].date}</div><div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(timeVal)}</div></td>
           <td>${envTagHtml('Production')}</td>

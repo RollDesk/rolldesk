@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.39.0] - 2026-08-26
+
+### Added
+- **The new-deployment form lists the issues the release fixes, not just the versions.** The order of a rollout is planned from the issues — the office waiting for a fix must not be the last one to receive it — and the form said „fixed issues: 7", which is a number nobody can build an order from. Under the applications there is now the package's issue list as everyone else reads it: the service-desk ticket, the work item behind it, its title and the office that reported it, each id linked into its tracker. It is read live from the package, read-only like the versions above it, and a release that lists no issue says so instead of showing an empty panel. Until now the only ways to see this while planning were to open the packages view in a second tab or to read the mail announcing the handover — and on an instance with e-mail notifications switched off, the second one does not exist.
+- **The generated schedule says which issue each target reported.** The reporting offices were already lifted to the front of the rollout (0.23.0), but nothing in the preview said why, so the order looked arbitrary and the release manager reordering it by hand was working blind. Every production row that reported one of the fixed issues now carries its ticket ids under the target name, with the issue titles in the tooltip — and because the preview's search reads that cell, a ticket id now finds the target waiting for it.
+- **An office that matches no target is called out on the issue it came from.** The office is read off the service-desk ticket and a target is registered under whatever name the project uses, so the two agree only when the spelling does — and a name that does not match is silently not moved up. The row now says so, next to the office it concerns, including when the office is simply outside the targets this deployment was narrowed to. Only on a path with a production step: a test-only rollout goes to one instance and has no order to influence.
+
 ## [0.38.0] - 2026-08-25
 
 ### Fixed
