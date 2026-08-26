@@ -3120,11 +3120,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.42.3"></script>
-<script src="i18n/en.js?v=0.42.3"></script>
+<script src="i18n/pl.js?v=0.43.0"></script>
+<script src="i18n/en.js?v=0.43.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.42.3';
+  const ROLLDESK_VERSION = '0.43.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -10896,6 +10896,17 @@
   function buildClientApprovalMailBody(r, projName, hasCopy, hasSchedule){
     const pkg = packageForDeployment(r);
     let body = scheduleFactsBlock(r, projName);
+    // How the rollout is spread, before what it fixes: the client is being asked to
+    // approve dates.
+    const sum = clientMailScheduleSummary(r);
+    if(sum){
+      body += '\n\n' + clientMailScheduleTitle(sum) + ':\n'
+        + clientMailScheduleDayRows(sum).map(d=>'- ' + (d.name ? d.name + ': ' : '') + d.note).join('\n');
+      const firstTargets = clientMailFirstDayTargets(sum);
+      if(firstTargets){
+        body += '\n\n' + tnf('notif.schedFirstDay', {date: fmtDateDowNotif(sum.first.date)}) + ':\n' + firstTargets;
+      }
+    }
     const issues = clientMailIssueLines(pkg);
     if(issues.length) body += '\n\n' + tnf('notif.fixedIssuesN', {n: issues.length}) + ':\n' + issues.map(l=>'- ' + l).join('\n');
     // What the release changes, as the test team wrote it — without the id line
@@ -10915,6 +10926,61 @@
     // mailBodyParts in backend/src/appLink.js). The ask above ends in a colon, so a
     // signature between it and the link would read as an unfinished sentence.
     return body;
+  }
+
+  // ---- „On how many days, how many targets each, and who is first" -----------
+  //
+  // The facts line says „399 celów · 4 dni roboczych", which answers neither of the
+  // questions a client reads this mail with: how the rollout is spread, and whether
+  // *their* office is in it on the first day. The attachment answers both, but a
+  // reader deciding whether to approve should not have to open a PDF to see the
+  // shape of the plan, and the first day is short enough to print in the body — that
+  // is what a rollout does, a handful of offices first and the estate behind them.
+  //
+  // Grouped from buildScheduleRows(), the same rows the attachment is drawn from, so
+  // the body and the file cannot disagree about which day a target falls on.
+  const MAX_MAIL_SCHED_DAYS = 30;
+  const MAX_MAIL_FIRST_DAY_TARGETS = 25;
+  function clientMailScheduleSummary(r){
+    // A single-target deployment has no plan to summarise: its date and location are
+    // already on the facts line above.
+    if(!r || r.mode !== 'batch') return null;
+    let rows = [];
+    try { rows = buildScheduleRows(r); } catch(e){ return null; }
+    if(!rows.length) return null;
+    const byDay = new Map();
+    rows.forEach(x=>{
+      if(!byDay.has(x.day)) byDay.set(x.day, {day: x.day, date: x.date, targets: []});
+      if(x.code) byDay.get(x.day).targets.push(String(x.code));
+    });
+    const days = Array.from(byDay.values()).sort((a,b)=>a.day - b.day);
+    if(!days.length) return null;
+    return {dayCount: days.length, targetCount: rows.length, days, first: days[0]};
+  }
+  // „Harmonogram na 4 dni roboczych" - the day count worded exactly as the facts line
+  // words it. Without the target total, which that line already carries: the block
+  // under this title is about how the rollout is spread, not how big it is.
+  function clientMailScheduleTitle(sum){
+    return tnf('notif.schedPlanTitle', {days: tnf('notif.daysN', {n: sum.dayCount})});
+  }
+  function clientMailScheduleDayRows(sum){
+    const days = sum.days.slice(0, MAX_MAIL_SCHED_DAYS);
+    const rows = days.map(d=>({
+      name: tnf('dtl.day', {n: d.day}),
+      note: fmtDateDowNotif(d.date) + ' · ' + tnf('notif.locationsN', {n: d.targets.length}),
+    }));
+    const rest = sum.days.length - days.length;
+    if(rest > 0) rows.push({name: '', note: tnf('notif.schedMoreDays', {n: rest})});
+    return rows;
+  }
+  // The first day named target by target, capped: „usually the fewest" is a habit,
+  // not a rule, and a release that starts with two hundred offices must not turn the
+  // mail into the attachment.
+  function clientMailFirstDayTargets(sum){
+    const names = sum.first.targets.slice(0, MAX_MAIL_FIRST_DAY_TARGETS);
+    const rest = sum.first.targets.length - names.length;
+    if(!names.length) return '';
+    return names.join(', ') + (rest > 0 ? ', ' + tnf('notif.schedMoreTargets', {n: rest}) : '');
   }
 
   // ---- The schedule the mail attaches ---------------------------------------
@@ -10993,6 +11059,14 @@
     if(f.meta.length) blocks.push({kind:'meta', items: f.meta});
     // The ticket and what it was, in two columns: the client reads down the ticket
     // column looking for the one they reported.
+    const sum = clientMailScheduleSummary(r);
+    if(sum){
+      blocks.push({kind:'list', title: clientMailScheduleTitle(sum), items: clientMailScheduleDayRows(sum)});
+      const firstTargets = clientMailFirstDayTargets(sum);
+      if(firstTargets){
+        blocks.push({kind:'text', title: tnf('notif.schedFirstDay', {date: fmtDateDowNotif(sum.first.date)}), body: firstTargets});
+      }
+    }
     const issues = packageIssues(pkg).map(i=>({
       name: packageIssueTicket(i), note: String((i && i.title) || '').trim(),
     })).filter(i=>i.name || i.note);
