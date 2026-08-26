@@ -116,6 +116,23 @@ test('the Polish letters are embedded, not dropped to a fallback font', async ()
   assert.ok(!/\/BaseFont\s*\/Helvetica/.test(raw), 'nothing fell back to Helvetica');
 });
 
+test('the page turns landscape only when the table needs it', async () => {
+  // The client's schedule is four columns (target, the project's own column, date,
+  // weekday) and reads better upright; the deployer's export adds application and
+  // version, and at six columns a portrait page breaks the dates mid-value.
+  const box = async (columns) => {
+    const pdf = await renderSchedulePdf(scheduleDoc({
+      columns, rows: [columns.map((_, i) => `v${i}`)],
+    }));
+    const m = pdf.toString('latin1').match(/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)/);
+    return { w: parseFloat(m[1]), h: parseFloat(m[2]) };
+  };
+  const narrow = await box(['Kod celu', 'Województwo', 'Data', 'Dzień']);
+  assert.ok(narrow.h > narrow.w, `expected portrait, got ${narrow.w}x${narrow.h}`);
+  const wide = await box(['Aplikacja', 'Wersja', 'Kod celu', 'Województwo', 'Data', 'Dzień']);
+  assert.ok(wide.w > wide.h, `expected landscape, got ${wide.w}x${wide.h}`);
+});
+
 test('a long schedule runs onto further pages', async () => {
   const rows = Array.from({ length: 120 }, (_, i) => ['Kierowca', '9.9.9', `Oddział Świdnica ${i + 1}`, 'dolnośląskie', '2026-08-27', 'czwartek']);
   const pdf = await renderSchedulePdf(scheduleDoc(Object.assign({}, INPUT, { rows })));

@@ -3120,11 +3120,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.42.2"></script>
-<script src="i18n/en.js?v=0.42.2"></script>
+<script src="i18n/pl.js?v=0.42.3"></script>
+<script src="i18n/en.js?v=0.42.3"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.42.2';
+  const ROLLDESK_VERSION = '0.42.3';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -10940,10 +10940,16 @@
       filename: scheduleFileBase(r) + '.pdf',
       title: scheduleTitleNotif(r),
       subtitle: tnf('sch.docSubtitle', {id: r.id || '-', n: rows.length}),
-      columns: [tn('rep.scheduleAppHdr'), tn('rep.scheduleVerHdr'), tn('rep.scheduleCodeHdr'),
-        ...customFields, tn('rep.scheduleDateHdr'), tn('rep.scheduleDayHdr')],
+      // Without the application and version columns the deployer's own export
+      // carries: the title above already names every application with its version,
+      // and repeating „Kierowca / Lokalny komponent / Kierowca Backend / Kierowca
+      // Frontend / TERYT" on all 399 rows pushed the three columns the client reads —
+      // which office, which day — into a third of the page. The deployer's export
+      // keeps them, because there one sheet per application is the point.
+      columns: [tn('rep.scheduleCodeHdr'), ...customFields,
+        tn('rep.scheduleDateHdr'), tn('rep.scheduleDayHdr')],
       rows: rows.map(x=>[
-        x.app, String(x.version == null ? '' : x.version), String(x.code == null ? '' : x.code),
+        String(x.code == null ? '' : x.code),
         ...customFields.map(f=>(x.custom && x.custom[f]) || ''),
         // The weekday recomputed in the notification language: buildScheduleRows
         // names it in the operator's UI language, which is right for the on-screen
