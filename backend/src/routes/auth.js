@@ -150,7 +150,7 @@ router.post('/forgot', credentialLimiter, async (req, res) => {
       try {
         await sendMail({
           to: user.email,
-          subject: 'RollDesk — reset your password',
+          subject: 'RollDesk - reset your password',
           text: body,
           html: `<p>${body.replace(/\n/g, '<br>')}</p>`,
         });

@@ -49,7 +49,7 @@ async function scanRejection(buffer) {
   } catch (err) {
     console.warn('[av] scan failed:', err.message);
     if (config.av.failMode !== 'allow') {
-      return { status: 503, body: { error: 'Virus scan unavailable — upload rejected', detail: err.message } };
+      return { status: 503, body: { error: 'Virus scan unavailable - upload rejected', detail: err.message } };
     }
     // fail-open: allow the upload but note it wasn't scanned.
     return null;

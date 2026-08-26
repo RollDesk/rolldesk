@@ -82,7 +82,7 @@ router.post('/test', async (req, res) => {
   const payload = notificationPayload({
     eventKey: 'test',
     subject: 'RollDesk',
-    text: 'Test notification — browser notifications are working on this device.',
+    text: 'Test notification - browser notifications are working on this device.',
     url: config.appBaseUrl || '',
   });
   const result = await sendToUsers([userId(req)], payload);

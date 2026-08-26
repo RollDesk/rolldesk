@@ -33,7 +33,7 @@ async function getJson(url, headers) {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    const err = new Error(`${res.status} ${res.statusText}${body ? ' — ' + body.slice(0, 200) : ''}`);
+    const err = new Error(`${res.status} ${res.statusText}${body ? ' - ' + body.slice(0, 200) : ''}`);
     err.status = res.status;
     throw err;
   }

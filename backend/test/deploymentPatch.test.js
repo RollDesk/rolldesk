@@ -55,7 +55,7 @@ test('adds a field that was not stored yet', () => {
   assert.equal(r.ok, true);
   assert.equal(r.data.installerNotes, 'reboot after');
   assert.deepEqual(r.changes, [{ field: 'installerNotes', from: undefined, to: 'reboot after' }]);
-  assert.equal(summarizeChanges(r.changes), 'installerNotes — → reboot after');
+  assert.equal(summarizeChanges(r.changes), 'installerNotes - → reboot after');
 });
 
 test('a patch that sets a field to its current value yields no changes', () => {

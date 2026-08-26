@@ -93,7 +93,7 @@ async function issueInvite(user, actorEmail) {
   const base = config.appBaseUrl || '';
   const link = `${base}/#/invite/${raw}`;
   const isReset = !!user.mfa_enabled;
-  const subject = isReset ? 'RollDesk — set a new password' : 'RollDesk — you have been invited';
+  const subject = isReset ? 'RollDesk - set a new password' : 'RollDesk - you have been invited';
   const body = isReset
     ? `A password reset was requested for your RollDesk account.\nSet a new password: ${link}\nThis link expires in 7 days.`
     : `You have been invited to RollDesk${actorEmail ? ' by ' + actorEmail : ''}.\nSet your password and enable two-factor authentication: ${link}\nThis link expires in 7 days.`;
@@ -253,7 +253,7 @@ router.post('/:id/reset-mfa', async (req, res) => {
   try {
     await sendMail({
       to: user.email,
-      subject: 'RollDesk — two-factor authentication reset',
+      subject: 'RollDesk - two-factor authentication reset',
       text: body,
       html: `<p>${body.replace(/\n/g, '<br>')}</p>`,
     });
