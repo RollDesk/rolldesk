@@ -11,18 +11,18 @@ import {
   scheduleDoc, scheduleFilename, renderSchedulePdf, schedulePdfAttachment, MAX_ROWS, MAX_COLUMNS,
 } from '../src/schedulePdf.js';
 
+// The document the deployments view exports: one row per target, the project's own
+// per-target column among the standard ones.
 const INPUT = {
-  filename: 'Harmonogram-DEP-2026-0075.pdf',
-  title: 'Harmonogram wdrożenia',
-  subtitle: 'DEP-2026-0075 - Test PIK',
-  facts: ['Kierowca v9.9.9', 'Produkcja', '399 celów'],
-  meta: [{ label: 'Start', value: 'czwartek, 2026-08-27 o 20:00' }],
-  columns: ['Dzień', 'Data', 'Cele wdrożenia'],
+  filename: 'DEP-2026-0075-Kierowca.pdf',
+  title: 'Harmonogram wdrożenia - Test PIK (PWPW) · Kierowca 9.9.9 · Produkcja',
+  subtitle: 'ID: DEP-2026-0075 · Cele: 3 · Wygenerowano w RollDesk',
+  columns: ['Aplikacja', 'Wersja', 'Kod celu', 'Województwo', 'Data', 'Dzień'],
   rows: [
-    ['Dzień 1', '2026-08-27', 'Oddział Świdnica, Oddział Żywiec'],
-    ['Dzień 2', '2026-08-28', 'Oddział Łomża'],
+    ['Kierowca', '9.9.9', 'Oddział Świdnica', 'dolnośląskie', '2026-08-27', 'czwartek'],
+    ['Kierowca', '9.9.9', 'Oddział Żywiec', 'śląskie', '2026-08-27', 'czwartek'],
+    ['Kierowca', '9.9.9', 'Oddział Łomża', 'podlaskie', '2026-08-28', 'piątek'],
   ],
-  note: 'Wygenerowano automatycznie.',
 };
 
 test('no rows means no document, so nothing empty is ever attached', () => {
@@ -35,16 +35,28 @@ test('no rows means no document, so nothing empty is ever attached', () => {
 
 test('the rows and their wording survive', () => {
   const doc = scheduleDoc(INPUT);
-  assert.equal(doc.title, 'Harmonogram wdrożenia');
-  assert.equal(doc.subtitle, 'DEP-2026-0075 - Test PIK');
-  assert.deepEqual(doc.columns, ['Dzień', 'Data', 'Cele wdrożenia']);
-  assert.deepEqual(doc.rows[0], ['Dzień 1', '2026-08-27', 'Oddział Świdnica, Oddział Żywiec']);
+  assert.equal(doc.title, INPUT.title);
+  assert.equal(doc.subtitle, INPUT.subtitle);
+  assert.deepEqual(doc.columns, INPUT.columns);
+  assert.deepEqual(doc.rows[0], INPUT.rows[0]);
   assert.equal(doc.dropped, 0);
 });
 
+test('the document carries nothing of its own', async () => {
+  // It has to be the same schedule the deployments view exports, so this module adds
+  // no summary of the release and no generated-by line: two documents that are
+  // „almost the same" leave the client deciding which one is the schedule.
+  const doc = scheduleDoc(Object.assign({}, INPUT, {
+    facts: ['invented'], meta: [{ label: 'invented', value: 'x' }], note: 'invented',
+  }));
+  assert.deepEqual(Object.keys(doc).sort(), ['columns', 'dropped', 'filename', 'rows', 'subtitle', 'title']);
+  assert.ok(!JSON.stringify(doc).includes('invented'), 'nothing invented reaches the model');
+  assert.ok(Buffer.isBuffer(await renderSchedulePdf(doc)), 'and it still renders');
+});
+
 test('a short row is padded, so it cannot shift the columns below it', () => {
-  const doc = scheduleDoc(Object.assign({}, INPUT, { rows: [['Dzień 1'], ['Dzień 2', '2026-08-28', 'x']] }));
-  assert.deepEqual(doc.rows[0], ['Dzień 1', '', '']);
+  const doc = scheduleDoc(Object.assign({}, INPUT, { rows: [['Kierowca'], ['Kierowca', '9.9.9', 'x', 'y', 'z', 'w']] }));
+  assert.deepEqual(doc.rows[0], ['Kierowca', '', '', '', '', '']);
   assert.equal(doc.rows[0].length, doc.rows[1].length);
 });
 
@@ -57,7 +69,7 @@ test('a table wider than the header is still square', () => {
 });
 
 test('the row and column caps hold, and what was cut is reported', () => {
-  const rows = Array.from({ length: MAX_ROWS + 25 }, (_, i) => [`Dzień ${i + 1}`, '2026-08-27', 'x']);
+  const rows = Array.from({ length: MAX_ROWS + 25 }, (_, i) => [`Kierowca`, '9.9.9', `Cel ${i + 1}`]);
   const doc = scheduleDoc(Object.assign({}, INPUT, { rows }));
   assert.equal(doc.rows.length, MAX_ROWS);
   assert.equal(doc.dropped, 25, 'a truncated schedule says so rather than looking complete');
@@ -76,7 +88,7 @@ test('whitespace in a cell is collapsed, because a newline is not a row', () => 
 });
 
 test('the filename is one a mail client will not rewrite', () => {
-  assert.equal(scheduleFilename('Harmonogram-DEP-2026-0075.pdf'), 'Harmonogram-DEP-2026-0075.pdf');
+  assert.equal(scheduleFilename('DEP-2026-0075-Kierowca.pdf'), 'DEP-2026-0075-Kierowca.pdf');
   assert.equal(scheduleFilename('Harmonogram DEP/2026'), 'Harmonogram-DEP-2026.pdf', 'a separator cannot survive');
   assert.equal(scheduleFilename('../../etc/passwd'), 'etc-passwd.pdf');
   assert.equal(scheduleFilename('harmonogram wdrożenia'), 'harmonogram-wdro-enia.pdf');
@@ -105,7 +117,7 @@ test('the Polish letters are embedded, not dropped to a fallback font', async ()
 });
 
 test('a long schedule runs onto further pages', async () => {
-  const rows = Array.from({ length: 120 }, (_, i) => [`Dzień ${i + 1}`, '2026-08-27', 'Oddział Świdnica']);
+  const rows = Array.from({ length: 120 }, (_, i) => ['Kierowca', '9.9.9', `Oddział Świdnica ${i + 1}`, 'dolnośląskie', '2026-08-27', 'czwartek']);
   const pdf = await renderSchedulePdf(scheduleDoc(Object.assign({}, INPUT, { rows })));
   const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
   assert.ok(pages >= 2, `expected more than one page, got ${pages}`);
@@ -113,7 +125,7 @@ test('a long schedule runs onto further pages', async () => {
 
 test('the attachment is what nodemailer takes, or null', async () => {
   const file = await schedulePdfAttachment(INPUT);
-  assert.equal(file.filename, 'Harmonogram-DEP-2026-0075.pdf');
+  assert.equal(file.filename, 'DEP-2026-0075-Kierowca.pdf');
   assert.equal(file.contentType, 'application/pdf');
   assert.ok(Buffer.isBuffer(file.content));
   assert.equal(file.dropped, 0);

@@ -1,11 +1,17 @@
 // The rollout schedule as a PDF, attached to the client's approval request.
 //
 // The mail describes the release and asks for a decision; the schedule is the part
-// the client circulates internally — which office gets it on which day — and a mail
-// body is not what gets forwarded to twenty branches or printed and taken to a
-// meeting. So it also travels as one file, generated per send rather than stored:
-// the schedule is edited until the moment it is sent, and an attachment that is a
-// day out of date is worse than none.
+// the client circulates internally, and a mail body is not what gets forwarded to
+// twenty branches or printed and taken to a meeting. So it also travels as one file,
+// generated per send rather than stored: the schedule is edited until the moment it
+// is sent, and an attachment that is a day out of date is worse than none.
+//
+// It is deliberately the same document the deployments view already exports (its
+// „PDF" button opens a print view of the same table) — same title, same subtitle,
+// same columns, same rows, built by the same buildScheduleRows() in the browser.
+// This module only draws it. Anything this file invented on its own — a summary of
+// the release, a generated-by line — is gone: the client must be able to put the mail
+// attachment and a fresh export side by side and see one schedule, not two.
 //
 // Two halves, for the same reason as everywhere else in this backend: `scheduleDoc`
 // is pure and holds every decision that can be wrong (what is missing, what is too
@@ -30,14 +36,18 @@ const FONT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets
 export const FONT_REGULAR = path.join(FONT_DIR, 'DejaVuSans.ttf');
 export const FONT_BOLD = path.join(FONT_DIR, 'DejaVuSans-Bold.ttf');
 
-// Bounds. A rollout of the whole PWPW estate is 399 targets over 4 days, so the row
-// cap is „every day of the longest schedule anybody plans" and not a guess at a
-// typical one; the rest are the lengths beyond which a value is not a label any more.
-export const MAX_ROWS = 400;
-export const MAX_COLUMNS = 6;
-const MAX_CELL = 2000;      // a day's target list, which is the only long cell
+// Bounds. One row per deployment target, as the schedule the app exports has: the
+// whole PWPW estate is 399 of them, so the cap is several times the largest real
+// rollout rather than a guess at a typical one. The columns are application,
+// version, target code, date and weekday plus the project's own per-target fields,
+// which is why there is room for more than five.
+export const MAX_ROWS = 2000;
+export const MAX_COLUMNS = 12;
+const MAX_CELL = 2000;
 const MAX_SHORT = 300;
-const MAX_FACTS = 12;
+// Narrower than this and a date or a weekday breaks mid-value, which is worse than a
+// wrapped application name.
+const MIN_COLUMN = 46;
 
 const ACCENT = '#0A6E7A';
 const INK = '#1b2a32';
@@ -79,15 +89,10 @@ export function scheduleDoc(input) {
   return {
     title: short(src.title) || 'Harmonogram',
     subtitle: short(src.subtitle),
-    facts: (Array.isArray(src.facts) ? src.facts : []).slice(0, MAX_FACTS).map(short).filter(Boolean),
-    meta: (Array.isArray(src.meta) ? src.meta : []).slice(0, MAX_FACTS)
-      .map((m) => ({ label: short(m && m.label), value: short(m && m.value) }))
-      .filter((m) => m.label || m.value),
     columns: Array.from({ length: width }, (_, i) => columns[i] || ''),
     rows: rows.map((r) => Array.from({ length: width }, (_, i) => r[i] || '')),
-    note: short(src.note),
     filename: scheduleFilename(src.filename),
-    // Reported back so a caller can say „399 targets, 400-row cap, 12 dropped"
+    // Reported back so a caller can say „2000-row cap, 12 dropped"
     // rather than silently attaching a truncated schedule.
     dropped: Math.max(0, (Array.isArray(src.rows) ? src.rows.length : 0) - rows.length),
   };
@@ -100,15 +105,36 @@ export function scheduleDoc(input) {
 function columnWidths(doc, model, available) {
   const n = model.columns.length;
   if (n === 1) return [available];
-  const measured = model.columns.slice(0, n - 1).map((head, i) => {
+  // What each column would like: its header and its widest value, capped so one long
+  // cell (the application column of a five-application release) cannot take the page.
+  const natural = model.columns.map((head, i) => {
     doc.font(FONT_BOLD).fontSize(9);
     let w = doc.widthOfString(head);
     doc.font(FONT_REGULAR).fontSize(9.5);
     for (const row of model.rows) w = Math.max(w, doc.widthOfString(row[i] || ''));
-    return Math.min(w + 16, available * 0.3);
+    // A cap per column, so the application column of a five-application release
+    // („Kierowca / Lokalny komponent / …") cannot take a third of the page and leave
+    // the target and the date fighting over what is left.
+    return Math.min(w + 14, available * 0.26);
   });
-  const rest = Math.max(available - measured.reduce((a, b) => a + b, 0), available * 0.3);
-  return measured.concat([rest]);
+  const total = natural.reduce((a, b) => a + b, 0);
+  if (total <= available) {
+    // Spare room to the widest column: it is the one whose values wrap, so it is the
+    // one that gets shorter for it.
+    const widest = natural.indexOf(Math.max(...natural));
+    natural[widest] += available - total;
+    return natural;
+  }
+  // Wider than the page. The columns are shrunk towards a readable floor rather than
+  // scaled uniformly — the earlier version gave the leftovers to the last column,
+  // which is how „Dzień: czwartek" arrived in the client's schedule as „Thurs".
+  const floors = natural.map((w) => Math.min(w, MIN_COLUMN));
+  if (floors.reduce((a, b) => a + b, 0) >= available) {
+    return model.columns.map(() => available / n);
+  }
+  const slack = natural.reduce((a, w, i) => a + (w - floors[i]), 0);
+  const keep = slack > 0 ? Math.max(0, 1 - (total - available) / slack) : 0;
+  return natural.map((w, i) => floors[i] + (w - floors[i]) * keep);
 }
 
 // Draw the header. Repeated on every page: a schedule that runs to page three is
@@ -119,17 +145,6 @@ function drawHeader(doc, model, first) {
   if (model.subtitle) {
     doc.font(FONT_BOLD).fontSize(first ? 12 : 9.5).fillColor(ACCENT)
       .text(model.subtitle, { paragraphGap: 2 });
-  }
-  if (first) {
-    if (model.facts.length) {
-      doc.font(FONT_REGULAR).fontSize(9.5).fillColor(MUTED)
-        .text(model.facts.join('  ·  '), { paragraphGap: 2 });
-    }
-    for (const m of model.meta) {
-      doc.font(FONT_REGULAR).fontSize(9.5).fillColor(MUTED)
-        .text(`${m.label}: `, { continued: true })
-        .fillColor(INK).text(m.value);
-    }
   }
   doc.moveDown(0.6);
   const y = doc.y;
@@ -163,7 +178,11 @@ export function renderSchedulePdf(model) {
     try {
       const doc = new PDFDocument({
         size: 'A4',
-        margins: { top: 44, bottom: 44, left: 44, right: 44 },
+        // Landscape, because this document is a six-column table: on a portrait page
+        // „Kod celu" wrapped onto two lines and „2026-08-27" broke across them, which
+        // is not a schedule anybody wants to read off a printout.
+        layout: 'landscape',
+        margins: { top: 40, bottom: 40, left: 40, right: 40 },
         info: { Title: [model.title, model.subtitle].filter(Boolean).join(' - '), Creator: 'RollDesk' },
       });
       const chunks = [];
@@ -207,10 +226,6 @@ export function renderSchedulePdf(model) {
           .lineWidth(0.5).strokeColor(LINE).stroke();
       });
 
-      if (model.note) {
-        doc.moveDown(0.8);
-        doc.font(FONT_REGULAR).fontSize(8.5).fillColor(MUTED).text(model.note, left, doc.y, { width: available });
-      }
       doc.end();
     } catch (err) {
       reject(err);
