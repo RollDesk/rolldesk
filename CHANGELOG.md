@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.43.1] - 2026-08-26
 
+### Changed
+- The packages view's description is two short sentences instead of two long ones: „Wersje przetestowane razem i poprawione w nich błędy. Wdrożenie planuje się dopiero z pakietu zatwierdzonego przez kierownika projektu." Who prepares the packages is obvious from the view they are prepared in; what the reader needs is what a package is and what has to happen before one can be rolled out.
+
 ### Fixed
 - **The confirmation dialog fits on the screen again.** It was sized for a one-line „are you sure": 440 px wide, no height cap and no scrolling. The client-mail confirmation has grown into six recipients, a 110-character subject and the attachment's filename, so the card grew past the bottom of the viewport and took „Anuluj" and „Wyślij" with it — the one dialog where reaching the buttons is the whole point. The card is now capped at 88% of the viewport height with the body scrolling and the buttons pinned, it is wider (560 px), and a subject or filename with no spaces in it wraps instead of pushing the card off the screen. It is the shared dialog, so every confirmation that lists something benefits.
 - Two of its lines were long for no benefit and are shorter: the opening sentence no longer enumerates what the mail contains (the subject, the recipients and the attachment are listed right under it), and the attachment line drops „jak z eksportu we wdrożeniach", which belongs in the changelog rather than in a box read before pressing Send. Longest line: 157 characters down to 122.

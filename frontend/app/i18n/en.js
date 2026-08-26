@@ -201,7 +201,7 @@ window.RD_I18N.en = {
   "roleDesc.tester": "Assembles release packages - the tested versions and the issues they fix - and reads the deployment schedules of their projects without changing them.",
   "nav.packages": "Packages",
   "topbar.packages": "Release packages",
-  "desc.packages": "Packages prepared by the test team: the application versions tested together and the issues they fix. A handed-over package still needs the project manager's approval before a release manager can plan a deployment from it.",
+  "desc.packages": "Versions tested together and the issues they fix. A deployment is planned only from a package the project manager has approved.",
   "pkg.add": "New package",
   "pkg.newTitle": "New release package",
   "pkg.editTitle": "Edit release package",

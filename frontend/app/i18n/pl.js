@@ -201,7 +201,7 @@ window.RD_I18N.pl = {
   "roleDesc.tester": "Tworzy pakiety wdrożeniowe - przetestowane wersje i poprawione błędy - oraz podgląda harmonogramy wdrożeń swoich projektów, bez ich edycji.",
   "nav.packages": "Pakiety",
   "topbar.packages": "Pakiety wdrożeniowe",
-  "desc.packages": "Pakiety przygotowane przez zespół testowy: wersje aplikacji przetestowane razem oraz poprawione w nich błędy. Przekazany pakiet musi jeszcze zatwierdzić kierownik projektu - dopiero wtedy menedżer wydań może z niego zaplanować wdrożenie.",
+  "desc.packages": "Wersje przetestowane razem i poprawione w nich błędy. Wdrożenie planuje się dopiero z pakietu zatwierdzonego przez kierownika projektu.",
   "pkg.add": "Nowy pakiet",
   "pkg.newTitle": "Nowy pakiet wdrożeniowy",
   "pkg.editTitle": "Edytuj pakiet wdrożeniowy",
