@@ -22,6 +22,7 @@ import {
   bodyToCardText, hasAppLink, deploymentUrl, linkLabelSlack, linkLabelMarkdown,
   foldSubjectIntoLead,
 } from '../appLink.js';
+import { clientMailAudience } from '../clientMail.js';
 import { notifyEvent as pushEvent, pushConfigured } from '../push.js';
 import { isPushEvent } from '../pushTargets.js';
 import { recordEvent, listFor, unreadCountFor, setRead, markAllRead } from '../inbox.js';
@@ -155,8 +156,12 @@ async function deliverWebhook(url, title, text, deploymentId) {
   }
 }
 
-// Deliver to one e-mail address. Never throws — returns a normalised result.
-async function deliverEmail(to, subject, text, deploymentId) {
+// Deliver one e-mail. Never throws — returns a normalised result.
+//
+// `to` is one address or a list of them; `cc` and `replyTo` are used only by the
+// client-facing approval request, which is one message to a whole audience rather
+// than the per-recipient sends every other event does (see clientMail.js).
+async function deliverEmail({ to, cc, replyTo, subject, text, deploymentId }) {
   try {
     const depUrl = deploymentUrl(APP_URL, deploymentId);
     // Skip the generic link when the id is already a link, or when the body
@@ -169,6 +174,8 @@ async function deliverEmail(to, subject, text, deploymentId) {
     const textLink = depUrl ? `\n\n${depUrl}` : linkText;
     const result = await sendMail({
       to,
+      cc,
+      replyTo,
       subject,
       text: text + textLink,
       html: bodyToHtml(text, depUrl ? { label: deploymentId, url: depUrl } : null) + linkHtml,
@@ -199,7 +206,7 @@ router.post('/test', async (req, res) => {
     if (!EMAIL_RE.test(to)) {
       return res.status(422).json({ error: 'A valid e-mail address is required' });
     }
-    const r = await deliverEmail(to, 'RollDesk — test notification', TEST_TEXT);
+    const r = await deliverEmail({ to, subject: 'RollDesk — test notification', text: TEST_TEXT });
     if (!r.ok) {
       const status = /disabled/.test(r.error || '') ? 503 : 502;
       return res.status(status).json({ error: r.error || 'Could not send the e-mail' });
@@ -211,7 +218,10 @@ router.post('/test', async (req, res) => {
 });
 
 // POST /api/notifications/notify — deliver a real event notification.
-// Body: { subject, text, emails: string[], webhooks: (string | {url,name})[] }
+// Body: { subject, text, emails: string[], webhooks: (string | {url,name})[],
+//         cc: string[], groupEmail: boolean }
+// `groupEmail` sends one message to every address in `emails`, copying `cc` and
+// setting Reply-To to it — the shape the client's approval request needs.
 // Responds with a per-recipient breakdown so the UI can report partial failures.
 router.post('/notify', async (req, res) => {
   const b = req.body || {};
@@ -222,6 +232,16 @@ router.post('/notify', async (req, res) => {
   const emails = Array.isArray(b.emails) ? b.emails : [];
   let webhooks = Array.isArray(b.webhooks) ? b.webhooks : [];
   const deploymentId = b.deploymentId != null ? String(b.deploymentId) : '';
+  // One message to the whole audience instead of one per address, with a copy
+  // list and a Reply-To. Asked for explicitly by the caller because it changes
+  // what the recipients see: they are on a thread with each other, which is right
+  // for a document a client is expected to answer and wrong for the per-mailbox
+  // events (a project's post-installation address does not need to know who else
+  // was told). Absent, this route behaves exactly as it did.
+  const grouped = b.groupEmail === true;
+  const audience = grouped
+    ? clientMailAudience({ to: emails, cc: b.cc })
+    : { to: [], cc: [], replyTo: [], invalid: [] };
 
   // Browser notifications ride on the same event, with the body the browser has
   // already composed in the instance's notification language — which is why this
@@ -280,10 +300,26 @@ router.post('/notify', async (req, res) => {
       jobs.push(Promise.resolve({ type: 'teams-graph', target: 'Teams channel', ok: false, error: graphResult.error, status: graphResult.status }));
     }
   }
-  for (const raw of emails) {
-    const to = String(raw || '').trim();
-    if (!EMAIL_RE.test(to)) { jobs.push(Promise.resolve({ type: 'email', target: to, ok: false, error: 'invalid e-mail address' })); continue; }
-    jobs.push(deliverEmail(to, subject, text, deploymentId).then((r) => ({ type: 'email', target: to, ...r })));
+  if (grouped) {
+    // A rejected address is reported rather than dropped: an address quietly
+    // missing from a mail the client is expected to answer is worse than an error,
+    // because nobody finds out until the answer never comes.
+    for (const bad of audience.invalid) {
+      jobs.push(Promise.resolve({ type: 'email', target: bad, ok: false, error: 'invalid e-mail address' }));
+    }
+    if (audience.to.length) {
+      const target = audience.to.join(', ') + (audience.cc.length ? ` (cc: ${audience.cc.join(', ')})` : '');
+      jobs.push(
+        deliverEmail({ to: audience.to, cc: audience.cc, replyTo: audience.replyTo, subject, text, deploymentId })
+          .then((r) => ({ type: 'email', target, recipients: audience.to.length + audience.cc.length, ...r }))
+      );
+    }
+  } else {
+    for (const raw of emails) {
+      const to = String(raw || '').trim();
+      if (!EMAIL_RE.test(to)) { jobs.push(Promise.resolve({ type: 'email', target: to, ok: false, error: 'invalid e-mail address' })); continue; }
+      jobs.push(deliverEmail({ to, subject, text, deploymentId }).then((r) => ({ type: 'email', target: to, ...r })));
+    }
   }
   for (const raw of webhooks) {
     const url = String((raw && raw.url) || raw || '').trim();
