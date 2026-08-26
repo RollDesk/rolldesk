@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.42.0] - 2026-08-26
+
+### Added
+- **The approval request carries the schedule as a PDF.** The mail describes the release and asks for a decision, but the part the client actually circulates is the schedule — which office gets it on which day — and a mail body is not what gets forwarded to twenty branches or printed and taken to a meeting. Every request now leaves with `Harmonogram-<id>.pdf` attached: title, deployment id and project, the release facts, then a day-by-day table of date and the targets planned for that day, over as many pages as it takes. It is drawn per send rather than stored, because the schedule is edited until the moment it is sent and an attachment a day out of date is worse than none, and it is read through the same helpers as the schedule view (`plannedDayCounts`, `targetCodeAt`, `getDateForDay`) so it says exactly what the app says, including the days the release manager moved by hand and the weekends the project skips. The confirmation dialog names the file and the number of days before anything goes out, the body says the schedule is attached (a reader who prints the mail has to know), and a document that fails to render never blocks the mail: it is sent without it and the sender is told, so they can follow it up by hand.
+- Bounds and layout live in one pure module (`backend/src/schedulePdf.js`, unit-tested): 400 rows, 6 columns, one clamp per cell, a filename a mail client cannot rewrite, and a truncated schedule reports what was cut instead of looking complete. The font is committed beside it — the 14 standard PDF fonts are WinAnsi-encoded and have no `ą`, `ę`, `ł`, `ś` or `ż`, so an office named „Oddział Świdnica" rendered in Helvetica arrives with holes in it. DejaVu Sans is embedded as a subset (the whole document is ~25 kB), is redistributable, and being in the image means a bare `npm start` and the container produce the same file.
+- New dependency: **pdfkit** (no transitive packages of its own), plus `nodemailer` attachments passed through `sendMail`.
+
 ## [0.41.0] - 2026-08-26
 
 ### Added

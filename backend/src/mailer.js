@@ -22,7 +22,11 @@ function getTransporter() {
 // mailbox rather than the no-reply `from` (see clientMail.js). Both are omitted
 // from the message entirely when empty, so every other caller sends exactly the
 // headers it did before.
-export async function sendMail({ to, cc, subject, text, html, replyTo }) {
+// `attachments` is nodemailer's own shape ({ filename, content, contentType }) and
+// exists for the one mail that carries a document: the client's approval request,
+// which attaches the rollout schedule as a PDF (schedulePdf.js). Omitted when empty,
+// so every other caller sends exactly the message it did before.
+export async function sendMail({ to, cc, subject, text, html, replyTo, attachments }) {
   const t = getTransporter();
   if (!t) {
     console.warn('[mailer] Sending skipped — SMTP_HOST not set.');
@@ -31,6 +35,7 @@ export async function sendMail({ to, cc, subject, text, html, replyTo }) {
   const list = (v) => (Array.isArray(v) ? v.filter(Boolean) : (v ? [v] : []));
   const ccList = list(cc);
   const replyList = list(replyTo);
+  const files = Array.isArray(attachments) ? attachments.filter(Boolean) : [];
   const info = await t.sendMail({
     from: config.smtp.from,
     to,
@@ -39,6 +44,7 @@ export async function sendMail({ to, cc, subject, text, html, replyTo }) {
     subject,
     text,
     html,
+    attachments: files.length ? files : undefined,
   });
   return { messageId: info.messageId };
 }
