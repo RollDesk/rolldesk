@@ -1085,7 +1085,7 @@ window.RD_I18N.en = {
   "clientmail.noIssuesWarn": "Note: package {pkg} lists no issues, so the message will carry no list of fixes. Add the issues to the package, or send it with the release description alone.",
   "clientmail.noPackageWarn": "Note: this deployment has no release package, so the message will carry no list of fixes. Pick a package in the deployment editor, or send it with the release description alone.",
   "sch.docTitle": "Deployment schedule - {project} ({client}) · {apps} · {env}",
-  "sch.docSubtitle": "ID: {id} · Targets: {n} · Generated in RollDesk",
+  "sch.docSubtitle": "ID: {id} · Targets: {n}",
   "sch.printBtn": "Print / Save as PDF",
   "sch.noBatch": "This deployment has no batch schedule",
   "sch.draftNoExport": "A draft's schedule must not go out to the client - notify the client about the deployment first",

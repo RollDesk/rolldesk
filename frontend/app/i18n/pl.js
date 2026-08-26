@@ -1085,7 +1085,7 @@ window.RD_I18N.pl = {
   "clientmail.noIssuesWarn": "Uwaga: pakiet {pkg} nie ma wypisanych zgłoszeń, więc wiadomość pójdzie bez listy poprawek. Dopisz zgłoszenia w pakiecie albo wyślij tylko z opisem zmian.",
   "clientmail.noPackageWarn": "Uwaga: to wdrożenie nie ma podpiętego pakietu wydania, więc wiadomość pójdzie bez listy poprawek. Wskaż pakiet w edycji wdrożenia albo wyślij tylko z opisem zmian.",
   "sch.docTitle": "Harmonogram wdrożenia - {project} ({client}) · {apps} · {env}",
-  "sch.docSubtitle": "ID: {id} · Cele: {n} · Wygenerowano w RollDesk",
+  "sch.docSubtitle": "ID: {id} · Cele: {n}",
   "sch.printBtn": "Drukuj / Zapisz jako PDF",
   "sch.noBatch": "To wdrożenie nie ma harmonogramu zbiorczego",
   "sch.draftNoExport": "Harmonogram szkicu nie może wyjść do klienta - najpierw powiadom klienta o wdrożeniu",
