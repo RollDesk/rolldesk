@@ -18,11 +18,12 @@ import { config } from '../config.js';
 import { forbidClient } from '../rbac.js';
 import * as teamsGraph from '../teamsGraph.js';
 import {
-  appLinkText, appLinkHtml, appLinkSlack, appLinkCardAction, bodyToHtml,
-  bodyToCardText, hasAppLink, deploymentUrl, linkLabelSlack, linkLabelMarkdown,
-  foldSubjectIntoLead,
+  appLinkSlack, appLinkCardAction, bodyToCardText, hasAppLink, deploymentUrl,
+  linkLabelSlack, linkLabelMarkdown, foldSubjectIntoLead, mailBodyParts,
 } from '../appLink.js';
 import { clientMailAudience } from '../clientMail.js';
+import { normalizeMailFooter } from '../projectMail.js';
+import { renderMailHtml } from '../mailHtml.js';
 import { notifyEvent as pushEvent, pushConfigured } from '../push.js';
 import { isPushEvent } from '../pushTargets.js';
 import { recordEvent, listFor, unreadCountFor, setRead, markAllRead } from '../inbox.js';
@@ -158,27 +159,28 @@ async function deliverWebhook(url, title, text, deploymentId) {
 
 // Deliver one e-mail. Never throws — returns a normalised result.
 //
-// `to` is one address or a list of them; `cc` and `replyTo` are used only by the
-// client-facing approval request, which is one message to a whole audience rather
-// than the per-recipient sends every other event does (see clientMail.js).
-async function deliverEmail({ to, cc, replyTo, subject, text, deploymentId }) {
+// `to` is one address or a list of them; `cc`, `replyTo` and `footer` are used only
+// by the client-facing approval request, which is one message to a whole audience
+// rather than the per-recipient sends every other event does (see clientMail.js),
+// and the only one signed off by a person.
+async function deliverEmail({ to, cc, replyTo, subject, text, deploymentId, footer, blocks }) {
   try {
     const depUrl = deploymentUrl(APP_URL, deploymentId);
-    // Skip the generic link when the id is already a link, or when the body
-    // links back to the app on its own.
-    const ownLink = !!depUrl || hasAppLink(text, APP_URL);
-    const linkText = ownLink ? '' : appLinkText(APP_URL);
-    const linkHtml = ownLink ? '' : appLinkHtml(APP_URL);
-    // The plain-text part cannot carry an anchor, so the deployment URL is spelled
-    // out under the body rather than being lost for text-only clients.
-    const textLink = depUrl ? `\n\n${depUrl}` : linkText;
+    const link = depUrl ? { label: deploymentId, url: depUrl } : null;
+    // Message, then the link back to the app, then the signature — the order lives
+    // in appLink.js, where it is unit-tested (mailBodyParts).
+    const parts = mailBodyParts({ text, footer, link, appUrl: APP_URL });
+    // A caller that sent blocks gets a laid-out HTML part (mailHtml.js); everything
+    // else keeps the body-in-a-paragraph it has always had. The plain-text part is
+    // the same either way, so a text-only client loses the layout and nothing else.
+    const rich = renderMailHtml({ blocks, footer, link, appUrl: APP_URL });
     const result = await sendMail({
       to,
       cc,
       replyTo,
       subject,
-      text: text + textLink,
-      html: bodyToHtml(text, depUrl ? { label: deploymentId, url: depUrl } : null) + linkHtml,
+      text: parts.text,
+      html: rich || parts.html,
     });
     if (result.skipped) return { ok: false, error: 'E-mail sending is disabled (SMTP_HOST not set)' };
     return { ok: true, messageId: result.messageId };
@@ -196,7 +198,7 @@ router.post('/test', async (req, res) => {
     if (!/^https?:\/\//i.test(url)) {
       return res.status(422).json({ error: 'A valid webhook URL (http/https) is required' });
     }
-    const r = await deliverWebhook(url, 'RollDesk — test notification', TEST_TEXT);
+    const r = await deliverWebhook(url, 'RollDesk - test notification', TEST_TEXT);
     if (!r.ok) return res.status(502).json({ error: r.error || 'Could not reach the webhook', detail: r.detail });
     return res.json({ ok: true, status: r.status });
   }
@@ -206,7 +208,7 @@ router.post('/test', async (req, res) => {
     if (!EMAIL_RE.test(to)) {
       return res.status(422).json({ error: 'A valid e-mail address is required' });
     }
-    const r = await deliverEmail({ to, subject: 'RollDesk — test notification', text: TEST_TEXT });
+    const r = await deliverEmail({ to, subject: 'RollDesk - test notification', text: TEST_TEXT });
     if (!r.ok) {
       const status = /disabled/.test(r.error || '') ? 503 : 502;
       return res.status(status).json({ error: r.error || 'Could not send the e-mail' });
@@ -219,9 +221,12 @@ router.post('/test', async (req, res) => {
 
 // POST /api/notifications/notify — deliver a real event notification.
 // Body: { subject, text, emails: string[], webhooks: (string | {url,name})[],
-//         cc: string[], groupEmail: boolean }
+//         cc: string[], groupEmail: boolean, footer: string, blocks: object[] }
 // `groupEmail` sends one message to every address in `emails`, copying `cc` and
-// setting Reply-To to it — the shape the client's approval request needs.
+// setting Reply-To to it — the shape the client's approval request needs. `footer`
+// signs that message off, under the link back to the app, and `blocks` is the same
+// message as a laid-out HTML part (see mailHtml.js) — the plain text stays the
+// authoritative copy either way.
 // Responds with a per-recipient breakdown so the UI can report partial failures.
 router.post('/notify', async (req, res) => {
   const b = req.body || {};
@@ -239,6 +244,13 @@ router.post('/notify', async (req, res) => {
   // events (a project's post-installation address does not need to know who else
   // was told). Absent, this route behaves exactly as it did.
   const grouped = b.groupEmail === true;
+  // The signature of a client-facing mail, composed by the caller from the project's
+  // own setting. Its own field rather than part of `text` because it has to land
+  // *under* the link back to the app, and only this route knows where that link
+  // goes (mailBodyParts). Bounded and stripped the same way it is when stored
+  // (projectMail.js), and deliberately not filed in the inbox or pushed: a sign-off
+  // in the bell drawer is noise.
+  const footer = normalizeMailFooter(b.footer);
   const audience = grouped
     ? clientMailAudience({ to: emails, cc: b.cc })
     : { to: [], cc: [], replyTo: [], invalid: [] };
@@ -310,7 +322,8 @@ router.post('/notify', async (req, res) => {
     if (audience.to.length) {
       const target = audience.to.join(', ') + (audience.cc.length ? ` (cc: ${audience.cc.join(', ')})` : '');
       jobs.push(
-        deliverEmail({ to: audience.to, cc: audience.cc, replyTo: audience.replyTo, subject, text, deploymentId })
+        deliverEmail({ to: audience.to, cc: audience.cc, replyTo: audience.replyTo, subject, text,
+          deploymentId, footer, blocks: Array.isArray(b.blocks) ? b.blocks : null })
           .then((r) => ({ type: 'email', target, recipients: audience.to.length + audience.cc.length, ...r }))
       );
     }

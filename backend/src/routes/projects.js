@@ -5,6 +5,7 @@ import { requireWriteRole, requireAdminRole, isClient, clientScope } from '../rb
 import { normalizeTrackerSettings, trackerLinkPatterns, trackerProjects } from '../tracker.js';
 import { trackerSettingsForStorage, trackerStatus } from '../trackerService.js';
 import { normalizeClientMove, staleClientGrants } from '../projectClient.js';
+import { normalizeMailFooter } from '../projectMail.js';
 
 const router = Router();
 
@@ -97,6 +98,16 @@ router.put('/:key', requireWriteRole, async (req, res) => {
     [req.params.key]
   );
   const prev = prevRows[0] || null;
+
+  // The client-mail footer is free text that every approval request for this
+  // project then carries, so it is normalized and bounded here rather than trusted
+  // as it arrives — a token-authenticated script reaches this endpoint too, and the
+  // form's own clamp is only the form's (see projectMail.js).
+  if (data.mailFooter !== undefined) {
+    const footer = normalizeMailFooter(data.mailFooter);
+    if (footer) data.mailFooter = footer;
+    else delete data.mailFooter;
+  }
 
   // The tracker block is the one part of `data` that cannot be stored as it
   // arrives: the PAT and the Halo API key are encrypted at rest (as the SSO

@@ -1073,7 +1073,7 @@
   <!-- First-run setup wizard: create the initial admin account. -->
   <div id="setup-panel" style="display:none; background:var(--paper-alt, #fff); border-radius:16px; padding:32px; width:min(420px, 90%); box-shadow:0 20px 60px rgba(0,0,0,0.35);">
     <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:18px; margin-bottom:4px;"><span style="width:10px; height:10px; border-radius:50%; background:var(--cyan); display:inline-block;"></span> RollDesk</div>
-    <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;" data-i18n="auth.setupTitle">Welcome — set up your admin account</p>
+    <p style="font-size:13px; font-weight:600; margin:12px 0 4px 0;" data-i18n="auth.setupTitle">Welcome - set up your admin account</p>
     <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 18px 0;" data-i18n="auth.setupDesc">This is the first run. Create the administrator account used to sign in. There is no default user.</p>
     <div class="field">
       <label data-i18n="auth.adminEmail">Admin e-mail</label>
@@ -1342,7 +1342,7 @@
            primary actions sit top-right, level with the title. -->
       <div class="section-head" style="margin-bottom:14px;">
         <div>
-          <h2 class="step-title" id="project-head-name" style="margin-bottom:0;">—</h2>
+          <h2 class="step-title" id="project-head-name" style="margin-bottom:0;">-</h2>
         </div>
         <div class="section-actions" id="project-head-actions"></div>
       </div>
@@ -1490,7 +1490,7 @@
         <div class="field">
           <label data-i18n="proj.postDeployWebhook">Webhook (Teams channel) to notify after installation</label>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <input type="text" id="project-postdeploy-webhook" class="mono w-long" data-i18n-ph="proj.postDeployWebhookPh" placeholder="https://... (webhook for the „Core — maintenance” channel)">
+            <input type="text" id="project-postdeploy-webhook" class="mono w-long" data-i18n-ph="proj.postDeployWebhookPh" placeholder="https://... (webhook for the „Core - maintenance” channel)">
             <button class="mini-btn" type="button" onclick="testProjectPostDeploy('teams')" data-i18n="proj.sendTest">Send test</button>
           </div>
         </div>
@@ -1499,6 +1499,24 @@
         </label>
         <div class="card-actions">
           <button class="btn" onclick="saveProjectPostDeploy()" data-i18n="common.save">Save</button>
+        </div>
+      </div>
+
+      <!-- How the client's approval request signs off. Per project, because the
+           people who sign it are the project's: one instance serves several, and
+           the request goes out from the instance's no-reply sender, so with no
+           footer it ends on a link and reads as machine-generated. „Insert the
+           default" writes a sign-off that names nobody and says where to change it,
+           so an unconfigured project still sends something a person would write. -->
+      <div class="card" style="margin-top:18px;">
+        <h3 class="sub-title" style="display:flex; align-items:center;"><span data-i18n="proj.mailFooter">Signature of the client's approval request</span><span class="info-ic" data-i18n-tip="proj.mailFooterNote">i</span></h3>
+        <p class="section-desc" data-i18n="proj.mailFooterDesc">Appended to the approval request e-mailed to this project's client. Left empty, the message signs off with a default that tells the reader nothing about who sent it - so write the team, the mailbox and whatever else the client should reply to.</p>
+        <div class="field">
+          <textarea id="project-mail-footer" rows="5" style="width:100%; box-sizing:border-box; font-size:13px; line-height:1.55;" maxlength="2000" data-i18n-ph="proj.mailFooterPh" placeholder="Kind regards,&#10;Deployment team&#10;service-desk@example.com"></textarea>
+        </div>
+        <div class="card-actions">
+          <button class="mini-btn" type="button" onclick="insertDefaultMailFooter()" data-i18n="proj.mailFooterInsert">Insert the default</button>
+          <button class="btn" onclick="saveProjectMailFooter()" data-i18n="common.save">Save</button>
         </div>
       </div>
 
@@ -1583,7 +1601,7 @@
          same applies to every other view. -->
     <div class="section-head" style="margin-bottom:6px;">
       <div>
-        <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.newproject">The deployment schedule for this project will be adjusted automatically to the number of locations — you set it once, here.</p>
+        <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.newproject">The deployment schedule for this project will be adjusted automatically to the number of locations - you set it once, here.</p>
       </div>
       <div class="section-actions">
         <button class="btn" id="np-create-btn" onclick="createProject()" disabled><span aria-hidden="true">✓</span> <span data-i18n="np.create">Create project</span></button>
@@ -1607,9 +1625,9 @@
           <select id="np-client-select" class="w-medium" onchange="toggleNewClientInput()"></select>
           <input type="text" id="np-client-new" class="w-medium" oninput="refreshNewProjectReady()" data-i18n-ph="np.clientNewPh" placeholder="New client name" style="display:none; margin-top:8px;">
           <div id="np-client-new-webhook" style="display:none; margin-top:8px;">
-            <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 6px 0;" data-i18n="np.newClientWebhookNote">A new client requires a notification webhook — deployment events for its projects are sent there.</p>
+            <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 6px 0;" data-i18n="np.newClientWebhookNote">A new client requires a notification webhook - deployment events for its projects are sent there.</p>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <input type="text" id="np-client-webhook-name" class="w-medium" data-i18n-ph="np.webhookNamePh" placeholder="Webhook name (e.g. ACME — Teams)">
+              <input type="text" id="np-client-webhook-name" class="w-medium" data-i18n-ph="np.webhookNamePh" placeholder="Webhook name (e.g. ACME - Teams)">
               <input type="text" id="np-client-webhook-url" class="mono w-long" data-i18n-ph="np.webhookUrlPh" placeholder="https://... (webhook URL)">
             </div>
           </div>
@@ -1623,7 +1641,7 @@
              exists. Creating a project should not require knowing the names yet. -->
         <div class="alert alert-info" style="margin-bottom:14px;">
           <span class="alert-ic" aria-hidden="true">ℹ</span>
-          <div class="alert-body"><span data-i18n="np.peopleLater">You will grant client-side people access after the project is created — in Users or on the project's access card.</span></div>
+          <div class="alert-body"><span data-i18n="np.peopleLater">You will grant client-side people access after the project is created - in Users or on the project's access card.</span></div>
         </div>
         <div class="field" style="margin-bottom:0;">
           <label data-i18n="np.clientVisibility">Client visibility</label>
@@ -1641,7 +1659,7 @@
         <div class="field">
           <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px; color:var(--text);">
             <input type="checkbox" id="np-multi-toggle" onchange="toggleMultiLocation()" style="width:auto;">
-            <span data-i18n="np.multiLabel">This is a special case — the project has multiple deployment locations (e.g. a network of client branches)</span>
+            <span data-i18n="np.multiLabel">This is a special case - the project has multiple deployment locations (e.g. a network of client branches)</span>
           </label>
         </div>
         <div class="field">
@@ -1688,7 +1706,7 @@
             </div>
           </div>
           <button class="mini-btn" onclick="addAppRow()"><span aria-hidden="true">＋</span> <span data-i18n="np.addApp">Add application</span></button>
-          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="np.appsNote">You can also add applications later, in the Applications tab — there you will set the repository and deployment path for each one.</p>
+          <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 0 0;" data-i18n="np.appsNote">You can also add applications later, in the Applications tab - there you will set the repository and deployment path for each one.</p>
         </div>
         <div class="field" style="margin-bottom:0;">
           <label data-i18n="np.defaults">Default schedule parameters</label>
@@ -1713,7 +1731,7 @@
         <span class="alert-ic" aria-hidden="true">ℹ</span>
         <div class="alert-body">
           <div class="alert-title" id="np-mode-text" data-i18n="np.modeOne">One date for everything</div>
-          <div id="np-mode-sub" data-i18n="np.modeOneSub">1 location — this is the standard case. The whole project deploys on a single day.</div>
+          <div id="np-mode-sub" data-i18n="np.modeOneSub">1 location - this is the standard case. The whole project deploys on a single day.</div>
         </div>
       </div>
       <p style="font-size:12.5px; color:var(--text-muted); line-height:1.5; margin:0;" data-i18n-html="np.rule">
@@ -1789,11 +1807,11 @@
              selected. A rollout that genuinely needs different wording is edited
              afterwards, in the deployment editor. -->
         <div class="field">
-          <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.deps">Dependencies — must be deployed earlier (optional)</span><span class="info-ic" data-i18n-tip="sch.depsNote">i</span></label>
+          <label style="display:flex; align-items:center; margin-bottom:8px;"><span data-i18n="sch.deps">Dependencies - must be deployed earlier (optional)</span><span class="info-ic" data-i18n-tip="sch.depsNote">i</span></label>
           <div id="schedule-deps-list" style="display:flex; flex-direction:column; gap:6px;"></div>
         </div>
         <div class="field">
-          <label data-i18n="sch.path">Deployment path — set for this specific deployment</label>
+          <label data-i18n="sch.path">Deployment path - set for this specific deployment</label>
           <div class="radio-row">
             <label class="radio-pill"><input type="radio" name="schedule-path" value="test-only" onchange="onSchedulePathChange()"> <span data-i18n="sch.pathTestOnly">Test environment only</span></label>
             <label class="radio-pill selected"><input type="radio" name="schedule-path" value="test-prod" checked onchange="onSchedulePathChange()"> <span data-i18n="sch.pathTestProd">Test environment + production</span></label>
@@ -1809,27 +1827,27 @@
           <div id="schedule-envs-checks" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
         </div>
         <div class="field">
-          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="schedule-internal" style="width:auto;"> <span data-i18n="sch.internal">Internal deployment — not visible to the client</span><span class="info-ic" data-i18n-tip="sch.internalNote">i</span></label>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="schedule-internal" style="width:auto;"> <span data-i18n="sch.internal">Internal deployment - not visible to the client</span><span class="info-ic" data-i18n-tip="sch.internalNote">i</span></label>
           <!-- Two different things that used to be one checkbox. „Internal" hides the
                rollout from the client; this only says nobody is being asked to sign it
                off. Without it, a rollout the client had already agreed to out of band
                sat in the deployer's „waiting for the client" bucket, and the only way
                to let them install was to record an approval that never happened. -->
-          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px; margin-top:6px;"><input type="checkbox" id="schedule-no-approval" style="width:auto;"> <span data-i18n="sch.noApproval">No client sign-off needed — the deployer may install straight away</span><span class="info-ic" data-i18n-tip="sch.noApprovalNote">i</span></label>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px; margin-top:6px;"><input type="checkbox" id="schedule-no-approval" style="width:auto;"> <span data-i18n="sch.noApproval">No client sign-off needed - the deployer may install straight away</span><span class="info-ic" data-i18n-tip="sch.noApprovalNote">i</span></label>
         </div>
         <div class="field">
-          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="schedule-draft" style="width:auto;"> <span data-i18n="sch.draft">Save as draft — do not notify the client yet</span><span class="info-ic" data-i18n-tip="sch.draftNote">i</span></label>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="schedule-draft" style="width:auto;"> <span data-i18n="sch.draft">Save as draft - do not notify the client yet</span><span class="info-ic" data-i18n-tip="sch.draftNote">i</span></label>
         </div>
         <div class="field" id="schedule-rollout-fields">
           <label data-i18n="sch.modeField">Schedule mode (defined when the project was created)</label>
           <div class="alert alert-info" style="margin-bottom:0;">
             <span class="alert-ic" aria-hidden="true">&#8505;</span>
-            <div class="alert-body"><span class="alert-title" id="schedule-mode-badge">Spread across working days — the project has 400 locations</span></div>
+            <div class="alert-body"><span class="alert-title" id="schedule-mode-badge">Spread across working days - the project has 400 locations</span></div>
           </div>
         </div>
         <div class="alert alert-info" id="schedule-test-only-note" style="display:none;">
           <span class="alert-ic" aria-hidden="true">&#8505;</span>
-          <div class="alert-body"><span data-i18n="sch.testOnlyNote">A test environment is a single instance — one installation to the selected test environment(s) is enough, with no spreading across multiple locations and days. The split across locations applies to production only.</span></div>
+          <div class="alert-body"><span data-i18n="sch.testOnlyNote">A test environment is a single instance - one installation to the selected test environment(s) is enough, with no spreading across multiple locations and days. The split across locations applies to production only.</span></div>
         </div>
         <!-- Not every release goes to the whole estate: a fix for one WORD is a
              normal request. The covered-target count below is derived, so without
@@ -1908,7 +1926,7 @@
       <div>
         <div id="schedule-rollout-preview">
         <div class="card" style="margin-bottom:16px;">
-          <label style="margin-bottom:10px;" data-i18n="sch.rolloutPreview">Rollout preview — production environment</label>
+          <label style="margin-bottom:10px;" data-i18n="sch.rolloutPreview">Rollout preview - production environment</label>
           <div class="manifest" id="manifest-strip"></div>
           <p id="sch-weekends-note" style="font-size:12px; color:var(--text-muted); margin:0;" data-i18n="sch.weekendsNote">Weekends are skipped automatically. You can manually move individual locations between days in the table below.</p>
         </div>
@@ -1928,7 +1946,7 @@
         </div>
         <div class="alert alert-info" id="schedule-test-only-preview-note" style="display:none;">
           <span class="alert-ic" aria-hidden="true">ℹ</span>
-          <div class="alert-body"><span data-i18n="sch.testOnlyPreviewNote">This deployment applies only to the test environment(s) — it's installed once, manually, without a schedule spread across locations.</span></div>
+          <div class="alert-body"><span data-i18n="sch.testOnlyPreviewNote">This deployment applies only to the test environment(s) - it's installed once, manually, without a schedule spread across locations.</span></div>
         </div>
       </div>
     </div>
@@ -2139,7 +2157,7 @@
                  meant retyping the same titles by hand. -->
             <button class="mini-btn" type="button" title="" data-i18n-title="pkg.toChangesNote" onclick="issuesToChanges()"><span aria-hidden="true">↓</span> <span data-i18n="pkg.toChanges">Move to the release description</span></button>
           </div>
-          <p class="form-hint" style="margin-top:0;" data-i18n="pkg.issuesNote">Enter the work item id only — the ticket and the office that reported it are read from the work item. What the release changes is described in the next section.</p>
+          <p class="form-hint" style="margin-top:0;" data-i18n="pkg.issuesNote">Enter the work item id only - the ticket and the office that reported it are read from the work item. What the release changes is described in the next section.</p>
           <div id="package-issues-head" style="display:none; gap:8px; margin-bottom:2px; font-size:11px; font-weight:700; color:var(--text-muted);">
             <div style="width:130px;" data-i18n="pkg.thWorkItem">Work item</div>
             <div style="width:130px;" data-i18n="pkg.thHaloTicket">Ticket</div>
@@ -2191,13 +2209,13 @@
                and until this box existed there was nowhere to say so, so the extra
                step had to be cancelled by hand, over mail, once per package. -->
           <div class="field">
-            <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="package-test-only" style="width:auto;"> <span data-i18n="pkg.testOnly">Test environment only — this release will not go to production</span><span class="info-ic" data-i18n-tip="pkg.testOnlyNote">i</span></label>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;"><input type="checkbox" id="package-test-only" style="width:auto;"> <span data-i18n="pkg.testOnly">Test environment only - this release will not go to production</span><span class="info-ic" data-i18n-tip="pkg.testOnlyNote">i</span></label>
           </div>
           <div class="field">
             <label data-i18n="pkg.status">Status</label>
             <div class="radio-row">
-              <label class="radio-pill selected"><input type="radio" name="package-status" value="draft" checked onchange="selectRadioPill('package-status', this.value)"> <span data-i18n="pkg.stDraftLong">Draft — still being assembled</span></label>
-              <label class="radio-pill"><input type="radio" name="package-status" value="ready" onchange="selectRadioPill('package-status', this.value)"> <span data-i18n="pkg.stReadyLong">Ready — a release manager may use it</span></label>
+              <label class="radio-pill selected"><input type="radio" name="package-status" value="draft" checked onchange="selectRadioPill('package-status', this.value)"> <span data-i18n="pkg.stDraftLong">Draft - still being assembled</span></label>
+              <label class="radio-pill"><input type="radio" name="package-status" value="ready" onchange="selectRadioPill('package-status', this.value)"> <span data-i18n="pkg.stReadyLong">Ready - a release manager may use it</span></label>
             </div>
           </div>
           <div class="field">
@@ -2281,7 +2299,7 @@
           <label class="radio-pill"><input type="radio" name="user-role" value="client" onchange="onUserRoleChange()"> <span data-i18n="role.client">Client</span></label>
           <label class="radio-pill"><input type="radio" name="user-role" value="admin" onchange="onUserRoleChange()"> <span data-i18n="role.admin">Administrator</span></label>
         </div>
-        <p id="user-role-lock-note" style="display:none; font-size:11.5px; color:var(--text-muted); margin:8px 0 0 0;" data-i18n="usr.roleLockNote">The user type (role) is locked while editing — to switch it between a client account and an internal account, archive the user and create a new one.</p>
+        <p id="user-role-lock-note" style="display:none; font-size:11.5px; color:var(--text-muted); margin:8px 0 0 0;" data-i18n="usr.roleLockNote">The user type (role) is locked while editing - to switch it between a client account and an internal account, archive the user and create a new one.</p>
       </div>
       <div class="field" id="user-client-field" style="display:none;">
         <label data-i18n="usr.client">Client</label>
@@ -2348,7 +2366,7 @@
               <input type="text" id="client-domain-input" class="mono" data-i18n-ph="cli.domainPh" placeholder="e.g. acme.example">
             </div>
           </div>
-          <p class="form-hint" data-i18n="cli.domainNote">Only people with an e-mail address in this domain can be added as users with the Client role for this client's projects — sign-in is done via the company e-mail.</p>
+          <p class="form-hint" data-i18n="cli.domainNote">Only people with an e-mail address in this domain can be added as users with the Client role for this client's projects - sign-in is done via the company e-mail.</p>
         </div>
 
         <!-- The audience of the one document RollDesk sends that a human is expected
@@ -2365,7 +2383,7 @@
              address and a reply to that reaches nobody. -->
         <div class="form-section">
           <div class="toolbar" style="margin:0 0 6px 0;">
-            <div class="form-section-title" style="margin:0;" data-i18n="cli.mailTo">Client's addresses — asked to approve a rollout (To)</div>
+            <div class="form-section-title" style="margin:0;" data-i18n="cli.mailTo">Client's addresses - asked to approve a rollout (To)</div>
             <button class="mini-btn" type="button" onclick="addClientMailAddress('to')"><span aria-hidden="true">＋</span> <span data-i18n="cli.addAddress">Add address</span></button>
           </div>
           <p class="form-hint" style="margin-top:0;" data-i18n="cli.mailToNote">The people at the client who are asked to approve a production rollout. The request is sent from a deployment awaiting their decision, with the versions, the issues the release fixes and a link into RollDesk.</p>
@@ -2375,7 +2393,7 @@
             <div class="form-section-title" style="margin:0;" data-i18n="cli.mailCc">Copied on the message, and where the reply goes (Cc)</div>
             <button class="mini-btn" type="button" onclick="addClientMailAddress('cc')"><span aria-hidden="true">＋</span> <span data-i18n="cli.addAddress">Add address</span></button>
           </div>
-          <p class="form-hint" style="margin-top:0;" data-i18n="cli.mailCcNote">Our own side — a service-management or escalation mailbox. These addresses are copied on the same message and are what „Reply" answers to, so the client's decision lands in a mailbox somebody reads instead of the instance's no-reply sender.</p>
+          <p class="form-hint" style="margin-top:0;" data-i18n="cli.mailCcNote">Our own side - a service-management or escalation mailbox. These addresses are copied on the same message and are what „Reply" answers to, so the client's decision lands in a mailbox somebody reads instead of the instance's no-reply sender.</p>
           <div id="client-mail-cc-list" style="display:flex; flex-direction:column; gap:8px;"></div>
         </div>
 
@@ -2399,7 +2417,7 @@
   <div class="view" id="view-sso">
     <div class="section-head">
       <div>
-        <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.sso">Let users of a given e-mail domain sign in through their company identity provider (Microsoft Entra ID / Azure AD, Google, or any OpenID Connect provider) instead of a password. Accounts must already exist — users are added by an Administrator. Only an Administrator can configure SSO.</p>
+        <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.sso">Let users of a given e-mail domain sign in through their company identity provider (Microsoft Entra ID / Azure AD, Google, or any OpenID Connect provider) instead of a password. Accounts must already exist - users are added by an Administrator. Only an Administrator can configure SSO.</p>
       </div>
       <div class="section-actions">
         <button class="btn" id="add-sso-btn" onclick="toggleSsoForm()"><span aria-hidden="true">＋</span> <span data-i18n="sso.add">Add domain</span></button>
@@ -2485,7 +2503,7 @@
       <div>
         <!-- Swapped for the read-only sentence when whoever is reading cannot report
              anything here (a tester) — see renderInstallerPanel. -->
-        <p class="section-desc" style="margin-bottom:0;" id="installer-desc" data-i18n="desc.installer">Here you report what succeeded and what failed, and add notes — without access to changing the schedule, target order, or client approval.</p>
+        <p class="section-desc" style="margin-bottom:0;" id="installer-desc" data-i18n="desc.installer">Here you report what succeeded and what failed, and add notes - without access to changing the schedule, target order, or client approval.</p>
       </div>
     </div>
 
@@ -2654,7 +2672,7 @@
             <span style="font-size:18px;">🔐</span>
             <div style="flex:1;">
               <div style="font-size:13px; font-weight:600;" data-i18n="acc.twofa">Two-factor authentication (2FA)</div>
-              <div id="twofa-status-line" style="font-size:11.5px; color:var(--text-muted); margin-top:2px;" data-i18n="acc.twofaStatus">Required at every sign-in — a code from your authenticator app (e.g. Google Authenticator, Microsoft Authenticator).</div>
+              <div id="twofa-status-line" style="font-size:11.5px; color:var(--text-muted); margin-top:2px;" data-i18n="acc.twofaStatus">Required at every sign-in - a code from your authenticator app (e.g. Google Authenticator, Microsoft Authenticator).</div>
             </div>
             <span id="twofa-badge" class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--green-soft); color:#0F7A38; white-space:nowrap;" data-i18n="acc.twofaActive">✓ Active</span>
           </div>
@@ -2735,7 +2753,7 @@
               <button class="mini-btn" onclick="copyRevealedToken()" data-i18n="acc.copy">Copy</button>
               <button class="mini-btn" onclick="dismissTokenReveal()" data-i18n="acc.close">Close</button>
             </div>
-            <p style="font-size:11px; color:#0A6E7A; margin:8px 0 0 0;" data-i18n="acc.saveNow">Save it now — we won't show it again.</p>
+            <p style="font-size:11px; color:#0A6E7A; margin:8px 0 0 0;" data-i18n="acc.saveNow">Save it now - we won't show it again.</p>
           </div>
 
           <div class="table-scroll">
@@ -2760,7 +2778,7 @@
               <span class="fl-cap" data-i18n="flt.capPeriod">Period</span>
               <div style="display:flex; align-items:center; gap:6px;">
                 <input type="date" id="login-history-from" style="height:var(--control-h-sm); padding:6px 8px; font-size:12.5px; width:auto;" onchange="renderLoginHistory()">
-                <span style="color:var(--text-faint); font-size:12px;">–</span>
+                <span style="color:var(--text-faint); font-size:12px;">-</span>
                 <input type="date" id="login-history-to" style="height:var(--control-h-sm); padding:6px 8px; font-size:12.5px; width:auto;" onchange="renderLoginHistory()">
                 <button class="mini-btn" onclick="clearLoginHistoryDateFilter()" data-i18n="acc.clearDates">Clear dates</button>
               </div>
@@ -2783,7 +2801,7 @@
   <div class="view" id="view-audit">
     <div class="section-head">
       <div>
-        <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.audit">Who changed what and when — additions, removals and modifications of targets, applications and users.</p>
+        <p class="section-desc" style="margin-bottom:0;" data-i18n="desc.audit">Who changed what and when - additions, removals and modifications of targets, applications and users.</p>
       </div>
     </div>
     <div class="card">
@@ -2849,7 +2867,7 @@
         <label style="margin-bottom:0;" id="help-api-title">API documentation</label>
         <button class="mini-btn" onclick="toggleApiDocs()"><span id="api-docs-toggle-label">Show</span></button>
       </div>
-      <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 4px 0;" id="help-api-desc">A description of the endpoints for integration — e.g. updating a deployment status from a CI/CD pipeline.</p>
+      <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 4px 0;" id="help-api-desc">A description of the endpoints for integration - e.g. updating a deployment status from a CI/CD pipeline.</p>
       <p style="font-size:11.5px; color:var(--cyan); font-weight:600; margin:6px 0 0 0; display:none;" id="help-api-hits"></p>
       <div id="api-docs-body" style="display:none; margin-top:12px;"></div>
     </div>
@@ -2970,7 +2988,7 @@
 <div id="edit-dep-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(20,24,30,0.45); z-index:1001; align-items:center; justify-content:center;">
   <div class="card" style="max-width:560px; width:94%; background:var(--paper-alt, #fff); max-height:90vh; overflow-y:auto;">
     <div style="font-weight:600; font-size:14px; margin-bottom:4px;" data-i18n="editdep.title">Edit the planned deployment</div>
-    <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:14px;" data-i18n="editdep.help">Release managers and administrators can adjust the applications and their versions, the start time and the changelog of a deployment that has not finished yet. The deployer instructions and the files belong to the release package — they are corrected there.</div>
+    <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:14px;" data-i18n="editdep.help">Release managers and administrators can adjust the applications and their versions, the start time and the changelog of a deployment that has not finished yet. The deployer instructions and the files belong to the release package - they are corrected there.</div>
     <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" data-i18n="editdep.versions">Application versions</label>
     <div id="edit-dep-versions" style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;"></div>
     <!-- A schedule is often generated with an application missing (the package has
@@ -2982,7 +3000,7 @@
     <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" id="edit-dep-start-label" data-i18n="editdep.start">Start</label>
     <input type="datetime-local" id="edit-dep-start" class="mono" style="margin-bottom:14px; box-sizing:border-box;">
     <input type="time" id="edit-dep-time" class="mono" style="margin-bottom:14px; box-sizing:border-box; display:none;">
-    <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;"><span data-i18n="sch.changelog">Changelog</span> <span style="color:var(--text-faint); font-weight:400;" data-i18n="editdep.changelogFromPackage">— the package's text. Editing it here changes what this one rollout's client is sent; leave it alone and later corrections on the package still come through.</span></label>
+    <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;"><span data-i18n="sch.changelog">Changelog</span> <span style="color:var(--text-faint); font-weight:400;" data-i18n="editdep.changelogFromPackage">- the package's text. Editing it here changes what this one rollout's client is sent; leave it alone and later corrections on the package still come through.</span></label>
     <textarea id="edit-dep-changelog" style="width:100%; min-height:120px; box-sizing:border-box; font-size:13px; line-height:1.55;"></textarea>
     <!-- The files and the deployer instructions are the package's, so they are
          shown here rather than edited: correcting them for one rollout would leave
@@ -3102,11 +3120,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.40.0"></script>
-<script src="i18n/en.js?v=0.40.0"></script>
+<script src="i18n/pl.js?v=0.41.0"></script>
+<script src="i18n/en.js?v=0.41.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.40.0';
+  const ROLLDESK_VERSION = '0.41.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -3221,6 +3239,14 @@
   }
   function tnf(key, params){
     return interpolate(tn(key), params);
+  }
+  // „Nothing here" is written as a dash in a few stored values (an application with
+  // no repository link), and the UI wrote it as an em dash until the client-facing
+  // mail dropped the long dashes and the rest of the interface followed. Records
+  // saved before that still carry the long one, so both spellings read as empty —
+  // otherwise editing such an application would offer „https://—" as its link.
+  function isDashPlaceholder(v){
+    return /^\s*[-—–]\s*$/.test(String(v == null ? '' : v));
   }
   function escapeHtml(v){
     return String(v == null ? '' : v)
@@ -3768,7 +3794,7 @@
       const mailLine = nTo
         ? `<div style="font-size:10.5px; color:var(--text-faint);">✉ ${escapeHtml(tf('cli.mailSummary', {to: nTo, cc: nCc}))}</div>`
         : `<div style="font-size:10.5px; color:var(--text-faint);">${escapeHtml(t('cli.mailNone'))}</div>`;
-      return `<tr><td>${c.name}${mailLine}</td><td class="mono">${c.domain || '—'}</td><td class="mono">${count}</td><td style="white-space:nowrap; text-align:right;">${actions}</td></tr>`;
+      return `<tr><td>${c.name}${mailLine}</td><td class="mono">${c.domain || '-'}</td><td class="mono">${count}</td><td style="white-space:nowrap; text-align:right;">${actions}</td></tr>`;
     }).join('');
   }
 
@@ -3801,7 +3827,7 @@
     if(!isLoggedInAsAdmin()) return;
     editingClientKey = key;
     const c = CLIENTS.find(c=>c.key===key);
-    document.getElementById('client-form-title').textContent = t('cli.editClient') + ' — ' + c.name;
+    document.getElementById('client-form-title').textContent = t('cli.editClient') + ' - ' + c.name;
     document.getElementById('client-form-submit').textContent = t('cli.saveChanges');
     document.getElementById('client-name-input').value = c.name;
     document.getElementById('client-domain-input').value = c.domain || '';
@@ -3884,11 +3910,11 @@
     // their deployments) would be orphaned. Ask the admin to delete those first.
     const projCount = Object.values(PROJECTS).filter(p=>p.client === key).length;
     if(projCount){ showToast(tf('cli.deleteHasProjects', {n: projCount})); return; }
-    showAppConfirm(t('cli.deleteTitle') + ' — ' + c.name, t('cli.deleteBody'), ()=>{
+    showAppConfirm(t('cli.deleteTitle') + ' - ' + c.name, t('cli.deleteBody'), ()=>{
       const idx = CLIENTS.findIndex(x=>x.key===key);
       if(idx < 0) return;
       CLIENTS.splice(idx, 1);
-      logAudit('removed', 'Client', 'Deleted client „' + c.name + '”', '—', 'aud.d.clientDeleted', {name: c.name});
+      logAudit('removed', 'Client', 'Deleted client „' + c.name + '”', '-', 'aud.d.clientDeleted', {name: c.name});
       renderClientsTable();
       populateClientSelect();
       persistClients();
@@ -3944,10 +3970,10 @@
   }
 
   const ROLE_INFO = {
-    admin:     {label:'Administrator',   desc:'Manages the whole system and defines permissions — the only role that can add and edit users.', color:'#6B21A8', bg:'#F1E9FB'},
+    admin:     {label:'Administrator',   desc:'Manages the whole system and defines permissions - the only role that can add and edit users.', color:'#6B21A8', bg:'#F1E9FB'},
     rm:        {label:'Release Manager', desc:'Plans and changes schedules, manages projects and applications.', color:'#0A6E7A', bg:'var(--cyan-soft)'},
-    tester:    {label:'Tester',          desc:'Assembles release packages — the tested versions and the issues they fix — and reads the deployment schedules of their projects without changing them.', color:'#1F4FA8', bg:'#E8EEFB'},
-    installer: {label:'Deployer',        desc:'Marks what succeeded / failed and adds comments — without editing the schedule.', color:'#8A5A05', bg:'#FDF1E1'},
+    tester:    {label:'Tester',          desc:'Assembles release packages - the tested versions and the issues they fix - and reads the deployment schedules of their projects without changing them.', color:'#1F4FA8', bg:'#E8EEFB'},
+    installer: {label:'Deployer',        desc:'Marks what succeeded / failed and adds comments - without editing the schedule.', color:'#8A5A05', bg:'#FDF1E1'},
     client:    {label:'Client',          desc:'Approves, proposes reschedules and sees the deployment status of their projects.', color:'#0F7A38', bg:'var(--green-soft)'},
   };
 
@@ -3983,10 +4009,10 @@
     // Absent and null mean different things: the admin directory always sends the
     // field (null = never signed in), while the assignable-deployers roster a
     // non-admin gets omits it entirely — claiming "never" there would be a lie.
-    if(iso === undefined) return `<span style="color:var(--text-faint);">—</span>`;
+    if(iso === undefined) return `<span style="color:var(--text-faint);">-</span>`;
     if(!iso) return `<span style="color:var(--text-faint);">${t('usr.lastLoginNever')}</span>`;
     const stamp = fmtStamp(iso);
-    if(!stamp) return `<span style="color:var(--text-faint);">—</span>`;
+    if(!stamp) return `<span style="color:var(--text-faint);">-</span>`;
     // Compared by calendar day, not by elapsed hours: a sign-in at 23:50 is
     // "yesterday" the next morning, however few hours have actually passed.
     const day = d => Math.floor(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 86400000);
@@ -4010,7 +4036,7 @@
     tbody.innerHTML = visible.map((u)=>{
       const i = USERS.indexOf(u);
       const info = ROLE_INFO[u.role];
-      const projLabel = (u.role === 'rm' || u.role === 'admin') ? t('usr.allProjects') : ((u.projects||[]).map(pk=> PROJECTS[pk] ? PROJECTS[pk].name : pk).join(', ') || '—');
+      const projLabel = (u.role === 'rm' || u.role === 'admin') ? t('usr.allProjects') : ((u.projects||[]).map(pk=> PROJECTS[pk] ? PROJECTS[pk].name : pk).join(', ') || '-');
       const statusBadge = u.invitePending
         ? `<div style="margin-top:3px;"><span class="mono" style="font-size:10px; color:#8A5A05; background:#FDF1E1; border-radius:10px; padding:1px 7px;">${t('usr.invitePending')}</span></div>`
         : '';
@@ -4047,7 +4073,7 @@
       return `<tr ${u.archived ? 'style="opacity:0.65;"' : ''}>
         <td>${nameCell}</td>
         <td><span class="mono" title="${t('roleDesc.'+u.role)}" style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; background:${info.bg}; color:${info.color}; cursor:help;">${t('role.'+u.role)}</span></td>
-        <td style="font-size:12.5px;">${u.group ? escapeHtml(u.group) : '<span style="color:var(--text-faint);">—</span>'}</td>
+        <td style="font-size:12.5px;">${u.group ? escapeHtml(u.group) : '<span style="color:var(--text-faint);">-</span>'}</td>
         <td style="font-size:12.5px;">${projLabel}</td>
         <td style="font-size:12.5px; white-space:nowrap;">${lastLoginCellHtml(u.lastLoginAt)}</td>
         <td style="white-space:nowrap; text-align:right;">${actions}</td>
@@ -4126,7 +4152,7 @@
       rows.forEach(r=>{
         const d = new Date(r.at);
         const date = d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
-        LOGIN_HISTORY.push({date, ip: r.ip || '—', device: deviceFromUA(r.userAgent)});
+        LOGIN_HISTORY.push({date, ip: r.ip || '-', device: deviceFromUA(r.userAgent)});
       });
       try { renderLoginHistory(); } catch(e){}
     } catch(e){}
@@ -4145,7 +4171,7 @@
       actor: actorName(),
       role: currentLoggedInRole,
       action, entity, detail,
-      project: project || '—',
+      project: project || '-',
       detailKey: detailKey || null,
       detailParams: detailParams || null
     };
@@ -4320,15 +4346,27 @@
   // request needs the same opening lines but its own body underneath — the issues
   // one by one instead of the changelog's id list — and restating „id, project,
   // versions, environment, start" in a second composer is how the two drift.
-  function scheduleFactsBlock(r, projName){
+  // The day a rollout starts, wherever the record keeps it: a batch is scheduled
+  // day by day and carries the first one in its own history, a single deployment
+  // carries the date directly. One helper because the facts block and the client
+  // mail's subject both name that day, and a subject saying one date over a body
+  // saying another is the kind of disagreement nobody reports — they just stop
+  // trusting the mail.
+  function deploymentStartIso(r){
     r = r || {};
-    // Related facts share a line, separated by "·". A label per line reads as an
-    // endless list in a Teams channel once the changelog is appended below, and
-    // these values are short enough to sit together.
-    const lines = [];
-    // Id first, as in notifHeader(): the backend turns the first occurrence of
-    // the id into the link to that deployment, so it opens the message.
-    lines.push((r.id ? r.id + ' — ' : '') + (projName || ''));
+    if(r.mode !== 'batch') return r.date || '';
+    let startIso = r.historyStart;
+    try { if(typeof getDateForDay === 'function') startIso = getDateForDay(r, 1) || startIso; } catch(e){}
+    return startIso || '';
+  }
+
+  // The facts themselves, still unformatted: the lead (id and project), the run of
+  // values that share a line, and the labelled ones. One source for two renderings —
+  // the plain-text block below, which every channel reads, and the laid-out HTML of
+  // the client's mail (mailHtml.js on the backend), which needs the same facts as
+  // separate pieces rather than as a string it would have to take apart again.
+  function scheduleFacts(r, projName){
+    r = r || {};
     const appsLabel = (r.apps||[]).map(a=>a.name + (a.version ? ' v' + a.version : '')).join(', ');
     const facts = [];
     if(appsLabel) facts.push(appsLabel);
@@ -4340,24 +4378,32 @@
       facts.push(envLabelNotif(r.env || ''));
       if(r.location) facts.push(r.location);
     }
-    lines.push(facts.filter(Boolean).join(' · '));
-    let startIso = r.date;
-    if(r.mode === 'batch'){
-      startIso = r.historyStart;
-      try { if(typeof getDateForDay === 'function') startIso = getDateForDay(r, 1); } catch(e){}
-    }
-    // Start and author on one line: both answer "when, and on whose say-so".
-    // The weekday used to be on the multi-day start date only, so a single-day
+    // „When, and on whose say-so" — the two facts that are worth a label. The
+    // weekday used to be on the multi-day start date only, so a single-day
     // deployment — the case a client is most often asked to approve — gave a bare
     // ISO date.
+    const startIso = deploymentStartIso(r);
     const when = startIso
       ? fmtDateDowNotif(startIso)
         + (r.time ? ' ' + tnf('notif.atTime', {time: fmtTime(r.time)}) : '')
       : '';
-    const tail = [];
-    if(when) tail.push(tn('notif.start') + ': ' + when);
-    if(r.createdBy) tail.push(tn('notif.createdBy') + ': ' + r.createdBy);
-    if(tail.length) lines.push(tail.join(' · '));
+    const meta = [];
+    if(when) meta.push({label: tn('notif.start'), value: when});
+    if(r.createdBy) meta.push({label: tn('notif.createdBy'), value: r.createdBy});
+    return {id: r.id || '', title: projName || '', facts: facts.filter(Boolean), meta};
+  }
+
+  function scheduleFactsBlock(r, projName){
+    const f = scheduleFacts(r, projName);
+    // Related facts share a line, separated by "·". A label per line reads as an
+    // endless list in a Teams channel once the changelog is appended below, and
+    // these values are short enough to sit together.
+    const lines = [];
+    // Id first, as in notifHeader(): the backend turns the first occurrence of
+    // the id into the link to that deployment, so it opens the message.
+    lines.push((f.id ? f.id + ' - ' : '') + f.title);
+    lines.push(f.facts.join(' · '));
+    if(f.meta.length) lines.push(f.meta.map(m=>m.label + ': ' + m.value).join(' · '));
     return lines.filter(Boolean).join('\n');
   }
 
@@ -4381,7 +4427,7 @@
   // fact per line turned each event into a tall form.
   function notifHeader(d, projName){
     d = d || {};
-    const head = (d.id ? d.id + ' — ' : '') + (projName || '');
+    const head = (d.id ? d.id + ' - ' : '') + (projName || '');
     const facts = [];
     const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '') + notifServiceSuffix(a)).join(', ');
     if(appVer) facts.push(appVer);
@@ -4419,7 +4465,7 @@
   function buildPackageNotifBody(pkg, projName){
     pkg = pkg || {};
     const lines = [];
-    lines.push((pkg.id ? pkg.id + ' — ' : '') + (projName || ''));
+    lines.push((pkg.id ? pkg.id + ' - ' : '') + (projName || ''));
     const facts = [];
     const appsLabel = (pkg.apps||[]).map(a=>a.name + (a.version ? ' v' + a.version : '') + notifServiceSuffix(a)).join(', ');
     if(appsLabel) facts.push(appsLabel);
@@ -4479,11 +4525,11 @@
   }
   // Team notification when the client leaves a comment on a distribution.
   function notifyTeamClientComment(rec, note){
-    logAudit('notified', 'Notification', 'Client comments on ' + (rec.id||'') + ' — recipients: ' + notifySummary('clientComment', rec.projectKey, false), (PROJECTS[rec.projectKey]||{}).name || rec.projectKey, 'aud.d.notifyClientComment', {id: rec.id||'', recipients: notifySummary('clientComment', rec.projectKey, false)});
+    logAudit('notified', 'Notification', 'Client comments on ' + (rec.id||'') + ' - recipients: ' + notifySummary('clientComment', rec.projectKey, false), (PROJECTS[rec.projectKey]||{}).name || rec.projectKey, 'aud.d.notifyClientComment', {id: rec.id||'', recipients: notifySummary('clientComment', rec.projectKey, false)});
     const projName = (PROJECTS[rec.projectKey]||{}).name || rec.projectKey;
     dispatchEventNotification('clientComment', rec.projectKey,
-      'RollDesk — ' + tn('ev.clientComment'),
-      (rec.id ? rec.id + ' — ' : '') + projName + '\n' + (note || ''), false, rec.id);
+      'RollDesk - ' + tn('ev.clientComment'),
+      (rec.id ? rec.id + ' - ' : '') + projName + '\n' + (note || ''), false, rec.id);
   }
 
   // ---- Client-scoped webhook editor (used inside the client form) ----
@@ -4589,7 +4635,7 @@
       const name = String(rec.name || '').trim();
       // A row with neither is a blank the operator added and did not fill in.
       if(!email && !name) return;
-      if(!CLIENT_MAIL_RE.test(email)){ errs.push({label, msg: tf('form.emailInvalid', {value: email || '—'})}); return; }
+      if(!CLIENT_MAIL_RE.test(email)){ errs.push({label, msg: tf('form.emailInvalid', {value: email || '-'})}); return; }
       const key = email.toLowerCase();
       if(seen.has(key)) return;
       seen.add(key);
@@ -4607,7 +4653,7 @@
   async function testClientWebhook(i){
     const rec = clientDraftWebhooks[i];
     if(!rec || !(rec.url || '').trim()){ showToast('Enter the webhook URL first'); return; }
-    if(typeof API_CONNECTED === 'undefined' || !API_CONNECTED){ showToast('Not connected to the backend — cannot send a test'); return; }
+    if(typeof API_CONNECTED === 'undefined' || !API_CONNECTED){ showToast('Not connected to the backend - cannot send a test'); return; }
     showToast('Sending a test message…');
     try {
       const res = await apiFetch('/api/notifications/test', {
@@ -4617,7 +4663,7 @@
       let info = {}; try { info = await res.json(); } catch(e){}
       if(res.ok){ showToast('✅ Delivered to „' + (rec.name || 'webhook') + '” (HTTP ' + (info.status || 200) + ')'); }
       else {
-        const detail = info.detail ? ' — ' + String(info.detail).slice(0,140) : '';
+        const detail = info.detail ? ' - ' + String(info.detail).slice(0,140) : '';
         showToast('⚠ Test failed: ' + (info.error || ('HTTP ' + res.status)) + detail);
       }
     } catch(e){ showToast('⚠ Could not send the test message'); }
@@ -4826,7 +4872,7 @@
     editingUserIndex = i;
     clearFormErrors('user-form');
     const u = USERS[i];
-    document.getElementById('user-form-title').textContent = t('usr.editUser') + ' — ' + u.name;
+    document.getElementById('user-form-title').textContent = t('usr.editUser') + ' - ' + u.name;
     document.getElementById('user-form-submit').textContent = t('cli.saveChanges');
     document.getElementById('user-invite-note').style.display = 'none';
     document.getElementById('user-name').value = u.name;
@@ -4878,7 +4924,7 @@
       }
       projectsField.style.display = 'block';
       hint.style.display = 'block';
-      hint.textContent = 'The e-mail must come from the selected client\'s domain — sign-in is done via the company e-mail address.';
+      hint.textContent = 'The e-mail must come from the selected client\'s domain - sign-in is done via the company e-mail address.';
       onUserClientChange();
     } else if(role === 'installer' || role === 'tester' || role === 'pm'){
       // All three are scoped roles: a deployer reports on the projects they were
@@ -4950,16 +4996,16 @@
     if(errs.length){ showFormErrors('user-form', errs); return; }
     clearFormErrors('user-form');
 
-    if(!API_CONNECTED){ showToast('Not connected to the backend — cannot manage users'); return; }
+    if(!API_CONNECTED){ showToast('Not connected to the backend - cannot manage users'); return; }
     try {
       if(editingUserIndex !== null){
         const existing = USERS[editingUserIndex];
         await apiUpdateUser(existing.id, {name, role, group, projects, clientKey});
-        logAudit('changed', 'User', 'Changed user „' + name + '”', '—', 'aud.d.userChanged', {name});
+        logAudit('changed', 'User', 'Changed user „' + name + '”', '-', 'aud.d.userChanged', {name});
         showToast('User „' + name + '” updated');
       } else {
         const created = await apiCreateUser({name, email, role, group, projects, clientKey});
-        logAudit('added', 'User', 'Added user „' + name + '” (' + ROLE_INFO[role].label + ')', '—', 'aud.d.userAdded', {name, role: t('role.'+role)});
+        logAudit('added', 'User', 'Added user „' + name + '” (' + ROLE_INFO[role].label + ')', '-', 'aud.d.userAdded', {name, role: t('role.'+role)});
         showToast('User „' + name + '” invited');
         showInviteLink(created.invite, email);
       }
@@ -4999,7 +5045,7 @@
     showAppConfirm(t('usr.resetMfaTitle'), tf('usr.resetMfaBody', {name}), async ()=>{
       try {
         await apiUserAction(u.id, 'reset-mfa');
-        logAudit('changed', 'User', 'Reset two-factor authentication for „' + name + '”', '—', 'aud.d.userMfaReset', {name});
+        logAudit('changed', 'User', 'Reset two-factor authentication for „' + name + '”', '-', 'aud.d.userMfaReset', {name});
         await loadUsers();
         showToast(tf('usr.resetMfaDone', {name}));
       } catch(e){ showToast('⚠ ' + (e.message || 'Could not reset two-factor authentication')); }
@@ -5014,7 +5060,7 @@
       if(reason === null) return;
       try {
         await apiUserAction(u.id, 'archive', {reason: reason.trim()});
-        logAudit('removed', 'User', 'Archived user „' + name + '”' + (reason.trim() ? ' (reason: ' + reason.trim() + ')' : ''), '—', reason.trim() ? 'aud.d.userArchivedReason' : 'aud.d.userArchived', {name, reason: reason.trim()});
+        logAudit('removed', 'User', 'Archived user „' + name + '”' + (reason.trim() ? ' (reason: ' + reason.trim() + ')' : ''), '-', reason.trim() ? 'aud.d.userArchivedReason' : 'aud.d.userArchived', {name, reason: reason.trim()});
         await loadUsers();
         showToast('User „' + name + '” archived');
       } catch(e){ showToast('⚠ ' + (e.message || 'Could not archive the user')); }
@@ -5027,7 +5073,7 @@
     const name = u.name;
     try {
       await apiUserAction(u.id, 'restore');
-      logAudit('changed', 'User', 'Restored user „' + name + '”', '—', 'aud.d.userRestored', {name});
+      logAudit('changed', 'User', 'Restored user „' + name + '”', '-', 'aud.d.userRestored', {name});
       await loadUsers();
       showToast('User „' + name + '” restored');
     } catch(e){ showToast('⚠ ' + (e.message || 'Could not restore the user')); }
@@ -5405,7 +5451,7 @@
       const clientPart = (showClient && client)
         ? `<span class="tab-client">${escapeHtml(client)}</span><span class="tab-sep" aria-hidden="true">/</span>`
         : '';
-      const title = (client ? client + ' — ' : '') + (p.name || key);
+      const title = (client ? client + ' - ' : '') + (p.name || key);
       return `<button type="button" class="${cls}" data-key="${escapeHtml(key)}" title="${escapeHtml(title)}" onclick="openProjectFromList('${escapeHtml(key)}')">
         ${clientPart}<span>${escapeHtml(p.name || key)}</span>${isArchived ? ` <span class="tab-client">${escapeHtml(t('proj.archivedBadge'))}</span>` : ''}
       </button>`;
@@ -5551,7 +5597,7 @@
     if(!p) return;
     const depCount = DEPLOYMENTS_DATA.filter(d=>d.projectKey === key).length;
     const body = depCount > 0 ? tf('proj.archiveBody', {n: depCount}) : t('proj.archiveBodyEmpty');
-    showAppConfirm(t('proj.archiveTitle') + ' — ' + p.name, body, ()=>{
+    showAppConfirm(t('proj.archiveTitle') + ' - ' + p.name, body, ()=>{
       p.archived = true;
       persistProject(key); // persists when connected; surfaces its own error toast
       if(currentProjectKey === key){
@@ -5582,7 +5628,7 @@
     const p = PROJECTS[key];
     if(!p) return;
     const depCount = DEPLOYMENTS_DATA.filter(d=>d.projectKey === key).length;
-    showAppConfirm(t('proj.deletePermTitle') + ' — ' + p.name, tf('proj.deletePermBody', {n: depCount}), ()=> hardDeleteProject(key));
+    showAppConfirm(t('proj.deletePermTitle') + ' - ' + p.name, tf('proj.deletePermBody', {n: depCount}), ()=> hardDeleteProject(key));
   }
 
   async function hardDeleteProject(key){
@@ -5662,6 +5708,12 @@
     if(pdEmail) pdEmail.value = p.postDeployEmail || legacyEmail || '';
     if(pdWebhook) pdWebhook.value = p.postDeployWebhook || legacyWebhook || '';
     if(pdEnabled) pdEnabled.checked = !!p.postDeployEnabled;
+
+    // The sign-off of this project's client mail. Shown empty rather than
+    // pre-filled with the default: an operator has to be able to tell „nothing is
+    // configured, the default goes out" from „somebody wrote this".
+    const mailFooterEl = document.getElementById('project-mail-footer');
+    if(mailFooterEl) mailFooterEl.value = p.mailFooter || '';
 
     const nameEl = document.getElementById('project-name-input');
     if(nameEl) nameEl.value = p.name || '';
@@ -5794,7 +5846,7 @@
     // consequence that is not undone by moving the project back.
     const losing = USERS.filter(u => u.role === 'client' && !u.archived
       && (u.projects || []).includes(key) && u.clientKey !== target).length;
-    const prevClientName = p.clientName || p.client || '—';
+    const prevClientName = p.clientName || p.client || '-';
     const body = tf('proj.moveBody', {
       project: p.name || key, from: prevClientName, to: to.name || to.key, n: losing,
     });
@@ -5866,7 +5918,44 @@
     persistProject(currentProjectKey);
     const summary = [email && ('e-mail: ' + email), webhook && 'webhook'].filter(Boolean).join(', ');
     logAudit('changed', 'Project', 'Changed the post-deployment notification' + (enabled ? ' (enabled: ' + summary + ')' : ' (disabled)'), p.name + ' (' + p.clientName + ')', enabled ? 'aud.d.notifEnabled' : 'aud.d.notifDisabled', {summary});
-    showToast(enabled ? 'Post-deployment notification enabled — ' + summary : 'Post-deployment notification disabled');
+    showToast(enabled ? 'Post-deployment notification enabled - ' + summary : 'Post-deployment notification disabled');
+  }
+
+  // ---- The client mail's signature, per project ----------------------------
+  // Bounded like every other value that lands in the project's JSONB (the reason is
+  // the same as for the MAX_* clamps in backend/src/releasePackage.js). The API
+  // clamps it again — this form is not the only way to reach that endpoint — so the
+  // two numbers have to agree: MAX_MAIL_FOOTER in backend/src/projectMail.js and the
+  // textarea's own maxlength.
+  const MAX_MAIL_FOOTER = 2000;
+
+  function saveProjectMailFooter(){
+    const p = PROJECTS[currentProjectKey];
+    if(!p) return;
+    const el = document.getElementById('project-mail-footer');
+    const footer = String((el && el.value) || '')
+      .replace(/\r\n?/g, '\n').trim().slice(0, MAX_MAIL_FOOTER).trim();
+    p.mailFooter = footer;
+    // Written back so the box shows what was actually stored, not the untrimmed
+    // paste it was typed from.
+    if(el) el.value = footer;
+    persistProject(currentProjectKey);
+    logAudit('changed', 'Project',
+      footer ? 'Changed the signature of the client approval mail' : 'Cleared the signature of the client approval mail',
+      p.name + ' (' + p.clientName + ')',
+      footer ? 'aud.d.projMailFooter' : 'aud.d.projMailFooterCleared', {});
+    showToast(t(footer ? 'proj.mailFooterSaved' : 'proj.mailFooterCleared'));
+  }
+
+  // Fill the box with the sign-off the mail would carry anyway, as a starting
+  // point to edit — the wording is the notification language's, because that is the
+  // language the mail is composed in (NOTIFY_LANG), not the operator's UI language.
+  function insertDefaultMailFooter(){
+    const el = document.getElementById('project-mail-footer');
+    if(!el) return;
+    el.value = defaultMailFooter();
+    el.focus();
+    showToast(t('proj.mailFooterInserted'));
   }
 
   // ---- Per-project tracker configuration (admin only) ----
@@ -6005,7 +6094,7 @@
   // Send a one-off test to the project's post-deployment e-mail or webhook,
   // reusing the shared backend test endpoint.
   async function testProjectPostDeploy(channel){
-    if(typeof API_CONNECTED === 'undefined' || !API_CONNECTED){ showToast('Not connected to the backend — cannot send a test'); return; }
+    if(typeof API_CONNECTED === 'undefined' || !API_CONNECTED){ showToast('Not connected to the backend - cannot send a test'); return; }
     const email = document.getElementById('project-postdeploy-email').value.trim();
     const webhook = document.getElementById('project-postdeploy-webhook').value.trim();
     let payload;
@@ -6026,7 +6115,7 @@
       let info = {}; try { info = await res.json(); } catch(e){}
       if(res.ok){ showToast('✅ Delivered' + (info.status ? ' (HTTP ' + info.status + ')' : '')); }
       else {
-        const detail = info.detail ? ' — ' + String(info.detail).slice(0,140) : '';
+        const detail = info.detail ? ' - ' + String(info.detail).slice(0,140) : '';
         showToast('⚠ Test failed: ' + (info.error || ('HTTP ' + res.status)) + detail);
       }
     } catch(e){ showToast('⚠ Could not send the test message'); }
@@ -6270,7 +6359,7 @@
       events.push({
         icon: '🚀',
         when,
-        text: tf('pkg.tlDeployment', {id: d.id || '—', env: envLabel(d.env || '')}),
+        text: tf('pkg.tlDeployment', {id: d.id || '-', env: envLabel(d.env || '')}),
         note: start ? tf('pkg.tlDeploymentStart', {date: start, time: d.time || ''}) : '',
       });
     });
@@ -6370,7 +6459,7 @@
     const first = done[0];
     const when = first.date || first.historyStart || '';
     return `<div style="margin-top:4px;">
-      <span class="mono" style="font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; background:var(--green-soft); color:#0F7A38;" title="${escapeHtml(tf('pkg.deployedTip', {id: first.id || '—'}))}">✓ ${t('pkg.deployedBadge')}</span>
+      <span class="mono" style="font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; background:var(--green-soft); color:#0F7A38;" title="${escapeHtml(tf('pkg.deployedTip', {id: first.id || '-'}))}">✓ ${t('pkg.deployedBadge')}</span>
       <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">${escapeHtml(first.id || '')}${when ? ' · ' + escapeHtml(when) : ''}${done.length > 1 ? ' · ' + tf('pkg.deployedMore', {n: done.length - 1}) : ''}</div>
     </div>`;
   }
@@ -6408,7 +6497,7 @@
     const n = String(name || '').trim();
     if(n) return n;
     const e = String(email || '').trim();
-    if(!e) return '—';
+    if(!e) return '-';
     // No name on file (an account since removed, or an entry written by a script):
     // the address without its domain is still recognisable, and is not an e-mail
     // address on screen.
@@ -6433,7 +6522,7 @@
     if(!pkg) return;
     if(!canApprovePackages()){ showToast(t('pkg.apprNoPerm')); return; }
     if(pkg.status !== 'ready'){ showToast(t('pkg.apprDraft')); return; }
-    showAppPrompt(t('pkg.apprTitle') + ' — ' + pkg.id, '', async (comment)=>{
+    showAppPrompt(t('pkg.apprTitle') + ' - ' + pkg.id, '', async (comment)=>{
       if(comment === null) return;                 // cancelled
       try {
         const saved = await apiApprovePackage(id, comment);
@@ -6442,9 +6531,9 @@
         renderSchedulePackageSelect();
         showToast(t('pkg.apprDone'));
         logAudit('changed', 'Package',
-          'Approved package ' + id + ' for deployment' + (comment ? ' — ' + comment : ''),
+          'Approved package ' + id + ' for deployment' + (comment ? ' - ' + comment : ''),
           (PROJECTS[pkg.projectKey]||{}).name || pkg.projectKey,
-          'aud.d.pkgApproved', {id, comment: comment || '—'});
+          'aud.d.pkgApproved', {id, comment: comment || '-'});
         // Now the release manager and the deployer can plan the rollout — which is
         // the whole point of the gate, so it is announced like any other event.
         notifyPackageApproved(saved || pkg, comment);
@@ -6470,12 +6559,12 @@
       let body = buildPackageNotifBody(pkg, projName);
       body += '\n' + tn('notif.pkgRemindBy') + ': ' + actorName();
       logAudit('notified', 'Notification',
-        'Reminder to approve package ' + (pkg.id||'') + ' — recipients: ' + recipients,
+        'Reminder to approve package ' + (pkg.id||'') + ' - recipients: ' + recipients,
         projName, 'aud.d.pkgRemind', {id: pkg.id||'', recipients});
       // The same event as the handover, so it reaches exactly whoever the handover
       // reaches (the project manager), with the subject saying it is a reminder.
       dispatchEventNotification('packageReady', pkg.projectKey,
-        'RollDesk — ' + tn('ev.packageReady') + ' (' + tn('draft.remindTag') + ')',
+        'RollDesk - ' + tn('ev.packageReady') + ' (' + tn('draft.remindTag') + ')',
         body, false, null, pkg.id || null);
       showToast(t('pkg.remindDone'));
     }, t('pkg.remindOk'), 'neutral');
@@ -6485,7 +6574,7 @@
     const pkg = packageById(id);
     if(!pkg) return;
     if(!canApprovePackages()){ showToast(t('pkg.apprNoPerm')); return; }
-    showAppConfirm(t('pkg.apprUndoTitle') + ' — ' + pkg.id, t('pkg.apprUndoBody'), async ()=>{
+    showAppConfirm(t('pkg.apprUndoTitle') + ' - ' + pkg.id, t('pkg.apprUndoBody'), async ()=>{
       try {
         const saved = await apiUndoPackageApproval(id);
         replacePackageInMemory(saved);
@@ -6522,10 +6611,10 @@
     body += '\n\n' + tn('notif.pkgApprovedPlan');
     const recipients = notifySummary('packageApproved', pkg.projectKey, false);
     logAudit('notified', 'Notification',
-      'Package ' + (pkg.id||'') + ' — ' + tn('ev.packageApproved') + ' — recipients: ' + recipients,
+      'Package ' + (pkg.id||'') + ' - ' + tn('ev.packageApproved') + ' - recipients: ' + recipients,
       projName, 'aud.d.notifyPackage', {id: pkg.id||'', event: t('ev.packageApproved'), recipients});
     dispatchEventNotification('packageApproved', pkg.projectKey,
-      'RollDesk — ' + tn('ev.packageApproved'), body, false, null, pkg.id || null);
+      'RollDesk - ' + tn('ev.packageApproved'), body, false, null, pkg.id || null);
   }
 
   async function loadPackages(){
@@ -6757,7 +6846,7 @@
   function packageIssueRowsHtml(pkg, extra){
     return packageIssues(pkg).map(i=>{
       const halo = issueHaloTicket(i);
-      const ticket = halo ? issueIdHtml(halo, pkg.projectKey) : '<span style="color:var(--text-faint);">—</span>';
+      const ticket = halo ? issueIdHtml(halo, pkg.projectKey) : '<span style="color:var(--text-faint);">-</span>';
       const item = workItemIdHtml(i.id, pkg.projectKey);
       const office = i.office
         ? `<span style="font-size:11.5px;">🏢 ${escapeHtml(i.office)}</span>`
@@ -6865,7 +6954,7 @@
   // packageBuildsButtonHtml.
   function packageAppsCellHtml(pkg){
     const apps = packageApps(pkg);
-    if(!apps.length) return '<span style="color:var(--text-faint);">—</span>';
+    if(!apps.length) return '<span style="color:var(--text-faint);">-</span>';
     const rows = apps.map(a=>{
       const svc = appServiceCount(a);
       return `<div>${escapeHtml(a.name)} <span class="mono">v${escapeHtml(a.version||'')}</span>`
@@ -7085,7 +7174,7 @@
     if(addBtn) addBtn.style.display = canEditPackages() ? '' : 'none';
 
     tbody.innerHTML = visible.map(p=>{
-      const projName = PROJECTS[p.projectKey] ? PROJECTS[p.projectKey].name : (p.projectKey || '—');
+      const projName = PROJECTS[p.projectKey] ? PROJECTS[p.projectKey].name : (p.projectKey || '-');
       const issues = packageIssues(p);
       // One line per issue rather than three ids on one: the work item id links
       // into Azure DevOps, the Halo ticket into the service desk, and the title
@@ -7111,7 +7200,7 @@
       // column that only held ids would have been empty on those rows while the
       // text saying what the release is sat out of sight in the editor.
       const contentCell = (issuesPart + packageChangesCellHtml(p, !!issuesPart))
-        || '<span style="color:var(--text-faint);">—</span>';
+        || '<span style="color:var(--text-faint);">-</span>';
       const usedBy = DEPLOYMENTS_DATA.filter(d=>d && d.packageId === p.id).length;
       const usedLine = usedBy
         ? `<div style="font-size:11px; color:var(--text-muted); margin-top:3px;">${tf('pkg.usedBy', {n: usedBy})}</div>`
@@ -7370,7 +7459,7 @@
       renderPackageApps();
     };
     const p = PROJECTS[key];
-    document.getElementById('app-modal-form-title').textContent = t('proj.newApp') + ' — ' + (p.name || key);
+    document.getElementById('app-modal-form-title').textContent = t('proj.newApp') + ' - ' + (p.name || key);
     document.getElementById('app-modal-form-sub').textContent = t('pkg.addAppSub');
     document.getElementById('app-name').value = '';
     document.getElementById('app-repo').value = '';
@@ -7750,13 +7839,13 @@
       // saved with the package and read everywhere the issue list is shown.
       const title = issue.title
         ? `<span style="font-size:12px;">${escapeHtml(issue.title)}</span>`
-        : `<span style="font-size:12px; color:var(--text-faint);">—</span>`;
+        : `<span style="font-size:12px; color:var(--text-faint);">-</span>`;
       // Where the work item stood when it was added. Saved with the entry, so
       // reopening the editor shows it without another lookup — pressing ⟳ is how
       // a reader asks the tracker for today's value.
       const state = issue.state
         ? `<span class="badge" style="font-size:10.5px;">${escapeHtml(issue.state)}</span>`
-        : `<span style="font-size:12px; color:var(--text-faint);">—</span>`;
+        : `<span style="font-size:12px; color:var(--text-faint);">-</span>`;
       // The lookup's own message — progress or a failure reason. The title and the
       // state have their own columns, so this line carries only what is not
       // already on the row.
@@ -8192,9 +8281,9 @@
     const fire = (eventKey) => {
       const recipients = notifySummary(eventKey, pkg.projectKey, false);
       logAudit('notified', 'Notification',
-        'Package ' + (pkg.id||'') + ' — ' + tn('ev.' + eventKey) + ' — recipients: ' + recipients,
+        'Package ' + (pkg.id||'') + ' - ' + tn('ev.' + eventKey) + ' - recipients: ' + recipients,
         projName, 'aud.d.notifyPackage', {id: pkg.id||'', event: t('ev.' + eventKey), recipients});
-      dispatchEventNotification(eventKey, pkg.projectKey, 'RollDesk — ' + tn('ev.' + eventKey), body, false, null, pkg.id || null);
+      dispatchEventNotification(eventKey, pkg.projectKey, 'RollDesk - ' + tn('ev.' + eventKey), body, false, null, pkg.id || null);
     };
     if(wasNew) fire('packageCreated');
     if(pkg.status === 'ready' && prevStatus !== 'ready') fire('packageReady');
@@ -8204,7 +8293,7 @@
     if(!canEditPackages()){ showToast(t('pkg.noPerm')); return; }
     const pkg = packageById(id);
     if(!pkg) return;
-    showAppConfirm(t('pkg.deleteTitle') + ' — ' + pkg.id, t('pkg.deleteBody'), async ()=>{
+    showAppConfirm(t('pkg.deleteTitle') + ' - ' + pkg.id, t('pkg.deleteBody'), async ()=>{
       try {
         await apiDeletePackage(id);
       } catch(e){
@@ -8217,7 +8306,7 @@
       }
       const i = RELEASE_PACKAGES.findIndex(p=>p.id === id);
       if(i >= 0) RELEASE_PACKAGES.splice(i, 1);
-      logAudit('removed', 'Package', 'Deleted release package ' + id, '—', 'aud.d.pkgDeleted', {id});
+      logAudit('removed', 'Package', 'Deleted release package ' + id, '-', 'aud.d.pkgDeleted', {id});
       populatePackageProjectFilter();
       renderPackagesTable();
       renderSchedulePackageSelect();
@@ -8244,12 +8333,12 @@
     // cannot be confirmed, so leaving it selected fails validation.
     sel.innerHTML = `<option value="">${t('sch.packagePick')}</option>` +
       usable.map(p=>{
-        const label = `${p.id}${p.name ? ' — ' + p.name : ''} (${packageAppsLabel(p) || '—'})`;
+        const label = `${p.id}${p.name ? ' - ' + p.name : ''} (${packageAppsLabel(p) || '-'})`;
         return `<option value="${escapeHtml(p.id)}">${escapeHtml(label)}</option>`;
       }).join('') +
       (waiting.length
         ? `<optgroup label="${escapeHtml(t('sch.packageWaitingGroup'))}">` + waiting.map(p=>{
-            const label = `${p.id}${p.name ? ' — ' + p.name : ''} — ${t('pkg.apprWaiting')}`;
+            const label = `${p.id}${p.name ? ' - ' + p.name : ''} - ${t('pkg.apprWaiting')}`;
             return `<option value="${escapeHtml(p.id)}" disabled>${escapeHtml(label)}</option>`;
           }).join('') + '</optgroup>'
         : '');
@@ -8284,7 +8373,7 @@
     }
     const offices = packageReportingOffices(pkg);
     box.textContent = tf('sch.packageSummary', {
-      apps: packageAppsLabel(pkg) || '—',
+      apps: packageAppsLabel(pkg) || '-',
       n: packageIssues(pkg).length,
     }) + (offices.length ? ' · ' + tf('sch.packageOffices', {offices: offices.join(', ')}) : '')
       // Said on the summary line as well as in the path radio below it: the path
@@ -8684,9 +8773,9 @@
     if(isDraft){
       showToast(t('sch.draftSaved'));
     } else if(needsApproval){
-      showToast('Schedule added — an e-mail with the changelog and an approval request has been sent to the client');
+      showToast('Schedule added - an e-mail with the changelog and an approval request has been sent to the client');
     } else if(isInternal){
-      showToast('Internal deployment added — the client will not see it');
+      showToast('Internal deployment added - the client will not see it');
     } else {
       showToast('Schedule added to the deployments list');
     }
@@ -8702,8 +8791,8 @@
       const createdRecs = DEPLOYMENTS_DATA.slice(createdIdsStart);
       const rec = createdRecs.find(x=>x.env === 'Production') || createdRecs[0] || {};
       const body = buildScheduleNotifBody(rec, projName);
-      dispatchEventNotification('created', pk, 'RollDesk — ' + tn('ev.created'), body, false, rec.id);
-      if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk — ' + tn('ev.approval'), body, false, rec.id);
+      dispatchEventNotification('created', pk, 'RollDesk - ' + tn('ev.created'), body, false, rec.id);
+      if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk - ' + tn('ev.approval'), body, false, rec.id);
     }
     resetScheduleForm();
     goToView('deployments');
@@ -8941,7 +9030,7 @@
       return '<tr>' + cells.join('') + '</tr>';
     }).join('') || `<tr><td colspan="${totalCols}" style="color:var(--text-faint); font-size:12px;">No deployment targets.</td></tr>`;
     if(filtered.length > 200){
-      tbody.innerHTML += `<tr><td colspan="${totalCols}" style="color:var(--text-faint); font-size:11.5px; text-align:center;">...and ${filtered.length - 200} more — narrow your search</td></tr>`;
+      tbody.innerHTML += `<tr><td colspan="${totalCols}" style="color:var(--text-faint); font-size:11.5px; text-align:center;">...and ${filtered.length - 200} more - narrow your search</td></tr>`;
     }
     refreshLocationBulkBar();
   }
@@ -9315,13 +9404,13 @@
     const onclk = clickable ? ` onclick="event.stopPropagation(); ${opts.onclick}"` : '';
     // The hint that the badge can be clicked belongs in the same tooltip, not in a
     // `title` beside it — two tooltips on one element are drawn on top of each other.
-    const hint = clickable ? `${tip} — ${escapeHtml(t('proj.typeBadgeToggle'))}` : tip;
+    const hint = clickable ? `${tip} - ${escapeHtml(t('proj.typeBadgeToggle'))}` : tip;
     return `<span class="${cls}" data-tip="${hint}" role="img" aria-label="${hint}" style="border-color:${color}; color:${color};"${onclk}>${letter}</span>`;
   }
   function typeOptionLabel(tv){
     if(tv === 'Production' || tv === 'Non-production'){
       const letter = tv === 'Production' ? 'P' : 'NP';
-      return letter + ' — ' + typeLabel(tv);
+      return letter + ' - ' + typeLabel(tv);
     }
     return tv;
   }
@@ -9357,7 +9446,7 @@
       dayConstraints.push({limitType:'', limitMax:null, pin:''});
     }
     renderDayBreakdownTable();
-    showToast('Spread across ' + days + ' days — you can now adjust the counts and constraints');
+    showToast('Spread across ' + days + ' days - you can now adjust the counts and constraints');
   }
 
   // Distinct values of the attribute the day-limit applies to. For the default
@@ -9421,7 +9510,7 @@
             ${types.map(tv=>`<option value="${escapeHtml(tv)}"${(dayConstraints[i]&&dayConstraints[i].limitType===tv)?' selected':''}>${escapeHtml(typeOptionLabel(tv))}</option>`).join('')}
           </select>
         </td>
-        <td><input type="number" class="mono" placeholder="—" value="${(dayConstraints[i]&&dayConstraints[i].limitMax!=null)?dayConstraints[i].limitMax:''}" style="width:60px;" onchange="updateDayConstraint(${i}, 'limitMax', this.value !== '' ? parseInt(this.value) : null)"></td>
+        <td><input type="number" class="mono" placeholder="-" value="${(dayConstraints[i]&&dayConstraints[i].limitMax!=null)?dayConstraints[i].limitMax:''}" style="width:60px;" onchange="updateDayConstraint(${i}, 'limitMax', this.value !== '' ? parseInt(this.value) : null)"></td>
         <!-- The pin field takes whatever width is left instead of a fixed 180px:
              with five fixed-width columns the table was wider than its card and
              the whole breakdown sat behind a horizontal scrollbar. -->
@@ -9631,7 +9720,7 @@
 
     if(testEnvs.length){
       const testDateVal = schedStart('test', '', '20:00').date;
-      const testDateStr = testDateVal ? isoDate(new Date(testDateVal)) : '—';
+      const testDateStr = testDateVal ? isoDate(new Date(testDateVal)) : '-';
       testEnvs.forEach(env=>{
         const el = document.createElement('div');
         el.className = 'manifest-day';
@@ -9662,12 +9751,12 @@
     if(testEnvs.length){
       const testSt = schedStart('test', '', '20:00');
       const testDateVal = testSt.date;
-      const testDateStr = testDateVal ? isoDate(new Date(testDateVal)) : '—';
+      const testDateStr = testDateVal ? isoDate(new Date(testDateVal)) : '-';
       const testTimeVal = testSt.time;
       testEnvs.forEach(env=>{
         html += `<tr class="manifest-row" style="background:var(--cyan-soft);">
           <td>${escapeHtml(env)}</td>
-          <td class="mono">—</td>
+          <td class="mono">-</td>
           <td class="mono"><div>${testDateStr}</div><div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(testTimeVal)}</div></td>
           <td>${envTagHtml(env)}</td>
           <td></td>
@@ -9696,7 +9785,7 @@
         // recognises from the mail thread that asked for the fix. The titles hang
         // off the tooltip, where they cannot widen the column.
         const bugs = reported.length
-          ? `<div class="mono" style="font-size:11px; color:var(--cyan); margin-top:2px;" title="${escapeHtml(reported.map(i=>[packageIssueTicket(i), i.title].filter(Boolean).join(' — ')).join('\n'))}">🐞 ${escapeHtml(reported.map(packageIssueTicket).filter(Boolean).join(', '))}</div>`
+          ? `<div class="mono" style="font-size:11px; color:var(--cyan); margin-top:2px;" title="${escapeHtml(reported.map(i=>[packageIssueTicket(i), i.title].filter(Boolean).join(' - ')).join('\n'))}">🐞 ${escapeHtml(reported.map(packageIssueTicket).filter(Boolean).join(', '))}</div>`
           : '';
         html += `<tr class="manifest-row">
           <td>${name}${label}${bugs}</td>
@@ -9746,7 +9835,7 @@
     if(path === 'test-only'){
       renderManifestPreview([], [], testEnvs);
       if(!silent){
-        showToast('Schedule generated — test environments only');
+        showToast('Schedule generated - test environments only');
         const previewEl = document.getElementById('schedule-rollout-preview');
         if(previewEl) previewEl.scrollIntoView({behavior:'smooth', block:'start'});
       }
@@ -9991,7 +10080,7 @@
     document.getElementById('twofa-code-input').value = '';
     document.getElementById('twofa-qr').src = '';
     document.getElementById('twofa-secret').textContent = '';
-    if(!API_CONNECTED){ showToast('Backend unavailable — cannot reconfigure 2FA'); return; }
+    if(!API_CONNECTED){ showToast('Backend unavailable - cannot reconfigure 2FA'); return; }
     try {
       // Ask the backend for a fresh secret + QR for the signed-in account.
       const res = await apiFetch('/api/auth/mfa/reconfigure', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
@@ -10023,7 +10112,7 @@
         method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code })
       });
       if(!res.ok){
-        if(err){ err.textContent = 'Invalid code — try again with the current code from your app.'; err.style.display = 'block'; }
+        if(err){ err.textContent = 'Invalid code - try again with the current code from your app.'; err.style.display = 'block'; }
         return;
       }
       close2FAModal();
@@ -10032,7 +10121,7 @@
       document.getElementById('twofa-badge').style.color = '#0F7A38';
       showToast(t('acc.reconfiguredToast'));
     } catch(e){
-      if(err){ err.textContent = 'Something went wrong — please try again.'; err.style.display = 'block'; }
+      if(err){ err.textContent = 'Something went wrong - please try again.'; err.style.display = 'block'; }
     } finally { if(btn) btn.disabled = false; }
   }
 
@@ -10306,7 +10395,7 @@
         renderClientsTable();
         populateClientSelect();
         persistClients();
-        showToast('Created client "' + clientName + '" (domain: ' + domain + ' — change it in the Clients tab)');
+        showToast('Created client "' + clientName + '" (domain: ' + domain + ' - change it in the Clients tab)');
       }
     } else {
       clientKey = clientSel.value;
@@ -10411,10 +10500,10 @@
     const a = p && p.apps ? p.apps[index] : null;
     if(!a) return;
     editingAppIndex = index;
-    document.getElementById('app-modal-form-title').textContent = t('app.settings') + ' — ' + a.name;
+    document.getElementById('app-modal-form-title').textContent = t('app.settings') + ' - ' + a.name;
     document.getElementById('app-modal-form-sub').textContent = t('proj.newAppSub');
     document.getElementById('app-name').value = a.name;
-    document.getElementById('app-repo').value = (a.repo && a.repo !== '—') ? ('https://' + a.repo) : '';
+    document.getElementById('app-repo').value = (a.repo && !isDashPlaceholder(a.repo)) ? ('https://' + a.repo) : '';
     setAppServicesInput(a.services);
     openFormModal('app-modal-form');
   }
@@ -10470,12 +10559,12 @@
 
   function addApplication(){
     const name = document.getElementById('app-name').value.trim();
-    const repo = document.getElementById('app-repo').value.trim() || '—';
+    const repo = document.getElementById('app-repo').value.trim() || '-';
     if(!name){
       showFormErrors('app-modal-form', [{id:'app-name', label:t('proj.thApp'), msg:t('form.required')}]);
       return;
     }
-    const repoDisplay = repo === '—' ? '—' : repo.replace(/^https?:\/\//,'');
+    const repoDisplay = isDashPlaceholder(repo) ? '-' : repo.replace(/^https?:\/\//,'');
     const projectKey = appModalProject();
     const p = PROJECTS[projectKey];
     if(!p) return;
@@ -10617,7 +10706,7 @@
     let body = packageIdCellHtml(r);
     if(body) body = `<div style="margin-bottom:10px;">${body}</div>`;
     if(r.paused){
-      body += `<div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">${t('dcard.reason')}: ${r.pauseReason ? '„'+escapeHtml(r.pauseReason)+'”' : '—'}</div>`;
+      body += `<div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">${t('dcard.reason')}: ${r.pauseReason ? '„'+escapeHtml(r.pauseReason)+'”' : '-'}</div>`;
     }
     body += changelogCollapsibleHtml(r, rowKey);
     // Which services the release carries, at which version. Collapsed, like the
@@ -10633,7 +10722,7 @@
             <div class="mono" style="width:96px; flex-shrink:0; font-size:11px; color:var(--text-muted);">${e.date ? e.date + (e.time ? ' ' + e.time : '') : t('dtl.pending')}</div>
             <div style="flex-shrink:0;">${e.icon}</div>
             <div style="flex:1; font-size:12.5px;">${e.text}</div>
-          </div>`).join('') || `<div style="color:var(--text-faint); font-size:12px; padding:8px 0;">—</div>`}
+          </div>`).join('') || `<div style="color:var(--text-faint); font-size:12px; padding:8px 0;">-</div>`}
       </div>
     </div>`;
     return body;
@@ -10672,9 +10761,9 @@
       // where it starts awaiting their decision.
       if(needsApproval && !r.clientApproval) r.clientApproval = 'pending';
       const body = buildScheduleNotifBody(r, projName);
-      dispatchEventNotification('created', pk, 'RollDesk — ' + tn('ev.created'), body, false, r.id);
-      if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk — ' + tn('ev.approval'), body, false, r.id);
-      logAudit('notified', 'Deployment', 'Notified the client about ' + (r.id||'') + ' — recipients: ' + recipients, projName + (p.clientName ? ' (' + p.clientName + ')' : ''), 'aud.d.draftNotified', {id: r.id||'', recipients});
+      dispatchEventNotification('created', pk, 'RollDesk - ' + tn('ev.created'), body, false, r.id);
+      if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk - ' + tn('ev.approval'), body, false, r.id);
+      logAudit('notified', 'Deployment', 'Notified the client about ' + (r.id||'') + ' - recipients: ' + recipients, projName + (p.clientName ? ' (' + p.clientName + ')' : ''), 'aud.d.draftNotified', {id: r.id||'', recipients});
       persistDeployment(idx);
       renderDeploymentsTable();
       renderInstallerPanel();
@@ -10699,14 +10788,14 @@
       tf('draft.remindBody', {project: projName, recipients}) + '\n\n' + tf('draft.remindChannels', {channels}),
       ()=>{
       const body = buildScheduleNotifBody(r, projName) + '\n' + tn('draft.remindNote');
-      dispatchEventNotification('approval', pk, 'RollDesk — ' + tn('ev.approval') + ' (' + tn('draft.remindTag') + ')', body, false, r.id);
-      logAudit('notified', 'Deployment', 'Sent an approval reminder for ' + (r.id||'') + ' — recipients: ' + recipients + ' — channels: ' + channels, projName + (p.clientName ? ' (' + p.clientName + ')' : ''), 'aud.d.approvalReminded', {id: r.id||'', recipients, channels});
+      dispatchEventNotification('approval', pk, 'RollDesk - ' + tn('ev.approval') + ' (' + tn('draft.remindTag') + ')', body, false, r.id);
+      logAudit('notified', 'Deployment', 'Sent an approval reminder for ' + (r.id||'') + ' - recipients: ' + recipients + ' - channels: ' + channels, projName + (p.clientName ? ' (' + p.clientName + ')' : ''), 'aud.d.approvalReminded', {id: r.id||'', recipients, channels});
       const _s = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'};
       r.comments = r.comments || [];
       r.comments.push({date:_s.date, time:_s.time, author: actorName(), type:'system', icon:'🔔', text: t('dtl.approvalReminded')});
       persistDeployment(idx);
       renderDeploymentsTable();
-      showToast(t('draft.reminded') + ' — ' + channels);
+      showToast(t('draft.reminded') + ' - ' + channels);
     }, t('draft.remindBtn'));
   }
 
@@ -10747,11 +10836,43 @@
     return packageIssues(pkg).map(i=>{
       const ticket = packageIssueTicket(i);
       const title = String((i && i.title) || '').trim();
-      return [ticket, title].filter(Boolean).join(' — ');
+      return [ticket, title].filter(Boolean).join(': ');
     }).filter(Boolean);
   }
+  // Subject of the client's approval request.
+  //
+  // „RollDesk - Prośba o akceptację (Produkcja)" was the same subject for every
+  // rollout of every project: two requests waiting for a decision could not be told
+  // apart in the client's mailbox, a reply quoting nothing named no release, and a
+  // reader deciding what to open first learned nothing without opening it. The
+  // subject now carries what identifies this one rollout — the deployment id we ask
+  // them to quote, the release, the environment and the day it starts.
+  //
+  // The leading application with a count of the rest rather than all five versions:
+  // the full list is the body's first line anyway, and a subject much past 120
+  // characters is cut by the reader's mail client exactly where the start date is.
   function clientApprovalMailSubject(r){
-    return 'RollDesk — ' + tn('ev.approval') + ' (' + envLabelNotif((r && r.env) || '') + ')';
+    r = r || {};
+    const apps = (r.apps || []).filter(a => a && a.name);
+    const lead = apps.length ? (apps[0].name + (apps[0].version ? ' v' + apps[0].version : '')) : '';
+    const parts = [];
+    if(lead) parts.push(lead + (apps.length > 1 ? ' ' + tnf('notif.subjMoreApps', {n: apps.length - 1}) : ''));
+    const env = envLabelNotif(r.env || '');
+    if(env) parts.push(env);
+    const start = deploymentStartIso(r);
+    if(start) parts.push(tnf('notif.subjStart', {date: start}));
+    // Last, because it is the one part that is the same in every one of these mails:
+    // what the reader is being asked for, after what it is about.
+    parts.push(tn('notif.subjApprovalAsk'));
+    return ('RollDesk ' + (r.id || '')).trim() + ': ' + parts.join(', ');
+  }
+  // The sign-off with nobody's name in it, used when a project has none of its own.
+  // It says where to change it, so an unconfigured instance sends something polite
+  // rather than a placeholder the client is left to interpret. In the notification
+  // language, like every other string composed into a mail.
+  function defaultMailFooter(){ return tn('notif.footerDefault'); }
+  function projectMailFooter(p){
+    return String((p && p.mailFooter) || '').trim() || defaultMailFooter();
   }
   // `hasCopy` decides whether the mail may say that a reply reaches us: with no
   // copy list it would go to the instance's no-reply sender, and telling a client
@@ -10760,7 +10881,7 @@
     const pkg = packageForDeployment(r);
     let body = scheduleFactsBlock(r, projName);
     const issues = clientMailIssueLines(pkg);
-    if(issues.length) body += '\n\n' + tnf('notif.fixedIssuesN', {n: issues.length}) + ':\n' + issues.join('\n');
+    if(issues.length) body += '\n\n' + tnf('notif.fixedIssuesN', {n: issues.length}) + ':\n' + issues.map(l=>'- ' + l).join('\n');
     // What the release changes, as the test team wrote it — without the id line
     // packageChangelogText appends, because the issues above already carry the ids
     // with what each one was. A rollout whose changelog was edited for this one
@@ -10769,7 +10890,90 @@
     if(changes) body += '\n\n' + tn('notif.changelogLabel') + ':\n' + changes;
     body += '\n\n' + tn('notif.clientApprovalAsk');
     if(hasCopy) body += '\n' + tn('notif.clientApprovalReply');
+    // No signature here: it travels as its own field so the backend can put it
+    // *under* the link to the deployment, which it appends to the body (see
+    // mailBodyParts in backend/src/appLink.js). The ask above ends in a colon, so a
+    // signature between it and the link would read as an unfinished sentence.
     return body;
+  }
+
+  // The same message as blocks, for the HTML part.
+  //
+  // As one paragraph of text with newlines — which is what every notification's HTML
+  // part is (bodyToHtml) — this mail read like a machine had sent it: the versions,
+  // the fixed tickets, the schedule and the ask all in the same size, with the link
+  // to the rollout as a bare URL at the bottom. It is the one message that leaves the
+  // instance for somebody outside the team, and it sits in the client's mailbox next
+  // to the hand-written mail it replaced.
+  //
+  // Only the pieces and their wording travel: what a heading, a fact line, a table of
+  // fixes, a quoted changelog and a button look like is decided in one place on the
+  // backend (mailHtml.js), which cannot be reached from a browser. The blocks are
+  // built from the same facts as the text above, so the two cannot disagree — and the
+  // text part is still sent in full, so a text-only client loses the layout and
+  // nothing else.
+  function clientApprovalMailBlocks(r, projName, hasCopy){
+    const f = scheduleFacts(r, projName);
+    const pkg = packageForDeployment(r);
+    const blocks = [{kind:'lead', id: f.id, title: f.title}];
+    if(f.facts.length) blocks.push({kind:'facts', items: f.facts});
+    if(f.meta.length) blocks.push({kind:'meta', items: f.meta});
+    // The ticket and what it was, in two columns: the client reads down the ticket
+    // column looking for the one they reported.
+    const issues = packageIssues(pkg).map(i=>({
+      name: packageIssueTicket(i), note: String((i && i.title) || '').trim(),
+    })).filter(i=>i.name || i.note);
+    if(issues.length) blocks.push({kind:'list', title: tnf('notif.fixedIssuesN', {n: issues.length}), items: issues});
+    const changes = String((r && r.changelog) || (pkg && pkg.changes) || '').trim();
+    if(changes) blocks.push({kind:'text', title: tn('notif.changelogLabel'), body: changes});
+    // The ask keeps its wording but loses its trailing colon: in the text part the
+    // colon introduces the URL on the next line, and here the link is a button under
+    // the sentence, so there is nothing left for it to introduce.
+    blocks.push({
+      kind: 'ask',
+      text: tn('notif.clientApprovalAsk').replace(/\s*:\s*$/, ''),
+      button: tn('notif.openDeploymentBtn'),
+    });
+    if(hasCopy) blocks.push({kind:'note', text: tn('notif.clientApprovalReply')});
+    return blocks;
+  }
+
+  // One recipient line of the editor below: „Katarzyna Załuska <k.zaluska@pwpw.pl>"
+  // or a bare address. The name is kept only so the list stays readable while it is
+  // being edited — what goes into the header is the address (clientMail.js explains
+  // why an operator-typed name has no business in a mail header).
+  function parseClientMailRecipient(line){
+    const s = String(line || '').trim();
+    if(!s) return null;
+    const m = s.match(/^(.*)<([^<>]*)>\s*$/);
+    const email = (m ? m[2] : s).trim();
+    const name = m ? m[1].trim().replace(/^["']|["']$/g, '') : '';
+    return {name, email};
+  }
+  // The edited list, deduplicated case-insensitively — the same rule the backend
+  // applies (normalizeRecipients), so what the confirmation shows is what is sent.
+  function parseClientMailRecipients(text){
+    const seen = new Set();
+    return String(text || '').split('\n').map(parseClientMailRecipient).filter(Boolean)
+      .filter(a=>{
+        const key = a.email.toLowerCase();
+        if(!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }
+  // Keeps the editor open with a message rather than sending to an address that
+  // will bounce, or to nobody. Mirrors the bounds in backend/src/clientMail.js: an
+  // address the SMTP server would reject is a typo, and this is the one mail whose
+  // recipient list somebody edits by hand every time.
+  const MAX_CLIENT_MAIL_RECIPIENTS = 50;
+  function clientMailRecipientsError(text){
+    const list = parseClientMailRecipients(text);
+    if(!list.length) return t('clientmail.pickNone');
+    if(list.length > MAX_CLIENT_MAIL_RECIPIENTS) return tf('clientmail.pickTooMany', {max: MAX_CLIENT_MAIL_RECIPIENTS});
+    const bad = list.filter(a=>!EMAIL_RE.test(a.email)).map(a=>a.email);
+    if(bad.length) return tf('clientmail.pickInvalid', {list: bad.join(', ')});
+    return '';
   }
 
   async function sendClientApprovalMail(idx){
@@ -10784,9 +10988,38 @@
       // Nothing to send to, and the reason is a setting one view away — so the
       // message names the client and where its addresses are kept, rather than
       // reporting „no recipients" and leaving the operator to guess.
-      showToast(tf('clientmail.noAddresses', {client: client.name || p.clientName || '—'}));
+      showToast(tf('clientmail.noAddresses', {client: client.name || p.clientName || '-'}));
       return;
     }
+    // Who is asked is a per-rollout decision, so the client's saved list is the
+    // starting point and not the answer: a release touching one system is approved
+    // by the person who owns it, somebody is on holiday and their deputy has to be
+    // asked as well, and neither belongs in the client's permanent configuration.
+    // A text list — one recipient per line — because removing one and adding one is
+    // then the same edit, and it needs no picker for an address nobody has stored.
+    //
+    // The copy list is deliberately not editable here: it is our own service mailbox
+    // and where the client's reply has to land, which is a setting, not a per-mail
+    // choice.
+    showAppPrompt(t('clientmail.pickTitle'),
+      to.map(a=>a.name ? a.name + ' <' + a.email + '>' : a.email).join('\n'),
+      (edited)=>{
+        if(edited === null) return;
+        confirmClientApprovalMail(idx, parseClientMailRecipients(edited), cc);
+      },
+      cc.length ? tf('clientmail.pickSubCc', {list: cc.map(a=>a.email).join(', ')}) : t('clientmail.pickSubNoCc'),
+      true, null, clientMailRecipientsError, t('clientmail.pickOk'));
+  }
+
+  // The last look before it goes out: the audience, the subject the client will see
+  // in their mailbox, and — the one thing that cannot be fixed afterwards — whether
+  // this rollout can even name the fixes it carries.
+  async function confirmClientApprovalMail(idx, to, cc){
+    const r = DEPLOYMENTS_DATA[idx];
+    if(!r || !to.length) return;
+    const pk = r.projectKey;
+    const p = PROJECTS[pk] || {};
+    const projName = p.name || pk;
     const subject = clientApprovalMailSubject(r);
     const text = buildClientApprovalMailBody(r, projName, cc.length > 0);
     const lines = [tf('clientmail.confirmBody', {id: r.id || '', project: projName})];
@@ -10797,6 +11030,15 @@
       ? t('clientmail.ccLabel') + ': ' + clientMailAddressLabel(cc)
       : t('clientmail.noCcWarn'));
     lines.push(t('clientmail.subjectLabel') + ': ' + subject);
+    // „These versions fix these tickets" is the whole point of the document, and the
+    // list comes from the release package. A rollout planned without one — or from a
+    // package with no issues on it — sends the description and nothing else, which
+    // is the mail the client cannot act on. Said here, where it can still be fixed
+    // by picking the package, rather than discovered in the sent item.
+    const pkg = packageForDeployment(r);
+    if(!clientMailIssueLines(pkg).length){
+      lines.push(pkg ? tf('clientmail.noIssuesWarn', {pkg: pkg.id || ''}) : t('clientmail.noPackageWarn'));
+    }
     showAppConfirm(t('clientmail.title'), lines.join('\n'), async ()=>{
       if(typeof API_CONNECTED === 'undefined' || !API_CONNECTED){ showToast(t('notif.dispatchOffline')); return; }
       showToast(t('clientmail.sending'));
@@ -10811,7 +11053,8 @@
           // e-mailed them about it" is noise. The record of this send is the
           // deployment's own timeline and the audit log, below.
           body: JSON.stringify({subject, text, emails: to.map(a=>a.email), cc: cc.map(a=>a.email),
-            groupEmail: true, deploymentId: r.id || null})
+            groupEmail: true, deploymentId: r.id || null, footer: projectMailFooter(p),
+            blocks: clientApprovalMailBlocks(r, projName, cc.length > 0)})
         });
         try { info = await res.json(); } catch(e){}
         if(!res.ok){
@@ -10832,7 +11075,7 @@
       r.comments.push({date:_s.date, time:_s.time, author: actorName(), type:'system', icon:'✉',
         text: tf('dtl.clientMailSent', {to: toLabel})});
       logAudit('notified', 'Deployment',
-        'E-mailed the client approval request for ' + (r.id||'') + ' — to: ' + toLabel + (ccLabel ? ' — cc: ' + ccLabel : ''),
+        'E-mailed the client approval request for ' + (r.id||'') + ' - to: ' + toLabel + (ccLabel ? ' - cc: ' + ccLabel : ''),
         projName + (p.clientName ? ' (' + p.clientName + ')' : ''),
         'aud.d.clientMailSent', {id: r.id||'', to: toLabel, cc: ccLabel});
       persistDeployment(idx);
@@ -10855,18 +11098,18 @@
       rec.clientApprovalTime = stamp.time;
       apiDeploymentDecision(rec.id, {
         decision: 'approved', by: who, projectLabel: projLabel,
-        auditDetail: 'The client approved the schedule ' + (rec.id||'') + ' — ' + who,
+        auditDetail: 'The client approved the schedule ' + (rec.id||'') + ' - ' + who,
         auditKey: 'aud.d.clientApproved', auditParams: {id: rec.id||'', by: who}
       }).catch(err => { console.warn('Decision save failed:', err.message); showToast(t('client.saveFailed')); });
       renderClientPortal(currentClientScenario);
       showToast(t('client.approvedToast'));
       const approvedBody = notifHeader(rec, projName)
         + '\n' + tn('dep.aApproved') + ' · ' + tnf('notif.approvedBy', {who});
-      dispatchEventNotification('decision', rec.projectKey, 'RollDesk — ' + tn('ev.decision') + ' (' + envLabelNotif(rec.env||'') + ')',
+      dispatchEventNotification('decision', rec.projectKey, 'RollDesk - ' + tn('ev.decision') + ' (' + envLabelNotif(rec.env||'') + ')',
         approvedBody, true, rec.id);
       // Internal only (no client e-mail): this tells the team the client agreed.
       // The client made the decision, so mailing it back to them is noise.
-      dispatchEventNotification('scheduleApproved', rec.projectKey, 'RollDesk — ' + tn('ev.scheduleApproved') + ' (' + envLabelNotif(rec.env||'') + ')',
+      dispatchEventNotification('scheduleApproved', rec.projectKey, 'RollDesk - ' + tn('ev.scheduleApproved') + ' (' + envLabelNotif(rec.env||'') + ')',
         approvedBody, false, rec.id);
     } else if(action === 'commented'){
       showAppPrompt(t('client.commentTitle'), '', (note)=>{
@@ -11192,7 +11435,7 @@
       if(r.mode === 'batch'){
         cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})} <span style="color:var(--text-faint);">· ${tf('notif.daysN', {n: r.days})}</span></td>`);
       } else {
-        cells.push(`<td>${escapeHtml(r.location||'—')}</td>`);
+        cells.push(`<td>${escapeHtml(r.location||'-')}</td>`);
       }
       cells.push(`<td>${envTagHtml(r.env)}</td>`);
       cells.push(`<td class="mono">${installerDateLabel(r)}<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(r.time)}</div></td>`);
@@ -11474,7 +11717,7 @@
     const banner = document.getElementById(scopeId + '-errors');
     if(banner){
       banner.innerHTML = alertHtml('error', t('form.errTitle'), t('form.errBody'),
-        errors.map(e=> e.label ? (e.label + (e.msg ? ' — ' + e.msg : '')) : (e.msg || '')));
+        errors.map(e=> e.label ? (e.label + (e.msg ? ' - ' + e.msg : '')) : (e.msg || '')));
       banner.style.display = 'block';
       banner.scrollIntoView({behavior:'smooth', block:'center'});
     } else {
@@ -12022,7 +12265,7 @@
     delete body.tracker;
     apiSaveProject(key, body).catch(err => {
       console.warn('Failed to save project:', err.message);
-      showToast('⚠ Could not save the project to the database — change is local only');
+      showToast('⚠ Could not save the project to the database - change is local only');
     });
   }
 
@@ -12034,7 +12277,7 @@
     if(!d) return;
     apiSaveDeployment(d).catch(err => {
       console.warn('Failed to save deployment:', err.message);
-      showToast('⚠ Could not save to the database — change is local only');
+      showToast('⚠ Could not save to the database - change is local only');
     });
   }
   function removeDeploymentFromDb(id){
@@ -12053,7 +12296,7 @@
         await apiSaveDeployment(d);
       } catch(err){
         console.warn('Failed to finalize deployment', d.id, err.message);
-        showToast('⚠ Could not save to the database — change is local only');
+        showToast('⚠ Could not save to the database - change is local only');
       }
     }
     renderDeploymentsTable();
@@ -12338,7 +12581,10 @@
         project].filter(Boolean).join(' · ');
       // The subject is prefixed "RollDesk — " by every sender, which is noise in a
       // list where every row is RollDesk.
-      const subject = String(n.subject || '').replace(/^RollDesk\s*[—-]\s*/, '');
+      // The product prefix, in either spelling: rows filed before the UI dropped the
+      // long dash carry „RollDesk — …" and would otherwise keep it in the drawer
+      // while every new row loses it (the backend's SUBJECT_PREFIX does the same).
+      const subject = String(n.subject || '').replace(/^RollDesk\s*[-—–]\s*/, '');
       const clickable = !!target;
       const attrs = clickable
         ? ` role="button" tabindex="0" onclick="openNotificationRecord('${escapeHtml(String(n.id))}')"`
@@ -13588,7 +13834,7 @@
     return `${y}-${m}-${day}`;
   }
   function fmtDate(v){
-    if(!v) return '—';
+    if(!v) return '-';
     const s = String(v).slice(0,10);
     return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : s;
   }
@@ -13652,7 +13898,7 @@
     // Single deployment: a one-row schedule (one target/location).
     if(r.mode !== 'batch'){
       const dateStr = r.date || r.createdDate || '';
-      const code = r.location || '—';
+      const code = r.location || '-';
       rows.push({ app: appsLabel, version: verLabel, code, date: dateStr, dow: dateStr ? fmtDow(dateStr) : '', day: 1, custom: locCustomByCode(p, code) });
       return rows;
     }
@@ -13802,7 +14048,7 @@
     const customFields = scheduleCustomFieldNames(r);
     const customHead = customFields.map(f=>`<th>${escapeHtml(f)}</th>`).join('');
     const body = rows.map(x=>`<tr><td>${x.app}</td><td>${x.version}</td><td>${x.code}</td>${customFields.map(f=>`<td>${escapeHtml((x.custom&&x.custom[f])||'')}</td>`).join('')}<td>${x.date}</td><td>${x.dow}</td></tr>`).join('');
-    const subtitle = tf('sch.docSubtitle', {id: r.id || '—', n: rows.length});
+    const subtitle = tf('sch.docSubtitle', {id: r.id || '-', n: rows.length});
     const doc = `<!doctype html><html lang="${LANG}"><head><meta charset="utf-8"><title>${escapeHtml(fileBase)}</title>
       <style>
         body{font-family:Arial, sans-serif; color:#1a1a1a; padding:24px;}
@@ -13844,7 +14090,7 @@
   // Values substituted for tags for a given deployment (also localized).
   function messageTagValues(r){
     const p = PROJECTS[r.projectKey] || {};
-    const firstApp = (r.apps && r.apps[0]) || {name:'—', version:'—'};
+    const firstApp = (r.apps && r.apps[0]) || {name:'-', version:'-'};
     let dates;
     if(r.mode === 'batch'){
       dates = tf('msg.datesBatch', {from: fmtDate(getDateForDay(r,1)), to: fmtDate(getDateForDay(r, r.days))});
@@ -13862,8 +14108,8 @@
       '{version}': firstApp.version,
       '{applications}': (r.apps||[]).map(a=>tf('msg.appVersion', {name: a.name, version: a.version})).join(', '),
       '{dates}': dates,
-      '{environment}': envLabel(r.env) || '—',
-      '{client}': p.clientName || '—',
+      '{environment}': envLabel(r.env) || '-',
+      '{client}': p.clientName || '-',
       '{attachments}': attachments.join(' ' + t('msg.and') + ' '),
     };
   }
@@ -14011,7 +14257,7 @@
         <span style="font-size:12.5px; min-width:120px;">${escapeHtml(a.name)}${svcCount(a.name) ? `<span style="color:var(--text-muted);"> · 🧩 ${escapeHtml(tf('svc.nServices', {n: svcCount(a.name)}))}</span>` : ''}</span>
         <input type="text" class="mono" data-app-idx="${i}" value="${escapeHtml(a.version||'')}" placeholder="1.0.0" style="flex:1; box-sizing:border-box;">
         ${canRemove ? `<button type="button" class="mini-btn" title="${escapeHtml(t('editdep.removeApp'))}" aria-label="${escapeHtml(t('editdep.removeApp'))}: ${escapeHtml(a.name)}" onclick="removeEditDepApp(${i})">✕</button>` : ''}
-      </div>`).join('') || `<div style="font-size:12px; color:var(--text-faint);">—</div>`;
+      </div>`).join('') || `<div style="font-size:12px; color:var(--text-faint);">-</div>`;
 
     const box = document.getElementById('edit-dep-add-row');
     if(!box) return;
@@ -14057,7 +14303,7 @@
       renderEditDepApps();
     };
     const p = PROJECTS[key];
-    document.getElementById('app-modal-form-title').textContent = t('proj.newApp') + ' — ' + (p.name || key);
+    document.getElementById('app-modal-form-title').textContent = t('proj.newApp') + ' - ' + (p.name || key);
     document.getElementById('app-modal-form-sub').textContent = t('editdep.addAppNewSub');
     document.getElementById('app-name').value = '';
     document.getElementById('app-repo').value = '';
@@ -14171,7 +14417,7 @@
         changes.push(tf('editdep.chAppAdded', {app: a.name + (a.version ? ' v' + a.version : '')}));
         if(joinStamp) addedLate.push(a.name);
       } else if(a.version && a.version !== before.version){
-        changes.push(a.name + ': ' + (before.version || '—') + ' → ' + a.version);
+        changes.push(a.name + ': ' + (before.version || '-') + ' → ' + a.version);
       }
     });
     prevApps.forEach(p=>{
@@ -14236,7 +14482,7 @@
     if(!changes.length){ showToast(t('editdep.noChanges')); return; }
     const projLabel = (PROJECTS[r.projectKey]||{}).name || r.projectKey;
     const summary = changes.join('; ');
-    logAudit('changed', 'Deployment', 'Edited deployment ' + (r.id||'') + ' — ' + summary, projLabel, 'aud.d.depEdited', {id: r.id||'', summary});
+    logAudit('changed', 'Deployment', 'Edited deployment ' + (r.id||'') + ' - ' + summary, projLabel, 'aud.d.depEdited', {id: r.id||'', summary});
     r.comments = r.comments || [];
     const stamp = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
     r.comments.push({date:stamp.date, time:stamp.time, author: actorName(), type:'system', icon:'✏️', text: tf('editdep.tlEdited', {summary})});
@@ -14286,7 +14532,7 @@
     const value = r ? fillMessageTemplate(document.getElementById('message-modal-text').value, r) : document.getElementById('message-modal-text').value;
     if(navigator.clipboard && navigator.clipboard.writeText){
       navigator.clipboard.writeText(value).then(()=>showToast('Message copied to the clipboard'))
-        .catch(()=>showToast('Could not copy — select the text in the preview'));
+        .catch(()=>showToast('Could not copy - select the text in the preview'));
     } else {
       showToast('Copy the text from the preview (Ctrl+C)');
     }
@@ -14395,7 +14641,7 @@
     // already and are read as a record rather than as a plan.
     const notifSummary = movedDays.map(day=>`${tnf('dtl.day', {n: day})} → ${fmtDateDowNotif(d.dayDates[day])}`).join(', ');
     d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'📅', text: tf('dtl.scheduleChanged', {summary})});
-    logAudit('changed','Deployment','Changed the schedule ' + (d.id||'') + ' — ' + summary, (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.schedChanged', {id: d.id||'', summary});
+    logAudit('changed','Deployment','Changed the schedule ' + (d.id||'') + ' - ' + summary, (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.schedChanged', {id: d.id||'', summary});
     persistDeployment(idx);
     renderDeploymentsTable();
     renderInstallerPanel();
@@ -14407,7 +14653,7 @@
       + tnf('notif.schedChangedBody', {summary: notifSummary})
       + '\n' + tnf('notif.changedBy', {who});
     dispatchEventNotification('scheduleChanged', d.projectKey,
-      'RollDesk — ' + tn('ev.scheduleChanged') + ' (' + envLabelNotif(d.env||'') + ')', body, false, d.id);
+      'RollDesk - ' + tn('ev.scheduleChanged') + ' (' + envLabelNotif(d.env||'') + ')', body, false, d.id);
     showToast(t('dtl.schedSaved'));
   }
 
@@ -14424,7 +14670,7 @@
     // Client-facing timeline for a full deployment record (same shape as DEPLOYMENTS_DATA).
     const events = [];
     const apps = d.apps || [];
-    const app = d.app || apps.map(a=>a.name).filter(Boolean).join(', ') || '—';
+    const app = d.app || apps.map(a=>a.name).filter(Boolean).join(', ') || '-';
     const version = d.version != null ? d.version
       : (apps.length === 1 ? (apps[0].version || '') : apps.map(a=>a.version).filter(Boolean).join(', '));
     const status = d.status || (typeof clientDeploymentStatus === 'function' ? clientDeploymentStatus(d) : 'scheduled');
@@ -14458,7 +14704,7 @@
       const okNames = reportedInstalledNames(d).join(', ');
       events.push({date: date, time, icon:'⚠️',
         text: tf(tally.kind === 'svc' ? 'tl.partialDoneSvc' : 'tl.partialDone',
-          {done: tally.done, total: tally.total, apps: okNames || '—'})});
+          {done: tally.done, total: tally.total, apps: okNames || '-'})});
     } else if(status === 'scheduled'){
       if(d.env === 'Production' && d.clientApproval === 'approved'){
         events.push({date, time, icon:'📅', text: tf('tl.prodWillStart', {date, time, n: locN})});
@@ -14535,15 +14781,15 @@
       const reported = r.status !== 'scheduled' && r.reportedDate;
       const evDate = reported ? r.reportedDate : r.date;
       const evTime = reported ? (r.reportedTime || r.time) : r.time;
-      const who = r.reportedBy ? ` <span style="color:var(--text-faint);">— ${escapeHtml(r.reportedBy)}</span>` : '';
-      events.push({date: evDate, time: evTime, icon, text: statusLabelFull[r.status] + ' — ' + escapeHtml(r.location) + who});
+      const who = r.reportedBy ? ` <span style="color:var(--text-faint);">- ${escapeHtml(r.reportedBy)}</span>` : '';
+      events.push({date: evDate, time: evTime, icon, text: statusLabelFull[r.status] + ' - ' + escapeHtml(r.location) + who});
     }
 
     (r.comments || []).forEach(c=>{
       if(c.type === 'system'){
         // Pause / resume / schedule-shift entries read as status events, not "Komentarz".
         const icon = c.icon || '⚙️';
-        events.push({date: c.date, time: c.time, icon, text: c.text + (c.author ? ' <span style="color:var(--text-faint);">— ' + c.author + '</span>' : '')});
+        events.push({date: c.date, time: c.time, icon, text: c.text + (c.author ? ' <span style="color:var(--text-faint);">- ' + c.author + '</span>' : '')});
       } else {
         events.push({date: c.date, time: c.time, icon:'🗒️', text: tf('dtl.comment', {who: '<strong>' + escapeHtml(c.author || 'Release Manager') + '</strong>', text: escapeHtml(c.text || '')})});
       }
@@ -14702,7 +14948,7 @@
     const bodyHtml = changelogBodyHtml(r);
     if(!bodyHtml) return '';
     const id = 'cl-' + idSuffix;
-    const titleExtra = r.apps && r.apps.length ? ' — ' + r.apps.map(a=>a.name+' v'+a.version).join(', ') : '';
+    const titleExtra = r.apps && r.apps.length ? ' - ' + r.apps.map(a=>a.name+' v'+a.version).join(', ') : '';
     return collapsibleBlockHtml({
       id,
       icon: '📄',
@@ -14887,7 +15133,7 @@
 
     return `
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; background:#fff; border:1px solid var(--line); border-radius:8px;">
-        <span class="mono" style="font-size:13px; font-weight:700;">${r.id || '—'}</span>
+        <span class="mono" style="font-size:13px; font-weight:700;">${r.id || '-'}</span>
         <button class="mini-btn" title="${t('dcard.copyId')}" style="padding:4px 7px; display:inline-flex; align-items:center;" onclick="event.stopPropagation(); copyDeploymentId('${r.id||''}')">${COPY_ICON}</button>
         <span style="font-size:13px; font-weight:600;">${escapeHtml(deploymentTitle(r))}</span>
         ${packageIdChipHtml(r)}
@@ -14963,7 +15209,7 @@
     const prev = d.assignedTo || null;
     d.assignedTo = name || null;
     if((prev || '') !== (d.assignedTo || '')){
-      logAudit('changed','Deployment','Assigned deployer: ' + (name||'—') + ' to ' + (d.id||''), (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.assigned', {name: name||'—', id: d.id||''});
+      logAudit('changed','Deployment','Assigned deployer: ' + (name||'-') + ' to ' + (d.id||''), (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.assigned', {name: name||'-', id: d.id||''});
       // Also record it on the deployment timeline so the assignment is visible
       // there (not only in the global audit log).
       const _s = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'};
@@ -14976,7 +15222,7 @@
         + (name ? tnf('notif.assignedBody', {who: name, id: d.id||''}) : tnf('notif.unassignedBody', {id: d.id||''}))
         + '\n' + tnf('notif.changedBy', {who: actorName()});
       dispatchEventNotification('assigned', d.projectKey,
-        'RollDesk — ' + tn('ev.assigned') + ' (' + envLabelNotif(d.env||'') + ')', body, false, d.id);
+        'RollDesk - ' + tn('ev.assigned') + ' (' + envLabelNotif(d.env||'') + ')', body, false, d.id);
     }
     persistDeployment(idx);
     // Update just the assignee select(s) — a full re-render here would wipe any
@@ -15224,7 +15470,7 @@
         const endIso = getDateForDay(r, r.days);
         parts.push(`${t('rep.distStart')}: <strong>${fmtDow(startIso)}, ${fmtDate(startIso)}</strong> · ${tf('rep.planMeta', {days: r.days, end: fmtDate(endIso), n: r.totalLocations})}`);
       } else {
-        parts.push(`${t('rep.startLabel')}: <strong>${r.date ? (fmtDow(r.date) + ', ' + fmtDate(r.date)) : '—'}</strong>${r.time ? ' ' + tf('rep.atTime', {t: r.time}) : ''}`);
+        parts.push(`${t('rep.startLabel')}: <strong>${r.date ? (fmtDow(r.date) + ', ' + fmtDate(r.date)) : '-'}</strong>${r.time ? ' ' + tf('rep.atTime', {t: r.time}) : ''}`);
       }
     } else if(kind === 'paused' || kind === 'active'){
       if(r.mode === 'batch'){
@@ -15314,10 +15560,10 @@
     if(r.mode === 'batch'){
       const start = getDateForDay(r, 1);
       const end = getDateForDay(r, r.days);
-      if(start && end && start !== end) return fmtDate(start) + ' – ' + fmtDate(end);
-      return r.dateRange || fmtDate(start || r.historyStart || r.createdDate) || '—';
+      if(start && end && start !== end) return fmtDate(start) + ' - ' + fmtDate(end);
+      return r.dateRange || fmtDate(start || r.historyStart || r.createdDate) || '-';
     }
-    return fmtDate(r.date || r.createdDate) || '—';
+    return fmtDate(r.date || r.createdDate) || '-';
   }
 
   function installerProgressCellHtml(r){
@@ -15327,7 +15573,7 @@
       const isDone = r.counts.scheduled === 0;
       let extra = '';
       if(r.paused){
-        extra = `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' — ' + escapeHtml(r.pauseReason) : ''}</div>`;
+        extra = `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' - ' + escapeHtml(r.pauseReason) : ''}</div>`;
       } else if(failedN){
         extra = `<div style="font-size:10.5px; color:#A81E1E; margin-top:3px;">⚠ ${tf('dep.toFinishN', {n: failedN})}</div>`;
       } else if(isDone){
@@ -15375,14 +15621,14 @@
       return `<td><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--green-soft); color:#0F7A38;">✓ ${t('rep.clientApproved')}</span></td>`;
     }
     if(r.env && r.env !== 'Production' && !r.clientApproval){
-      return `<td><span class="mono" style="font-size:10.5px; padding:2px 9px; border-radius:20px; background:var(--cyan-soft); color:var(--cyan);" title="${escapeHtml(t('rep.testNoApprovalNeeded'))}">ŚT — ${t('rep.testNoApprovalNeeded')}</span></td>`;
+      return `<td><span class="mono" style="font-size:10.5px; padding:2px 9px; border-radius:20px; background:var(--cyan-soft); color:var(--cyan);" title="${escapeHtml(t('rep.testNoApprovalNeeded'))}">ŚT - ${t('rep.testNoApprovalNeeded')}</span></td>`;
     }
     // An internal production rollout waits for nobody: say that rather than
     // leaving a dash the deployer reads as "the approval has not arrived yet".
     if(!approvalExpectedFor(r)){
       return `<td><span class="mono" style="font-size:10.5px; padding:2px 9px; border-radius:20px; background:var(--cyan-soft); color:var(--cyan);" title="${escapeHtml(t('dep.aNotRequiredTip'))}">${t('dep.aNotRequired')}</span></td>`;
     }
-    return `<td style="color:var(--text-faint); font-size:12px;">—</td>`;
+    return `<td style="color:var(--text-faint); font-size:12px;">-</td>`;
   }
 
   function installerTableRowHtml(r, kind){
@@ -15393,7 +15639,7 @@
     if(r.mode === 'batch'){
       cells.push(`<td>${tf('rep.locationsN', {n: r.totalLocations})} <span style="color:var(--text-faint);">· ${tf('notif.daysN', {n: r.days})}</span></td>`);
     } else {
-      cells.push(`<td>${escapeHtml(r.location||'—')}</td>`);
+      cells.push(`<td>${escapeHtml(r.location||'-')}</td>`);
     }
     cells.push(`<td>${envTagHtml(r.env)}</td>`);
     cells.push(`<td class="mono">${installerDateLabel(r)}<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(r.time)}</div></td>`);
@@ -15409,7 +15655,7 @@
   function installerDetailBodyHtml(r, kind){
     if(kind === 'paused'){
       return `${installerActionChromeHtml(r, {showSchedule:false, showComment:false, showTimeline:false})}
-        <div style="font-size:12px; color:var(--text-muted);">${t('dcard.reason')}: ${r.pauseReason ? '„'+escapeHtml(r.pauseReason)+'”' : '—'}</div>
+        <div style="font-size:12px; color:var(--text-muted);">${t('dcard.reason')}: ${r.pauseReason ? '„'+escapeHtml(r.pauseReason)+'”' : '-'}</div>
         <div style="font-size:11.5px; color:var(--text-faint); margin-top:4px;">${t('pause.resumedByRM')}</div>`;
     }
     if(kind === 'waiting'){
@@ -15614,7 +15860,7 @@
       const c = appCoverage(a, r);
       const late = appJoinedAt(a);
       return `<div style="display:flex; gap:8px; align-items:baseline; font-size:12px;">
-        <span style="min-width:140px;">${escapeHtml(a.name || '—')}</span>
+        <span style="min-width:140px;">${escapeHtml(a.name || '-')}</span>
         <span class="mono" style="font-weight:700;">${c.installed}/${c.planned}</span>
         ${late ? `<span style="font-size:11px; color:#8A5A05;">${tf('rep.appJoinedDay', {day: late.day, n: late.installed})}</span>` : ''}
       </div>`;
@@ -15755,7 +16001,7 @@
       return `<div style="font-size:12px;">
         <div style="display:flex; gap:8px; align-items:baseline;">
           <span style="min-width:16px; color:${ok ? '#0F7A38' : '#A81E1E'};">${ok ? '✓' : '✕'}</span>
-          <span style="min-width:140px;">${escapeHtml(x.name || '—')}</span>
+          <span style="min-width:140px;">${escapeHtml(x.name || '-')}</span>
           ${x.reason ? `<span style="font-size:11px; color:var(--text-muted);">${escapeHtml(x.reason)}</span>` : ''}
         </div>
         ${svcLine}
@@ -15986,7 +16232,7 @@
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
     const statusTxt = statusLabelNotif(targetStatus);
     let body = notifHeader(d, projName)
-      + '\n' + tnf('notif.correctionBody', {loc: loc || d.location || '—', status: statusTxt})
+      + '\n' + tnf('notif.correctionBody', {loc: loc || d.location || '-', status: statusTxt})
       + '\n' + tn('dcard.reason') + ': ' + reason
       + '\n' + tnf('notif.changedBy', {who: actorName()});
     if(d.mode === 'batch' && d.counts){
@@ -15996,7 +16242,7 @@
       });
     }
     dispatchEventNotification('correction', d.projectKey,
-      'RollDesk — ' + tn('ev.correction') + ': ' + statusTxt + ' (' + envLabelNotif(d.env||'') + ')',
+      'RollDesk - ' + tn('ev.correction') + ': ' + statusTxt + ' (' + envLabelNotif(d.env||'') + ')',
       body, true, d.id);
   }
 
@@ -16042,8 +16288,8 @@
       if(!d.history.some(h=>h.location === loc)){ d.history.push({location: loc, date: d.historyStart, time: d.time}); d.counts.installed += 1; }
       d.comments = d.comments || [];
       const _cs = nowStamp();
-      d.comments.push({date:_cs.date, time:_cs.time, author: actorName(), type:'system', icon:'✅', text:'Correction (→ successful): „' + loc + '” — ' + reason});
-      logAudit('changed','Deployment','Correction (→ successful) ' + (d.id||'') + ' — ' + loc + ': ' + reason,
+      d.comments.push({date:_cs.date, time:_cs.time, author: actorName(), type:'system', icon:'✅', text:'Correction (→ successful): „' + loc + '” - ' + reason});
+      logAudit('changed','Deployment','Correction (→ successful) ' + (d.id||'') + ' - ' + loc + ': ' + reason,
         (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.corrSuccess', {id: d.id||'', loc, reason});
       persistDeployment(idx);
       renderInstallerPanel();
@@ -16072,8 +16318,8 @@
     }
     d.comments = d.comments || [];
     const _cf = nowStamp();
-    d.comments.push({date:_cf.date, time:_cf.time, author: actorName(), type:'system', icon:'⚠️', text:'Correction (→ failed): „' + loc + '” — ' + reason});
-    logAudit('changed','Deployment','Correction (→ failed) ' + (d.id||'') + ' — ' + loc + ': ' + reason,
+    d.comments.push({date:_cf.date, time:_cf.time, author: actorName(), type:'system', icon:'⚠️', text:'Correction (→ failed): „' + loc + '” - ' + reason});
+    logAudit('changed','Deployment','Correction (→ failed) ' + (d.id||'') + ' - ' + loc + ': ' + reason,
       (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.corrFailed', {id: d.id||'', loc, reason});
     persistDeployment(idx);
     renderInstallerPanel();
@@ -16099,11 +16345,11 @@
     logAudit('changed','Deployment','Correction (→ ' + label + ') ' + (d.id||'') + ': ' + reason,
       (PROJECTS[d.projectKey]||{}).name || d.projectKey,
       targetStatus === 'installed' ? 'aud.d.corrSuccess' : 'aud.d.corrFailed',
-      {id: d.id||'', loc: d.location || '—', reason});
+      {id: d.id||'', loc: d.location || '-', reason});
     persistDeployment(idx);
     renderInstallerPanel();
     renderDeploymentsTable();
-    showToast('Correction saved — marked as ' + label);
+    showToast('Correction saved - marked as ' + label);
     notifyCorrection(d, d.location, targetStatus, reason);
   }
 
@@ -16127,10 +16373,10 @@
         persistDeployment(idx);
         renderInstallerPanel();
         renderDeploymentsTable();
-        showToast('Marked as failed — moved to completed, notification sent to the release manager');
+        showToast('Marked as failed - moved to completed, notification sent to the release manager');
         highlightInstallerCard(idx);
         const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
-        dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + tn('ev.failure') + ' (' + envLabelNotif(d.env||'') + ')',
+        dispatchEventNotification('failure', d.projectKey, 'RollDesk - ' + tn('ev.failure') + ' (' + envLabelNotif(d.env||'') + ')',
           notifHeader(d, projName) + '\n' + reason + '\n' + tnf('notif.reportedByManual', {who}), true, d.id);
       }, t('rep.failureReason'), true);
       return;
@@ -16142,7 +16388,7 @@
     persistDeployment(idx);
     renderInstallerPanel();
     renderDeploymentsTable();
-    showToast('Marked as installed — moved to completed');
+    showToast('Marked as installed - moved to completed');
     highlightInstallerCard(idx);
     // Real post-deployment notification: project e-mail + client webhooks that
     // subscribe to "completed". Stays silent when nothing is configured.
@@ -16152,7 +16398,7 @@
     // so the recipient could not tell success from failure without opening it.
     const doneStatus = statusLabelNotif(d.status);
     dispatchEventNotification('completed', d.projectKey,
-      'RollDesk — ' + tn('ev.completed') + ': ' + doneStatus + ' (' + envLabelNotif(d.env||'') + ')',
+      'RollDesk - ' + tn('ev.completed') + ': ' + doneStatus + ' (' + envLabelNotif(d.env||'') + ')',
       notifHeader(d, projName)
       + '\n' + tn('notif.statusLine') + ': ' + doneStatus
       + ' · ' + tnf('notif.reportedByManual', {who}), true, d.id);
@@ -16243,7 +16489,7 @@
       text: failedNames.length
         ? (svcCounted
             ? tf('dtl.svcReportPartial', {done: counted.done, total: counted.total})
-            : tf('dtl.appReportPartial', {done: okNames.length, total: names.length, installed: okNames.join(', ') || '—', failed: failedNames.join(', ')}))
+            : tf('dtl.appReportPartial', {done: okNames.length, total: names.length, installed: okNames.join(', ') || '-', failed: failedNames.join(', ')}))
         : (svcCounted
             ? tf('dtl.svcReportAll', {n: counted.total})
             : tf('dtl.appReportAll', {n: names.length}))});
@@ -16260,7 +16506,7 @@
 
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
     logAudit('changed', 'Deployment',
-      'Reported ' + (d.id||'') + ' — ' + counted.done + '/' + counted.total
+      'Reported ' + (d.id||'') + ' - ' + counted.done + '/' + counted.total
         + (svcCounted ? ' services' : ' applications') + ' installed',
       projName, svcCounted ? 'aud.d.svcReport' : 'aud.d.appReport',
       {id: d.id||'', done: counted.done, total: counted.total});
@@ -16293,7 +16539,7 @@
     body += '\n' + tnf('notif.reportedByManual', {who});
     const eventKey = failedNames.length ? 'failure' : 'completed';
     dispatchEventNotification(eventKey, d.projectKey,
-      'RollDesk — ' + tn(eventKey === 'failure' ? 'ev.failure' : 'ev.completed')
+      'RollDesk - ' + tn(eventKey === 'failure' ? 'ev.failure' : 'ev.completed')
         + ': ' + doneStatus + ' (' + envLabelNotif(d.env||'') + ')', body, true, d.id);
   }
 
@@ -16531,7 +16777,7 @@
     if(failedList.length){
       d.failedLocations = d.failedLocations || [];
       failedList.forEach(loc=>{
-        const entry = {location: loc, date: dateStr, time: d.time, reportedDate: rep.date, reportedTime: rep.time, reason: reason || '—'};
+        const entry = {location: loc, date: dateStr, time: d.time, reportedDate: rep.date, reportedTime: rep.time, reason: reason || '-'};
         // Absent means "everything failed here", so only a genuine subset is stored.
         const failedHere = failedAppsByLoc.get(loc);
         if(failedHere) entry.failedApps = failedHere;
@@ -16540,7 +16786,7 @@
       // Permanent failure-reason entry per location — survives later success and
       // any force-complete (unlike d.failedLocations, which drives the counter).
       d.comments.push({date: rep.date, time: rep.time, author: who, type:'system', icon:'⚠️',
-        text: tf('dtl.failReasonLoc', {locations: failedList.join(', '), reason: reason || '—'})});
+        text: tf('dtl.failReasonLoc', {locations: failedList.join(', '), reason: reason || '-'})});
       // A partial install per target is its own line: which applications are still
       // owed where is the whole content of the return visit, and it would otherwise
       // live only inside the record.
@@ -16598,7 +16844,7 @@
         body += '\n' + tn('notif.nextLabel') + ': '
           + tnf('notif.nextDay', {day: nextDay, date: fmtDateDowNotif(getDateForDay(d, nextDay)), n: d.counts.scheduled});
       }
-      dispatchEventNotification('dayReport', d.projectKey, 'RollDesk — ' + tn('ev.dayReport') + ' (' + envLabelNotif(d.env||'') + ')', body + byLine, true, d.id);
+      dispatchEventNotification('dayReport', d.projectKey, 'RollDesk - ' + tn('ev.dayReport') + ' (' + envLabelNotif(d.env||'') + ')', body + byLine, true, d.id);
       // Guarantee a failure notification via the standard "failure" event too —
       // clients subscribe to it by default, unlike the newer per-day event.
       if(failedList.length){
@@ -16608,11 +16854,11 @@
           fbody += '\n' + tnf('notif.failedPartialApps', {location: loc, failed: failedHere.join(', ')});
         });
         if(reason) fbody += '\n' + tn('rep.correctionReason') + ': ' + reason;
-        dispatchEventNotification('failure', d.projectKey, 'RollDesk — ' + tn('ev.failure') + ' (' + envLabelNotif(d.env||'') + ')', fbody + byLine, true, d.id);
+        dispatchEventNotification('failure', d.projectKey, 'RollDesk - ' + tn('ev.failure') + ' (' + envLabelNotif(d.env||'') + ')', fbody + byLine, true, d.id);
       }
     }
     renderInstallerPanel();
-    showToast(successList.length + ' installed' + (failedList.length ? `, ${failedList.length} reported as failed — carried over to the next day` : ''));
+    showToast(successList.length + ' installed' + (failedList.length ? `, ${failedList.length} reported as failed - carried over to the next day` : ''));
     if(scope === 'i'){
       const card = document.getElementById('installer-card-' + idx);
       if(card) card.scrollIntoView({behavior:'smooth', block:'center'});
@@ -16736,7 +16982,7 @@
       + tnf('notif.locMovedBody', {loc: code, from: fromDay, to: toDay, date: fmtDateDowNotif(toDate)})
       + '\n' + tnf('notif.changedBy', {who});
     dispatchEventNotification('scheduleChanged', d.projectKey,
-      'RollDesk — ' + tn('ev.scheduleChanged') + ' (' + envLabelNotif(d.env||'') + ')', body, false, d.id);
+      'RollDesk - ' + tn('ev.scheduleChanged') + ' (' + envLabelNotif(d.env||'') + ')', body, false, d.id);
   }
 
   function moveBatchQueueLocation(batchIdx, queueIdx, where){
@@ -16896,7 +17142,7 @@
     // channel only — the note is a working remark, not a client-facing update.
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
     dispatchEventNotification('comment', d.projectKey,
-      'RollDesk — ' + tn('ev.comment') + ' (' + envLabelNotif(d.env||'') + ')',
+      'RollDesk - ' + tn('ev.comment') + ' (' + envLabelNotif(d.env||'') + ')',
       notifHeader(d, projName) + '\n' + tnf('notif.commentBy', {who: author}) + '\n' + text,
       false, d.id);
   }
@@ -17166,7 +17412,7 @@
     const pkgLink = packageIdChipHtml(r);
     const idHtml = `
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; background:var(--paper-alt, #fff); border:1px solid var(--line); border-radius:8px;">
-        <span class="mono" style="font-size:13px; font-weight:700;">${r.id || '—'}</span>
+        <span class="mono" style="font-size:13px; font-weight:700;">${r.id || '-'}</span>
         <button class="mini-btn" title="${t('dcard.copyId')}" style="padding:4px 7px; display:inline-flex; align-items:center;" onclick="event.stopPropagation(); copyDeploymentId('${r.id||''}')">${COPY_ICON}</button>
         ${r.draft ? `<span class="mono" style="font-size:9.5px; font-weight:700; padding:1px 7px; border-radius:20px; background:#FDF1E1; color:#8A5A05;">📝 ${t('draft.badge')}</span>` : ''}
         ${pkgLink}
@@ -17193,7 +17439,7 @@
         <span class="alert-ic" aria-hidden="true">⏸</span>
         <div class="alert-body">
           <div class="alert-title">${t('dcard.paused')}</div>
-          <div>${t('dcard.reason')}: ${r.pauseReason ? '„'+escapeHtml(r.pauseReason)+'”' : '—'}</div>
+          <div>${t('dcard.reason')}: ${r.pauseReason ? '„'+escapeHtml(r.pauseReason)+'”' : '-'}</div>
           ${r.pausedBy ? `<div style="opacity:0.8; margin-top:2px;">${t('dcard.pausedBy')}: <strong>${escapeHtml(r.pausedBy)}</strong>${r.pausedAt ? ' · ' + escapeHtml(r.pausedAt) : ''}</div>` : ''}
         </div>
       </div>`;
@@ -17362,7 +17608,7 @@
       if(r.draft && !r.clientApproval){
         return `<td onclick="event.stopPropagation();"><span class="mono" style="font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; background:#FDF1E1; color:#8A5A05;" title="${escapeHtml(t('draft.notSentTip'))}">📝 ${t('draft.badge')}</span></td>`;
       }
-      if(r.env !== 'Production' && !r.clientApproval) return '<td style="color:var(--text-faint); font-size:12px;">—</td>';
+      if(r.env !== 'Production' && !r.clientApproval) return '<td style="color:var(--text-faint); font-size:12px;">-</td>';
       // Nothing to decide: say so instead of offering a select that defaults to
       // "awaiting approval" — that reading is what pushed people into recording an
       // approval the client was never asked for.
@@ -17425,7 +17671,7 @@
         const isDone = r.counts.scheduled === 0;
         let progressExtra = '';
         if(r.paused){
-          progressExtra = `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' — ' + r.pauseReason : ''}</div>`;
+          progressExtra = `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' - ' + r.pauseReason : ''}</div>`;
         } else if(failedN){
           progressExtra = `<div style="font-size:10.5px; color:#A81E1E; margin-top:3px;">⚠ ${tf('dep.toFinishN', {n: failedN})}</div>`;
         } else if(isDone){
@@ -17467,7 +17713,7 @@
         cells.push(`<td class="mono">${fmtDate(r.date)}<div style="font-size:11px; color:var(--text-faint); margin-top:2px;">${fmtTime(r.time)}</div></td>`);
         cells.push(`<td onclick="event.stopPropagation();"><select onchange="changeDeploymentStatus(${r.idx}, this.value)" class="mono" style="border:1px solid var(--line); border-radius:20px; padding:3px 8px; font-size:11.5px; font-weight:600; background:${bgs[r.status]}; color:${colors[r.status]};">
           ${statusOptions.map(s=>`<option value="${s}" ${s===r.status?'selected':''}>${statusLabel[s]}</option>`).join('')}
-        </select>${r.paused ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' — ' + r.pauseReason : ''}</div>` : ''}</td>`);
+        </select>${r.paused ? `<div style="font-size:10.5px; color:#8A5A05; margin-top:3px; font-weight:700;">⏸ ${t('pause.badge')}${r.pauseReason ? ' - ' + r.pauseReason : ''}</div>` : ''}</td>`);
         cells.push(approvalBadgeHtml(r));
         cells.push(`<td style="white-space:nowrap; text-align:right;" onclick="event.stopPropagation();"><button class="mini-btn icon-btn" onclick="toggleEditDeployment(${r.idx})"><span class="mb-ic">✎</span> ${t('usr.edit')}</button></td>`);
         html += `<tr data-idx="${r.idx}" class="deploy-row" onclick="if(rowClickIsSelection())return; toggleDeploymentDetails(${r.idx})" style="cursor:pointer;">` + cells.join('') + '</tr>';
@@ -17555,7 +17801,7 @@
     const body = notifHeader(d, projName)
       + '\n' + tn('notif.statusLine') + ': ' + tn('status.installed');
     dispatchEventNotification('completed', d.projectKey,
-      'RollDesk — ' + tn('ev.completed') + ': ' + tn('status.installed') + ' (' + envLabelNotif(d.env||'') + ')', body, true, d.id);
+      'RollDesk - ' + tn('ev.completed') + ': ' + tn('status.installed') + ' (' + envLabelNotif(d.env||'') + ')', body, true, d.id);
     showToast(tf('dcard.statusChangedToast', {status: t('status.installed')}));
   }
 
@@ -17578,8 +17824,8 @@
     // and in the audit log (editing a single deployment previously left no trace).
     const changes = [];
     if(envEl && envEl.value !== d.env){ changes.push('environment ' + envLabel(d.env) + ' → ' + envLabel(envEl.value)); d.env = envEl.value; }
-    if(newDate && newDate !== d.date){ changes.push('date ' + (d.date||'—') + ' → ' + newDate); d.date = newDate; }
-    if(newTime && newTime !== d.time){ changes.push('time ' + (d.time||'—') + ' → ' + newTime); d.time = newTime; }
+    if(newDate && newDate !== d.date){ changes.push('date ' + (d.date||'-') + ' → ' + newDate); d.date = newDate; }
+    if(newTime && newTime !== d.time){ changes.push('time ' + (d.time||'-') + ' → ' + newTime); d.time = newTime; }
     editingDeployIdx = null;
     if(changes.length){
       const _s = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
@@ -17587,7 +17833,7 @@
       const summary = changes.join(', ');
       d.comments = d.comments || [];
       d.comments.push({date:_s.date, time:_s.time, author: who, type:'system', icon:'📅', text:'Deployment changed (' + summary + ')'});
-      logAudit('changed','Deployment','Changed deployment ' + (d.id||'') + ' — ' + summary, (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.depChanged', {id: d.id||'', summary});
+      logAudit('changed','Deployment','Changed deployment ' + (d.id||'') + ' - ' + summary, (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.depChanged', {id: d.id||'', summary});
     }
     persistDeployment(idx);
     renderDeploymentsTable();
@@ -17617,7 +17863,7 @@
       + '\n' + tn('notif.statusLine') + ': ' + notifStatus;
     const eventKey = (newStatus === 'installed') ? 'completed' : (newStatus === 'failed' ? 'failure' : 'completed');
     dispatchEventNotification(eventKey, d.projectKey,
-      'RollDesk — ' + tn(eventKey === 'failure' ? 'ev.failure' : 'ev.completed')
+      'RollDesk - ' + tn(eventKey === 'failure' ? 'ev.failure' : 'ev.completed')
         + ': ' + notifStatus + ' (' + envLabelNotif(d.env||'') + ')', statusBody, true, d.id);
     showToast(tf('dcard.statusChangedToast', {status: labels[newStatus]||newStatus}));
   }
@@ -17646,14 +17892,14 @@
           if(client && client.domain && (email.split('@')[1] || '').toLowerCase() !== client.domain.toLowerCase()){
             showToast('The e-mail must be from the domain „' + client.domain + '”'); return;
           }
-          if(!API_CONNECTED){ showToast('Not connected to the backend — cannot create an account'); return; }
+          if(!API_CONNECTED){ showToast('Not connected to the backend - cannot create an account'); return; }
           try {
             const existing = USERS.find(u => (u.email || '').toLowerCase() === email.toLowerCase());
             if(existing){
               const projs = Array.from(new Set([...(existing.projects||[]), projectKey]));
               await apiUpdateUser(existing.id, {name: existing.name, role: existing.role, projects: projs, clientKey: existing.clientKey || (client && client.key) || null});
               await loadUsers();
-              showToast('„' + name + '” already had an account — access to „' + p.name + '” was granted');
+              showToast('„' + name + '” already had an account - access to „' + p.name + '” was granted');
             } else {
               const created = await apiCreateUser({name, email, role:'client', projects:[projectKey], clientKey: (client && client.key) || null});
               logAudit('added', 'User', 'Added client account „' + name + '” from a deployment approval', p.name + ' (' + clientLabel + ')', 'aud.d.clientAccountAdded', {name});
@@ -17687,18 +17933,18 @@
         const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
         const projLabel = projName + ((PROJECTS[d.projectKey]||{}).clientName ? ' (' + (PROJECTS[d.projectKey]||{}).clientName + ')' : '');
         if(newStatus === 'approved'){
-          logAudit('changed', 'Deployment', 'The client approved the schedule ' + (d.id||'') + ' — ' + who, projLabel, 'aud.d.clientApproved', {id: d.id||'', by: who});
+          logAudit('changed', 'Deployment', 'The client approved the schedule ' + (d.id||'') + ' - ' + who, projLabel, 'aud.d.clientApproved', {id: d.id||'', by: who});
           // Announce it on the internal channel. An approval recorded here by the
           // RM (client agreed by phone / e-mail) reached nobody, while the same
           // approval clicked in the client portal did — so whether the team heard
           // about it depended on which door the decision came through.
           // Internal only: no client e-mail for a decision the client just made.
           dispatchEventNotification('scheduleApproved', d.projectKey,
-            'RollDesk — ' + tn('ev.scheduleApproved') + ' (' + envLabelNotif(d.env||'') + ')',
+            'RollDesk - ' + tn('ev.scheduleApproved') + ' (' + envLabelNotif(d.env||'') + ')',
             notifHeader(d, projName) + '\n' + tn('dep.aApproved') + ' · ' + tnf('notif.approvedBy', {who}),
             false, d.id);
         } else {
-          logAudit('changed', 'Deployment', 'Client decision on ' + (d.id||'') + ': ' + labels[newStatus] + ' — ' + who, projLabel, 'aud.d.clientDecision', {id: d.id||'', status: labels[newStatus], by: who});
+          logAudit('changed', 'Deployment', 'Client decision on ' + (d.id||'') + ': ' + labels[newStatus] + ' - ' + who, projLabel, 'aud.d.clientDecision', {id: d.id||'', status: labels[newStatus], by: who});
         }
         persistDeployment(idx);
         renderDeploymentsTable();
@@ -17748,8 +17994,8 @@
         const projLabel = projName + ((PROJECTS[d.projectKey]||{}).clientName ? ' (' + (PROJECTS[d.projectKey]||{}).clientName + ')' : '');
         const prevLabel = labels[prevStatus] || prevStatus;
         logAudit('changed', 'Deployment',
-          'Withdrew the client decision on ' + (d.id||'') + ' (was: ' + prevLabel + (who ? ' — ' + who : '') + ')',
-          projLabel, 'aud.d.approvalCleared', {id: d.id||'', prev: prevLabel, by: who ? ' — ' + who : ''});
+          'Withdrew the client decision on ' + (d.id||'') + ' (was: ' + prevLabel + (who ? ' - ' + who : '') + ')',
+          projLabel, 'aud.d.approvalCleared', {id: d.id||'', prev: prevLabel, by: who ? ' - ' + who : ''});
         const stamp = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'};
         d.comments = d.comments || [];
         d.comments.push({date:stamp.date, time:stamp.time, author: actorName(), type:'system', icon:'↩️',
@@ -17770,14 +18016,14 @@
     const d = DEPLOYMENTS_DATA[idx];
     if(!d) return;
     const label = (d.apps||[]).map(a=>a.name+' v'+a.version).join(', ') || d.id || '';
-    showAppConfirm(t('dcard.deleteTitle') + (d.id ? ' — ' + d.id : ''), t('dcard.deleteBody'), async ()=>{
+    showAppConfirm(t('dcard.deleteTitle') + (d.id ? ' - ' + d.id : ''), t('dcard.deleteBody'), async ()=>{
       try {
         if(API_CONNECTED && d.id) await apiDeleteDeployment(d.id);
       } catch(e){ showToast('⚠ ' + (e.message || 'Could not delete the deployment')); return; }
       const pos = DEPLOYMENTS_DATA.indexOf(d);
       if(pos >= 0) DEPLOYMENTS_DATA.splice(pos, 1);
       if(expandedBatchIdx === idx) expandedBatchIdx = null;
-      logAudit('removed', 'Deployment', 'Deleted deployment ' + (d.id||'') + (label ? ' — ' + label : ''), (PROJECTS[d.projectKey]||{}).name || d.projectKey, label ? 'aud.d.depDeleted' : 'aud.d.depDeletedNoLabel', {id: d.id||'', label});
+      logAudit('removed', 'Deployment', 'Deleted deployment ' + (d.id||'') + (label ? ' - ' + label : ''), (PROJECTS[d.projectKey]||{}).name || d.projectKey, label ? 'aud.d.depDeleted' : 'aud.d.depDeletedNoLabel', {id: d.id||'', label});
       renderDeploymentsTable();
       renderInstallerPanel();
       showToast(tf('dcard.deleted', {id: d.id || ''}));
@@ -17798,14 +18044,14 @@
       d.pausedAt = _sp.date + ' ' + _sp.time;
       d.comments = d.comments || [];
       d.comments.push({date:_sp.date, time:_sp.time, author: who, type:'system', icon:'⏸', text: tf('pause.systemComment', {reason: trimmed}) });
-      logAudit('changed', 'Deployment', 'Paused deployment ' + (d.id||'') + ' — ' + trimmed, (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.depPaused', {id: d.id||'', reason: trimmed});
+      logAudit('changed', 'Deployment', 'Paused deployment ' + (d.id||'') + ' - ' + trimmed, (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.depPaused', {id: d.id||'', reason: trimmed});
       // Notify the client and defined recipients about the pause.
       const clientSees = !d.internal && !(PROJECTS[d.projectKey] && PROJECTS[d.projectKey].clientVisible === false);
-      logAudit('notified', 'Notification', 'Pause ' + (d.id||'') + ' — recipients: ' + notifySummary('paused', d.projectKey, clientSees), (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.notifyPause', {id: d.id||'', recipients: notifySummary('paused', d.projectKey, clientSees)});
+      logAudit('notified', 'Notification', 'Pause ' + (d.id||'') + ' - recipients: ' + notifySummary('paused', d.projectKey, clientSees), (PROJECTS[d.projectKey]||{}).name || d.projectKey, 'aud.d.notifyPause', {id: d.id||'', recipients: notifySummary('paused', d.projectKey, clientSees)});
       const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
       dispatchEventNotification('paused', d.projectKey,
-        'RollDesk — ' + tn('ev.paused'),
-        (d.id ? d.id + ' — ' : '') + projName + '\n' + trimmed, false, d.id);
+        'RollDesk - ' + tn('ev.paused'),
+        (d.id ? d.id + ' - ' : '') + projName + '\n' + trimmed, false, d.id);
       persistDeployment(idx);
       renderDeploymentsTable();
       renderInstallerPanel();
@@ -17841,7 +18087,7 @@
       d.comments.push({date:_rr.date, time:_rr.time, author: actorName(), text:'Reply to the client comment: ' + d.clientReply});
       persistDeployment(idx);
       renderDeploymentsTable();
-      showToast('Reply saved — notification sent to the client');
+      showToast('Reply saved - notification sent to the client');
     }, tf('dcard.replySub', {comment: d.clientComment || ''}));
   }
 
@@ -17870,7 +18116,7 @@
     const projName = (PROJECTS[d.projectKey]||{}).name || d.projectKey;
     const total = d.totalLocations || d.counts.installed;
     dispatchEventNotification('completed', d.projectKey,
-      'RollDesk — ' + tn('ev.completed') + ': ' + statusLabelNotif('installed') + ' (' + envLabelNotif(d.env||'') + ')',
+      'RollDesk - ' + tn('ev.completed') + ': ' + statusLabelNotif('installed') + ' (' + envLabelNotif(d.env||'') + ')',
       notifHeader(d, projName)
       + '\n' + tn('notif.statusLine') + ': ' + statusLabelNotif('installed')
       + ' · ' + tnf('notif.progressLine', {done: d.counts.installed, total, left: 0})
@@ -17995,7 +18241,7 @@
       showToast(t('auth.invitePwSet'));
       checkAuthStatus();
     } catch(e){
-      authError('invite-error', 'Backend unavailable — please try again.');
+      authError('invite-error', 'Backend unavailable - please try again.');
       btn.disabled = false;
     }
   }
@@ -18078,9 +18324,9 @@
       document.getElementById('login-email').value = email;
       document.getElementById('login-password').value = '';
       document.getElementById('login-password').focus();
-      showToast('Admin account created — please sign in');
+      showToast('Admin account created - please sign in');
     } catch(err){
-      authError('setup-error', 'Backend unavailable — please try again.');
+      authError('setup-error', 'Backend unavailable - please try again.');
     } finally { btn.disabled = false; }
   }
 
@@ -18159,7 +18405,7 @@
         document.getElementById('mfa-login-code').focus();
       }
     } catch(err){
-      authError('login-error', 'Backend unavailable — please try again.');
+      authError('login-error', 'Backend unavailable - please try again.');
     } finally { btn.disabled = false; }
   }
 
@@ -18178,7 +18424,7 @@
       document.getElementById('mfa-enroll-code').focus();
     } catch(err){
       showLoginPanel();
-      authError('login-error', 'Backend unavailable — please try again.');
+      authError('login-error', 'Backend unavailable - please try again.');
     }
   }
 
@@ -18192,7 +18438,7 @@
       if(!r.ok){ authError('mfa-enroll-error', r.data.error || 'Invalid code.'); return; }
       await onAuthenticated(r.data.token);
     } catch(err){
-      authError('mfa-enroll-error', 'Backend unavailable — please try again.');
+      authError('mfa-enroll-error', 'Backend unavailable - please try again.');
     } finally { btn.disabled = false; }
   }
 
@@ -18206,7 +18452,7 @@
       if(!r.ok){ authError('mfa-login-error', r.data.error || 'Invalid code.'); return; }
       await onAuthenticated(r.data.token);
     } catch(err){
-      authError('mfa-login-error', 'Backend unavailable — please try again.');
+      authError('mfa-login-error', 'Backend unavailable - please try again.');
     } finally { btn.disabled = false; }
   }
 
@@ -18224,7 +18470,7 @@
     } catch(e){}
     await loadLoginHistory();
     hideLoginScreen();
-    showToast('Signed in — welcome to RollDesk');
+    showToast('Signed in - welcome to RollDesk');
     await initApiConnection();
   }
 
@@ -18292,7 +18538,7 @@
     if(!checks.lower) missing.push('lowercase letter');
     if(!checks.digit) missing.push('digit');
     if(!checks.special) missing.push('special character');
-    const message = 'The password must be stronger — missing: ' + missing.join(', ') + '.';
+    const message = 'The password must be stronger - missing: ' + missing.join(', ') + '.';
     return {strong, level, label, color, checks, message};
   }
   function updatePasswordStrength(inputId, meterId){
@@ -18306,7 +18552,7 @@
       <div style="height:5px; background:var(--line); border-radius:20px; overflow:hidden;">
         <div style="height:100%; width:${widths[s.level]||'0'}; background:${s.color}; transition:width .2s;"></div>
       </div>
-      <div style="font-size:11px; color:${s.color}; margin-top:4px;">${s.label}${s.strong ? '' : (pw.length ? ' — ' + s.message.replace('The password must be stronger — m','M') : '')}</div>`;
+      <div style="font-size:11px; color:${s.color}; margin-top:4px;">${s.label}${s.strong ? '' : (pw.length ? ' - ' + s.message.replace('The password must be stronger - m','M') : '')}</div>`;
   }
   function changePassword(){
     const cur = document.getElementById('chg-current-pass').value;

@@ -6,7 +6,7 @@ import {
   appLinkText, appLinkHtml, appLinkSlack, appLinkCardAction, bodyToHtml,
   bodyToCardText, hasAppLink, isUsableAppUrl, APP_LINK_LABEL,
   deploymentUrl, packageUrl, linkLabelSlack, linkLabelMarkdown,
-  subjectEvent, foldSubjectIntoLead,
+  subjectEvent, foldSubjectIntoLead, mailBodyParts,
 } from '../src/appLink.js';
 
 const URL_OK = 'http://rolldesk.example.com';
@@ -275,4 +275,63 @@ test('the changelog paragraph break survives the fold', () => {
   const folded = foldSubjectIntoLead('DEP-1 — proj\nfacts\n\nLista zmian:\nPM1 first', 'RollDesk — Nowy harmonogram', 'DEP-1');
   assert.equal(folded, 'DEP-1 — proj - Nowy harmonogram\nfacts\n\nLista zmian:\nPM1 first');
   assert.equal(bodyToCardText(folded).split('\n\n').length, 2, 'still exactly one paragraph break');
+});
+
+// --- The order of an e-mail's parts -----------------------------------------
+// The regression this prevents: the client's approval request ends by asking the
+// reader to open the rollout („…can also be approved in RollDesk:"), the route
+// appends the link to that rollout at the end of the body, and 0.41.0 added a
+// per-project signature. Composed in the wrong order, the mail reads as an
+// unfinished sentence followed by a stray URL under somebody's name.
+
+const ASK = 'DEP-1 - proj\nfacts\n\nPlease approve. Also in RollDesk:';
+const SIGN = 'Kind regards,\nThe team';
+
+test('the mail reads message, then link, then signature', () => {
+  const url = deploymentUrl(URL_OK, 'DEP-1');
+  const parts = mailBodyParts({ text: ASK, footer: SIGN, link: { label: 'DEP-1', url }, appUrl: URL_OK });
+  assert.equal(parts.text, `${ASK}\n\n${url}\n\n${SIGN}`);
+  // The id is the anchor of the HTML part, and the signature is its own paragraph
+  // after it — never inside the message, where a stray < would break the layout.
+  assert.equal(
+    parts.html,
+    `<p><a href="${url}">DEP-1</a> - proj<br>facts<br><br>Please approve. Also in RollDesk:</p>`
+    + '<p>Kind regards,<br>The team</p>'
+  );
+});
+
+test('without a signature the mail is exactly what it was before', () => {
+  const url = deploymentUrl(URL_OK, 'DEP-1');
+  const parts = mailBodyParts({ text: ASK, link: { label: 'DEP-1', url }, appUrl: URL_OK });
+  assert.equal(parts.text, `${ASK}\n\n${url}`);
+  assert.ok(!parts.html.includes('Kind regards'));
+  // A blank or absent footer contributes nothing rather than a trailing blank line.
+  for (const empty of ['', '   \n ', null, undefined]) {
+    assert.equal(mailBodyParts({ text: ASK, footer: empty, link: { label: 'DEP-1', url }, appUrl: URL_OK }).text,
+      `${ASK}\n\n${url}`);
+  }
+});
+
+test('with no deployment to link, the generic link still precedes the signature', () => {
+  const parts = mailBodyParts({ text: 'something happened', footer: SIGN, appUrl: URL_OK });
+  assert.equal(parts.text, `something happened${appLinkText(URL_OK)}\n\n${SIGN}`);
+  assert.equal(parts.html, `<p>something happened</p>${appLinkHtml(URL_OK)}<p>Kind regards,<br>The team</p>`);
+});
+
+test('a body that already links back to the app gets no second link', () => {
+  const text = `open ${URL_OK}/#deployments/DEP-1 yourself`;
+  const parts = mailBodyParts({ text, footer: SIGN, appUrl: URL_OK });
+  assert.equal(parts.text, `${text}\n\n${SIGN}`);
+  assert.ok(!parts.html.includes(APP_LINK_LABEL));
+});
+
+test('with no APP_BASE_URL the mail is the message and the signature', () => {
+  const parts = mailBodyParts({ text: 'something happened', footer: SIGN, appUrl: '' });
+  assert.equal(parts.text, `something happened\n\n${SIGN}`);
+  assert.equal(parts.html, `<p>something happened</p><p>Kind regards,<br>The team</p>`);
+});
+
+test('the signature is escaped, like every other person-typed part of a mail', () => {
+  const parts = mailBodyParts({ text: 'x', footer: 'Regards, <b>Team</b> & co', appUrl: '' });
+  assert.ok(parts.html.includes('&lt;b&gt;Team&lt;/b&gt; &amp; co'), parts.html);
 });

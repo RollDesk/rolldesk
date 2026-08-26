@@ -98,7 +98,7 @@ function isFullCounts(c) {
 }
 
 function describe(field, from, to) {
-  const scalar = (v) => (v === undefined || v === null || v === '' ? '—' : String(v));
+  const scalar = (v) => (v === undefined || v === null || v === '' ? '-' : String(v));
   // `counts` is the exception worth spelling out: it is the progress of a batch
   // rollout, and "counts" alone tells a reader of the timeline nothing about what
   // moved. Only when both sides carry both numbers, though — a caller replacing
@@ -134,7 +134,7 @@ export function mergeDeploymentPatch(current, patch, id) {
 
   for (const field of IMMUTABLE_FIELDS) {
     if (field in patch) {
-      return { ok: false, error: `${field} cannot be changed with PATCH — use PUT to move a deployment to another project` };
+      return { ok: false, error: `${field} cannot be changed with PATCH - use PUT to move a deployment to another project` };
     }
   }
 

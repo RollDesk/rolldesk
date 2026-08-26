@@ -200,8 +200,8 @@ router.post('/:id/decision', async (req, res) => {
       // The client is the actor; they are excluded from the team routing anyway,
       // but passing it keeps the rule in one place.
       actorEmail: (req.auth && req.auth.email) || '',
-      subject: 'RollDesk — ' + row.id,
-      text: [row.id, project].filter(Boolean).join(' — ') + (commentText ? '\n' + commentText : ''),
+      subject: 'RollDesk - ' + row.id,
+      text: [row.id, project].filter(Boolean).join(' - ') + (commentText ? '\n' + commentText : ''),
       deploymentId: row.id,
     }).catch(() => {});
   }
@@ -295,7 +295,7 @@ router.patch('/:id', requireWriteRole, async (req, res) => {
       // verbatim when it is not one of the known roles.
       [`${stamp.date} ${stamp.time}`, actor, (req.auth && req.auth.role) || '',
        'changed', 'Deployment',
-       `Changed deployment ${row.id} via the API — ${summary}`,
+       `Changed deployment ${row.id} via the API - ${summary}`,
        row.project_key || null,
        'aud.d.depPatchedApi',
        JSON.stringify({ id: row.id, summary })]

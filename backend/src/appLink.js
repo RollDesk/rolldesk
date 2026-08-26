@@ -13,7 +13,7 @@
 // string and the caller simply sends no link.
 export const APP_LINK_LABEL = 'Open RollDesk';
 
-function escapeHtml(s) {
+export function escapeHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -148,6 +148,34 @@ export function linkLabelSlack(text, label, url) {
 // alphanumeric with dashes, so it needs no escaping inside the brackets.
 export function linkLabelMarkdown(text, label, url) {
   return linkifyFirst(text, label, url, (l, u) => `[${l}](${u})`);
+}
+
+// The two bodies of one outgoing e-mail, in the order their parts have to appear:
+// the message, then the link back to the app, then the signature.
+//
+// The order is the whole point of doing this in one place. The message ends by
+// asking the reader to open the rollout („…can also be approved in RollDesk:"), so
+// the link belongs directly under it — and a signature appended after the link, or
+// a link appended after the signature, both read as an unfinished sentence followed
+// by a stray URL. The client's approval request is the one mail that carries all
+// three parts, and it is also the one nobody sees before it is sent.
+//
+// `link` ({label, url}) turns the label — the deployment id — into the anchor of
+// the HTML part and spells the URL out under the text part, because a text-only
+// client cannot carry an anchor. With no link at all, `appUrl` contributes the
+// generic „Open RollDesk" line instead; a body that already links back to the app
+// gets neither (hasAppLink), which is what stops two links landing in one message.
+export function mailBodyParts({ text, footer, link, appUrl } = {}) {
+  const body = String(text == null ? '' : text);
+  const sign = String(footer == null ? '' : footer).trim();
+  const url = link && isUsableAppUrl(link.url) ? String(link.url).trim() : '';
+  const ownLink = !!url || hasAppLink(body, appUrl);
+  const textLink = url ? `\n\n${url}` : (ownLink ? '' : appLinkText(appUrl));
+  const htmlLink = url ? '' : (ownLink ? '' : appLinkHtml(appUrl));
+  return {
+    text: body + textLink + (sign ? `\n\n${sign}` : ''),
+    html: bodyToHtml(body, url ? link : null) + htmlLink + (sign ? bodyToHtml(sign) : ''),
+  };
 }
 
 // --- Chat-channel headline (Slack / Teams only) -----------------------------
