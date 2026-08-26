@@ -115,15 +115,16 @@ function columnWidths(doc, model, available) {
     // A cap per column, so the application column of a five-application release
     // („Kierowca / Lokalny komponent / …") cannot take a third of the page and leave
     // the target and the date fighting over what is left.
-    return Math.min(w + 14, available * 0.26);
+    // The padding is generous on purpose: at +14 „Świdnica" measured 3 pt narrower
+    // than its own column and pdfkit still wrapped it onto a second line.
+    return Math.min(w + 20, available * 0.26);
   });
   const total = natural.reduce((a, b) => a + b, 0);
   if (total <= available) {
-    // Spare room to the widest column: it is the one whose values wrap, so it is the
-    // one that gets shorter for it.
-    const widest = natural.indexOf(Math.max(...natural));
-    natural[widest] += available - total;
-    return natural;
+    // Spare room shared out in proportion, so the table fills the page evenly. Giving
+    // it all to the widest column (the first attempt) left „Województwo" three times
+    // the width it needed while „Kod celu" stayed at the edge of wrapping.
+    return natural.map((w) => w + (available - total) * (w / total));
   }
   // Wider than the page. The columns are shrunk towards a readable floor rather than
   // scaled uniformly — the earlier version gave the leftovers to the last column,
@@ -178,10 +179,11 @@ export function renderSchedulePdf(model) {
     try {
       const doc = new PDFDocument({
         size: 'A4',
-        // Landscape, because this document is a six-column table: on a portrait page
-        // „Kod celu" wrapped onto two lines and „2026-08-27" broke across them, which
-        // is not a schedule anybody wants to read off a printout.
-        layout: 'landscape',
+        // Portrait for a narrow table, landscape once there are enough columns to
+        // squeeze it: at six columns a portrait page wrapped „Kod celu" onto two lines
+        // and broke „2026-08-27" across them, while the client's own four-column
+        // schedule reads better upright and prints the way a list should.
+        layout: model.columns.length > 4 ? 'landscape' : 'portrait',
         margins: { top: 40, bottom: 40, left: 40, right: 40 },
         info: { Title: [model.title, model.subtitle].filter(Boolean).join(' - '), Creator: 'RollDesk' },
       });
