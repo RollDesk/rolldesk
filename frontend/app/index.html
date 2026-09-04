@@ -2528,6 +2528,18 @@
               <option value="" data-i18n="rep.filterAllApps">All applications</option>
             </select>
           </div>
+          <!-- „Whose work is this" was answerable only through the search box, which
+               matches a name anywhere in the record — so a deployer looking for their
+               own list also got every rollout whose target happened to contain their
+               surname. Its own filter, populated from the names actually on the
+               rollouts in scope rather than from the user list, so it never offers a
+               colleague with nothing to show. -->
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capAssignee">Deployer</span>
+            <select id="installer-filter-assignee" onchange="onInstallerFilterChange('assignee')">
+              <option value="" data-i18n="rep.filterAllAssignees">All deployers</option>
+            </select>
+          </div>
           <div class="filter-field">
             <span class="fl-cap" data-i18n="flt.capEnv">Environment</span>
             <select id="installer-filter-env" onchange="onInstallerFilterChange('env')">
@@ -3156,11 +3168,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.44.0"></script>
-<script src="i18n/en.js?v=0.44.0"></script>
+<script src="i18n/pl.js?v=0.45.0"></script>
+<script src="i18n/en.js?v=0.45.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.44.0';
+  const ROLLDESK_VERSION = '0.45.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -5294,7 +5306,7 @@
   function resetViewFilters(viewName){
     const set = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
     if(viewName === 'installer'){
-      installerPanelFilters = { project: '', app: '', env: '', from: '', to: '', q: '' };
+      installerPanelFilters = { project: '', app: '', assignee: '', env: '', from: '', to: '', q: '' };
       installerPanelStatuses = { waiting: true, active: true, paused: false, completed: false };
       ['project','app','env','q'].forEach(k => set('installer-filter-' + k, ''));
       refreshInstallerStatusMsLabel();
@@ -15686,7 +15698,10 @@
 
   // Top-bar filters (project / app / env / search).
   // Status multi-select lives in installerPanelStatuses (default: waiting + active).
-  let installerPanelFilters = { project: '', app: '', env: '', from: '', to: '', q: '' };
+  // The sentinel for „nobody has taken it". A name can be any string a person
+  // typed, so the one value that must never collide with one is not a name.
+  const INSTALLER_UNASSIGNED = '\u0001none';
+  let installerPanelFilters = { project: '', app: '', assignee: '', env: '', from: '', to: '', q: '' };
 
   function setInstallerFilter(f){
     // Legacy helper: map a single status key onto the multi-select.
@@ -15710,6 +15725,9 @@
       installerPanelFilters.app = '';
     } else if(which === 'app'){
       installerPanelFilters.app = (appEl && appEl.value) || '';
+    } else if(which === 'assignee'){
+      const el = document.getElementById('installer-filter-assignee');
+      installerPanelFilters.assignee = (el && el.value) || '';
     } else if(which === 'env'){
       installerPanelFilters.env = (envEl && envEl.value) || '';
     } else if(which === 'from' || which === 'to'){
@@ -15746,6 +15764,29 @@
       [...appSet].sort().map(a=>
         `<option value="${escapeHtml(a)}"${a===curApp?' selected':''}>${escapeHtml(a)}</option>`
       ).join('');
+    // Scoped to the picked project, like the application list above: a filter that
+    // offers a deployer with nothing under the current project is a dead end.
+    const asgEl = document.getElementById('installer-filter-assignee');
+    if(asgEl){
+      const inScope = scoped.filter(r => !curProj || String(r.projectKey) === curProj);
+      const names = new Set();
+      let anyUnassigned = false;
+      inScope.forEach(r=>{
+        const who = String(r.assignedTo || '').trim();
+        if(who) names.add(who); else anyUnassigned = true;
+      });
+      const curAsg = installerPanelFilters.assignee;
+      // A name that has just left the list (the project changed, or the rollout was
+      // reassigned) cannot stay selected, or the panel shows nothing and says why
+      // nowhere. The same rule the application filter follows.
+      if(curAsg && curAsg !== INSTALLER_UNASSIGNED && !names.has(curAsg)) installerPanelFilters.assignee = '';
+      if(curAsg === INSTALLER_UNASSIGNED && !anyUnassigned) installerPanelFilters.assignee = '';
+      const cur = installerPanelFilters.assignee;
+      asgEl.innerHTML = `<option value="">${t('rep.filterAllAssignees')}</option>`
+        + (anyUnassigned ? `<option value="${INSTALLER_UNASSIGNED}"${cur===INSTALLER_UNASSIGNED?' selected':''}>${t('rep.unassigned')}</option>` : '')
+        + [...names].sort((a,b)=>a.localeCompare(b)).map(n=>
+            `<option value="${escapeHtml(n)}"${n===cur?' selected':''}>${escapeHtml(n)}</option>`).join('');
+    }
     if(envEl) envEl.value = installerPanelFilters.env || '';
     ['from','to'].forEach(k=>{
       const el = document.getElementById('installer-filter-' + k);
@@ -15782,6 +15823,11 @@
       if(f.app){
         const names = (r.apps||[]).map(a=>a.name);
         if(!names.includes(f.app)) return false;
+      }
+      if(f.assignee){
+        const who = String(r.assignedTo || '').trim();
+        if(f.assignee === INSTALLER_UNASSIGNED){ if(who) return false; }
+        else if(who !== f.assignee) return false;
       }
       // Overlap, not containment — see the comment on the two date boxes. ISO dates
       // compare as strings, which is why they are stored that way everywhere here.
@@ -15825,6 +15871,7 @@
     slot.innerHTML = activeFiltersHtml([
       {cap: t('flt.capProject'), val: f.project ? label('installer-filter-project') : '', onClear: "clearInstallerFilter('project')"},
       {cap: t('flt.capApp'), val: f.app || '', onClear: "clearInstallerFilter('app')"},
+      {cap: t('flt.capAssignee'), val: f.assignee === INSTALLER_UNASSIGNED ? t('rep.unassigned') : (f.assignee || ''), onClear: "clearInstallerFilter('assignee')"},
       {cap: t('flt.capEnv'), val: f.env ? label('installer-filter-env') : '', onClear: "clearInstallerFilter('env')"},
       {cap: t('flt.capPeriod'), val: (f.from || f.to) ? ((f.from || '…') + ' – ' + (f.to || '…')) : '', onClear: "clearInstallerFilter('range')"},
       {cap: t('flt.capStatus'), val: statusChanged ? (onStatuses.length ? onStatuses.map(k=>statusMap[k]).join(', ') : t('filter.noneSelected')) : '', onClear: "clearInstallerFilter('status')"},
@@ -15835,16 +15882,16 @@
   function clearInstallerFilter(which){
     const f = installerPanelFilters;
     if(which === 'all'){
-      f.project = ''; f.app = ''; f.env = ''; f.from = ''; f.to = ''; f.q = '';
+      f.project = ''; f.app = ''; f.assignee = ''; f.env = ''; f.from = ''; f.to = ''; f.q = '';
       installerPanelStatuses = { waiting: true, active: true, paused: false, completed: false };
     } else if(which === 'range'){
       f.from = ''; f.to = '';
     } else if(which === 'status'){
       installerPanelStatuses = { waiting: true, active: true, paused: false, completed: false };
     } else if(which === 'project'){
-      // The application list is scoped to the project, so an app picked inside it
-      // cannot outlive it.
-      f.project = ''; f.app = '';
+      // The application and deployer lists are scoped to the project, so neither
+      // can outlive it.
+      f.project = ''; f.app = ''; f.assignee = '';
     } else {
       f[which] = '';
     }
@@ -15854,6 +15901,7 @@
     const setVal = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
     setVal('installer-filter-project', f.project);
     setVal('installer-filter-app', f.app);
+    setVal('installer-filter-assignee', f.assignee);
     setVal('installer-filter-env', f.env);
     setVal('installer-filter-from', f.from);
     setVal('installer-filter-to', f.to);

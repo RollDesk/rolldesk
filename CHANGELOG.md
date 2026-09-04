@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.45.0] - 2026-09-04
+
+### Added
+- **The deployer's panel filters by who it is assigned to.** Assignment was already there — the select on the card and „Przypisz do mnie" — but there was no way to ask the panel for one person's work: the only route was the search box, which matches a name anywhere in the record, so a deployer looking for their own list also got every rollout whose target happened to contain their surname. „Wdrożeniowiec" now sits next to the application filter, with „- nieprzypisane -" when something in scope has nobody on it. The list is built from the names actually on the rollouts in scope, so it never offers a colleague with nothing to show, and it follows the project filter the way the application filter does — clearing the project clears it too. The XLS export follows the filter, so „what is [name] installing between the 12th and the 19th" is one export.
+
 ## [0.44.0] - 2026-09-04
 
 ### Added
