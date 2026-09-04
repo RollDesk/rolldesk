@@ -22,11 +22,11 @@
     "ipaddr.js": "^2.5.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
-    "nodemailer": "^9.0.4",
-    "openid-client": "^6.8.4",
+    "nodemailer": "^9.0.6",
+    "openid-client": "^6.8.7",
     "otplib": "^12.0.1",
     "pdfkit": "^0.20.1",
-    "pg": "^8.12.0",
+    "pg": "^8.23.0",
     "qrcode": "^1.5.4",
     "web-push": "^3.6.7"
   }
