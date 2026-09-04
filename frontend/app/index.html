@@ -2536,6 +2536,20 @@
               <option value="test" data-i18n="client.envTest">Test</option>
             </select>
           </div>
+          <!-- An explicit from/to rather than the deployments list's rolling „last
+               14 days": what this panel is asked is „what is being installed in the
+               week of the 12th", and a window that always ends today cannot say it.
+               A rollout matches when it *overlaps* the range — a four-day batch that
+               started on the Friday before is work that falls in the week asked
+               about, and dropping it would understate the week. -->
+          <div class="filter-field">
+            <span class="fl-cap" data-i18n="flt.capPeriod">Period</span>
+            <span style="display:flex; align-items:center; gap:6px;">
+              <input type="date" id="installer-filter-from" class="mono" onchange="onInstallerFilterChange('from')" data-i18n-title="flt.rangeFrom" title="From">
+              <span style="color:var(--text-faint);">–</span>
+              <input type="date" id="installer-filter-to" class="mono" onchange="onInstallerFilterChange('to')" data-i18n-title="flt.rangeTo" title="To">
+            </span>
+          </div>
           <div class="filter-field">
             <span class="fl-cap" data-i18n="flt.capStatus">Status</span>
             <div class="ms-filter" id="installer-filter-status" onclick="event.stopPropagation();">
@@ -2545,6 +2559,7 @@
               <div class="ms-filter-menu">
                 <label><input type="checkbox" value="waiting" checked onchange="onInstallerStatusMsChange()"> <span data-i18n="rep.filterWaiting">Awaiting client</span></label>
                 <label><input type="checkbox" value="active" checked onchange="onInstallerStatusMsChange()"> <span data-i18n="rep.filterActive">To report</span></label>
+                <label><input type="checkbox" value="paused" onchange="onInstallerStatusMsChange()"> <span data-i18n="rep.filterPaused">Paused</span></label>
                 <label><input type="checkbox" value="completed" onchange="onInstallerStatusMsChange()"> <span data-i18n="rep.filterCompleted">Completed</span></label>
               </div>
             </div>
@@ -2555,6 +2570,11 @@
               <svg class="search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
               <input type="text" id="installer-filter-q" data-i18n-ph="rep.searchPh" placeholder="Search ID, project, app…" style="width:100%;" oninput="onInstallerFilterChange('q')">
             </span>
+          </div>
+          <!-- What the filters above select, as a file. The date range is only half
+               an answer while the other half has to be retyped off the screen. -->
+          <div class="filter-field" style="align-self:flex-end;">
+            <button class="mini-btn" onclick="exportInstallerListXls()" data-i18n="rep.exportBtn">Export (XLS)</button>
           </div>
         </div>
       </div>
@@ -3007,6 +3027,15 @@
     <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;" id="edit-dep-start-label" data-i18n="editdep.start">Start</label>
     <input type="datetime-local" id="edit-dep-start" class="mono" style="margin-bottom:14px; box-sizing:border-box;">
     <input type="time" id="edit-dep-time" class="mono" style="margin-bottom:14px; box-sizing:border-box; display:none;">
+    <!-- Whether the client is asked at all. Written when the deployment was created
+         and read everywhere afterwards, it used to have no way back: a box ticked by
+         mistake could only be corrected by deleting the rollout and planning it
+         again, on a form with a dozen other fields to get right a second time. -->
+    <label id="edit-dep-approval-row" style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:400; margin-bottom:14px;">
+      <input type="checkbox" id="edit-dep-approval" style="width:auto;">
+      <span data-i18n="editdep.approval">The client has to approve this deployment</span>
+      <span class="info-ic" data-i18n-tip="editdep.approvalNote">i</span>
+    </label>
     <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;"><span data-i18n="sch.changelog">Changelog</span> <span style="color:var(--text-faint); font-weight:400;" data-i18n="editdep.changelogFromPackage">- the package's text. Editing it here changes what this one rollout's client is sent; leave it alone and later corrections on the package still come through.</span></label>
     <textarea id="edit-dep-changelog" style="width:100%; min-height:120px; box-sizing:border-box; font-size:13px; line-height:1.55;"></textarea>
     <!-- The files and the deployer instructions are the package's, so they are
@@ -3127,11 +3156,11 @@
   </div>
 </div>
 
-<script src="i18n/pl.js?v=0.43.1"></script>
-<script src="i18n/en.js?v=0.43.1"></script>
+<script src="i18n/pl.js?v=0.44.0"></script>
+<script src="i18n/en.js?v=0.44.0"></script>
 <script>
   // ---- RollDesk product version ----
-  const ROLLDESK_VERSION = '0.43.1';
+  const ROLLDESK_VERSION = '0.44.0';
   // GitHub repository used to look up the latest published release.
   const GITHUB_REPO = 'RollDesk/rolldesk';
   // Populated asynchronously from GET /api/version (null = not checked yet).
@@ -3561,11 +3590,17 @@
   }
 
   // Deployer panel: default = waiting + to-report. Completed off.
-  let installerPanelStatuses = { waiting: true, active: true, completed: false };
+  // „Wstrzymane" is its own status rather than a shade of „active": a distribution
+  // that was paused is not work the deployer can pick up, and leaving it in the
+  // default view meant a rollout paused in March was still sitting at the top of
+  // the panel in September with nothing left to do about it. Off by default, one
+  // click away — nothing is hidden, and nothing needs a new state in the data.
+  let installerPanelStatuses = { waiting: true, active: true, paused: false, completed: false };
   function installerStatusLabelMap(){
     return {
       waiting: t('rep.filterWaiting'),
       active: t('rep.filterActive'),
+      paused: t('rep.filterPaused'),
       completed: t('rep.filterCompleted')
     };
   }
@@ -4282,6 +4317,10 @@
   // Catalogue of notifiable events.
   const NOTIF_EVENT_DEFS = [
     {key:'created',          label:'Schedule created'},
+    // An announced rollout that changed afterwards. Its own event rather than a
+    // second „schedule created": the reader has already seen this deployment, and
+    // what they need from the message is the difference, not the facts again.
+    {key:'updated',          label:'Deployment updated'},
     {key:'approval',         label:'Approval request'},
     {key:'scheduleApproved', label:'Schedule approved by client'},
     {key:'decision',         label:'Client decision'},
@@ -4390,7 +4429,7 @@
   // separate pieces rather than as a string it would have to take apart again.
   function scheduleFacts(r, projName){
     r = r || {};
-    const appsLabel = (r.apps||[]).map(a=>a.name + (a.version ? ' v' + a.version : '')).join(', ');
+    const appsLabel = (r.apps||[]).map(a=>a.name + (a.version ? ' v' + a.version : '') + notifServiceSuffix(a, r)).join(', ');
     const facts = [];
     if(appsLabel) facts.push(appsLabel);
     if(r.mode === 'batch'){
@@ -4414,6 +4453,41 @@
     if(when) meta.push({label: tn('notif.start'), value: when});
     if(r.createdBy) meta.push({label: tn('notif.createdBy'), value: r.createdBy});
     return {id: r.id || '', title: projName || '', facts: facts.filter(Boolean), meta};
+  }
+
+  // ---- „What changed since the client was last told" -------------------------
+  //
+  // A rollout is edited after it has been announced — a version moves, a day
+  // shifts, an application joins — and the message that follows used to be
+  // indistinguishable from the first one: same subject, same facts, nothing saying
+  // what had moved, so a client who had already read one had to compare the two
+  // side by side. The edit already writes a change list to the timeline; this keeps
+  // a copy on the record until the client has actually been sent it, which is the
+  // only moment it can honestly be cleared.
+  //
+  // Bounded like everything else that lands in the JSONB (MAX_* in
+  // releasePackage.js is the same rule): an edit loop must not grow the record.
+  const MAX_PENDING_UPDATES = 20;
+  const MAX_PENDING_UPDATE_LEN = 200;
+  function pendingUpdateLines(r){
+    const list = (r && Array.isArray(r.pendingUpdates)) ? r.pendingUpdates : [];
+    return list.map(x=>String(x == null ? '' : x).trim()).filter(Boolean).slice(-MAX_PENDING_UPDATES);
+  }
+  function recordPendingUpdates(r, changes){
+    if(!r || !changes || !changes.length) return;
+    const next = pendingUpdateLines(r).concat(
+      changes.map(c=>String(c == null ? '' : c).trim().slice(0, MAX_PENDING_UPDATE_LEN)).filter(Boolean));
+    r.pendingUpdates = next.slice(-MAX_PENDING_UPDATES);
+  }
+  // Told, so no longer pending. Also on publishing a draft: nothing went out before
+  // it, so the first mail has no earlier version to report a change against.
+  function clearPendingUpdates(r){
+    if(r) r.pendingUpdates = undefined;
+  }
+  // The block those lines make, for the channels that read one string.
+  function pendingUpdateBlock(r){
+    const lines = pendingUpdateLines(r);
+    return lines.length ? tn('notif.updatedLabel') + ':\n' + lines.map(l=>'- ' + l).join('\n') : '';
   }
 
   function scheduleFactsBlock(r, projName){
@@ -4452,7 +4526,7 @@
     d = d || {};
     const head = (d.id ? d.id + ' - ' : '') + (projName || '');
     const facts = [];
-    const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '') + notifServiceSuffix(a)).join(', ');
+    const appVer = (d.apps||[]).map(a=> a.name + (a.version ? ' ' + a.version : '') + notifServiceSuffix(a, d)).join(', ');
     if(appVer) facts.push(appVer);
     const env = envLabelNotif(d.env || '');
     if(env) facts.push(env);
@@ -4468,11 +4542,19 @@
   // e-Usług 2.7.0-dev.27504" is which service is *not* on it. The full list is in
   // the app, one click from the same notification.
   const NOTIF_SERVICE_NAMES = 5;
-  function notifServiceSuffix(a){
-    const n = appServiceCount(a);
+  // `d` is the rollout the entry belongs to, and passing it matters: the service
+  // list is copied onto a deployment when it is planned, so a rollout planned
+  // before its package carried services has an entry with none of its own.
+  // deploymentAppServices() then falls back to the package; without the record
+  // there is nothing to fall back to and the suffix comes out empty — which is how
+  // a client was told about five applications and nothing about the eighteen
+  // services one of them ships as.
+  function notifServiceSuffix(a, d){
+    const list = d ? deploymentAppServices(d, a) : appServices(a);
+    const n = list.length;
     if(!n) return '';
     const parts = [tnf('notif.servicesN', {n})];
-    const pinned = appServiceOverrides(a);
+    const pinned = list.filter(s=>!s.inherited);
     if(pinned.length){
       const named = pinned.slice(0, NOTIF_SERVICE_NAMES).map(s=>s.name + ' ' + s.version).join(', ');
       const rest = pinned.length - NOTIF_SERVICE_NAMES;
@@ -5212,8 +5294,8 @@
   function resetViewFilters(viewName){
     const set = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
     if(viewName === 'installer'){
-      installerPanelFilters = { project: '', app: '', env: '', q: '' };
-      installerPanelStatuses = { waiting: true, active: true, completed: false };
+      installerPanelFilters = { project: '', app: '', env: '', from: '', to: '', q: '' };
+      installerPanelStatuses = { waiting: true, active: true, paused: false, completed: false };
       ['project','app','env','q'].forEach(k => set('installer-filter-' + k, ''));
       refreshInstallerStatusMsLabel();
     } else if(viewName === 'deployments'){
@@ -5391,7 +5473,7 @@
   // finished deployment has to switch that on before it can open it. Opening it
   // means its own page, so there is no row to scroll to or flash.
   function focusInstallerDeployment(idx){
-    installerPanelStatuses = { waiting: true, active: true, completed: true };
+    installerPanelStatuses = { waiting: true, active: true, paused: true, completed: true };
     refreshInstallerStatusMsLabel();
     expandedInstallerIdx = idx;
     renderInstallerPanel();
@@ -10783,6 +10865,9 @@
       // Publishing is what puts the schedule in front of the client, so this is
       // where it starts awaiting their decision.
       if(needsApproval && !r.clientApproval) r.clientApproval = 'pending';
+      // Edits made while it was still a draft are not „what changed since we wrote
+      // to you": nothing had been written yet.
+      clearPendingUpdates(r);
       const body = buildScheduleNotifBody(r, projName);
       dispatchEventNotification('created', pk, 'RollDesk - ' + tn('ev.created'), body, false, r.id);
       if(needsApproval) dispatchEventNotification('approval', pk, 'RollDesk - ' + tn('ev.approval'), body, false, r.id);
@@ -10810,7 +10895,9 @@
       t('draft.remindTitle'),
       tf('draft.remindBody', {project: projName, recipients}) + '\n\n' + tf('draft.remindChannels', {channels}),
       ()=>{
-      const body = buildScheduleNotifBody(r, projName) + '\n' + tn('draft.remindNote');
+      const upd = pendingUpdateBlock(r);
+      const body = buildScheduleNotifBody(r, projName)
+        + (upd ? '\n\n' + upd : '') + '\n' + tn('draft.remindNote');
       dispatchEventNotification('approval', pk, 'RollDesk - ' + tn('ev.approval') + ' (' + tn('draft.remindTag') + ')', body, false, r.id);
       logAudit('notified', 'Deployment', 'Sent an approval reminder for ' + (r.id||'') + ' - recipients: ' + recipients + ' - channels: ' + channels, projName + (p.clientName ? ' (' + p.clientName + ')' : ''), 'aud.d.approvalReminded', {id: r.id||'', recipients, channels});
       const _s = (typeof nowStamp==='function') ? nowStamp() : {date: todayIso(), time:'00:00'};
@@ -10887,7 +10974,12 @@
     // Last, because it is the one part that is the same in every one of these mails:
     // what the reader is being asked for, after what it is about.
     parts.push(tn('notif.subjApprovalAsk'));
-    return ('RollDesk ' + (r.id || '')).trim() + ': ' + parts.join(', ');
+    // „Aktualizacja" in front of an otherwise identical subject. The second mail
+    // about one rollout used to arrive looking exactly like the first — same id,
+    // same release, same ask — and a client who had already answered it had no way
+    // to tell the two apart in their inbox.
+    const updLead = pendingUpdateLines(r).length ? tn('notif.subjUpdated') + ' ' : '';
+    return updLead + ('RollDesk ' + (r.id || '')).trim() + ': ' + parts.join(', ');
   }
   // The sign-off with nobody's name in it, used when a project has none of its own.
   // It says where to change it, so an unconfigured instance sends something polite
@@ -10903,6 +10995,15 @@
   function buildClientApprovalMailBody(r, projName, hasCopy, hasSchedule){
     const pkg = packageForDeployment(r);
     let body = scheduleFactsBlock(r, projName);
+    // What changed since the last mail about this rollout, first: to a reader who
+    // has already been asked to approve these dates once, it is the only new thing
+    // in the message and everything below it is a re-read.
+    const updBlock = pendingUpdateBlock(r);
+    if(updBlock) body += '\n\n' + updBlock;
+    // The services one by one. The facts line above only counts them, which is the
+    // right shape for a Teams card and the wrong one for a client whose own system
+    // is one of eighteen and who reads the mail looking for its name.
+    body += clientMailServicesText(r);
     // How the rollout is spread, before what it fixes: the client is being asked to
     // approve dates.
     const sum = clientMailScheduleSummary(r);
@@ -11058,12 +11159,43 @@
   // built from the same facts as the text above, so the two cannot disagree — and the
   // text part is still sent in full, so a text-only client loses the layout and
   // nothing else.
+  // Every service of every application on the rollout, with the version each one
+  // will actually be installed at — the list `notifServiceSuffix` deliberately
+  // refuses to spell out in a notification. A mail has room for it, and a package
+  // that ships an application as eighteen services was telling the client about
+  // none of them.
+  //
+  // Two renderings of one list, for the same reason scheduleFacts has two: the
+  // text part every client can read, and the table the HTML part lays out.
+  function clientMailServiceGroups(r){
+    return ((r && r.apps) || []).map(a=>{
+      const list = deploymentAppServices(r, a);
+      if(!list.length) return null;
+      return {title: tnf('notif.servicesOf', {app: a.name + (a.version ? ' ' + a.version : ''), n: list.length}), list};
+    }).filter(Boolean);
+  }
+  function clientMailServicesText(r){
+    return clientMailServiceGroups(r)
+      .map(g=>'\n\n' + g.title + ':\n' + g.list.map(s=>'- ' + s.name + ' ' + s.version).join('\n'))
+      .join('');
+  }
+
   function clientApprovalMailBlocks(r, projName, hasCopy, hasSchedule){
     const f = scheduleFacts(r, projName);
     const pkg = packageForDeployment(r);
     const blocks = [{kind:'lead', id: f.id, title: f.title}];
     if(f.facts.length) blocks.push({kind:'facts', items: f.facts});
     if(f.meta.length) blocks.push({kind:'meta', items: f.meta});
+    // High up, and quoted like the changelog: a reader who has seen this rollout's
+    // mail before is looking for exactly this and nothing else.
+    const upd = pendingUpdateLines(r);
+    if(upd.length) blocks.push({kind:'text', title: tn('notif.updatedLabel'), body: upd.map(l=>'- ' + l).join('\n')});
+    // Service name in the accent column, version beside it — the same two-column
+    // table the fixed tickets use, and read the same way: down the names, looking
+    // for your own.
+    clientMailServiceGroups(r).forEach(g=>blocks.push({
+      kind:'list', title: g.title, items: g.list.map(x=>({name: x.name, note: x.version})),
+    }));
     // The ticket and what it was, in two columns: the client reads down the ticket
     // column looking for the one they reported.
     const sum = clientMailScheduleSummary(r);
@@ -11242,6 +11374,10 @@
         'E-mailed the client approval request for ' + (r.id||'') + ' - to: ' + toLabel + (ccLabel ? ' - cc: ' + ccLabel : ''),
         projName + (p.clientName ? ' (' + p.clientName + ')' : ''),
         'aud.d.clientMailSent', {id: r.id||'', to: toLabel, cc: ccLabel});
+      // The changes have now been sent, so the next mail is not an update of this
+      // one. Cleared only here — a mail that failed above returned long ago, and a
+      // client who was never told is still owed the list.
+      clearPendingUpdates(r);
       persistDeployment(idx);
       renderDeploymentsTable();
       const attachErr = (info.results || []).map(x=>x.attachmentError).filter(Boolean)[0];
@@ -14317,6 +14453,7 @@
       apps: editDepApps.map(a=>({name: a.name, version: a.version || ''})),
       time: (document.getElementById('edit-dep-time')||{}).value || '',
       start: (document.getElementById('edit-dep-start')||{}).value || '',
+      approval: !!(document.getElementById('edit-dep-approval')||{}).checked,
       changelog: (document.getElementById('edit-dep-changelog')||{}).value || ''
     });
   }
@@ -14504,6 +14641,30 @@
     renderEditDepApps();
   }
 
+  // Whether this rollout is put to the client, read from the record rather than
+  // from the project's policy: the policy decides what a *new* deployment starts
+  // as, and this is what was actually chosen for this one.
+  function depRequiresApproval(r){
+    if(!r || r.internal || r.noApproval) return false;
+    if(r.clientApproval) return true;
+    // A draft carries no approval state — it is minted when the draft is published
+    // — so answer with the rule notifyClientOfDraft will apply when it is.
+    if(r.draft){
+      const p = PROJECTS[r.projectKey] || {};
+      return approvalPolicyFor(p) !== 'none' && (r.env === 'Production' || !!p.testNeedsApproval);
+    }
+    return false;
+  }
+  // The client's decision in one word, for the message that has to name what
+  // turning the requirement off would throw away.
+  function clientApprovalStateLabel(r){
+    const map = {
+      approved: t('client.appApproved'), commented: t('client.appCommented'),
+      rejected: t('client.appRejected'), pending: t('tl.awaiting'),
+    };
+    return map[r && r.clientApproval] || t('tl.awaiting');
+  }
+
   function openEditDeployment(idx){
     if(!canEditDeployments()){ showToast(t('editdep.forbidden')); return; }
     const r = DEPLOYMENTS_DATA[idx];
@@ -14522,6 +14683,13 @@
     if(startLabel) startLabel.textContent = isBatch ? t('editdep.time') : t('editdep.start');
     startEl.value = (!isBatch && r.date) ? `${r.date}T${fmtTime(r.time) || '00:00'}` : '';
     timeEl.value = r.time || '';
+    // An internal rollout is never shown to the client, so „does the client approve
+    // it" has no answer to correct — the row is hidden rather than offered unticked
+    // and inert.
+    const apprRow = document.getElementById('edit-dep-approval-row');
+    const apprEl = document.getElementById('edit-dep-approval');
+    if(apprRow) apprRow.style.display = r.internal ? 'none' : 'flex';
+    if(apprEl) apprEl.checked = depRequiresApproval(r);
     // The effective text, not the override: a deployment normally has no changelog
     // of its own, and this is now the only place one can be given. Starting from a
     // blank box would mean retyping the package's text to change one sentence of it.
@@ -14604,6 +14772,39 @@
     // with its applications at different coverage. Saying so here is cheaper than
     // explaining the resulting report afterwards.
     if(addedLate.length && !(await confirmLateAppJoin(r, addedLate, joinStamp))) return;
+    // Whether the client is asked at all — decided before anything is written,
+    // because turning it off on a rollout the client has already answered discards
+    // that answer. That is a different edit from correcting a box ticked by
+    // mistake, so it is confirmed by name and never done silently.
+    const approvalRow = document.getElementById('edit-dep-approval-row');
+    const approvalEl = document.getElementById('edit-dep-approval');
+    const approvalEditable = !!(approvalEl && approvalRow && approvalRow.style.display !== 'none');
+    const hadApproval = depRequiresApproval(r);
+    const wantsApproval = approvalEditable ? !!approvalEl.checked : hadApproval;
+    const decided = !!(r.clientApproval && r.clientApproval !== 'pending');
+    if(wantsApproval !== hadApproval){
+      if(!wantsApproval && decided && !(await askAppConfirm(
+          t('editdep.approvalDropTitle'),
+          tf('editdep.approvalDropBody', {state: clientApprovalStateLabel(r)}),
+          t('editdep.approvalDropOk'), 'danger'))) return;
+      if(wantsApproval){
+        r.noApproval = undefined;
+        // A published rollout starts waiting the moment the requirement is turned
+        // on; a draft still mints its state when it is published.
+        if(!r.draft && !r.clientApproval) r.clientApproval = 'pending';
+        changes.push(t('editdep.chApprovalOn'));
+      } else {
+        // Recorded on the deployment rather than left to be inferred from an empty
+        // approval field — the same reason it is written at creation.
+        const dropped = decided ? clientApprovalStateLabel(r) : '';
+        r.noApproval = true;
+        r.clientApproval = undefined;
+        r.clientApprovalBy = undefined;
+        r.clientApprovalDate = undefined;
+        r.clientApprovalTime = undefined;
+        changes.push(dropped ? tf('editdep.chApprovalOffDropped', {state: dropped}) : t('editdep.chApprovalOff'));
+      }
+    }
     // Rebuild the list from the dialog, carrying over whatever else an existing
     // entry held. An emptied version box is not a version change (that is how the
     // field has always behaved), so the stored one stays.
@@ -14659,6 +14860,17 @@
     r.comments = r.comments || [];
     const stamp = (typeof nowStamp==='function') ? nowStamp() : {date:'2026-07-04', time:'14:25'};
     r.comments.push({date:stamp.date, time:stamp.time, author: actorName(), type:'system', icon:'✏️', text: tf('editdep.tlEdited', {summary})});
+    // Kept until the client is written to, so the approval mail can say what moved
+    // rather than arriving as a second copy of the first one.
+    recordPendingUpdates(r, changes);
+    // Our own channels hear about it now. The client hears about it in the approval
+    // mail, which is sent by hand — an edit is not by itself a reason to write to
+    // them, and when it is, the same list is already waiting on the record.
+    if(!r.internal && !r.draft){
+      dispatchEventNotification('updated', r.projectKey, 'RollDesk - ' + tn('ev.updated'),
+        scheduleFactsBlock(r, projLabel) + '\n\n' + tn('notif.updatedLabel') + ':\n'
+          + changes.map(c=>'- ' + c).join('\n'), false, r.id);
+    }
     persistDeployment(savedIdx);
     renderDeploymentsTable();
     renderInstallerPanel();
@@ -15474,14 +15686,14 @@
 
   // Top-bar filters (project / app / env / search).
   // Status multi-select lives in installerPanelStatuses (default: waiting + active).
-  let installerPanelFilters = { project: '', app: '', env: '', q: '' };
+  let installerPanelFilters = { project: '', app: '', env: '', from: '', to: '', q: '' };
 
   function setInstallerFilter(f){
     // Legacy helper: map a single status key onto the multi-select.
     if(f === 'all'){
-      installerPanelStatuses = { waiting: true, active: true, completed: false };
+      installerPanelStatuses = { waiting: true, active: true, paused: false, completed: false };
     } else if(installerPanelStatuses.hasOwnProperty(f)){
-      installerPanelStatuses = { waiting: false, active: false, completed: false };
+      installerPanelStatuses = { waiting: false, active: false, paused: false, completed: false };
       installerPanelStatuses[f] = true;
     }
     refreshInstallerStatusMsLabel();
@@ -15500,6 +15712,9 @@
       installerPanelFilters.app = (appEl && appEl.value) || '';
     } else if(which === 'env'){
       installerPanelFilters.env = (envEl && envEl.value) || '';
+    } else if(which === 'from' || which === 'to'){
+      const el = document.getElementById('installer-filter-' + which);
+      installerPanelFilters[which] = (el && el.value) || '';
     } else if(which === 'q'){
       installerPanelFilters.q = (qEl && qEl.value) || '';
     }
@@ -15532,8 +15747,29 @@
         `<option value="${escapeHtml(a)}"${a===curApp?' selected':''}>${escapeHtml(a)}</option>`
       ).join('');
     if(envEl) envEl.value = installerPanelFilters.env || '';
+    ['from','to'].forEach(k=>{
+      const el = document.getElementById('installer-filter-' + k);
+      if(el && document.activeElement !== el) el.value = installerPanelFilters[k] || '';
+    });
     if(qEl && document.activeElement !== qEl) qEl.value = installerPanelFilters.q || '';
     refreshInstallerStatusMsLabel();
+  }
+
+  // The days a rollout actually occupies: one date for a single install, the first
+  // and the last planned day for a batch. A record with neither has no place in any
+  // range — it is one nobody has scheduled yet, and answering „which installs fall
+  // in October" with it would be wrong in both directions.
+  function deploymentDateSpan(r){
+    if(!r) return null;
+    if(r.mode === 'batch'){
+      const start = r.historyStart || r.createdDate || '';
+      if(!start) return null;
+      let end = start;
+      try { end = getDateForDay(r, r.days || 1) || start; } catch(e){ end = start; }
+      return {from: start, to: (end && end > start) ? end : start};
+    }
+    const d = r.date || r.createdDate || '';
+    return d ? {from: d, to: d} : null;
   }
 
   function applyInstallerFilters(list){
@@ -15546,6 +15782,14 @@
       if(f.app){
         const names = (r.apps||[]).map(a=>a.name);
         if(!names.includes(f.app)) return false;
+      }
+      // Overlap, not containment — see the comment on the two date boxes. ISO dates
+      // compare as strings, which is why they are stored that way everywhere here.
+      if(f.from || f.to){
+        const span = deploymentDateSpan(r);
+        if(!span) return false;
+        if(f.from && span.to < f.from) return false;
+        if(f.to && span.from > f.to) return false;
       }
       if(q){
         const bits = [
@@ -15582,6 +15826,7 @@
       {cap: t('flt.capProject'), val: f.project ? label('installer-filter-project') : '', onClear: "clearInstallerFilter('project')"},
       {cap: t('flt.capApp'), val: f.app || '', onClear: "clearInstallerFilter('app')"},
       {cap: t('flt.capEnv'), val: f.env ? label('installer-filter-env') : '', onClear: "clearInstallerFilter('env')"},
+      {cap: t('flt.capPeriod'), val: (f.from || f.to) ? ((f.from || '…') + ' – ' + (f.to || '…')) : '', onClear: "clearInstallerFilter('range')"},
       {cap: t('flt.capStatus'), val: statusChanged ? (onStatuses.length ? onStatuses.map(k=>statusMap[k]).join(', ') : t('filter.noneSelected')) : '', onClear: "clearInstallerFilter('status')"},
       {cap: t('flt.capSearch'), val: (f.q || '').trim(), onClear: "clearInstallerFilter('q')"},
     ], 'clearInstallerFilter("all")');
@@ -15590,10 +15835,12 @@
   function clearInstallerFilter(which){
     const f = installerPanelFilters;
     if(which === 'all'){
-      f.project = ''; f.app = ''; f.env = ''; f.q = '';
-      installerPanelStatuses = { waiting: true, active: true, completed: false };
+      f.project = ''; f.app = ''; f.env = ''; f.from = ''; f.to = ''; f.q = '';
+      installerPanelStatuses = { waiting: true, active: true, paused: false, completed: false };
+    } else if(which === 'range'){
+      f.from = ''; f.to = '';
     } else if(which === 'status'){
-      installerPanelStatuses = { waiting: true, active: true, completed: false };
+      installerPanelStatuses = { waiting: true, active: true, paused: false, completed: false };
     } else if(which === 'project'){
       // The application list is scoped to the project, so an app picked inside it
       // cannot outlive it.
@@ -15608,6 +15855,8 @@
     setVal('installer-filter-project', f.project);
     setVal('installer-filter-app', f.app);
     setVal('installer-filter-env', f.env);
+    setVal('installer-filter-from', f.from);
+    setVal('installer-filter-to', f.to);
     setVal('installer-filter-q', f.q);
     refreshInstallerStatusMsLabel();
     renderInstallerPanel();
@@ -15615,6 +15864,90 @@
 
   function installerAppsLabel(r){
     return (r.apps||[]).map(a=> a.name + (a.version ? ' v'+a.version : '')).join(', ');
+  }
+
+  // The three predicates the panel groups by, named once so the list and the export
+  // cannot drift into disagreeing about what „to report" means.
+  function installerNeedsApprovalGate(r){
+    return !!(r && r.clientApproval && r.clientApproval !== 'approved');
+  }
+  // 'partial' counts as active: some applications are still owed on that target, so
+  // the rollout is not something the deployer is finished with. Filing it under
+  // "completed" would drop it out of the panel's default view — which is the failure
+  // this whole status exists to prevent. It is deliberately *also* completed, and
+  // the row order below is what stops it being listed twice.
+  function installerIsActive(r){
+    return !!r && ((r.mode==='batch' && r.counts && r.counts.scheduled>0)
+      || (r.mode==='single' && (r.status==='scheduled' || r.status==='partial')));
+  }
+  function installerIsCompleted(r){
+    return !!r && ((r.mode==='batch' && r.counts && r.counts.scheduled===0)
+      || (r.mode==='single' && r.status!=='scheduled'));
+  }
+
+  // Exactly what the panel is showing, in the panel's own order. The list's archive
+  // split (completed older than a fortnight folded away) is deliberately not applied
+  // here: a file asked for a date range was asked for the whole range, not for its
+  // recent half.
+  function installerVisibleDeployments(){
+    const all = applyInstallerFilters(installerScopedDeployments());
+    const f = installerPanelStatuses;
+    const rows = [];
+    if(f.waiting) all.filter(r => installerIsActive(r) && !r.paused && installerNeedsApprovalGate(r)).forEach(r=>rows.push(r));
+    if(f.paused) all.filter(r => installerIsActive(r) && r.paused).forEach(r=>rows.push(r));
+    if(f.active) all.filter(r => installerIsActive(r) && !r.paused && !installerNeedsApprovalGate(r)).forEach(r=>rows.push(r));
+    if(f.completed) all.filter(installerIsCompleted).forEach(r=>{ if(rows.indexOf(r) < 0) rows.push(r); });
+    return rows;
+  }
+
+  // The status as a word rather than a pill, for a cell in a spreadsheet.
+  function installerStatusText(r){
+    const map = {installed:t('status.installed'), scheduled:t('status.scheduled'), progress:t('status.progress'),
+      partial:t('status.partial'), failed:t('status.failed'), rolledback:t('status.rolledback'), aborted:t('status.aborted')};
+    if(r.mode === 'batch'){
+      const done = (r.counts && r.counts.installed) || 0;
+      const left = (r.counts && r.counts.scheduled) || 0;
+      return map[left === 0 ? 'installed' : (done > 0 ? 'progress' : 'scheduled')];
+    }
+    return map[r.status || 'scheduled'] || (r.status || '');
+  }
+
+  // The current view as a workbook. Same trick as the schedule export: an HTML table
+  // Excel opens, no library — and the same forced text format on the id and version
+  // columns, or the Polish locale reads „1.2.3" as a date.
+  function installerListXlsDoc(list){
+    const head = [t('rep.expId'), t('rep.expProject'), t('rep.expClient'), t('rep.expApps'), t('rep.expEnv'),
+      t('rep.expTarget'), t('rep.expFrom'), t('rep.expTo'), t('rep.expStatus'), t('rep.expProgress'),
+      t('rep.expAssigned'), t('rep.expPaused')];
+    const txt = "mso-number-format:'\\@';";
+    const body = list.map(r=>{
+      const p = PROJECTS[r.projectKey] || {};
+      const span = deploymentDateSpan(r) || {from:'', to:''};
+      const progress = r.mode === 'batch'
+        ? ((r.counts && r.counts.installed) || 0) + '/' + (r.totalLocations || 0)
+        : '';
+      const target = r.mode === 'batch' ? tf('rep.expTargetsN', {n: r.totalLocations || 0}) : (r.location || '');
+      const cells = [r.id || '', p.name || r.projectKey || '', p.clientName || '', installerAppsLabel(r),
+        envLabel(r.env || ''), target, span.from, span.to, installerStatusText(r), progress,
+        r.assignedTo || '', r.paused ? (r.pauseReason || t('pause.badge')) : ''];
+      return '<tr>' + cells.map((c, i)=>`<td${(i === 0 || i === 3) ? ` style="${txt}"` : ''}>${escapeHtml(String(c))}</td>`).join('') + '</tr>';
+    }).join('');
+    return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8"></head><body>
+      <table border="1"><thead><tr>${head.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>
+      </body></html>`;
+  }
+
+  function exportInstallerListXls(){
+    const list = installerVisibleDeployments();
+    if(!list.length){ showToast(t('rep.exportNone')); return; }
+    const f = installerPanelFilters;
+    // The range in the file name, so two exports of two weeks are two files rather
+    // than one overwriting the other in the downloads folder.
+    const range = (f.from || f.to) ? '-' + (f.from || 'x') + '_' + (f.to || 'x') : '-' + todayIso();
+    if(downloadBlob(installerListXlsDoc(list), 'rolldesk-installer' + range + '.xls', 'application/vnd.ms-excel')){
+      showToast(tf('rep.exportDone', {n: list.length}));
+    }
   }
 
   function installerStatusBadgeHtml(r, kind){
@@ -16290,23 +16623,17 @@
     renderInstallerActiveFilters();
     let all = applyInstallerFilters(scoped);
     renderInstallerStats(all);
-    function needsApprovalGate(r){
-      return r.clientApproval && r.clientApproval !== 'approved';
-    }
-    // 'partial' counts as active: some applications are still owed on that target,
-    // so the rollout is not something the deployer is finished with. Filing it under
-    // "completed" would drop it out of the panel's default view — which is the
-    // failure this whole status exists to prevent.
-    const isActive = r => (r.mode==='batch' && r.counts.scheduled>0)
-      || (r.mode==='single' && (r.status==='scheduled' || r.status==='partial'));
+    const needsApprovalGate = installerNeedsApprovalGate;
+    const isActive = installerIsActive;
     const active = all.filter(r => isActive(r) && !r.paused && !needsApprovalGate(r));
     const waiting = all.filter(r => isActive(r) && !r.paused && needsApprovalGate(r));
     const paused = all.filter(r => isActive(r) && r.paused);
-    const completed = all.filter(r => (r.mode==='batch' && r.counts.scheduled===0) || (r.mode==='single' && r.status!=='scheduled'));
+    const completed = all.filter(installerIsCompleted);
 
     const f = installerPanelStatuses;
     const showWaiting = !!f.waiting;
     const showActive = !!f.active;
+    const showPaused = !!f.paused;
     const showCompleted = !!f.completed;
 
     let html = '';
@@ -16314,10 +16641,8 @@
     // Flat list like Deployments — no Project→App / section grouping headers.
     const rows = [];
     if(showWaiting) waiting.forEach(r => rows.push({r, kind:'waiting'}));
-    if(showActive){
-      paused.forEach(r => rows.push({r, kind:'paused'}));
-      active.forEach(r => rows.push({r, kind:'active'}));
-    }
+    if(showPaused) paused.forEach(r => rows.push({r, kind:'paused'}));
+    if(showActive) active.forEach(r => rows.push({r, kind:'active'}));
     if(showCompleted){
       const NOW = new Date();
       const completedDate = r => {

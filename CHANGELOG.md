@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.44.0] - 2026-09-04
+
+### Added
+- **A deployment that changed after it was announced says so.** A rollout edited afterwards — a day moved, a version bumped, an application added — sent a message indistinguishable from the first one: same subject, same facts, nothing about what had moved, so a client who had already answered it had to compare the two side by side. The edit now keeps its change list on the record until the client has actually been told, and the approval request carries it: „Aktualizacja —" in front of the subject and a „Zakres aktualizacji" section above everything else, in the text part and in the HTML alike. The same list goes into the approval reminder. Publishing a draft clears it — nothing went out before it, so there is nothing to report as a change.
+- **„Deployment updated" joins the event catalogue** (webhooks, Teams, the bell, and a push for the release manager and the deployer). The team hears about an edit the moment it is saved; the client hears about it in the approval mail, which is still sent by hand.
+- **The services are named in notifications and in the client's mail.** The schedule-created message and the approval request listed applications only, although a package can ship one application as eighteen services — and the client's own system is one of them. The facts line now carries „(serwisów: 18)" after the application, and the mail carries the whole table: service name and the version it will be installed at. The count is read through `deploymentAppServices()`, so a rollout planned before its package carried services shows them too.
+- **A date range in the deployer's panel** — an explicit „from" and „to" rather than the deployments list's rolling window: the question this panel is asked is „what is being installed in the week of the 12th", and a window that always ends today cannot express it. A rollout matches when it **overlaps** the range, so a four-day batch that started on the Friday before still counts in it.
+- **The deployer's panel exports to XLS** — exactly what the current filters select, with the date range in the file name. Columns: id, project, client, applications, environment, target, from/to, status, progress, deployer and the pause reason.
+
+### Changed
+- **The client-approval requirement is editable.** The flag was written when the deployment was created and had no way back: ticked by mistake, it could only be corrected by deleting the rollout and planning it again. The edit dialog now carries it. Turning it on for a published rollout puts it back to awaiting a decision; turning it off on one that already holds a decision from the client is confirmed by name — the decision leaves the record and the timeline keeps an entry saying what was discarded. An internal deployment hides the control: the client never sees the rollout, so there is nothing for them to approve.
+- **Paused distributions are their own status in the deployer's panel filter, off by default.** They used to sit in the „to report" group with no end state, so a distribution paused in March was still at the top of the panel in August with nothing left to do about it. Nothing is hidden: „Wstrzymane" is one click away next to „Oczekujące" and „Zakończone", and a link to one deployment turns every status on so it can always open what it points at.
+
 ## [0.43.1] - 2026-08-26
 
 ### Changed
