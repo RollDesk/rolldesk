@@ -41,6 +41,11 @@ export const PUSH_EVENT_ROLES = {
   packageApproved:  ['rm', 'installer', 'admin'],
   // A schedule exists, so the person who will install it can see what is coming.
   created:          ['installer', 'admin'],
+  // ...and a schedule that changed after it was announced. The deployer is working
+  // from what they were told the first time — a version that moved or an
+  // application that joined reaches them here or not at all, and the release
+  // manager needs to see a colleague's edit to a rollout they announced.
+  updated:          ['rm', 'installer', 'admin'],
 
   // Everything below is here because it blocks work or costs a wasted trip.
   //

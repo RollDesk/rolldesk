@@ -185,9 +185,9 @@ test('a client cannot opt in to anything', () => {
 
 test('the role defaults are the matrix, read back', () => {
   assert.deepEqual(defaultEventsForRole('rm').sort(),
-    ['decision', 'failure', 'packageApproved', 'paused', 'scheduleApproved', 'scheduleChanged']);
+    ['decision', 'failure', 'packageApproved', 'paused', 'scheduleApproved', 'scheduleChanged', 'updated']);
   assert.deepEqual(defaultEventsForRole('installer').sort(),
-    ['assigned', 'created', 'packageApproved', 'paused', 'scheduleApproved', 'scheduleChanged']);
+    ['assigned', 'created', 'packageApproved', 'paused', 'scheduleApproved', 'scheduleChanged', 'updated']);
   // The project manager is interrupted by exactly one thing: a release waiting on
   // their decision. Everything else about that release is in the bell drawer.
   assert.deepEqual(defaultEventsForRole('pm').sort(), ['packageReady']);
